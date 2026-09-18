@@ -9,6 +9,9 @@ import com.google.android.gms.ads.RequestConfiguration
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.prayer.channels.PrayerNotificationChannels
+import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
 
 class NoorProApplication : Application(), ImageLoaderFactory {
 
@@ -23,6 +26,10 @@ class NoorProApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+
+        AlNoorAudioSession.init(this)
+        PrayerNotificationChannels.ensureAll(this)
+        NextPrayerOngoingScheduler.schedule(this)
 
         // Initialize AdMob first so it runs even if Firebase fails to init. MAX_AD_CONTENT_RATING_G
         // keeps ads family-friendly (filters most gambling/alcohol/dating) — finer category blocking

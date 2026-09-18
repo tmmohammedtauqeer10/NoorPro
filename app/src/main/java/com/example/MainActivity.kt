@@ -319,6 +319,24 @@ fun MainLayout() {
                 DeenScreen.AUDIO_LIBRARY -> com.example.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
                 DeenScreen.AUDIO_PLAYLIST -> com.example.ui.screens.StitchAudioPlaylistScreen(viewModel = viewModel)
                 DeenScreen.DISCOVER_GROUPS -> com.example.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
+                DeenScreen.AL_NOOR_AUDIO -> com.noorpro.app.audio.ui.AlNoorAudioHomeScreen(
+                    onOpenSearch = { viewModel.openAlNoorSearch() },
+                    onOpenPlaylist = { viewModel.openAlNoorPlaylist(it) },
+                    onOpenNowPlaying = { viewModel.openAlNoorNowPlaying() },
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.EXPLORE) },
+                )
+                DeenScreen.AL_NOOR_SEARCH -> com.noorpro.app.audio.ui.AlNoorSearchScreen(
+                    onPlayTrack = { viewModel.openAlNoorNowPlaying() },
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                )
+                DeenScreen.AL_NOOR_PLAYLIST -> com.noorpro.app.audio.ui.AlNoorPlaylistScreen(
+                    playlistId = viewModel.alNoorPlaylistId,
+                    onPlayTrack = { viewModel.openAlNoorNowPlaying() },
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                )
+                DeenScreen.AL_NOOR_NOW_PLAYING -> com.noorpro.app.audio.ui.AlNoorNowPlayingScreen(
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                )
             }
         }
 
@@ -335,6 +353,7 @@ fun MainLayout() {
             currentScreen == DeenScreen.REELS ||
             currentScreen == DeenScreen.UMMAH ||
             currentScreen == DeenScreen.AUDIO_LIBRARY ||
+            currentScreen == DeenScreen.AL_NOOR_AUDIO ||
             (currentScreen == DeenScreen.QURAN && selectedSurah == null)) &&
             !((currentScreen == DeenScreen.UMMAH_FULL || currentScreen == DeenScreen.REELS) && isUmmahReelsImmersive) &&
             !isModalOverlayActive
@@ -452,6 +471,32 @@ fun MainLayout() {
         }
 
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
+        // Al Noor Audio mini-player (nasheed/naat) — separate from Quran mini player above.
+        com.noorpro.app.audio.AlNoorAudioSession.init(context)
+        val alNoorQueue by com.noorpro.app.audio.AlNoorAudioSession.player.queue.collectAsState()
+        val alNoorPlayback by com.noorpro.app.audio.AlNoorAudioSession.player.playback.collectAsState()
+        val showAlNoorMini = !alNoorQueue.isEmpty &&
+            currentScreen != DeenScreen.AL_NOOR_NOW_PLAYING &&
+            currentScreen != DeenScreen.LOGIN &&
+            currentScreen != DeenScreen.NOW_PLAYING &&
+            !showMiniPlayer
+        if (showAlNoorMini) {
+            com.noorpro.app.audio.ui.AlNoorMiniPlayer(
+                track = alNoorQueue.currentTrack,
+                isPlaying = alNoorPlayback.isPlaying,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(
+                        bottom = if (showBottomNavigation) 88.dp else 16.dp,
+                        start = 18.dp,
+                        end = 18.dp,
+                    ),
+                onExpand = { viewModel.openAlNoorNowPlaying() },
+                onPlayPause = { com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() },
+            )
+        }
+
         if (showBottomNavigation) {
             FloatingBottomNavigationBar(
                 currentScreen = currentScreen,

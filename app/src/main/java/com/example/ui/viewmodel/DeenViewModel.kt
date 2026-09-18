@@ -96,7 +96,11 @@ enum class DeenScreen {
     DEEN_POINTS,
     AUDIO_LIBRARY,
     AUDIO_PLAYLIST,
-    DISCOVER_GROUPS
+    DISCOVER_GROUPS,
+    AL_NOOR_AUDIO,
+    AL_NOOR_SEARCH,
+    AL_NOOR_PLAYLIST,
+    AL_NOOR_NOW_PLAYING
 }
 
 /** One track in a curated audio playlist queue — a full surah, or a single ayah (ayah != null). */
@@ -1868,6 +1872,27 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     fun openAudioPlaylist(key: String) {
         audioPlaylistKey = key
         navigateTo(DeenScreen.AUDIO_PLAYLIST)
+    }
+
+    /** Al Noor Audio (nasheed/naat) — separate from Quran AUDIO_* screens. */
+    var alNoorPlaylistId: String = ""
+        private set
+
+    fun openAlNoorAudio() {
+        navigateTo(DeenScreen.AL_NOOR_AUDIO)
+    }
+
+    fun openAlNoorPlaylist(playlistId: String) {
+        alNoorPlaylistId = playlistId
+        navigateTo(DeenScreen.AL_NOOR_PLAYLIST)
+    }
+
+    fun openAlNoorSearch() {
+        navigateTo(DeenScreen.AL_NOOR_SEARCH)
+    }
+
+    fun openAlNoorNowPlaying() {
+        navigateTo(DeenScreen.AL_NOOR_NOW_PLAYING)
     }
 
     // ---- Playlist queue: "Play all" (and tapping a track) autoplays the whole playlist in order,
