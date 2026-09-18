@@ -1,0 +1,78 @@
+# --- IDE / build ---
+*.iml
+.idea/
+.gradle/
+.kotlin/
+**/build/
+/build
+/captures
+.externalNativeBuild
+.cxx
+.DS_Store
+*.aab
+*.apk
+*.ap_
+*.dex
+
+# --- Local machine / secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+local.properties
+**/local.properties
+*.jks
+*.keystore
+!debug.keystore.example
+debug.keystore
+google-services.json
+**/google-services.json
+**/GoogleService-Info.plist
+service-account*.json
+*-firebase-adminsdk*.json
+credentials.json
+**/credentials*.json
+secrets/
+*.pem
+*.p12
+*.mobileprovision
+
+# Play / signing
+playstore/*credentials*.txt
+playstore/*signing*.properties
+playstore/**/*.jks
+my-upload-key.jks
+upload-keystore.jks
+keystore.properties
+signing.properties
+
+# Maps / API key dumps
+**/secrets.properties
+api-keys.properties
+
+# --- Node (Cloud Functions) ---
+functions/node_modules/
+functions/.env
+functions/.runtimeconfig.json
+npm-debug.log*
+yarn-error.log*
+
+# --- Android / tooling noise ---
+app/src/main/assets/databases/*.db-shm
+app/src/main/assets/databases/*.db-wal
+*.hprof
+.navigation/
+outputs/
+*.log
+
+# --- Agent / local scratch (optional keep examples) ---
+_agent_check.txt
+*.swp
+*~
+
+# Duplicate legacy ignores retained
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml

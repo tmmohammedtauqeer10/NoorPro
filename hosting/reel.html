@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Watch this reel on Noor Pro — the all-in-one Islamic companion app.">
+  <title>Noor Pro | Reel</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#064E3B" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07110F" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .player-wrap { max-width: 420px; margin: 24px auto; padding: 0 16px; text-align: center; }
+    .player-wrap video { width: 100%; border-radius: 18px; background: #000; max-height: 70vh; }
+    .player-wrap img.media { width: 100%; border-radius: 18px; }
+    .caption { margin-top: 14px; font-size: 15px; color: var(--ink); line-height: 1.55; }
+    .arabic { margin-top: 10px; font-size: 20px; direction: rtl; color: var(--accent); line-height: 1.8; }
+    .handle { margin-top: 8px; font-size: 13px; color: var(--ink-muted); font-weight: bold; }
+    .get-app { display: inline-flex; align-items: center; min-height: 48px; margin-top: 20px; font-size: 16px; padding: 13px 26px; border-radius: 999px; background: var(--emerald); color: #fff; text-decoration: none; font-weight: bold; }
+    .get-app:hover { background: var(--emerald-bright); }
+    .muted { color: var(--ink-muted); font-size: 13px; margin-top: 10px; }
+    .spinner { margin: 60px auto; color: var(--ink-muted); }
+  </style>
+</head>
+<body>
+  <header class="site"><nav class="wrap" aria-label="Primary">
+    <a class="brand" href="/"><img src="/logo.svg" width="38" height="38" alt="">Noor Pro</a>
+    <div class="nav-simple"><a href="/">Home</a><a href="/support">Support</a></div>
+  </nav></header>
+  <main id="main">
+    <div class="player-wrap" id="content">
+      <p class="spinner">Loading reel…</p>
+    </div>
+  </main>
+  <footer class="site"><div class="wrap"><div class="footer-bottom" style="margin-top:0;border-top:0;padding-top:0">
+    <span>&copy; 2026 Noor Pro</span>
+    <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/support">Support</a></span>
+  </div></div></footer>
+  <script>
+    (function () {
+      var el = document.getElementById("content");
+      var id = new URLSearchParams(location.search).get("id");
+      var appCta = '<a class="get-app" href="/noor-pro.apk" download>Get the Noor Pro app</a>' +
+        '<p class="muted">Like, comment, and follow creators inside the app.</p>';
+      if (!id) {
+        el.innerHTML = "<p class='caption'>This link is missing a reel ID.</p>" + appCta;
+        return;
+      }
+      var url = "https://firestore.googleapis.com/v1/projects/noor-pro-d87e3/databases/(default)/documents/ummah_posts/" +
+        encodeURIComponent(id) + "?key=AIzaSyAQy7RrAmrneAVYwcc7ATVJoRXEqpMzn90";
+      fetch(url)
+        .then(function (r) { if (!r.ok) throw new Error("not found"); return r.json(); })
+        .then(function (doc) {
+          var f = doc.fields || {};
+          function s(name) { return (f[name] && f[name].stringValue) || ""; }
+          var mediaUrl = s("mediaUrl");
+          var type = (s("type") || "image").toLowerCase();
+          var html = "";
+          if ((type === "reel" || type === "video") && mediaUrl) {
+            html += '<video src="' + mediaUrl + '" controls autoplay muted playsinline loop></video>';
+          } else if (type === "image" && mediaUrl) {
+            html += '<img class="media" src="' + mediaUrl + '" alt="Noor Pro post">';
+          }
+          var caption = s("caption");
+          var arabic = s("arabicText");
+          var handle = s("creatorHandle");
+          if (arabic) html += '<p class="arabic"></p>';
+          if (caption) html += '<p class="caption"></p>';
+          if (handle) html += '<p class="handle"></p>';
+          html += appCta;
+          el.innerHTML = html;
+          // Set user text via textContent so it is never treated as HTML.
+          if (arabic) el.querySelector(".arabic").textContent = arabic;
+          if (caption) el.querySelector(".caption").textContent = caption;
+          if (handle) el.querySelector(".handle").textContent = "Shared by " + handle + " on Noor Pro";
+        })
+        .catch(function () {
+          el.innerHTML = "<p class='caption'>This reel is no longer available.</p>" + appCta;
+        });
+    })();
+  </script>
+</body>
+</html>

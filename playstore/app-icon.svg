@@ -1,0 +1,10 @@
+<!-- Faithful vector copy of the Android launcher icon (ic_launcher_background +
+     ic_launcher_foreground), cropped to the adaptive-icon safe zone (18..90 of 108)
+     so it matches what users actually see on their home screen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="512" height="512">
+  <rect x="18" y="18" width="72" height="72" fill="#FAF3EA"/>
+  <path fill="#F4C95D" d="M54,24C40,29 31,39 28,54C31,48 38,43 45,40C39,48 38,58 42,66C47,75 58,78 68,73C61,74 53,71 49,64C44,55 47,44 56,38C62,34 68,33 74,35C70,29 62,25 54,24z"/>
+  <path fill="#FFF8E7" d="M25,69C35,66 44,67 54,74C64,67 73,66 83,69L79,83C69,80 61,82 54,87C47,82 39,80 29,83z"/>
+  <path fill="#D6A62C" d="M25,69L54,78L83,69L79,75L54,84L29,75z"/>
+  <path fill="#F4C95D" d="M75,43l2,4l4,2l-4,2l-2,4l-2,-4l-4,-2l4,-2z"/>
+</svg>

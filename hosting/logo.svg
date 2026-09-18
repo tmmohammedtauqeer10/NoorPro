@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Noor Pro">
+  <defs>
+    <linearGradient id="noorBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B5C4D"/>
+      <stop offset="1" stop-color="#053C2E"/>
+    </linearGradient>
+    <mask id="noorCrescent">
+      <rect width="64" height="64" fill="#fff"/>
+      <circle cx="40" cy="27" r="12.5" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#noorBg)"/>
+  <circle cx="32" cy="32" r="14" fill="#D4AF37" mask="url(#noorCrescent)"/>
+  <path d="M45.5 37.5 47 41.9 51.4 43.4 47 44.9 45.5 49.3 44 44.9 39.6 43.4 44 41.9Z" fill="#F0D07A"/>
+</svg>

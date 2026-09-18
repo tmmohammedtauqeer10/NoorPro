@@ -1,0 +1,61 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /ummah_submissions/{userId}/{mediaType}/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && mediaType in ["images", "videos"]
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches("(image|video)/.*");
+      allow update: if false;
+      allow delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    match /ummah_chats/{chatId}/{userId}/{mediaType}/{fileName} {
+      allow read: if request.auth != null
+        && request.auth.uid in chatId.split("_");
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.uid in chatId.split("_")
+        && mediaType in ["images", "videos", "audios", "files", "pdfs"]
+        && request.resource.size < 100 * 1024 * 1024
+        && (request.resource.contentType.matches("(image|video|audio)/.*")
+          || request.resource.contentType.matches("(application|text)/.*"));
+      allow update, delete: if false;
+    }
+
+    match /ummah_groups/{groupId}/{userId}/{mediaType}/{fileName} {
+      // Members-only: chatId/group docs store memberUids in Firestore.
+      allow read: if request.auth != null
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/ummah_groups/$(groupId)
+        ).data.memberUids;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/ummah_groups/$(groupId)
+        ).data.memberUids
+        && mediaType in ["images", "videos", "audios", "files", "pdfs"]
+        && request.resource.size < 100 * 1024 * 1024
+        && (request.resource.contentType.matches("(image|video|audio)/.*")
+          || request.resource.contentType.matches("(application|text)/.*"));
+      allow update, delete: if false;
+    }
+
+    match /ummah_avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches("image/.*");
+      allow update, delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

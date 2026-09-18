@@ -1,0 +1,6 @@
+{
+  "name": "Noor Pro",
+  "description": "A premium, modern Islamic application featuring a prayer countdown, daily dashboard, Surah index, and highly polished prayer times timeline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

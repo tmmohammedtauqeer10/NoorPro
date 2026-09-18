@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Open this Noor Pro group invite in the app, or install Noor Pro for Android.">
+  <title>Noor Pro | Group Invite</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#064E3B" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07110F" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .invite-wrap { max-width: 460px; margin: 42px auto; padding: 0 18px; text-align: center; }
+    .page-logo { width: 82px; height: 82px; border-radius: 24px; box-shadow: var(--shadow-md); margin-bottom: 18px; }
+    .invite-card { border: 1px solid var(--border); border-radius: 26px; background: var(--surface); padding: 28px 22px; box-shadow: var(--shadow-md); }
+    .group-icon { width: 76px; height: 76px; border-radius: 24px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; background: rgba(14, 140, 115, 0.12); color: var(--accent); font-size: 34px; font-weight: 800; }
+    .eyebrow-local { color: var(--accent); text-transform: uppercase; letter-spacing: 2px; font-size: 12px; font-weight: 800; }
+    .name { margin: 10px 0 0; font-family: var(--font-display); font-size: 25px; font-weight: 600; color: var(--ink); }
+    .hint { margin-top: 14px; font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
+    .actions { display: grid; gap: 10px; margin-top: 22px; }
+    .get-app { display: flex; align-items: center; justify-content: center; min-height: 48px; font-size: 16px; padding: 13px 22px; border-radius: 999px; background: var(--emerald); color: #fff; text-decoration: none; font-weight: 700; }
+    .get-app:hover { background: var(--emerald-bright); }
+    .get-app.secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--border-strong); }
+    .get-app.secondary:hover { background: var(--surface-sunken); }
+  </style>
+</head>
+<body>
+  <header class="site"><nav class="wrap" aria-label="Primary">
+    <a class="brand" href="/"><img src="/logo.svg" width="38" height="38" alt="">Noor Pro</a>
+    <div class="nav-simple"><a href="/">Home</a><a href="/support">Support</a></div>
+  </nav></header>
+  <main id="main">
+    <div class="invite-wrap">
+      <img class="page-logo" src="/logo.svg" width="88" height="88" alt="Noor Pro logo">
+      <div class="invite-card" id="content">
+        <div class="group-icon">N</div>
+        <div class="eyebrow-local">Noor Pro group</div>
+        <p class="name" id="groupName">Community group</p>
+        <p class="hint">Open this invite in Noor Pro Messages. If the app is installed, the button opens the app directly.</p>
+        <div class="actions" id="actions"></div>
+        <p class="hint">Groups are for Islamic, educational, motivational, and clean community content only.</p>
+      </div>
+    </div>
+  </main>
+  <footer class="site"><div class="wrap"><div class="footer-bottom" style="margin-top:0;border-top:0;padding-top:0">
+    <span>&copy; 2026 Noor Pro</span>
+    <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/support">Support</a></span>
+  </div></div></footer>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var id = params.get("id") || "";
+      var name = params.get("name") || "Community group";
+      var webPath = "/g?id=" + encodeURIComponent(id) + "&name=" + encodeURIComponent(name);
+      var webLink = location.origin + webPath;
+      var appPackage = "com.noorpro.app";
+      var intentUrl = "intent://noor-pro-d87e3.web.app" + webPath +
+        "#Intent;scheme=https;package=" + appPackage +
+        ";S.browser_fallback_url=" + encodeURIComponent(webLink) + ";end";
+
+      document.getElementById("groupName").textContent = name;
+      document.querySelector(".group-icon").textContent = (name.trim().charAt(0) || "N").toUpperCase();
+      document.getElementById("actions").innerHTML =
+        '<a class="get-app" href="' + intentUrl + '">Open in Noor Pro</a>' +
+        '<a class="get-app secondary" href="/noor-pro.apk" download>Download Android APK</a>';
+
+      if (id && /Android/i.test(navigator.userAgent) && sessionStorage.getItem("noor_group_open_" + id) !== "1") {
+        sessionStorage.setItem("noor_group_open_" + id, "1");
+        setTimeout(function () { location.href = intentUrl; }, 350);
+      }
+    })();
+  </script>
+</body>
+</html>
