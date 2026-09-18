@@ -89,6 +89,26 @@ firebase deploy --only hosting,firestore:rules
 Add `noor-pro-d87e3.web.app` as an authorized domain in the Google OAuth
 consent screen configuration.
 
+## Digital Asset Links (App Links)
+
+Verified App Links for `https://noor-pro-d87e3.web.app` paths `/reel`, `/u`,
+and `/g` require `hosting/.well-known/assetlinks.json` on the live site:
+
+1. Set `package_name` to `com.noorpro.app` (already done in source).
+2. Replace `REPLACE_WITH_PLAY_APP_SIGNING_SHA256` with the **Play App Signing**
+   certificate SHA-256 from Play Console → App integrity → App signing
+   (colon-separated hex). Optionally add the upload-key SHA-256 for sideloads.
+3. Deploy hosting so the file is reachable at
+   `https://noor-pro-d87e3.web.app/.well-known/assetlinks.json`
+   (`Content-Type: application/json`).
+
+```powershell
+firebase deploy --only hosting
+```
+
+Confirm with Google's statement list tester or:
+`adb shell pm get-app-links com.noorpro.app` after installing a release build.
+
 ## Firebase App Check
 
 Noor Pro uses Firebase App Check for protected Firebase requests:

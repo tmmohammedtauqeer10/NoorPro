@@ -21,18 +21,39 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 
-/** Debug builds use Google test banners. Only compact in-feed ads are displayed. */
+/**
+ * Ad unit resolution.
+ * - Debug: Google sample banner units are allowed (and used by default).
+ * - Release: NEVER serves ca-app-pub-394025609… sample units; blank/placeholder
+ *   config yields an empty id and SponsoredAdMedia no-ops (no ad request).
+ */
 object AdIds {
     private const val GOOGLE_TEST_BANNER = "ca-app-pub-3940256099942544/6300978111"
+    private const val GOOGLE_SAMPLE_PUBLISHER = "ca-app-pub-394025609"
+
+    private fun isGoogleSampleUnit(id: String): Boolean =
+        id.contains(GOOGLE_SAMPLE_PUBLISHER)
+
+    private fun isConfiguredProductionUnit(id: String): Boolean {
+        val trimmed = id.trim()
+        if (trimmed.isBlank()) return false
+        if (trimmed.contains("XXXX", ignoreCase = true)) return false
+        if (trimmed.contains("REPLACE", ignoreCase = true)) return false
+        if (isGoogleSampleUnit(trimmed)) return false
+        return trimmed.startsWith("ca-app-pub-")
+    }
 
     private fun resolve(configured: String): String {
-        if (BuildConfig.DEBUG) return GOOGLE_TEST_BANNER
         val trimmed = configured.trim()
-        return if (trimmed.isBlank() || trimmed.contains("3940256099942544") || trimmed.contains("XXXX")) {
-            GOOGLE_TEST_BANNER
-        } else {
-            trimmed
+        if (BuildConfig.DEBUG) {
+            return if (trimmed.isBlank() || !trimmed.startsWith("ca-app-pub-")) {
+                GOOGLE_TEST_BANNER
+            } else {
+                trimmed // debug may use sample or a real unit
+            }
         }
+        // Release: never return a Google sample unit.
+        return if (isConfiguredProductionUnit(trimmed)) trimmed else ""
     }
 
     val FEED_BANNER: String
@@ -55,6 +76,7 @@ fun SponsoredHomeCard(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SponsoredCard(adUnitId: String, modifier: Modifier = Modifier) {
+    if (adUnitId.isBlank()) return
     Column(modifier = modifier, horizontalAlignment = Alignment.Start) {
         Text(
             "Sponsored",
@@ -72,7 +94,8 @@ fun SponsoredAdMedia(
     adUnitId: String = AdIds.FEED_BANNER
 ) {
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        if (maxWidth >= 300.dp) {
+        // Empty id = release without real AdMob units configured; skip the request.
+        if (adUnitId.isNotBlank() && maxWidth >= 300.dp) {
             val context = LocalContext.current
             // Anchored adaptive banners use the available card width and choose a safe height for
             // this device/orientation, avoiding clipped or oversized ads on small phones/tablets.

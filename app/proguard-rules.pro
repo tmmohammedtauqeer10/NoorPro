@@ -92,3 +92,32 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# ----------------------------------------------------------------------------
+# Firebase App Check
+# ----------------------------------------------------------------------------
+-keep class com.google.firebase.appcheck.** { *; }
+-keep class com.noorpro.app.NoorAppCheckProviderFactory { *; }
+-dontwarn com.google.firebase.appcheck.**
+
+# ----------------------------------------------------------------------------
+# Firebase Crashlytics
+# ----------------------------------------------------------------------------
+-keep class com.google.firebase.crashlytics.** { *; }
+-keepclassmembers class * extends java.lang.Throwable {
+    <init>(...);
+}
+-dontwarn com.google.firebase.crashlytics.**
+
+# ----------------------------------------------------------------------------
+# Media3 / ExoPlayer (Al Noor playback + session)
+# ----------------------------------------------------------------------------
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# ----------------------------------------------------------------------------
+# Prayer / boot / widget receivers + MediaSession service (manifest-registered)
+# ----------------------------------------------------------------------------
+-keep class com.noorpro.app.receiver.** { *; }
+-keep class com.noorpro.app.prayer.widget.** { *; }
+-keep class com.noorpro.app.audio.session.** { *; }
