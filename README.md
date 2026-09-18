@@ -106,3 +106,27 @@ its debug token once:
 5. Add the copied token, then reopen the app and test sign-in.
 
 Never distribute a release build that uses the debug provider.
+
+
+## Al Noor Audio (Islamic Spotify)
+
+Browse **copyright-free** nasheed & naat separately from Quran audio:
+
+1. Open the app → **Explore** (or Profile → Explore All Tools).
+2. Tap **Al Noor Audio**.
+3. Browse shelves / playlists, search, and open **Now Playing**.
+4. A mini-player appears above the bottom bar while a track is queued.
+
+Catalog: `app/src/main/assets/al_noor_audio/catalog.json` (demo / public-domain placeholders only — replace with license-audited tracks before shipping). See `docs/AL_NOOR_AUDIO.md`.
+
+Quran recitation remains under **Audio** / existing Now Playing flows and uses a separate `MediaPlayer`.
+
+## Prayer ongoing notification & home widgets
+
+- **Settings → Show next prayer in shade** enables a quiet ongoing notification
+  (`prayer_ongoing_channel_v1`, LOW) such as `Next: Maghrib · 01:24`.
+  This never uses the HIGH adhan channel.
+- **Home-screen widgets** (long-press home → widgets → Noor Pro):
+  - **Next prayer** (2×2) — name, time, countdown
+  - **Today** (4×2) — Fajr–Isha row
+- Widgets refresh on add, every ~30 minutes, after boot/timezone change, and with the ongoing worker. Spec: `docs/PRAYER_NOTIFICATIONS_WIDGETS.md`.
