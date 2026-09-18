@@ -130,3 +130,14 @@ Quran recitation remains under **Audio** / existing Now Playing flows and uses a
   - **Next prayer** (2×2) — name, time, countdown
   - **Today** (4×2) — Fajr–Isha row
 - Widgets refresh on add, every ~30 minutes, after boot/timezone change, and with the ongoing worker. Spec: `docs/PRAYER_NOTIFICATIONS_WIDGETS.md`.
+
+## Polish (Sep 2026)
+
+- Calm in-app motion: prayer countdown crossfade + timeline highlight slide;
+  Al Noor mini-player enter/exit, now-playing artwork/title fade, playlist
+  press scale.
+- Package rename step 1: `NoorProApplication` → `com.noorpro.app` (see
+  `docs/PACKAGE_RENAME.md`). `applicationId` unchanged.
+- Al Noor MediaSession / notification controls: **stub** + channel
+  `al_noor_playback` (real Media3 session when `media3-session` is added).
+

@@ -80,8 +80,9 @@ Package: `com.noorpro.app.audio.player`
 
 - `AlNoorPlayer` — Media3 `ExoPlayer` wrapper (preferred over Quran’s
   `MediaPlayer`).
-- `AlNoorPlaybackService` — (future) `MediaSessionService` for shade controls
-  and background play; **do not** share notification channel with adhan.
+- `AlNoorMediaSessionController` — **stub** façade; channel `al_noor_playback`
+  ensured at app start. Real `MediaSessionService` after adding
+  `media3-session` (match ExoPlayer 1.2.0). **Do not** share channels with adhan.
 - Audio focus: pause Al Noor when adhan alarm fires; resume optional.
 
 ## Separation from existing Quran audio
@@ -100,7 +101,7 @@ Do not overload `AudioQueueItem` for nasheed; keep models separate.
 1. Models + in-memory / JSON repository stubs ✅ (this foundation)
 2. Player wrapper + unit-testable queue logic
 3. Compose screens + mini-player slot
-4. MediaSessionService + notification channel `al_noor_playback`
+4. MediaSessionService + notification channel `al_noor_playback` (channel + stub ✅; service TODO)
 5. Curated asset pack + license audit checklist
 6. Optional Firestore/CDN catalog sync
 
