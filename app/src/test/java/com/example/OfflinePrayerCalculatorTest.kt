@@ -1,8 +1,8 @@
 package com.example
 
-import com.example.data.OfflinePrayerCalculator
-import com.example.ui.viewmodel.CalculationMethod
-import com.example.ui.viewmodel.Madhab
+import com.noorpro.app.data.OfflinePrayerCalculator
+import com.noorpro.app.ui.viewmodel.CalculationMethod
+import com.noorpro.app.ui.viewmodel.Madhab
 import java.util.GregorianCalendar
 import java.util.Locale
 import java.util.TimeZone

@@ -53,6 +53,11 @@ class AlNoorPlayer(context: Context) {
     private val _playback = MutableStateFlow(PlaybackState())
     val playback: StateFlow<PlaybackState> = _playback.asStateFlow()
 
+    /** Exposes the underlying ExoPlayer for MediaSession binding; null only after [release]. */
+    fun exoPlayerOrNull(): ExoPlayer? = if (released) null else exo
+
+    private var released = false
+
     fun setQueue(tracks: List<Track>, startIndex: Int = 0, autoPlay: Boolean = true) {
         if (tracks.isEmpty()) {
             clearQueue()
@@ -163,6 +168,7 @@ class AlNoorPlayer(context: Context) {
     }
 
     fun release() {
+        released = true
         stopPositionUpdates()
         clearQueue()
         exo.release()

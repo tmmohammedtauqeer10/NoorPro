@@ -9,8 +9,8 @@ import android.os.Build
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
-import com.example.data.UserPreferencesRepository
-import com.example.ui.viewmodel.PrayerSettingsController
+import com.noorpro.app.data.UserPreferencesRepository
+import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import kotlinx.coroutines.flow.first
 import java.util.Calendar
 import java.util.Date

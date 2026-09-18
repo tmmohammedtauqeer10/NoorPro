@@ -18,8 +18,10 @@ import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
 
 /**
  * App process entry. Moved from `com.example` as incremental package-rename step 1.
- * Remaining UI/data packages stay under `com.example` until a later pass.
- * Gradle `namespace` remains `com.example` (R/BuildConfig); `applicationId` is `com.noorpro.app`.
+ * Most feature packages (`ui`, `data`, `ads`, `utils`, `receiver`, `audio`, `prayer`)
+ * now live under `com.noorpro.app.*`. Remaining: `MainActivity`, hand-written
+ * `BuildConfig` / `NoorAppCheckProviderFactory`, and Gradle `namespace` (`com.example`
+ * for `R` / `BuildConfig`). `applicationId` is `com.noorpro.app`.
  */
 class NoorProApplication : Application(), ImageLoaderFactory {
 

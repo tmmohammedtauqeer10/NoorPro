@@ -1,7 +1,7 @@
 package com.example
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
-import com.example.data.GithubApiService
+import com.noorpro.app.data.GithubApiService
 
 class ApiTest {
     @Test

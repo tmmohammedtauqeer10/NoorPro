@@ -1,20 +1,21 @@
 # Noor Pro — Architecture
 
-Structural foundation for modularizing the Android app while the source tree
-is still under `com.example` (applicationId already `com.noorpro.app`).
+Structural foundation for modularizing the Android app. Most sources are under
+`com.noorpro.app` (applicationId already `com.noorpro.app`); Gradle `namespace`
+and a few entry files remain `com.example` until the final rename pass.
 
 ## Current layout (as extracted)
 
 | Area | Location today |
 |------|----------------|
 | Application | `com.noorpro.app.NoorProApplication` |
-| Activity / most UI | `app/src/main/java/com/example/` |
-| Ads | `com.example.ads` |
-| Data / Room / APIs | `com.example.data` |
-| Prayer alarms | `com.example.receiver` + `PrayerSettingsController` |
-| UI (Compose) | `com.example.ui.screens` / `viewmodel` / `components` / `theme` |
-| Utils | `com.example.utils` |
-| **Al Noor Audio (new stubs)** | `com.noorpro.app.audio.*` |
+| Activity | `com.example.MainActivity` (still) |
+| Ads | `com.noorpro.app.ads` |
+| Data / Room / APIs | `com.noorpro.app.data` |
+| Prayer alarms | `com.noorpro.app.receiver` + `PrayerSettingsController` |
+| UI (Compose) | `com.noorpro.app.ui.screens` / `viewmodel` / `components` / `theme` |
+| Utils | `com.noorpro.app.utils` |
+| **Al Noor Audio** | `com.noorpro.app.audio.*` (+ MediaSessionService skeleton) |
 
 Gradle: `namespace = "com.example"`, `applicationId = "com.noorpro.app"`.
 
@@ -57,28 +58,26 @@ Drive PDF library, backup, secure account store.
 
 **Incremental — in progress.** See `docs/PACKAGE_RENAME.md`.
 
-Done: `NoorProApplication` lives in `com.noorpro.app`; Manifest points there.
+Done: Application, receivers, `ads` / `data` / `ui` / `utils`, Al Noor + prayer.
 `applicationId` stays `com.noorpro.app`. Gradle `namespace` still `com.example`.
 
 Remaining:
 
-1. Move `MainActivity`, receivers, then `data` / `ui` / `ads` / `utils` batches
-   into `com.noorpro.app.**` (merge with existing audio/prayer packages).
-2. Set `namespace = "com.noorpro.app"` in `app/build.gradle.kts`.
-3. Bulk-replace `package` / `import`; fix `R` / `BuildConfig`.
-4. Move debug/release/test source sets the same way.
-5. Verify Firebase / App Links / FileProvider
+1. Move `MainActivity` → `com.noorpro.app` (Manifest + PendingIntents).
+2. Move debug/release `BuildConfig` / `NoorAppCheckProviderFactory` + leftover tests.
+3. Set `namespace = "com.noorpro.app"` in `app/build.gradle.kts`; fix `R` / `BuildConfig`.
+4. Verify Firebase / App Links / FileProvider
    (`${applicationId}.fileprovider` already OK).
-6. Full assembleDebug + instrumented smoke (SDK machine; not offline box).
+5. Full assembleDebug + instrumented smoke (SDK machine; not offline box).
 
 ## Dependency notes
 
 - Prayer: `com.batoulapps.adhan:adhan`
 - Reels: `androidx.media3:media3-exoplayer` (+ ui/hls)
 - Quran audio today: `android.media.MediaPlayer` in `DeenViewModel`
-- Al Noor Audio player: Media3 ExoPlayer + **stub** MediaSession facade
-  (`com.noorpro.app.audio.session`, channel `al_noor_playback`). Add
-  `media3-session` when wiring real shade controls.
+- Al Noor Audio player: Media3 ExoPlayer + `media3-session` +
+  `AlNoorMediaSessionService` skeleton (`com.noorpro.app.audio.session`,
+  channel `al_noor_playback`).
 - Calm Compose motion: prayer countdown crossfade, timeline highlight
   slide; Al Noor mini-player show/hide, now-playing fade, press scale.
 
@@ -86,4 +85,4 @@ Remaining:
 
 - No network Gradle builds on the box when avoidable
 - No secrets / `google-services.json` committed
-- Full package rename deferred; Application move is step 1 only
+- Full package rename nearly done; MainActivity + namespace still deferred

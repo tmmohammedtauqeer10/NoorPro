@@ -107,6 +107,7 @@ dependencies {
   implementation("androidx.media3:media3-exoplayer:1.2.0")
   implementation("androidx.media3:media3-exoplayer-hls:1.2.0")
   implementation("androidx.media3:media3-ui:1.2.0")
+  implementation("androidx.media3:media3-session:1.2.0")
   // QR generation for WhatsApp-style profile/group sharing (pure-Java, small).
   implementation("com.google.zxing:core:3.5.3")
   // implementation(libs.androidx.navigation.compose)

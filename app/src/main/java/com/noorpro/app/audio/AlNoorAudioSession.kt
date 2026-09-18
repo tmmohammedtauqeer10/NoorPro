@@ -35,7 +35,7 @@ object AlNoorAudioSession {
             player = AlNoorPlayer(app)
             mediaSession = AlNoorMediaSession.obtain(app).also {
                 it.attach(player)
-                // Stub: no MediaSessionService until media3-session dependency is added.
+                // Starts AlNoorMediaSessionService (media3-session).
                 it.startSession()
             }
             initialized = true

@@ -2,9 +2,9 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.example.data.QuranRepository
-import com.example.data.TranslationManager
-import com.example.ui.viewmodel.DeenViewModel
+import com.noorpro.app.data.QuranRepository
+import com.noorpro.app.data.TranslationManager
+import com.noorpro.app.ui.viewmodel.DeenViewModel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -38,17 +38,17 @@ class ExampleRobolectricTest {
     // 2. Build Room database directly at the asset path
     val db = androidx.room.Room.databaseBuilder(
       context,
-      com.example.data.AppDatabase::class.java,
+      com.noorpro.app.data.AppDatabase::class.java,
       dbFile.absolutePath
     ).build()
     
     db.quranDao().clearQuranTable()
     
     // Need a temporary instance of repository to map the soraNames
-    val repository = com.example.data.QuranRepository(context)
+    val repository = com.noorpro.app.data.QuranRepository(context)
 
     // 3. Generate verses for all 114 Surahs
-    val list = mutableListOf<com.example.data.QuranVerse>()
+    val list = mutableListOf<com.noorpro.app.data.QuranVerse>()
     var globalId = 1
     
     fun getJuzForSurah(soraId: Int): Int {
@@ -86,10 +86,10 @@ class ExampleRobolectricTest {
 
     for (soraId in 1..114) {
       val targetJuz = getJuzForSurah(soraId)
-      val existingSurah = com.example.data.IslamicData.surahs.find { it.id == soraId }
+      val existingSurah = com.noorpro.app.data.IslamicData.surahs.find { it.id == soraId }
       if (existingSurah != null) {
         existingSurah.verses.forEachIndexed { index, pair ->
-          val verse = com.example.data.QuranVerse(
+          val verse = com.noorpro.app.data.QuranVerse(
             id = globalId++,
             jozz = targetJuz,
             sora = soraId,
@@ -114,7 +114,7 @@ class ExampleRobolectricTest {
       } else {
         val soraNameEn = repository.getTitleTranslation(soraId)
         val soraNameAr = "سورة"
-        val verse = com.example.data.QuranVerse(
+        val verse = com.noorpro.app.data.QuranVerse(
           id = globalId++,
           jozz = targetJuz,
           sora = soraId,
@@ -283,7 +283,7 @@ class ExampleRobolectricTest {
     context.deleteDatabase("external_quran.db")
     
     // Inspect loaded Room database
-    val db = com.example.data.AppDatabase.getDatabase(context)
+    val db = com.noorpro.app.data.AppDatabase.getDatabase(context)
     try {
       val cursor = db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE type='table'")
       while (cursor.moveToNext()) {

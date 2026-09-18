@@ -37,63 +37,63 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.example.ui.screens.HomeScreen
-import com.example.ui.screens.PrayerTimesScreen
-import com.example.ui.screens.QiblaSettingsScreen
-import com.example.ui.screens.StitchCreatorStudioScreen
-import com.example.ui.screens.StitchDeenPointsScreen
-import com.example.ui.screens.StitchDiscoverLibraryScreen
-import com.example.ui.screens.StitchFollowersScreen
-import com.example.ui.screens.StitchFollowingScreen
-import com.example.ui.screens.StitchHomeScreen
-import com.example.ui.screens.StitchProfileSettingsScreen
-import com.example.ui.screens.StitchQiblaScreen
-import com.example.ui.screens.StitchQuranScreen
-import com.example.ui.screens.StitchReelsScreen
-import com.example.ui.screens.StitchUmmahCreateScreen
-import com.example.ui.screens.StitchUmmahHubScreen
-import com.example.ui.screens.StitchUmmahActivityScreen
-import com.example.ui.screens.StitchUmmahArchiveScreen
-import com.example.ui.screens.StitchUmmahBlockedScreen
-import com.example.ui.screens.StitchUmmahCloseFriendsScreen
-import com.example.ui.screens.StitchUmmahLikesCommentsScreen
-import com.example.ui.screens.StitchUmmahNotificationsScreen
-import com.example.ui.screens.StitchUmmahPrivacyScreen
-import com.example.ui.screens.StitchUmmahProfileEditScreen
-import com.example.ui.screens.StitchUmmahProfileScreen
-import com.example.ui.screens.StitchUmmahSavedScreen
-import com.example.ui.screens.StitchUmmahSearchScreen
-import com.example.ui.screens.StitchUmmahTimeManagementScreen
-import com.example.ui.screens.StitchNoorProPlusScreen
-import com.example.ui.screens.SurahListScreen
-import com.example.ui.screens.TafsirScreen
-import com.example.ui.components.StitchCream
-import com.example.ui.components.StitchDarkBackground
-import com.example.ui.components.StitchDarkLine
-import com.example.ui.components.StitchDarkMuted
-import com.example.ui.components.StitchDarkSoft
-import com.example.ui.components.StitchDarkSurface
-import com.example.ui.components.StitchEmerald
-import com.example.ui.components.StitchGold
-import com.example.ui.components.StitchInk
-import com.example.ui.components.StitchLine
-import com.example.ui.components.StitchMuted
-import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.NightBackground
-import com.example.ui.theme.DeepNightBlue
-import com.example.ui.theme.MatteGold
-import com.example.ui.theme.GlassOverlay
-import com.example.ui.theme.GlassBorder
-import com.example.ui.theme.LightGold
-import com.example.ui.viewmodel.DeenScreen
-import com.example.ui.viewmodel.DeenViewModel
+import com.noorpro.app.ui.screens.HomeScreen
+import com.noorpro.app.ui.screens.PrayerTimesScreen
+import com.noorpro.app.ui.screens.QiblaSettingsScreen
+import com.noorpro.app.ui.screens.StitchCreatorStudioScreen
+import com.noorpro.app.ui.screens.StitchDeenPointsScreen
+import com.noorpro.app.ui.screens.StitchDiscoverLibraryScreen
+import com.noorpro.app.ui.screens.StitchFollowersScreen
+import com.noorpro.app.ui.screens.StitchFollowingScreen
+import com.noorpro.app.ui.screens.StitchHomeScreen
+import com.noorpro.app.ui.screens.StitchProfileSettingsScreen
+import com.noorpro.app.ui.screens.StitchQiblaScreen
+import com.noorpro.app.ui.screens.StitchQuranScreen
+import com.noorpro.app.ui.screens.StitchReelsScreen
+import com.noorpro.app.ui.screens.StitchUmmahCreateScreen
+import com.noorpro.app.ui.screens.StitchUmmahHubScreen
+import com.noorpro.app.ui.screens.StitchUmmahActivityScreen
+import com.noorpro.app.ui.screens.StitchUmmahArchiveScreen
+import com.noorpro.app.ui.screens.StitchUmmahBlockedScreen
+import com.noorpro.app.ui.screens.StitchUmmahCloseFriendsScreen
+import com.noorpro.app.ui.screens.StitchUmmahLikesCommentsScreen
+import com.noorpro.app.ui.screens.StitchUmmahNotificationsScreen
+import com.noorpro.app.ui.screens.StitchUmmahPrivacyScreen
+import com.noorpro.app.ui.screens.StitchUmmahProfileEditScreen
+import com.noorpro.app.ui.screens.StitchUmmahProfileScreen
+import com.noorpro.app.ui.screens.StitchUmmahSavedScreen
+import com.noorpro.app.ui.screens.StitchUmmahSearchScreen
+import com.noorpro.app.ui.screens.StitchUmmahTimeManagementScreen
+import com.noorpro.app.ui.screens.StitchNoorProPlusScreen
+import com.noorpro.app.ui.screens.SurahListScreen
+import com.noorpro.app.ui.screens.TafsirScreen
+import com.noorpro.app.ui.components.StitchCream
+import com.noorpro.app.ui.components.StitchDarkBackground
+import com.noorpro.app.ui.components.StitchDarkLine
+import com.noorpro.app.ui.components.StitchDarkMuted
+import com.noorpro.app.ui.components.StitchDarkSoft
+import com.noorpro.app.ui.components.StitchDarkSurface
+import com.noorpro.app.ui.components.StitchEmerald
+import com.noorpro.app.ui.components.StitchGold
+import com.noorpro.app.ui.components.StitchInk
+import com.noorpro.app.ui.components.StitchLine
+import com.noorpro.app.ui.components.StitchMuted
+import com.noorpro.app.ui.theme.MyApplicationTheme
+import com.noorpro.app.ui.theme.NightBackground
+import com.noorpro.app.ui.theme.DeepNightBlue
+import com.noorpro.app.ui.theme.MatteGold
+import com.noorpro.app.ui.theme.GlassOverlay
+import com.noorpro.app.ui.theme.GlassBorder
+import com.noorpro.app.ui.theme.LightGold
+import com.noorpro.app.ui.viewmodel.DeenScreen
+import com.noorpro.app.ui.viewmodel.DeenViewModel
 
-import com.example.ui.theme.LocalAppStrings
-import com.example.ui.theme.LocalAppLanguage
-import com.example.ui.theme.EnStrings
-import com.example.ui.theme.ArStrings
-import com.example.ui.theme.UrStrings
-import com.example.ui.theme.AppLanguage
+import com.noorpro.app.ui.theme.LocalAppStrings
+import com.noorpro.app.ui.theme.LocalAppLanguage
+import com.noorpro.app.ui.theme.EnStrings
+import com.noorpro.app.ui.theme.ArStrings
+import com.noorpro.app.ui.theme.UrStrings
+import com.noorpro.app.ui.theme.AppLanguage
 
 class MainActivity : ComponentActivity() {
 
@@ -124,9 +124,9 @@ class MainActivity : ComponentActivity() {
             val themeMode by viewModel.themeMode.collectAsState()
             val systemTheme = androidx.compose.foundation.isSystemInDarkTheme()
             val useDarkTheme = when(themeMode) {
-                com.example.ui.viewmodel.ThemeMode.SYSTEM -> systemTheme
-                com.example.ui.viewmodel.ThemeMode.DARK -> true
-                com.example.ui.viewmodel.ThemeMode.LIGHT -> false
+                com.noorpro.app.ui.viewmodel.ThemeMode.SYSTEM -> systemTheme
+                com.noorpro.app.ui.viewmodel.ThemeMode.DARK -> true
+                com.noorpro.app.ui.viewmodel.ThemeMode.LIGHT -> false
             }
             MyApplicationTheme(darkTheme = useDarkTheme) {
                 MainLayout()
@@ -176,7 +176,7 @@ fun MainLayout() {
     }
 
     if (!onboardingComplete) {
-        com.example.ui.screens.PermissionOnboardingScreen(
+        com.noorpro.app.ui.screens.PermissionOnboardingScreen(
             selectedTheme = themeMode,
             onThemeSelected = viewModel::updateThemeMode,
             onEnableAndContinue = {
@@ -244,33 +244,33 @@ fun MainLayout() {
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
-                DeenScreen.LOGIN -> com.example.ui.screens.LoginScreen(viewModel = viewModel)
+                DeenScreen.LOGIN -> com.noorpro.app.ui.screens.LoginScreen(viewModel = viewModel)
                 DeenScreen.DASHBOARD -> StitchHomeScreen(viewModel = viewModel)
                 DeenScreen.QURAN -> StitchQuranScreen(viewModel = viewModel)
                 DeenScreen.REELS -> StitchReelsScreen(viewModel = viewModel)
-                DeenScreen.NOW_PLAYING -> com.example.ui.screens.StitchImmersivePlayerScreen(viewModel = viewModel)
+                DeenScreen.NOW_PLAYING -> com.noorpro.app.ui.screens.StitchImmersivePlayerScreen(viewModel = viewModel)
                 DeenScreen.PRAYER_TIMES -> PrayerTimesScreen(viewModel = viewModel)
                 DeenScreen.QIBLA_MORE -> StitchQiblaScreen(viewModel = viewModel)
-                DeenScreen.SETTINGS -> com.example.ui.screens.SettingsScreen(viewModel = viewModel)
-                DeenScreen.ADVANCED_SETTINGS -> com.example.ui.screens.AdvancedSettingsScreen(viewModel = viewModel)
-                DeenScreen.ACCOUNT_SWITCHER -> com.example.ui.screens.AccountSwitcherScreen(viewModel = viewModel)
-                DeenScreen.AZKAR -> com.example.ui.screens.AzkarScreen(viewModel = viewModel)
-                DeenScreen.TASBIH -> com.example.ui.screens.TasbihScreen(viewModel = viewModel)
-                DeenScreen.EXPLORE -> com.example.ui.screens.ExploreScreen(viewModel = viewModel)
-                DeenScreen.EDUCATION -> com.example.ui.screens.IslamicEducationScreen(viewModel = viewModel)
+                DeenScreen.SETTINGS -> com.noorpro.app.ui.screens.SettingsScreen(viewModel = viewModel)
+                DeenScreen.ADVANCED_SETTINGS -> com.noorpro.app.ui.screens.AdvancedSettingsScreen(viewModel = viewModel)
+                DeenScreen.ACCOUNT_SWITCHER -> com.noorpro.app.ui.screens.AccountSwitcherScreen(viewModel = viewModel)
+                DeenScreen.AZKAR -> com.noorpro.app.ui.screens.AzkarScreen(viewModel = viewModel)
+                DeenScreen.TASBIH -> com.noorpro.app.ui.screens.TasbihScreen(viewModel = viewModel)
+                DeenScreen.EXPLORE -> com.noorpro.app.ui.screens.ExploreScreen(viewModel = viewModel)
+                DeenScreen.EDUCATION -> com.noorpro.app.ui.screens.IslamicEducationScreen(viewModel = viewModel)
                 DeenScreen.TAFSIR -> TafsirScreen(viewModel = viewModel)
-                DeenScreen.CALENDAR -> com.example.ui.screens.HijriCalendarScreen(viewModel = viewModel)
-                DeenScreen.BOOKMARKS -> com.example.ui.screens.BookmarksScreen(viewModel = viewModel)
-                DeenScreen.HADITH_LIBRARY -> com.example.ui.screens.HadithLibraryScreen(viewModel = viewModel)
-                DeenScreen.HADITH_CHAPTERS -> com.example.ui.screens.HadithChaptersScreen(viewModel = viewModel)
-                DeenScreen.HADITH_READING -> com.example.ui.screens.HadithReadingScreen(viewModel = viewModel)
-                DeenScreen.DUA_HUB -> com.example.ui.screens.DuaHubScreen(viewModel = viewModel)
-                DeenScreen.DUA_DETAILS -> com.example.ui.screens.DuaDetailsScreen(viewModel = viewModel)
-                DeenScreen.QAZA_TRACKER -> com.example.ui.screens.QazaTrackerScreen(viewModel = viewModel)
+                DeenScreen.CALENDAR -> com.noorpro.app.ui.screens.HijriCalendarScreen(viewModel = viewModel)
+                DeenScreen.BOOKMARKS -> com.noorpro.app.ui.screens.BookmarksScreen(viewModel = viewModel)
+                DeenScreen.HADITH_LIBRARY -> com.noorpro.app.ui.screens.HadithLibraryScreen(viewModel = viewModel)
+                DeenScreen.HADITH_CHAPTERS -> com.noorpro.app.ui.screens.HadithChaptersScreen(viewModel = viewModel)
+                DeenScreen.HADITH_READING -> com.noorpro.app.ui.screens.HadithReadingScreen(viewModel = viewModel)
+                DeenScreen.DUA_HUB -> com.noorpro.app.ui.screens.DuaHubScreen(viewModel = viewModel)
+                DeenScreen.DUA_DETAILS -> com.noorpro.app.ui.screens.DuaDetailsScreen(viewModel = viewModel)
+                DeenScreen.QAZA_TRACKER -> com.noorpro.app.ui.screens.QazaTrackerScreen(viewModel = viewModel)
                 DeenScreen.LIBRARY_DASHBOARD -> StitchDiscoverLibraryScreen(viewModel = viewModel)
-                DeenScreen.INDOPAK_QURAN -> com.example.ui.screens.IndoPakQuranScreen(viewModel = viewModel)
-                DeenScreen.PDF_READER -> com.example.ui.screens.SmartPdfViewerScreen(
-                    book = com.example.data.DriveBook(
+                DeenScreen.INDOPAK_QURAN -> com.noorpro.app.ui.screens.IndoPakQuranScreen(viewModel = viewModel)
+                DeenScreen.PDF_READER -> com.noorpro.app.ui.screens.SmartPdfViewerScreen(
+                    book = com.noorpro.app.data.DriveBook(
                         id = viewModel.currentBookId,
                         title = viewModel.currentPdfTitle,
                         author = "",
@@ -279,12 +279,12 @@ fun MainLayout() {
                     viewModel = viewModel,
                     onBack = { viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
                 )
-                DeenScreen.QUIZ_DASHBOARD -> com.example.ui.screens.QuizDashboardScreen(viewModel = viewModel)
-                DeenScreen.ACTIVE_QUIZ -> com.example.ui.screens.ActiveQuizScreen(viewModel = viewModel)
+                DeenScreen.QUIZ_DASHBOARD -> com.noorpro.app.ui.screens.QuizDashboardScreen(viewModel = viewModel)
+                DeenScreen.ACTIVE_QUIZ -> com.noorpro.app.ui.screens.ActiveQuizScreen(viewModel = viewModel)
                 DeenScreen.PROFILE_DASHBOARD -> StitchProfileSettingsScreen(viewModel = viewModel)
-                DeenScreen.QURAN_LEARNING_DASHBOARD -> com.example.ui.screens.QuranDashboardScreen(viewModel = viewModel)
-                DeenScreen.QURAN_LEARNING_READER -> com.example.ui.screens.SurahLearningScreen(viewModel = viewModel)
-                DeenScreen.QAIDA_TUTOR -> com.example.ui.screens.QaidaScreen(viewModel = viewModel)
+                DeenScreen.QURAN_LEARNING_DASHBOARD -> com.noorpro.app.ui.screens.QuranDashboardScreen(viewModel = viewModel)
+                DeenScreen.QURAN_LEARNING_READER -> com.noorpro.app.ui.screens.SurahLearningScreen(viewModel = viewModel)
+                DeenScreen.QAIDA_TUTOR -> com.noorpro.app.ui.screens.QaidaScreen(viewModel = viewModel)
                 DeenScreen.UMMAH -> StitchUmmahHubScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FULL -> StitchUmmahHubScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_CREATE_POST -> StitchUmmahCreateScreen(viewModel = viewModel, reelMode = false)
@@ -302,23 +302,23 @@ fun MainLayout() {
                 DeenScreen.UMMAH_CLOSE_FRIENDS -> StitchUmmahCloseFriendsScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_BLOCKED -> StitchUmmahBlockedScreen(viewModel = viewModel)
                 DeenScreen.NOOR_PRO_PLUS -> StitchNoorProPlusScreen(viewModel = viewModel)
-                DeenScreen.UMMAH_MESSAGES -> com.example.ui.screens.StitchMessagesScreen(viewModel = viewModel)
-                DeenScreen.UMMAH_CONSTITUTION -> com.example.ui.screens.StitchAppConstitutionScreen(viewModel = viewModel)
-                DeenScreen.UMMAH_CHAT -> com.example.ui.screens.StitchChatScreen(viewModel = viewModel)
-                DeenScreen.SPIRITUAL_PROGRESS -> com.example.ui.screens.StitchSpiritualProgressScreen(viewModel = viewModel)
-                DeenScreen.ASMA_UL_HUSNA -> com.example.ui.screens.AsmaUlHusnaScreen(viewModel = viewModel)
-                DeenScreen.ZAKAT -> com.example.ui.screens.ZakatCalculatorScreen(viewModel = viewModel)
-                DeenScreen.HEALTH_WELLNESS -> com.example.ui.screens.HealthWellnessScreen(viewModel = viewModel)
-                DeenScreen.AI_HUB -> com.example.ui.screens.AiFeaturesHubScreen(viewModel = viewModel)
-                DeenScreen.PDF_LIBRARY -> com.example.ui.screens.PdfLibraryHubScreen(viewModel = viewModel)
-                DeenScreen.HAJJ_UMRAH -> com.example.ui.screens.HajjUmrahScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_MESSAGES -> com.noorpro.app.ui.screens.StitchMessagesScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_CONSTITUTION -> com.noorpro.app.ui.screens.StitchAppConstitutionScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_CHAT -> com.noorpro.app.ui.screens.StitchChatScreen(viewModel = viewModel)
+                DeenScreen.SPIRITUAL_PROGRESS -> com.noorpro.app.ui.screens.StitchSpiritualProgressScreen(viewModel = viewModel)
+                DeenScreen.ASMA_UL_HUSNA -> com.noorpro.app.ui.screens.AsmaUlHusnaScreen(viewModel = viewModel)
+                DeenScreen.ZAKAT -> com.noorpro.app.ui.screens.ZakatCalculatorScreen(viewModel = viewModel)
+                DeenScreen.HEALTH_WELLNESS -> com.noorpro.app.ui.screens.HealthWellnessScreen(viewModel = viewModel)
+                DeenScreen.AI_HUB -> com.noorpro.app.ui.screens.AiFeaturesHubScreen(viewModel = viewModel)
+                DeenScreen.PDF_LIBRARY -> com.noorpro.app.ui.screens.PdfLibraryHubScreen(viewModel = viewModel)
+                DeenScreen.HAJJ_UMRAH -> com.noorpro.app.ui.screens.HajjUmrahScreen(viewModel = viewModel)
                 DeenScreen.CREATOR_STUDIO -> StitchCreatorStudioScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FOLLOWERS -> StitchFollowersScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FOLLOWING -> StitchFollowingScreen(viewModel = viewModel)
                 DeenScreen.DEEN_POINTS -> StitchDeenPointsScreen(viewModel = viewModel)
-                DeenScreen.AUDIO_LIBRARY -> com.example.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
-                DeenScreen.AUDIO_PLAYLIST -> com.example.ui.screens.StitchAudioPlaylistScreen(viewModel = viewModel)
-                DeenScreen.DISCOVER_GROUPS -> com.example.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
+                DeenScreen.AUDIO_LIBRARY -> com.noorpro.app.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
+                DeenScreen.AUDIO_PLAYLIST -> com.noorpro.app.ui.screens.StitchAudioPlaylistScreen(viewModel = viewModel)
+                DeenScreen.DISCOVER_GROUPS -> com.noorpro.app.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
                 DeenScreen.AL_NOOR_AUDIO -> com.noorpro.app.audio.ui.AlNoorAudioHomeScreen(
                     onOpenSearch = { viewModel.openAlNoorSearch() },
                     onOpenPlaylist = { viewModel.openAlNoorPlaylist(it) },

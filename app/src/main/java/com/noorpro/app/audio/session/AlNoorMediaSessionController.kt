@@ -1,18 +1,14 @@
 package com.noorpro.app.audio.session
 
 import android.content.Context
+import android.content.Intent
 import com.noorpro.app.audio.player.AlNoorPlayer
 
 /**
  * Facade for shade / lock-screen playback controls for Al Noor Audio.
  *
- * **Status:** stub only. `androidx.media3:media3-session` is not on the classpath
- * (only media3-exoplayer / ui / hls). When adding MediaSession:
- * 1. Depend on `media3-session` matching ExoPlayer (currently 1.2.0).
- * 2. Implement a `MediaSessionService` posting on [AlNoorPlaybackChannels.PLAYBACK].
- * 3. Replace [StubAlNoorMediaSessionController] and wire from [com.noorpro.app.audio.AlNoorAudioSession].
- *
- * Do **not** reuse prayer notification channels for media controls.
+ * Starts [AlNoorMediaSessionService] (Media3 `media3-session`) which posts on
+ * [AlNoorPlaybackChannels.PLAYBACK]. Do **not** reuse prayer notification channels.
  */
 interface AlNoorMediaSessionController {
     fun attach(player: AlNoorPlayer)
@@ -22,27 +18,42 @@ interface AlNoorMediaSessionController {
 }
 
 /**
- * No-op until Media3 MediaSession is added. Safe to call from Application / player.
+ * Starts / stops [AlNoorMediaSessionService]. Media3 promotes the service to
+ * foreground when playback is active; we use [Context.startService] at attach
+ * time so we do not violate the FGS startForeground timeout before play.
  */
-class StubAlNoorMediaSessionController(
-    @Suppress("UNUSED_PARAMETER") context: Context,
+class DefaultAlNoorMediaSessionController(
+    context: Context,
 ) : AlNoorMediaSessionController {
+    private val appContext = context.applicationContext
+    private var player: AlNoorPlayer? = null
+    private var started = false
+
     override fun attach(player: AlNoorPlayer) {
-        // TODO(media-session): bind ExoPlayer to MediaSession when media3-session lands
+        this.player = player
     }
 
     override fun startSession() {
-        // TODO(media-session): start foreground MediaSessionService + notify on al_noor_playback
+        if (started) return
+        AlNoorPlaybackChannels.ensure(appContext)
+        appContext.startService(Intent(appContext, AlNoorMediaSessionService::class.java))
+        started = true
     }
 
     override fun stopSession() {
-        // TODO(media-session): stop foreground + clear playback notification
+        if (!started) return
+        appContext.stopService(Intent(appContext, AlNoorMediaSessionService::class.java))
+        started = false
     }
 
     override fun release() {
-        // TODO(media-session): release MediaSession
+        stopSession()
+        player = null
     }
 }
+
+/** @deprecated Name kept for call sites; delegates to [DefaultAlNoorMediaSessionController]. */
+typealias StubAlNoorMediaSessionController = DefaultAlNoorMediaSessionController
 
 object AlNoorMediaSession {
     @Volatile
@@ -52,7 +63,7 @@ object AlNoorMediaSession {
         controller?.let { return it }
         synchronized(this) {
             controller?.let { return it }
-            return StubAlNoorMediaSessionController(context.applicationContext).also { controller = it }
+            return DefaultAlNoorMediaSessionController(context.applicationContext).also { controller = it }
         }
     }
 }

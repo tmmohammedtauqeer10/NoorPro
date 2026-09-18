@@ -14,8 +14,8 @@
 # App data models — serialized via Moshi (network JSON) and Firebase Firestore
 # (reflection on POJOs via toObject()). Keep them intact to be safe.
 # ----------------------------------------------------------------------------
--keep class com.example.data.** { *; }
--keepclassmembers class com.example.data.** { *; }
+-keep class com.noorpro.app.data.** { *; }
+-keepclassmembers class com.noorpro.app.data.** { *; }
 # BuildConfig (read at runtime)
 -keep class com.example.BuildConfig { *; }
 
@@ -71,6 +71,10 @@
 # ----------------------------------------------------------------------------
 -keepattributes *Annotation*
 -keepclassmembers class com.example.** {
+    @com.google.firebase.firestore.PropertyName <methods>;
+    @com.google.firebase.firestore.PropertyName <fields>;
+}
+-keepclassmembers class com.noorpro.app.** {
     @com.google.firebase.firestore.PropertyName <methods>;
     @com.google.firebase.firestore.PropertyName <fields>;
 }

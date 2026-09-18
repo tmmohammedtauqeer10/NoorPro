@@ -2,7 +2,7 @@ package com.noorpro.app.audio.models
 
 /**
  * Catalog track for Al Noor Audio (nasheed / naat only).
- * Distinct from Quran [com.example.ui.viewmodel.AudioQueueItem].
+ * Distinct from Quran [com.noorpro.app.ui.viewmodel.AudioQueueItem].
  */
 data class Track(
     val id: String,
