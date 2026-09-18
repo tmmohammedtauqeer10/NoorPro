@@ -745,6 +745,54 @@ fun AdvancedSettingsScreen(
         val alarmSounds = listOf("Mecca Adhan", "Medina Adhan", "Spiritual Oud", "Ascite Echo", "System Sound")
         var configuringPrayerName by remember { mutableStateOf<String?>(null) }
 
+        // Ongoing next-prayer shade notification (LOW channel — not adhan)
+        val ongoingContext = androidx.compose.ui.platform.LocalContext.current
+        var ongoingEnabled by remember {
+            mutableStateOf(
+                com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater.isEnabled(ongoingContext)
+            )
+        }
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = GlassOverlay),
+            border = BorderStroke(1.dp, GlassBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Show next prayer in shade",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                        ),
+                    )
+                    Text(
+                        text = "Quiet ongoing notification with countdown (not adhan)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                    )
+                }
+                Switch(
+                    checked = ongoingEnabled,
+                    onCheckedChange = { enabled ->
+                        ongoingEnabled = enabled
+                        com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater.setEnabled(
+                            ongoingContext,
+                            enabled,
+                        )
+                    },
+                )
+            }
+        }
+
         Text(
             text = "Customizable Prayer Alarms",
             style = MaterialTheme.typography.titleMedium.copy(

@@ -6,6 +6,9 @@ import android.content.Intent
 import com.example.data.UserPreferencesRepository
 import com.example.ui.viewmodel.PrayerSettingsController
 import com.example.utils.CrashReporter
+import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
+import com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater
+import com.noorpro.app.prayer.widget.PrayerWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -39,6 +42,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     latitude = location.latitude,
                     longitude = location.longitude
                 )
+                NextPrayerOngoingScheduler.schedule(appContext)
+                if (NextPrayerOngoingUpdater.isEnabled(appContext)) {
+                    NextPrayerOngoingUpdater.update(appContext)
+                }
+                PrayerWidgetUpdater.refreshAll(appContext)
             } catch (e: Exception) {
                 CrashReporter.report(e, "BootCompletedReceiver failed to reschedule prayer alarms")
             } finally {

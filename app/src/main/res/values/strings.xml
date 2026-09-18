@@ -1,3 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Noor Pro</string>
+    <string name="widget_next_prayer_label">Next prayer</string>
+    <string name="widget_next_prayer_description">Shows the next salah name, time, and countdown.</string>
+    <string name="widget_day_header">Today</string>
+    <string name="widget_day_prayers_description">Shows Fajr through Isha times for today.</string>
+    <string name="al_noor_audio_title">Al Noor Audio</string>
+    <string name="ongoing_next_prayer_title">Show next prayer in shade</string>
+    <string name="ongoing_next_prayer_subtitle">Quiet ongoing notification with countdown (not adhan)</string>
 </resources>

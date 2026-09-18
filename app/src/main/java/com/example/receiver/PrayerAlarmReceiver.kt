@@ -17,6 +17,10 @@ import com.example.R
 import com.example.data.UserPreferencesRepository
 import com.example.ui.viewmodel.PrayerSettingsController
 import com.example.utils.CrashReporter
+import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater
+import com.noorpro.app.prayer.widget.PrayerWidgetUpdater
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -34,6 +38,16 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 showNotification(context, prayerName, alarmSoundPref, intent.getIntExtra("REMINDER_OFFSET", 0))
+                // Pause Al Noor Audio when adhan fires (separate from Quran player).
+                withContext(Dispatchers.Main) {
+                    if (AlNoorAudioSession.isInitialized()) {
+                        AlNoorAudioSession.player.pauseForAdhan()
+                    }
+                }
+                if (NextPrayerOngoingUpdater.isEnabled(context)) {
+                    NextPrayerOngoingUpdater.update(context)
+                }
+                PrayerWidgetUpdater.refreshAll(context)
             } catch (e: Exception) {
                 CrashReporter.report(e, "Prayer notification failed")
             } finally {
