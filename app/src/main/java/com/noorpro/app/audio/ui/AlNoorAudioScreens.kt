@@ -1,7 +1,18 @@
 package com.noorpro.app.audio.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,7 +154,7 @@ fun AlNoorAudioHomeScreen(
                             Card(
                                 modifier = Modifier
                                     .width(140.dp)
-                                    .clickable { onOpenPlaylist(pl.id) },
+                                    .pressScale { onOpenPlaylist(pl.id) },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             ) {
@@ -332,36 +344,46 @@ fun AlNoorNowPlayingScreen(
             Text("Now Playing", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(24.dp))
-        Box(
-            modifier = Modifier
-                .size(220.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(AlNoorAccent.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(80.dp), tint = AlNoorAccent)
-        }
-        Spacer(Modifier.height(24.dp))
-        Text(
-            track?.title ?: "Nothing playing",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            track?.artistName.orEmpty(),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-        )
-        Spacer(Modifier.height(8.dp))
-        track?.let {
-            Text(
-                LicenseAttribution.from(it).displayLine(),
-                style = MaterialTheme.typography.bodySmall,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-            )
+        AnimatedContent(
+            targetState = track,
+            transitionSpec = {
+                fadeIn(tween(340)) togetherWith fadeOut(tween(260))
+            },
+            label = "alNoorNowPlayingArt",
+        ) { current ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(AlNoorAccent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.MusicNote, null, modifier = Modifier.size(80.dp), tint = AlNoorAccent)
+                }
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    current?.title ?: "Nothing playing",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    current?.artistName.orEmpty(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+                Spacer(Modifier.height(8.dp))
+                current?.let {
+                    Text(
+                        LicenseAttribution.from(it).displayLine(),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(20.dp))
         val duration = playback.durationMs.coerceAtLeast(1L).toFloat()
@@ -425,56 +447,77 @@ fun AlNoorMiniPlayer(
     track: Track?,
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
+    visible: Boolean = track != null,
     onExpand: () -> Unit = {},
     onPlayPause: () -> Unit = {},
 ) {
-    if (track == null) return
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onExpand),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(4.dp),
+    AnimatedVisibility(
+        visible = visible && track != null,
+        enter = slideInVertically(
+            animationSpec = tween(300),
+            initialOffsetY = { it / 3 },
+        ) + fadeIn(tween(280)),
+        exit = slideOutVertically(
+            animationSpec = tween(240),
+            targetOffsetY = { it / 3 },
+        ) + fadeOut(tween(200)),
+        modifier = modifier,
     ) {
-        Row(
+        val current = track ?: return@AnimatedVisibility
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .clickable(onClick = onExpand),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(4.dp),
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AlNoorAccent.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.MusicNote, null, tint = AlNoorAccent, modifier = Modifier.size(22.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AlNoorAccent.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.MusicNote, null, tint = AlNoorAccent, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                AnimatedContent(
+                    targetState = Triple(current.id, current.title, current.artistName),
+                    transitionSpec = { fadeIn(tween(280)) togetherWith fadeOut(tween(200)) },
+                    label = "alNoorMiniMeta",
+                    modifier = Modifier.weight(1f),
+                ) { (_, title, artist) ->
+                    Column {
+                        Text(title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            artist,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                IconButton(onClick = onPlayPause) {
+                    Icon(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        tint = AlNoorAccent,
+                    )
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    track.artistName,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            if (isPlaying) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    color = AlNoorAccent,
                 )
             }
-            IconButton(onClick = onPlayPause) {
-                Icon(
-                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "Play/Pause",
-                    tint = AlNoorAccent,
-                )
-            }
-        }
-        if (isPlaying) {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().height(2.dp),
-                color = AlNoorAccent,
-            )
         }
     }
 }
@@ -505,6 +548,28 @@ fun AlNoorQueueSheet(
     }
 }
 
+
+@Composable
+private fun Modifier.pressScale(onClick: () -> Unit): Modifier {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(120),
+        label = "pressScale",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            interactionSource = interaction,
+            indication = null,
+            onClick = onClick,
+        )
+}
+
 @Composable
 private fun TrackRow(
     track: Track,
@@ -515,7 +580,7 @@ private fun TrackRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .pressScale(onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

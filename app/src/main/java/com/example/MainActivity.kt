@@ -480,22 +480,21 @@ fun MainLayout() {
             currentScreen != DeenScreen.LOGIN &&
             currentScreen != DeenScreen.NOW_PLAYING &&
             !showMiniPlayer
-        if (showAlNoorMini) {
-            com.noorpro.app.audio.ui.AlNoorMiniPlayer(
-                track = alNoorQueue.currentTrack,
-                isPlaying = alNoorPlayback.isPlaying,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(
-                        bottom = if (showBottomNavigation) 88.dp else 16.dp,
-                        start = 18.dp,
-                        end = 18.dp,
-                    ),
-                onExpand = { viewModel.openAlNoorNowPlaying() },
-                onPlayPause = { com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() },
-            )
-        }
+        com.noorpro.app.audio.ui.AlNoorMiniPlayer(
+            track = alNoorQueue.currentTrack,
+            isPlaying = alNoorPlayback.isPlaying,
+            visible = showAlNoorMini,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(
+                    bottom = if (showBottomNavigation) 88.dp else 16.dp,
+                    start = 18.dp,
+                    end = 18.dp,
+                ),
+            onExpand = { viewModel.openAlNoorNowPlaying() },
+            onPlayPause = { com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() },
+        )
 
         if (showBottomNavigation) {
             FloatingBottomNavigationBar(

@@ -115,15 +115,25 @@ fun PrayerTimesScreen(
                     Text(currentLocationName.ifBlank { "Locating…" }, color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "$nextPrayerName is ${friendlyCountdown(countdown)}",
-                    color = stitchPrimary(),
-                    fontSize = 34.sp,
-                    lineHeight = 40.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = LibreCaslon,
-                    textAlign = TextAlign.Center
-                )
+                // Calm crossfade when next prayer or countdown ticks (Islamic-app subtle motion).
+                AnimatedContent(
+                    targetState = nextPrayerName to countdown,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(320)) togetherWith
+                            fadeOut(animationSpec = tween(240))
+                    },
+                    label = "prayerCountdown",
+                ) { (name, cd) ->
+                    Text(
+                        text = "$name is ${friendlyCountdown(cd)}",
+                        color = stitchPrimary(),
+                        fontSize = 34.sp,
+                        lineHeight = 40.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = LibreCaslon,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(todayHijri.ifBlank { todayGregorian }, color = stitchMutedText(), fontSize = 15.sp)
             }
@@ -203,10 +213,32 @@ fun PrayerTimesRowItem(
         else -> stitchText()
     }
 
+    val glyphBg by animateColorAsState(
+        targetValue = if (isActive) StitchEmerald else stitchSurface(),
+        animationSpec = tween(380),
+        label = "prayerGlyphBg",
+    )
+    val glyphBorder by animateColorAsState(
+        targetValue = if (isActive) StitchEmerald else StitchLine,
+        animationSpec = tween(380),
+        label = "prayerGlyphBorder",
+    )
+    val cardBg by animateColorAsState(
+        targetValue = if (isActive) StitchEmerald else stitchSurface(),
+        animationSpec = tween(380),
+        label = "prayerCardBg",
+    )
+    val highlightSlide by animateDpAsState(
+        targetValue = if (isActive) 6.dp else 0.dp,
+        animationSpec = tween(380),
+        label = "prayerHighlightSlide",
+    )
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            .padding(start = highlightSlide)
             .testTag("prayer_row_${prayer.name}")
     ) {
         // Left timeline glyph
@@ -218,8 +250,8 @@ fun PrayerTimesRowItem(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (isActive) StitchEmerald else stitchSurface())
-                    .border(1.dp, if (isActive) StitchEmerald else StitchLine, CircleShape),
+                    .background(glyphBg)
+                    .border(1.dp, glyphBorder, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -248,14 +280,15 @@ fun PrayerTimesRowItem(
             return@Row
         }
 
-        // Prayer card (active = filled emerald)
+        // Prayer card (active = filled emerald; color+slide animate when next prayer changes)
         Box(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(18.dp))
+                .background(cardBg)
                 .then(
-                    if (isActive) Modifier.background(StitchEmerald)
-                    else Modifier.background(stitchSurface()).border(1.dp, StitchLine, RoundedCornerShape(18.dp))
+                    if (!isActive) Modifier.border(1.dp, StitchLine, RoundedCornerShape(18.dp))
+                    else Modifier
                 )
         ) {
             Row(
