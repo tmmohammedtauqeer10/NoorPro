@@ -123,7 +123,7 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
             viewModel.rememberCurrentFirebaseAccount()
             viewModel.handleLogout(rememberAccount = false)
             try {
-                val clientId = com.example.BuildConfig.GOOGLE_WEB_CLIENT_ID
+                val clientId = com.noorpro.app.BuildConfig.GOOGLE_WEB_CLIENT_ID
                 if (clientId.isBlank() || clientId.startsWith("YOUR_")) {
                     error = "Google Sign-In is not configured for this build."
                     switchingUid = null

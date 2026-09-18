@@ -1,4 +1,4 @@
-package com.example
+package com.noorpro.app
 
 import org.junit.Assert.*
 import org.junit.Test

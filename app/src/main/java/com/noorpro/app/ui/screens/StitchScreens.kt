@@ -432,7 +432,7 @@ private fun StitchImmersivePrayerHero(
             .background(StitchEmeraldDeep)
     ) {
         Image(
-            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.noor_hero_mosque),
+            painter = androidx.compose.ui.res.painterResource(id = com.noorpro.app.R.drawable.noor_hero_mosque),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -1201,7 +1201,7 @@ private fun StitchContinueReadingCard(
                     .border(1.dp, stitchPrimary().copy(alpha = 0.10f), RoundedCornerShape(26.dp))
             ) {
                 Image(
-                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.noor_quran_rehal),
+                    painter = androidx.compose.ui.res.painterResource(id = com.noorpro.app.R.drawable.noor_quran_rehal),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -1864,7 +1864,7 @@ private fun StitchQuranLastReadCard(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = com.example.R.drawable.stitch_quran_hero),
+                    painter = painterResource(id = com.noorpro.app.R.drawable.stitch_quran_hero),
                     contentDescription = "Open Quran on rehal",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -4971,7 +4971,7 @@ private fun StitchReelSurface(
         modifier = modifier,
         factory = { viewContext ->
             (android.view.LayoutInflater.from(viewContext)
-                .inflate(com.example.R.layout.ummah_reel_player, null) as PlayerView).apply {
+                .inflate(com.noorpro.app.R.layout.ummah_reel_player, null) as PlayerView).apply {
                 useController = false
                 layoutParams = android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,

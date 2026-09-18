@@ -1,15 +1,14 @@
 # Noor Pro — Architecture
 
-Structural foundation for modularizing the Android app. Most sources are under
-`com.noorpro.app` (applicationId already `com.noorpro.app`); Gradle `namespace`
-and a few entry files remain `com.example` until the final rename pass.
+Structural foundation for modularizing the Android app. Sources, Gradle
+`namespace`, and `applicationId` are all `com.noorpro.app`.
 
 ## Current layout (as extracted)
 
 | Area | Location today |
 |------|----------------|
 | Application | `com.noorpro.app.NoorProApplication` |
-| Activity | `com.example.MainActivity` (still) |
+| Activity | `com.noorpro.app.MainActivity` |
 | Ads | `com.noorpro.app.ads` |
 | Data / Room / APIs | `com.noorpro.app.data` |
 | Prayer alarms | `com.noorpro.app.receiver` + `PrayerSettingsController` |
@@ -17,7 +16,7 @@ and a few entry files remain `com.example` until the final rename pass.
 | Utils | `com.noorpro.app.utils` |
 | **Al Noor Audio** | `com.noorpro.app.audio.*` (+ MediaSessionService skeleton) |
 
-Gradle: `namespace = "com.example"`, `applicationId = "com.noorpro.app"`.
+Gradle: `namespace = "com.noorpro.app"`, `applicationId = "com.noorpro.app"`.
 
 Existing audio UX is Quran-oriented (`StitchAudio*`, `NowPlayingScreen`,
 `AudioQueueItem` in `DeenViewModel` via `MediaPlayer`). Reels use Media3
@@ -58,17 +57,15 @@ Drive PDF library, backup, secure account store.
 
 **Incremental — in progress.** See `docs/PACKAGE_RENAME.md`.
 
-Done: Application, receivers, `ads` / `data` / `ui` / `utils`, Al Noor + prayer.
-`applicationId` stays `com.noorpro.app`. Gradle `namespace` still `com.example`.
+Done: Application, `MainActivity`, receivers, `ads` / `data` / `ui` / `utils`,
+Al Noor + prayer, debug/release `BuildConfig` / AppCheck, tests, and Gradle
+`namespace`. `applicationId` remains `com.noorpro.app`.
 
 Remaining:
 
-1. Move `MainActivity` → `com.noorpro.app` (Manifest + PendingIntents).
-2. Move debug/release `BuildConfig` / `NoorAppCheckProviderFactory` + leftover tests.
-3. Set `namespace = "com.noorpro.app"` in `app/build.gradle.kts`; fix `R` / `BuildConfig`.
-4. Verify Firebase / App Links / FileProvider
+1. Verify Firebase / App Links / FileProvider
    (`${applicationId}.fileprovider` already OK).
-5. Full assembleDebug + instrumented smoke (SDK machine; not offline box).
+2. Full assembleDebug + instrumented smoke (SDK machine; not offline box).
 
 ## Dependency notes
 
@@ -85,4 +82,4 @@ Remaining:
 
 - No network Gradle builds on the box when avoidable
 - No secrets / `google-services.json` committed
-- Full package rename nearly done; MainActivity + namespace still deferred
+- Package rename complete for hand-written Kotlin under `app/src`

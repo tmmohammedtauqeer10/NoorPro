@@ -23,7 +23,7 @@ tasks.matching { it.name == "uploadCrashlyticsMappingFileRelease" }.configureEac
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.noorpro.app"
   compileSdk = 36
 
   defaultConfig {

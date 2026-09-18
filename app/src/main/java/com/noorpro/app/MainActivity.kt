@@ -1,4 +1,4 @@
-package com.example // Force rebuild to break cache corruption
+package com.noorpro.app
 
 import android.os.Bundle
 import android.util.Log // Added

@@ -180,7 +180,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                         cloudStatus = "Saving your settings to Firebase..."
                         cloudBackupRepository.backupSettings(
                             settingsJson = viewModel.exportSettingsJson(),
-                            appVersion = com.example.BuildConfig.VERSION_NAME
+                            appVersion = com.noorpro.app.BuildConfig.VERSION_NAME
                         ) { ok, message ->
                             cloudBusy = false
                             cloudStatus = message
@@ -237,14 +237,14 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 SettingsHubRow("Feedback", "Send suggestions or report a problem", Icons.Default.Feedback) {
                     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
                         putExtra(Intent.EXTRA_SUBJECT, "Noor Pro feedback")
-                        putExtra(Intent.EXTRA_TEXT, "App version: ${com.example.BuildConfig.VERSION_NAME}\n\n")
+                        putExtra(Intent.EXTRA_TEXT, "App version: ${com.noorpro.app.BuildConfig.VERSION_NAME}\n\n")
                     }
                     runCatching { context.startActivity(intent) }
                         .onFailure { Toast.makeText(context, "No email app is available.", Toast.LENGTH_SHORT).show() }
                 }
             }
             item {
-                SettingsHubRow("About Noor Pro", "Version ${com.example.BuildConfig.VERSION_NAME}", Icons.Default.Info) {
+                SettingsHubRow("About Noor Pro", "Version ${com.noorpro.app.BuildConfig.VERSION_NAME}", Icons.Default.Info) {
                     showAbout = true
                 }
             }

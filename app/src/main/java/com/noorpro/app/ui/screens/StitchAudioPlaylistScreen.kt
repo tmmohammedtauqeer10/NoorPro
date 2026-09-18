@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
+import com.noorpro.app.R
 import com.noorpro.app.ui.components.StitchEmerald
 import com.noorpro.app.ui.components.StitchEmeraldDeep
 import com.noorpro.app.ui.components.StitchGold

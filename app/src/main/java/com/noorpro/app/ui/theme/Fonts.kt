@@ -4,7 +4,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import com.example.R
+import com.noorpro.app.R
 
 /**
  * "Sacred Serenity" design-system fonts (bundled static TTFs in res/font).

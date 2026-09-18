@@ -17,7 +17,7 @@
 -keep class com.noorpro.app.data.** { *; }
 -keepclassmembers class com.noorpro.app.data.** { *; }
 # BuildConfig (read at runtime)
--keep class com.example.BuildConfig { *; }
+-keep class com.noorpro.app.BuildConfig { *; }
 
 # ----------------------------------------------------------------------------
 # Moshi
@@ -70,10 +70,6 @@
 # (Firebase ships consumer rules; these protect app POJOs used with Firestore.)
 # ----------------------------------------------------------------------------
 -keepattributes *Annotation*
--keepclassmembers class com.example.** {
-    @com.google.firebase.firestore.PropertyName <methods>;
-    @com.google.firebase.firestore.PropertyName <fields>;
-}
 -keepclassmembers class com.noorpro.app.** {
     @com.google.firebase.firestore.PropertyName <methods>;
     @com.google.firebase.firestore.PropertyName <fields>;

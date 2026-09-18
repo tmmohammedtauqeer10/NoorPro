@@ -1,4 +1,4 @@
-package com.example
+package com.noorpro.app
 
 object BuildConfig {
     const val DEBUG: Boolean = true

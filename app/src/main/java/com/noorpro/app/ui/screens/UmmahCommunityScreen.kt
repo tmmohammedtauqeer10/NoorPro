@@ -53,7 +53,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import com.example.R
+import com.noorpro.app.R
 import com.noorpro.app.data.UmmahChat
 import com.noorpro.app.data.UmmahMessage
 import com.noorpro.app.data.UmmahPost

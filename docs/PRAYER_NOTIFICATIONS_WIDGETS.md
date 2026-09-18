@@ -97,6 +97,6 @@ boot completed, timezone change (already handled for alarms).
 
 ## Package note
 
-Widget/ongoing code may land under `com.example` until the rename to
-`com.noorpro.app` (see `ARCHITECTURE.md`). Prefer `com.noorpro.app.prayer`
-for new files when adding the feature.
+Widget/ongoing code lives under `com.noorpro.app.prayer` (see
+`ARCHITECTURE.md` / `docs/PACKAGE_RENAME.md`). Prefer that package for new
+feature files.

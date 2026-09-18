@@ -1,4 +1,4 @@
-package com.example
+package com.noorpro.app
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
 import com.noorpro.app.data.GithubApiService

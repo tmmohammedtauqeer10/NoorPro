@@ -1,6 +1,6 @@
 package com.noorpro.app.utils
 
-import com.example.BuildConfig
+import com.noorpro.app.BuildConfig
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import kotlinx.coroutines.CancellationException
 

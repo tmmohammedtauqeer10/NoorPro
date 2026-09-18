@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.res.ResourcesCompat
-import com.example.R
+import com.noorpro.app.R
 import com.noorpro.app.data.QuranMetaData
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel

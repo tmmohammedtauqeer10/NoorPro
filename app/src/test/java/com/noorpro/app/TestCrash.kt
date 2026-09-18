@@ -1,4 +1,4 @@
-package com.example
+package com.noorpro.app
 
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4

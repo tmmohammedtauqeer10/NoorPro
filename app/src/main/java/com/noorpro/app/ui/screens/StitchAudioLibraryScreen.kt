@@ -51,7 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.R
+import com.noorpro.app.R
 import com.noorpro.app.data.IslamicData
 import com.noorpro.app.data.Reciter
 import com.noorpro.app.data.Surah

@@ -1,4 +1,4 @@
-package com.example
+package com.noorpro.app
 
 import com.noorpro.app.data.OfflinePrayerCalculator
 import com.noorpro.app.ui.viewmodel.CalculationMethod

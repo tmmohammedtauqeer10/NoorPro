@@ -6,8 +6,8 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.example.MainActivity
-import com.example.R
+import com.noorpro.app.MainActivity
+import com.noorpro.app.R
 import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels

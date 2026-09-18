@@ -4,8 +4,8 @@ import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
-import com.example.BuildConfig
-import com.example.NoorAppCheckProviderFactory
+import com.noorpro.app.BuildConfig
+import com.noorpro.app.NoorAppCheckProviderFactory
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.firebase.FirebaseApp
@@ -17,11 +17,9 @@ import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
 
 /**
- * App process entry. Moved from `com.example` as incremental package-rename step 1.
- * Most feature packages (`ui`, `data`, `ads`, `utils`, `receiver`, `audio`, `prayer`)
- * now live under `com.noorpro.app.*`. Remaining: `MainActivity`, hand-written
- * `BuildConfig` / `NoorAppCheckProviderFactory`, and Gradle `namespace` (`com.example`
- * for `R` / `BuildConfig`). `applicationId` is `com.noorpro.app`.
+ * App process entry under `com.noorpro.app` (same as Gradle `namespace` /
+ * `applicationId`). Hand-written `BuildConfig` and `NoorAppCheckProviderFactory`
+ * share this package for debug/release source sets.
  */
 class NoorProApplication : Application(), ImageLoaderFactory {
 

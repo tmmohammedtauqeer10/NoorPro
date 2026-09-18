@@ -12,8 +12,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.example.MainActivity
-import com.example.R
+import com.noorpro.app.MainActivity
+import com.noorpro.app.R
 import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import com.noorpro.app.utils.CrashReporter
