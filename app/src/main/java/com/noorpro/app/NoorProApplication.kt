@@ -1,18 +1,26 @@
-package com.example
+package com.noorpro.app
 
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
+import com.example.BuildConfig
+import com.example.NoorAppCheckProviderFactory
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.audio.session.AlNoorPlaybackChannels
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
 
+/**
+ * App process entry. Moved from `com.example` as incremental package-rename step 1.
+ * Remaining UI/data packages stay under `com.example` until a later pass.
+ * Gradle `namespace` remains `com.example` (R/BuildConfig); `applicationId` is `com.noorpro.app`.
+ */
 class NoorProApplication : Application(), ImageLoaderFactory {
 
     // App-wide Coil loader that can decode a video's first frame, so reels/post videos show their
@@ -28,6 +36,7 @@ class NoorProApplication : Application(), ImageLoaderFactory {
         super.onCreate()
 
         AlNoorAudioSession.init(this)
+        AlNoorPlaybackChannels.ensure(this)
         PrayerNotificationChannels.ensureAll(this)
         NextPrayerOngoingScheduler.schedule(this)
 

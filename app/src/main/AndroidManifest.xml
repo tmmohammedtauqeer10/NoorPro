@@ -20,7 +20,7 @@
     <attribution android:tag="play-services-location" android:label="@string/app_name" />
 
     <application
-        android:name="com.example.NoorProApplication"
+        android:name="com.noorpro.app.NoorProApplication"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         android:allowBackup="false"
