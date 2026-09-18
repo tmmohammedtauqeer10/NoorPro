@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "demoNotice": "DEMO / PLACEHOLDER CATALOG ONLY. Tracks are fictional public-domain or CC0 placeholders for UI and player wiring. Do NOT ship commercial nasheed/naat. Replace with license-audited free tracks before production. No piracy.",
+  "artists": [
+    {
+      "id": "artist_demo_choir",
+      "name": "Demo Community Choir",
+      "bio": "Placeholder artist for Al Noor Audio demos. Not a real commercial act.",
+      "imageUrl": null
+    },
+    {
+      "id": "artist_demo_solo",
+      "name": "Demo Vocal Solo",
+      "bio": "Placeholder soloist for CC0 / public-domain sample wiring.",
+      "imageUrl": null
+    }
+  ],
+  "tracks": [
+    {
+      "id": "track_demo_tawhid",
+      "title": "Demo: Remembrance (Placeholder)",
+      "artistId": "artist_demo_choir",
+      "artistName": "Demo Community Choir",
+      "audioUrl": "https://storage.googleapis.com/exoplayer-test-media-0/play.mp3",
+      "durationMs": 120000,
+      "coverUrl": null,
+      "license": "CC0",
+      "attributionText": "Demo placeholder audio (ExoPlayer test media) · NOT a commercial nasheed",
+      "sourceUrl": "https://github.com/google/ExoPlayer",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "tags": ["demo", "spiritual", "placeholder"],
+      "language": "en"
+    },
+    {
+      "id": "track_demo_salawat",
+      "title": "Demo: Salawat (Placeholder)",
+      "artistId": "artist_demo_solo",
+      "artistName": "Demo Vocal Solo",
+      "audioUrl": "https://storage.googleapis.com/exoplayer-test-media-1/mp3/android-dev.mp3",
+      "durationMs": 90000,
+      "coverUrl": null,
+      "license": "PUBLIC_DOMAIN",
+      "attributionText": "Demo placeholder · public-domain / test sample for player only",
+      "sourceUrl": "https://developer.android.com",
+      "licenseUrl": null,
+      "tags": ["demo", "naat", "placeholder"],
+      "language": "en"
+    },
+    {
+      "id": "track_demo_kids",
+      "title": "Demo: Kids-safe Dhikr (Placeholder)",
+      "artistId": "artist_demo_choir",
+      "artistName": "Demo Community Choir",
+      "audioUrl": "https://storage.googleapis.com/exoplayer-test-media-0/play.mp3",
+      "durationMs": 60000,
+      "coverUrl": null,
+      "license": "CC_BY",
+      "attributionText": "Demo placeholder · CC BY attribution sample text",
+      "sourceUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "tags": ["demo", "kids-safe", "placeholder"],
+      "language": "en"
+    },
+    {
+      "id": "track_demo_arabic",
+      "title": "Demo: Arabic Nasheed Stub",
+      "artistId": "artist_demo_solo",
+      "artistName": "Demo Vocal Solo",
+      "audioUrl": "https://storage.googleapis.com/exoplayer-test-media-1/mp3/android-dev.mp3",
+      "durationMs": 75000,
+      "coverUrl": null,
+      "license": "CC0",
+      "attributionText": "Demo placeholder Arabic-tagged shelf item · CC0",
+      "sourceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "tags": ["demo", "arabic", "nasheed", "placeholder"],
+      "language": "ar"
+    }
+  ],
+  "playlists": [
+    {
+      "id": "pl_new",
+      "title": "New & Demo",
+      "description": "Fresh placeholders for Al Noor Audio UI",
+      "coverUrl": null,
+      "trackIds": ["track_demo_tawhid", "track_demo_salawat"],
+      "isSystem": true
+    },
+    {
+      "id": "pl_spiritual",
+      "title": "Spiritual",
+      "description": "Calm / remembrance demo shelf",
+      "coverUrl": null,
+      "trackIds": ["track_demo_tawhid", "track_demo_arabic"],
+      "isSystem": true
+    },
+    {
+      "id": "pl_kids",
+      "title": "Kids-safe",
+      "description": "Family-friendly demo shelf",
+      "coverUrl": null,
+      "trackIds": ["track_demo_kids"],
+      "isSystem": true
+    },
+    {
+      "id": "pl_language_ar",
+      "title": "Arabic",
+      "description": "Language shelf (demo)",
+      "coverUrl": null,
+      "trackIds": ["track_demo_arabic"],
+      "isSystem": true
+    }
+  ],
+  "shelves": [
+    { "id": "new", "title": "New", "playlistId": "pl_new" },
+    { "id": "spiritual", "title": "Spiritual", "playlistId": "pl_spiritual" },
+    { "id": "kids", "title": "Kids-safe", "playlistId": "pl_kids" },
+    { "id": "arabic", "title": "Language · Arabic", "playlistId": "pl_language_ar" }
+  ]
+}
