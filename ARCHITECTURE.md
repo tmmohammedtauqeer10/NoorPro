@@ -14,7 +14,7 @@ Structural foundation for modularizing the Android app. Sources, Gradle
 | Prayer alarms | `com.noorpro.app.receiver` + `PrayerSettingsController` |
 | UI (Compose) | `com.noorpro.app.ui.screens` / `viewmodel` / `components` / `theme` |
 | Utils | `com.noorpro.app.utils` |
-| **Al Noor Audio** | `com.noorpro.app.audio.*` (+ MediaSessionService skeleton) |
+| **Al Noor Audio** | `com.noorpro.app.audio.*` (+ MediaSessionService + DefaultMediaNotificationProvider) |
 
 Gradle: `namespace = "com.noorpro.app"`, `applicationId = "com.noorpro.app"`.
 
@@ -74,7 +74,7 @@ Remaining:
 - Quran audio today: `android.media.MediaPlayer` in `DeenViewModel`
 - Al Noor Audio player: Media3 ExoPlayer + `media3-session` +
   `AlNoorMediaSessionService` skeleton (`com.noorpro.app.audio.session`,
-  channel `al_noor_playback`).
+  channel `al_noor_playback` with play/pause/next).
 - Calm Compose motion: prayer countdown crossfade, timeline highlight
   slide; Al Noor mini-player show/hide, now-playing fade, press scale.
 

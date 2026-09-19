@@ -36,8 +36,18 @@ interface AlNoorAudioRepository {
  */
 class BundledAlNoorAudioRepository(
     private val context: Context,
-    private val assetPath: String = "al_noor_audio/catalog.json",
+    private val assetPath: String = DEFAULT_CATALOG_ASSET,
 ) : AlNoorAudioRepository {
+
+    companion object {
+        /** Demo / placeholder catalog shipped in-repo. */
+        const val DEFAULT_CATALOG_ASSET = "al_noor_audio/catalog.json"
+        /**
+         * Drop-in for a license-audited production pack. If this asset exists it is
+         * preferred over [DEFAULT_CATALOG_ASSET]. See `assets/al_noor_audio/README.md`.
+         */
+        const val PRODUCTION_CATALOG_ASSET = "al_noor_audio/catalog.production.json"
+    }
 
     private val loaded = AtomicBoolean(false)
     private val artists = MutableStateFlow<Map<String, Artist>>(emptyMap())
@@ -51,10 +61,22 @@ class BundledAlNoorAudioRepository(
         withContext(Dispatchers.IO) {
             synchronized(this@BundledAlNoorAudioRepository) {
                 if (loaded.get()) return@withContext
-                val raw = context.assets.open(assetPath).bufferedReader().use { it.readText() }
+                val path = resolveCatalogAssetPath()
+                val raw = context.assets.open(path).bufferedReader().use { it.readText() }
                 parseCatalog(raw)
                 loaded.set(true)
             }
+        }
+    }
+
+    /** Prefer audited production pack when present; otherwise demo catalog. */
+    private fun resolveCatalogAssetPath(): String {
+        if (assetPath != DEFAULT_CATALOG_ASSET) return assetPath
+        return try {
+            context.assets.open(PRODUCTION_CATALOG_ASSET).close()
+            PRODUCTION_CATALOG_ASSET
+        } catch (_: Exception) {
+            DEFAULT_CATALOG_ASSET
         }
     }
 

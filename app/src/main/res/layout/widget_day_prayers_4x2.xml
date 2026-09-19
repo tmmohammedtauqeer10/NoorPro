@@ -24,23 +24,58 @@
         android:orientation="horizontal"
         android:gravity="center">
 
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+        <LinearLayout
+            android:id="@+id/widget_day_fajr_slot"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
             <TextView android:id="@+id/widget_day_fajr_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Fajr" android:textColor="@color/widget_muted" android:textSize="11sp" />
             <TextView android:id="@+id/widget_day_fajr_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--:--" android:textColor="@color/widget_text" android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+        <LinearLayout
+            android:id="@+id/widget_day_dhuhr_slot"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
             <TextView android:id="@+id/widget_day_dhuhr_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dhuhr" android:textColor="@color/widget_muted" android:textSize="11sp" />
             <TextView android:id="@+id/widget_day_dhuhr_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--:--" android:textColor="@color/widget_text" android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+        <LinearLayout
+            android:id="@+id/widget_day_asr_slot"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
             <TextView android:id="@+id/widget_day_asr_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Asr" android:textColor="@color/widget_muted" android:textSize="11sp" />
             <TextView android:id="@+id/widget_day_asr_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--:--" android:textColor="@color/widget_text" android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+        <LinearLayout
+            android:id="@+id/widget_day_maghrib_slot"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
             <TextView android:id="@+id/widget_day_maghrib_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Maghrib" android:textColor="@color/widget_muted" android:textSize="11sp" />
             <TextView android:id="@+id/widget_day_maghrib_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--:--" android:textColor="@color/widget_text" android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
+        <LinearLayout
+            android:id="@+id/widget_day_isha_slot"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
             <TextView android:id="@+id/widget_day_isha_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Isha" android:textColor="@color/widget_muted" android:textSize="11sp" />
             <TextView android:id="@+id/widget_day_isha_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--:--" android:textColor="@color/widget_text" android:textSize="14sp" android:textStyle="bold" />
         </LinearLayout>

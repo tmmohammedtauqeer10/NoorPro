@@ -20,6 +20,12 @@ import java.util.concurrent.TimeUnit
 /**
  * Posts / updates the quiet ongoing "Next: Maghrib · 01:24" notification.
  * Never uses the adhan HIGH channel.
+ *
+ * Refresh improvements:
+ * - Chronometer-style countdown when possible ([NotificationCompat.setWhen] +
+ *   [NotificationCompat.setUsesChronometer] counting down).
+ * - [setOnlyAlertOnce] + silent + LOW channel to avoid noise on each tick.
+ * - Scheduler enqueues a near-prayer one-shot so the shade advances promptly.
  */
 object NextPrayerOngoingUpdater {
     const val PREFS = "prayer_settings_prefs"
@@ -37,23 +43,28 @@ object NextPrayerOngoingUpdater {
         if (!enabled) {
             NotificationManagerCompat.from(context)
                 .cancel(PrayerNotificationChannels.ONGOING_NOTIFICATION_ID)
+            NextPrayerOngoingScheduler.cancel(context)
         } else {
             NextPrayerOngoingScheduler.schedule(context)
         }
     }
 
-    suspend fun update(context: Context) {
+    /**
+     * @return milliseconds until the next prayer (0 if unknown / location missing).
+     * Used by the scheduler to enqueue a near-prayer refresh.
+     */
+    suspend fun update(context: Context): Long {
         PrayerNotificationChannels.ensureAll(context)
         if (!isEnabled(context)) {
             NotificationManagerCompat.from(context)
                 .cancel(PrayerNotificationChannels.ONGOING_NOTIFICATION_ID)
-            return
+            return 0L
         }
 
         val location = UserPreferencesRepository(context).locationFlow.first()
         if (!location.isAvailable) {
-            post(context, "Next prayer", "Waiting for location…", null)
-            return
+            post(context, "Next prayer", "Waiting for location…", null, 0L)
+            return 0L
         }
 
         val controller = PrayerSettingsController(context)
@@ -68,7 +79,6 @@ object NextPrayerOngoingUpdater {
         val next = prayers.firstOrNull { prayer ->
             parseTodayTime(prayer.time)?.after(now) == true
         } ?: run {
-            // After Isha — show tomorrow's Fajr if available
             val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }.time
             controller.calculatePrayers(
                 date = tomorrow,
@@ -79,12 +89,11 @@ object NextPrayerOngoingUpdater {
         }
 
         if (next == null) {
-            post(context, "Next prayer", "Unable to calculate", null)
-            return
+            post(context, "Next prayer", "Unable to calculate", null, 0L)
+            return 0L
         }
 
         val prayerDate = parseTodayTime(next.time) ?: now
-        // If we rolled to tomorrow Fajr, bump calendar day
         val target = if (!prayerDate.after(now) && next.name == "Fajr") {
             Calendar.getInstance().apply {
                 time = prayerDate
@@ -96,10 +105,17 @@ object NextPrayerOngoingUpdater {
         val countdown = formatCountdown(remainingMs)
         val title = "Next: ${next.name} · $countdown"
         val body = "${next.time} · Local"
-        post(context, title, body, next.name)
+        post(context, title, body, next.name, remainingMs)
+        return remainingMs
     }
 
-    private fun post(context: Context, title: String, body: String, prayerName: String?) {
+    private fun post(
+        context: Context,
+        title: String,
+        body: String,
+        prayerName: String?,
+        remainingMs: Long,
+    ) {
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("OPEN_PRAYER", true)
@@ -111,7 +127,7 @@ object NextPrayerOngoingUpdater {
         }
         val pi = PendingIntent.getActivity(context, 71001, open, flags)
 
-        val notification = NotificationCompat.Builder(context, PrayerNotificationChannels.ONGOING)
+        val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.ONGOING)
             .setSmallIcon(R.drawable.ic_adhan_notification)
             .setContentTitle(title)
             .setContentText(body)
@@ -122,11 +138,20 @@ object NextPrayerOngoingUpdater {
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(pi)
             .setColor(0xFF0E8C73.toInt())
-            .build()
+            .setShowWhen(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        // Live countdown in the shade when we know the target time.
+        if (remainingMs > 0L) {
+            builder
+                .setWhen(System.currentTimeMillis() + remainingMs)
+                .setUsesChronometer(true)
+                .setChronometerCountDown(true)
+        }
 
         try {
             NotificationManagerCompat.from(context)
-                .notify(PrayerNotificationChannels.ONGOING_NOTIFICATION_ID, notification)
+                .notify(PrayerNotificationChannels.ONGOING_NOTIFICATION_ID, builder.build())
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS may be denied — ignore
         }

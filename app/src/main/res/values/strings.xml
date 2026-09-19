@@ -8,4 +8,8 @@
     <string name="al_noor_audio_title">Al Noor Audio</string>
     <string name="ongoing_next_prayer_title">Show next prayer in shade</string>
     <string name="ongoing_next_prayer_subtitle">Quiet ongoing notification with countdown (not adhan)</string>
+    <string name="al_noor_playback_channel_name">Al Noor Audio</string>
+    <string name="battery_opt_tip_title">Battery optimization tip</string>
+    <string name="battery_opt_tip_body">Allow unrestricted battery so prayer alarms and the next-prayer shade stay reliable.</string>
+    <string name="battery_opt_tip_action">Open battery settings</string>
 </resources>

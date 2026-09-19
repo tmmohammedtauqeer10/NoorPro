@@ -80,15 +80,25 @@ object PrayerWidgetUpdater {
 
     fun updateDay(context: Context, mgr: AppWidgetManager, id: Int, snap: Snapshot) {
         val views = RemoteViews(context.packageName, R.layout.widget_day_prayers_4x2)
-        fun set(nameId: Int, timeId: Int, name: String) {
+        val accent = context.getColorCompat(R.color.widget_accent)
+        val muted = context.getColorCompat(R.color.widget_muted)
+        val text = context.getColorCompat(R.color.widget_text)
+        val highlightBg = context.getColorCompat(R.color.widget_highlight_bg)
+
+        fun set(slotId: Int, nameId: Int, timeId: Int, name: String) {
+            val isNext = snap.available && snap.nextName.equals(name, ignoreCase = true)
             views.setTextViewText(nameId, name)
             views.setTextViewText(timeId, snap.times[name] ?: "--:--")
+            views.setTextColor(nameId, if (isNext) accent else muted)
+            views.setTextColor(timeId, if (isNext) accent else text)
+            // Soft highlight behind the current/next prayer column.
+            views.setInt(slotId, "setBackgroundColor", if (isNext) highlightBg else 0x00000000)
         }
-        set(R.id.widget_day_fajr_label, R.id.widget_day_fajr_time, "Fajr")
-        set(R.id.widget_day_dhuhr_label, R.id.widget_day_dhuhr_time, "Dhuhr")
-        set(R.id.widget_day_asr_label, R.id.widget_day_asr_time, "Asr")
-        set(R.id.widget_day_maghrib_label, R.id.widget_day_maghrib_time, "Maghrib")
-        set(R.id.widget_day_isha_label, R.id.widget_day_isha_time, "Isha")
+        set(R.id.widget_day_fajr_slot, R.id.widget_day_fajr_label, R.id.widget_day_fajr_time, "Fajr")
+        set(R.id.widget_day_dhuhr_slot, R.id.widget_day_dhuhr_label, R.id.widget_day_dhuhr_time, "Dhuhr")
+        set(R.id.widget_day_asr_slot, R.id.widget_day_asr_label, R.id.widget_day_asr_time, "Asr")
+        set(R.id.widget_day_maghrib_slot, R.id.widget_day_maghrib_label, R.id.widget_day_maghrib_time, "Maghrib")
+        set(R.id.widget_day_isha_slot, R.id.widget_day_isha_label, R.id.widget_day_isha_time, "Isha")
         views.setTextViewText(
             R.id.widget_day_header,
             if (snap.available) "Today · next ${snap.nextName}" else "Prayer times",
@@ -96,6 +106,10 @@ object PrayerWidgetUpdater {
         views.setOnClickPendingIntent(R.id.widget_day_root, openPrayerPending(context, id + 1000))
         mgr.updateAppWidget(id, views)
     }
+
+    private fun Context.getColorCompat(resId: Int): Int =
+        if (Build.VERSION.SDK_INT >= 23) getColor(resId)
+        else @Suppress("DEPRECATION") resources.getColor(resId)
 
     private fun openPrayerPending(context: Context, requestCode: Int): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {

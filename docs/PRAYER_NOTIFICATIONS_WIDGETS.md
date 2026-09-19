@@ -14,7 +14,7 @@ Spec for strengthening prayer reminders and adding glanceable widgets.
 - **Calculation:** `OfflinePrayerCalculator` + Adhan library; location from
   `UserPreferencesRepository`.
 - **Tracking DB:** `PrayerDatabase` (`prayer_logs`, `qaza_counts`).
-- **Widgets:** none registered in `AndroidManifest.xml` yet.
+- **Widgets:** `NextPrayerWidgetReceiver` (2×2) + `DayPrayerWidgetReceiver` (4×2) registered; day strip highlights the next prayer.
 
 ## Target: shade “ongoing” + adhan channels
 
@@ -100,3 +100,11 @@ boot completed, timezone change (already handled for alarms).
 Widget/ongoing code lives under `com.noorpro.app.prayer` (see
 `ARCHITECTURE.md` / `docs/PACKAGE_RENAME.md`). Prefer that package for new
 feature files.
+
+
+## Battery optimization
+
+Settings → Advanced includes a **Battery optimization tip** that deep-links to
+unrestricted / ignore-battery settings so exact prayer alarms and the ongoing
+shade survive OEM Doze. Prefer user-initiated settings intents over silent
+whitelisting.
