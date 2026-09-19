@@ -92,3 +92,8 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Al Noor Audio (Media3 session + bundled catalog)
+-keep class com.example.audio.** { *; }
+-keep class androidx.media3.** { *; }
+-keepclassmembers class * extends androidx.media3.session.MediaSessionService { *; }
