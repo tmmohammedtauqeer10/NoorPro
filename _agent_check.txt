@@ -1,0 +1,50 @@
+﻿=== AndroidManifest.xml ===
+14: <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+75: android:name="com.example.receiver.BootCompletedReceiver"
+=== DeenViewModel.kt ===
+218: private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+234: connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+1585: calculateNextPrayer()
+1627: calculateNextPrayer()
+1636: calculateNextPrayer()
+2170: // Recreate on each play so release() in onCleared does not leave a dead instance.
+2800: calculateNextPrayer()
+2806: fun startCompassListening() {
+2814: CrashReporter.report(e, "startCompassListening")
+2826: private fun calculateNextPrayer() {
+2966: override fun onCleared() {
+2967: super.onCleared()
+2969: connectivityManager.unregisterNetworkCallback(networkCallback)
+=== AdManager.kt => C:\Users\tmmoh\Documents\Codex\2026-06-11\review-this-app-https-ai-studio\work\deen\app\src\main\java\com\example\ads\AdManager.kt ===
+16: import com.example.BuildConfig
+22: * AdMob unit ids. Debug builds always use Google's official test banner so developers
+23: * never click live ads. Release builds use ADMOB_FEED_BANNER / ADMOB_BOTTOM_BANNER from
+24: * `.env` (Secrets Gradle Plugin → BuildConfig). If those are still test placeholders,
+34: if (BuildConfig.DEBUG) return GOOGLE_TEST_BANNER
+44: get() = resolve(BuildConfig.ADMOB_FEED_BANNER)
+47: get() = resolve(BuildConfig.ADMOB_BOTTOM_BANNER)
+=== AuthEmailService.kt => C:\Users\tmmoh\Documents\Codex\2026-06-11\review-this-app-https-ai-studio\work\deen\app\src\main\java\com\example\data\AuthEmailService.kt ===
+package com.example.data
+
+import com.google.firebase.appcheck.FirebaseAppCheck
+line count: 60
+=== AiFeatureService.kt => C:\Users\tmmoh\Documents\Codex\2026-06-11\review-this-app-https-ai-studio\work\deen\app\src\main\java\com\example\data\AiFeatureService.kt ===
+package com.example.data
+
+import kotlinx.coroutines.Dispatchers
+line count: 275
+=== BootCompletedReceiver.kt => C:\Users\tmmoh\Documents\Codex\2026-06-11\review-this-app-https-ai-studio\work\deen\app\src\main\java\com\example\receiver\BootCompletedReceiver.kt ===
+package com.example.receiver
+
+import android.content.BroadcastReceiver
+line count: 48
+=== ADMOB config ===
+.env:3: ADMOB_FEED_BANNER=ca-app-pub-3940256099942544/6300978111
+.env:4: ADMOB_BOTTOM_BANNER=ca-app-pub-3940256099942544/6300978111
+.env.example:5: # AdMob banner unit ids (release). Debug builds always use Google test units.
+.env.example:6: # Replace with real ca-app-pub-XXXX/YYYY from https://apps.admob.com before Play release.
+.env.example:7: ADMOB_FEED_BANNER=ca-app-pub-3940256099942544/6300978111
+.env.example:8: ADMOB_BOTTOM_BANNER=ca-app-pub-3940256099942544/6300978111
+=== Generated BuildConfig ADMOB ===
+public static final String ADMOB_BOTTOM_BANNER = "ca-app-pub-3940256099942544/6300978111";
+public static final String ADMOB_FEED_BANNER = "ca-app-pub-3940256099942544/6300978111";

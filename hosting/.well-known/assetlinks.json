@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aistudio.deenislam.bvmzxl",
+      "sha256_cert_fingerprints": [
+        "CD:B7:A3:2E:38:E8:03:A8:06:38:B4:25:46:BA:CC:37:4E:49:DA:B4:F5:D6:33:2C:E4:71:55:E5:83:48:DD:5F"
+      ]
+    }
+  }
+]

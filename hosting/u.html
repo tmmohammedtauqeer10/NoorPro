@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Open this Noor Pro member profile in the app, or install Noor Pro for Android.">
+  <title>Noor Pro | Member</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#064E3B" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07110F" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .profile-wrap { max-width: 430px; margin: 42px auto; padding: 0 18px; text-align: center; }
+    .page-logo { width: 76px; height: 76px; border-radius: 22px; box-shadow: var(--shadow-md); margin-bottom: 18px; }
+    .avatar { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; border: 3px solid var(--gold); background: var(--emerald); }
+    .avatar-letter { width: 112px; height: 112px; border-radius: 50%; border: 3px solid var(--gold); background: var(--emerald); color: #fff; font-size: 44px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+    .name { margin: 16px 0 0; font-family: var(--font-display); font-size: 25px; font-weight: 600; color: var(--ink); }
+    .handle { margin: 4px 0 0; font-size: 15px; color: var(--accent); font-weight: 700; }
+    .hint { margin-top: 14px; font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
+    .actions { display: grid; gap: 10px; margin-top: 22px; }
+    .get-app { display: flex; align-items: center; justify-content: center; min-height: 48px; font-size: 16px; padding: 13px 22px; border-radius: 999px; background: var(--emerald); color: #fff; text-decoration: none; font-weight: 700; }
+    .get-app:hover { background: var(--emerald-bright); }
+    .get-app.secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--border-strong); }
+    .get-app.secondary:hover { background: var(--surface-sunken); }
+    .share-card { border: 1px solid var(--border); border-radius: 24px; background: var(--surface); padding: 26px 20px; box-shadow: var(--shadow-md); }
+  </style>
+</head>
+<body>
+  <header class="site"><nav class="wrap" aria-label="Primary">
+    <a class="brand" href="/"><img src="/logo.svg" width="38" height="38" alt="">Noor Pro</a>
+    <div class="nav-simple"><a href="/">Home</a><a href="/support">Support</a></div>
+  </nav></header>
+  <main id="main">
+    <div class="profile-wrap">
+      <img class="page-logo" src="/logo.svg" width="88" height="88" alt="Noor Pro logo">
+      <div class="share-card" id="content"><p class="hint">Loading member...</p></div>
+    </div>
+  </main>
+  <footer class="site"><div class="wrap"><div class="footer-bottom" style="margin-top:0;border-top:0;padding-top:0">
+    <span>&copy; 2026 Noor Pro</span>
+    <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/support">Support</a></span>
+  </div></div></footer>
+  <script>
+    (function () {
+      var el = document.getElementById("content");
+      var params = new URLSearchParams(location.search);
+      var uid = params.get("uid") || "";
+      var webLink = location.origin + "/u?uid=" + encodeURIComponent(uid);
+      var appPackage = "com.noorpro.app";
+      var intentUrl = "intent://noor-pro-d87e3.web.app/u?uid=" + encodeURIComponent(uid) +
+        "#Intent;scheme=https;package=" + appPackage +
+        ";S.browser_fallback_url=" + encodeURIComponent(webLink) + ";end";
+      var cta = '<div class="actions">' +
+        '<a class="get-app" href="' + intentUrl + '">Open in Noor Pro</a>' +
+        '<a class="get-app secondary" href="/noor-pro.apk" download>Download Android APK</a>' +
+        '</div>' +
+        '<p class="hint">Install Noor Pro, open Ummah, and follow this member to message them.</p>';
+
+      if (uid && /Android/i.test(navigator.userAgent) && sessionStorage.getItem("noor_profile_open_" + uid) !== "1") {
+        sessionStorage.setItem("noor_profile_open_" + uid, "1");
+        setTimeout(function () { location.href = intentUrl; }, 350);
+      }
+
+      if (!uid) {
+        el.innerHTML = "<p class='hint'>This link is missing a member ID.</p>" + cta;
+        return;
+      }
+
+      var url = "https://firestore.googleapis.com/v1/projects/noor-pro-d87e3/databases/(default)/documents/ummah_profiles/" +
+        encodeURIComponent(uid) + "?key=AIzaSyAQy7RrAmrneAVYwcc7ATVJoRXEqpMzn90";
+      fetch(url)
+        .then(function (r) { if (!r.ok) throw new Error("not found"); return r.json(); })
+        .then(function (doc) {
+          var f = doc.fields || {};
+          function s(name) { return (f[name] && f[name].stringValue) || ""; }
+          var name = s("name") || "Noor Pro member";
+          var handle = s("handle");
+          var photo = s("photoUrl");
+          var html = "";
+          if (photo) html += '<img class="avatar" alt="Profile photo">';
+          else html += '<div class="avatar-letter"></div>';
+          html += '<p class="name"></p>';
+          if (handle) html += '<p class="handle"></p>';
+          html += '<p class="hint">Open this profile in Noor Pro to follow, message, or view Ummah posts.</p>' + cta;
+          el.innerHTML = html;
+          if (photo) el.querySelector(".avatar").src = photo;
+          else el.querySelector(".avatar-letter").textContent = name.charAt(0).toUpperCase();
+          el.querySelector(".name").textContent = name;
+          if (handle) el.querySelector(".handle").textContent = "@" + handle.replace(/^@/, "");
+        })
+        .catch(function () {
+          el.innerHTML = "<p class='name'>Noor Pro member</p><p class='hint'>This member profile opens in the Noor Pro app.</p>" + cta;
+        });
+    })();
+  </script>
+</body>
+</html>

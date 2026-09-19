@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Noor Pro export</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap">
+<style>
+  :root {
+    --emerald-deep: #042B20;
+    --emerald: #064E3B;
+    --emerald-mid: #0B5C4D;
+    --gold: #D4AF37;
+    --gold-soft: #F0D07A;
+    --cream: #FAF3EA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; overflow: hidden; }
+
+  /* The stage is pinned to the origin and sized exactly to the export target,
+     so a viewport screenshot at matching metrics is pixel-exact. */
+  .stage {
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+
+  .stage[hidden] { display: none; }
+
+  /* ---------- Shared Islamic lattice + glow ---------- */
+
+  .pattern {
+    position: absolute;
+    inset: 0;
+    opacity: 0.13;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%23D4AF37' stroke-width='1.4'><path d='M60 12 74 26 94 26 94 46 108 60 94 74 94 94 74 94 60 108 46 94 26 94 26 74 12 60 26 46 26 26 46 26Z'/><circle cx='60' cy='60' r='20'/></g></svg>");
+  }
+
+  /* ---------- Icon 512x512 ---------- */
+
+  #icon { width: 512px; height: 512px; }
+  #icon svg { width: 512px; height: 512px; display: block; }
+
+  /* ---------- Feature graphic 1024x500 ---------- */
+
+  #feature {
+    width: 1024px;
+    height: 500px;
+    display: flex;
+    align-items: center;
+    gap: 44px;
+    padding: 0 68px;
+    background:
+      radial-gradient(900px 520px at 78% 22%, rgba(212, 175, 55, 0.28), transparent 62%),
+      linear-gradient(125deg, var(--emerald-deep) 0%, var(--emerald) 48%, var(--emerald-mid) 100%);
+  }
+
+  #feature .pattern { background-size: 150px 150px; }
+
+  #feature .glow {
+    position: absolute;
+    right: -120px;
+    top: -160px;
+    width: 620px;
+    height: 620px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240, 208, 122, 0.32), transparent 66%);
+  }
+
+  #feature .mark {
+    position: relative;
+    flex: none;
+    width: 188px;
+    height: 188px;
+    border-radius: 46px;
+    overflow: hidden;
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.42), 0 0 0 2px rgba(212, 175, 55, 0.5);
+  }
+
+  #feature .mark svg { width: 188px; height: 188px; display: block; }
+  #feature .copy { position: relative; color: #fff; }
+
+  #feature .name {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: 92px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  #feature .tagline {
+    margin-top: 16px;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--gold-soft);
+  }
+
+  #feature .modules { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; }
+
+  #feature .chip {
+    padding: 9px 20px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(240, 208, 122, 0.55);
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 19px;
+    font-weight: 700;
+  }
+
+  /* ---------- Framed phone screenshot 1080x1920 ---------- */
+
+  #shot {
+    width: 1080px;
+    height: 1920px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 96px 70px 0;
+    background:
+      radial-gradient(760px 520px at 50% 4%, rgba(212, 175, 55, 0.26), transparent 64%),
+      linear-gradient(168deg, var(--emerald-deep) 0%, var(--emerald) 52%, #03231A 100%);
+  }
+
+  #shot .pattern { background-size: 190px 190px; opacity: 0.10; }
+
+  #shot .head {
+    position: relative;
+    text-align: center;
+    max-width: 900px;
+  }
+
+  #shot .step {
+    display: inline-block;
+    padding: 8px 26px;
+    border-radius: 999px;
+    border: 2px solid rgba(240, 208, 122, 0.5);
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--gold-soft);
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  #shot h1 {
+    margin-top: 26px;
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: 76px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  #shot .sub {
+    margin-top: 20px;
+    font-size: 31px;
+    line-height: 1.45;
+    font-weight: 500;
+    color: rgba(250, 244, 232, 0.78);
+  }
+
+  /* Device bezel wrapping the raw capture. */
+  #shot .phone {
+    position: relative;
+    margin-top: 66px;
+    padding: 14px;
+    border-radius: 62px;
+    background: linear-gradient(160deg, #24332E, #0A1512);
+    box-shadow: 0 50px 110px rgba(0, 0, 0, 0.55), 0 0 0 2px rgba(212, 175, 55, 0.3);
+  }
+
+  #shot .phone img {
+    display: block;
+    width: 760px;
+    height: auto;
+    border-radius: 48px;
+    background: #08130F;
+  }
+</style>
+</head>
+<body>
+
+<!-- 512 x 512 -->
+<div class="stage" id="icon" hidden>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72">
+    <rect x="18" y="18" width="72" height="72" fill="#FAF3EA"/>
+    <path fill="#F4C95D" d="M54,24C40,29 31,39 28,54C31,48 38,43 45,40C39,48 38,58 42,66C47,75 58,78 68,73C61,74 53,71 49,64C44,55 47,44 56,38C62,34 68,33 74,35C70,29 62,25 54,24z"/>
+    <path fill="#FFF8E7" d="M25,69C35,66 44,67 54,74C64,67 73,66 83,69L79,83C69,80 61,82 54,87C47,82 39,80 29,83z"/>
+    <path fill="#D6A62C" d="M25,69L54,78L83,69L79,75L54,84L29,75z"/>
+    <path fill="#F4C95D" d="M75,43l2,4l4,2l-4,2l-2,4l-2,-4l-4,-2l4,-2z"/>
+  </svg>
+</div>
+
+<!-- 1024 x 500 -->
+<div class="stage" id="feature" hidden>
+  <div class="pattern"></div>
+  <div class="glow"></div>
+  <div class="mark">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72">
+      <rect x="18" y="18" width="72" height="72" fill="#FAF3EA"/>
+      <path fill="#F4C95D" d="M54,24C40,29 31,39 28,54C31,48 38,43 45,40C39,48 38,58 42,66C47,75 58,78 68,73C61,74 53,71 49,64C44,55 47,44 56,38C62,34 68,33 74,35C70,29 62,25 54,24z"/>
+      <path fill="#FFF8E7" d="M25,69C35,66 44,67 54,74C64,67 73,66 83,69L79,83C69,80 61,82 54,87C47,82 39,80 29,83z"/>
+      <path fill="#D6A62C" d="M25,69L54,78L83,69L79,75L54,84L29,75z"/>
+      <path fill="#F4C95D" d="M75,43l2,4l4,2l-4,2l-2,4l-2,-4l-4,-2l4,-2z"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <div class="name">Noor Pro</div>
+    <div class="tagline">Your daily Islamic companion</div>
+    <div class="modules">
+      <span class="chip">Quran</span>
+      <span class="chip">Prayer times</span>
+      <span class="chip">Qibla</span>
+      <span class="chip">Duas</span>
+      <span class="chip">Noor AI</span>
+    </div>
+  </div>
+</div>
+
+<!-- 1080 x 1920 -->
+<div class="stage" id="shot" hidden>
+  <div class="pattern"></div>
+  <div class="head">
+    <span class="step" id="shot-step"></span>
+    <h1 id="shot-title"></h1>
+    <p class="sub" id="shot-sub"></p>
+  </div>
+  <div class="phone">
+    <img id="shot-img" alt="">
+  </div>
+</div>
+
+<script src="captions.js"></script>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var target = params.get("target") || "icon";
+    var stage = document.getElementById(target === "shot" ? "shot" : target);
+    if (!stage) return;
+
+    // Every stage is pinned to the origin, so the unused ones must leave the
+    // DOM entirely or they render on top of the export target.
+    document.querySelectorAll(".stage").forEach(function (el) {
+      if (el !== stage) el.remove();
+    });
+    stage.hidden = false;
+
+    if (target !== "shot") return;
+
+    var n = parseInt(params.get("n") || "1", 10);
+    var slide = (window.NOOR_CAPTIONS || [])[n - 1];
+    if (!slide) return;
+
+    document.getElementById("shot-step").textContent = slide.step;
+    document.getElementById("shot-title").textContent = slide.title;
+    document.getElementById("shot-sub").textContent = slide.sub;
+
+    var img = document.getElementById("shot-img");
+    img.src = "raw/" + slide.file;
+    img.alt = slide.title;
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "project_info": {
+    "project_number": "684547719535",
+    "project_id": "noor-pro-d87e3",
+    "storage_bucket": "noor-pro-d87e3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:684547719535:android:e2fc671e1155a89540a89a",
+        "android_client_info": {
+          "package_name": "com.noorpro.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "684547719535-1bvrvusiafpk4ltaro63evh1107aepba.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.noorpro.app",
+            "certificate_hash": "28c5ff566a445f7c5a67ade2ffcec71b481e3e60"
+          }
+        },
+        {
+          "client_id": "684547719535-g65pokrhaflnjmsidd5nbp6c195msioe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.noorpro.app",
+            "certificate_hash": "e914dd4b65b94e19326004065c11f934d3586f04"
+          }
+        },
+        {
+          "client_id": "684547719535-gp9niq27hhirjp7qijlll735hg1nq441.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.noorpro.app",
+            "certificate_hash": "b452c4b21f13cffe00b99fdd2b35e280659b67f0"
+          }
+        },
+        {
+          "client_id": "684547719535-kt32qbrva4j8n5alvts7fftoacclmlil.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.noorpro.app",
+            "certificate_hash": "75c534f4392ea0618370f14e6235b4641e6ed716"
+          }
+        },
+        {
+          "client_id": "684547719535-s642fl8i0o4le6vc3e23fk9hlv072fuf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.noorpro.app",
+            "certificate_hash": "82a6c6391705b1afc700d98cb2cbccaa25fbb2b1"
+          }
+        },
+        {
+          "client_id": "684547719535-njganphl6n5jg7r4ebo88v3472hiqfl9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArxT4M4dbuC9c62PDHgcxCaHnFL0gheDo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "684547719535-njganphl6n5jg7r4ebo88v3472hiqfl9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
