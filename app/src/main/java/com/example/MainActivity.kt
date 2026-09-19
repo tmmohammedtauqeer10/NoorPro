@@ -318,6 +318,23 @@ fun MainLayout() {
                 DeenScreen.DEEN_POINTS -> StitchDeenPointsScreen(viewModel = viewModel)
                 DeenScreen.AUDIO_LIBRARY -> com.example.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
                 DeenScreen.AUDIO_PLAYLIST -> com.example.ui.screens.StitchAudioPlaylistScreen(viewModel = viewModel)
+                DeenScreen.AL_NOOR_AUDIO -> com.example.audio.ui.AlNoorAudioHomeScreen(
+                    onOpenSearch = { viewModel.openAlNoorSearch() },
+                    onOpenPlaylist = { viewModel.openAlNoorPlaylist(it) },
+                    onOpenNowPlaying = { viewModel.openAlNoorNowPlaying() },
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.EXPLORE) },
+                )
+                DeenScreen.AL_NOOR_SEARCH -> com.example.audio.ui.AlNoorSearchScreen(
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                )
+                DeenScreen.AL_NOOR_PLAYLIST -> com.example.audio.ui.AlNoorPlaylistScreen(
+                    playlistId = viewModel.alNoorPlaylistId,
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                    onPlayTrack = { viewModel.openAlNoorNowPlaying() },
+                )
+                DeenScreen.AL_NOOR_NOW_PLAYING -> com.example.audio.ui.AlNoorNowPlayingScreen(
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.AL_NOOR_AUDIO) },
+                )
                 DeenScreen.DISCOVER_GROUPS -> com.example.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
             }
         }
@@ -452,6 +469,21 @@ fun MainLayout() {
         }
 
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
+        
+        com.example.audio.AlNoorAudioSession.init(context)
+        val alNoorQueue by com.example.audio.AlNoorAudioSession.player.queue.collectAsState()
+        val alNoorPlayback by com.example.audio.AlNoorAudioSession.player.playback.collectAsState()
+        val showAlNoorMini = alNoorQueue.currentTrack != null &&
+            currentScreen != DeenScreen.AL_NOOR_NOW_PLAYING &&
+            currentScreen != DeenScreen.LOGIN &&
+            currentScreen != DeenScreen.NOW_PLAYING
+        com.example.audio.ui.AlNoorMiniPlayer(
+            track = alNoorQueue.currentTrack,
+            isPlaying = alNoorPlayback.isPlaying,
+            visible = showAlNoorMini,
+            onExpand = { viewModel.openAlNoorNowPlaying() },
+            onPlayPause = { com.example.audio.AlNoorAudioSession.player.togglePlayPause() },
+        )
         if (showBottomNavigation) {
             FloatingBottomNavigationBar(
                 currentScreen = currentScreen,

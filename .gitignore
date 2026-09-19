@@ -17,3 +17,6 @@ captures/
 .DS_Store
 *.log
 **/debug.keystore*
+
+my-upload-key.jks
+*.jks

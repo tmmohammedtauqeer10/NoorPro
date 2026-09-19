@@ -1,0 +1,190 @@
+{
+  "version": 2,
+  "demoNotice": "Free-licensed Pixabay nasheed demos (Pixabay Content License). Aswati free pack still needs email unlock on aswati.co. Replace with your own audited nasheed/naat zip when ready.",
+  "artists": [
+    {
+      "id": "artist_sufisama99",
+      "name": "SufiSama99",
+      "bio": "Pixabay creator. Track licensed under Pixabay Content License.",
+      "imageUrl": null
+    },
+    {
+      "id": "artist_i_read_quran",
+      "name": "I_read_quran",
+      "bio": "Pixabay creator. Track licensed under Pixabay Content License.",
+      "imageUrl": null
+    },
+    {
+      "id": "artist_pixabay_creator",
+      "name": "Pixabay Creator",
+      "bio": "Pixabay creator. Track licensed under Pixabay Content License.",
+      "imageUrl": null
+    }
+  ],
+  "tracks": [
+    {
+      "id": "track_pixabay_1",
+      "title": "Nasheed Islamic Background",
+      "artistId": "artist_sufisama99",
+      "artistName": "SufiSama99",
+      "audioUrl": "asset:///al_noor_audio/tracks/nasheed_islamic_background.mp3",
+      "durationMs": 392000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Nasheed Islamic Background by SufiSama99 · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/ambient-nasheed-islamic-background-133345/",
+      "sourceUrl": "https://pixabay.com/music/ambient-nasheed-islamic-background-133345/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    },
+    {
+      "id": "track_pixabay_2",
+      "title": "Background Nasheed 25",
+      "artistId": "artist_i_read_quran",
+      "artistName": "I_read_quran",
+      "audioUrl": "asset:///al_noor_audio/tracks/background_nasheed_25.mp3",
+      "durationMs": 52000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Background Nasheed 25 by I_read_quran · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/choir-background-nasheed-25-499776/",
+      "sourceUrl": "https://pixabay.com/music/choir-background-nasheed-25-499776/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    },
+    {
+      "id": "track_pixabay_3",
+      "title": "Background Nasheed 37",
+      "artistId": "artist_i_read_quran",
+      "artistName": "I_read_quran",
+      "audioUrl": "asset:///al_noor_audio/tracks/background_nasheed_37.mp3",
+      "durationMs": 92000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Background Nasheed 37 by I_read_quran · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/choir-background-nasheed-37-499777/",
+      "sourceUrl": "https://pixabay.com/music/choir-background-nasheed-37-499777/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    },
+    {
+      "id": "track_pixabay_4",
+      "title": "Background Nasheed 27",
+      "artistId": "artist_i_read_quran",
+      "artistName": "I_read_quran",
+      "audioUrl": "asset:///al_noor_audio/tracks/background_nasheed_27.mp3",
+      "durationMs": 95000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Background Nasheed 27 by I_read_quran · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/ambient-background-nasheed-27-499783/",
+      "sourceUrl": "https://pixabay.com/music/ambient-background-nasheed-27-499783/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    },
+    {
+      "id": "track_pixabay_5",
+      "title": "Background Nasheed 60",
+      "artistId": "artist_i_read_quran",
+      "artistName": "I_read_quran",
+      "audioUrl": "asset:///al_noor_audio/tracks/copyright_free_background_nasheed_60.mp3",
+      "durationMs": 110000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Background Nasheed 60 by I_read_quran · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/choir-copyright-free-background-nasheed-60-499769/",
+      "sourceUrl": "https://pixabay.com/music/choir-copyright-free-background-nasheed-60-499769/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    },
+    {
+      "id": "track_pixabay_6",
+      "title": "Arabic Islamic Music (Nasheed style)",
+      "artistId": "artist_pixabay_creator",
+      "artistName": "Pixabay Creator",
+      "audioUrl": "asset:///al_noor_audio/tracks/arabic_islam_islamic_music_67s.mp3",
+      "durationMs": 67000,
+      "coverUrl": null,
+      "license": "PIXABAY",
+      "attributionText": "Arabic Islamic Music (Nasheed style) by Pixabay Creator · Pixabay Content License · free for commercial use in apps · https://pixabay.com/music/search/nasheed/",
+      "sourceUrl": "https://pixabay.com/music/search/nasheed/",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "tags": [
+        "pixabay",
+        "demo",
+        "royalty-free",
+        "nasheed"
+      ],
+      "language": "und"
+    }
+  ],
+  "playlists": [
+    {
+      "id": "pl_pixabay_nasheed",
+      "title": "Free Nasheed Demos (Pixabay)",
+      "description": "Royalty-free Pixabay demos for Al Noor Audio.",
+      "coverUrl": null,
+      "trackIds": [
+        "track_pixabay_1",
+        "track_pixabay_2",
+        "track_pixabay_3",
+        "track_pixabay_4",
+        "track_pixabay_5",
+        "track_pixabay_6"
+      ],
+      "isSystem": true
+    },
+    {
+      "id": "pl_new",
+      "title": "New",
+      "description": "Latest free demos",
+      "coverUrl": null,
+      "trackIds": [
+        "track_pixabay_1",
+        "track_pixabay_2",
+        "track_pixabay_3",
+        "track_pixabay_4",
+        "track_pixabay_5",
+        "track_pixabay_6"
+      ],
+      "isSystem": true
+    }
+  ],
+  "shelves": [
+    {
+      "id": "new",
+      "title": "New",
+      "playlistId": "pl_new"
+    },
+    {
+      "id": "nasheed",
+      "title": "Nasheed (free demos)",
+      "playlistId": "pl_pixabay_nasheed"
+    }
+  ]
+}

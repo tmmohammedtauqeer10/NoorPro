@@ -1,4 +1,8 @@
 package com.example
+import com.example.BuildConfig
+
+import com.example.audio.AlNoorAudioSession
+import com.example.audio.session.AlNoorPlaybackChannels
 
 import android.app.Application
 import coil.ImageLoader
@@ -23,6 +27,9 @@ class NoorProApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+
+        AlNoorAudioSession.init(this)
+        AlNoorPlaybackChannels.ensure(this)
 
         // Initialize AdMob first so it runs even if Firebase fails to init. MAX_AD_CONTENT_RATING_G
         // keeps ads family-friendly (filters most gambling/alcohol/dating) — finer category blocking
