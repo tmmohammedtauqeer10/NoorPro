@@ -11,5 +11,6 @@
     <color name="widget_text">#FFFAF4E8</color>
     <color name="widget_muted">#FF9AA89F</color>
     <color name="widget_accent">#FF0E8C73</color>
+    <color name="widget_highlight_bg">#330E8C73</color>
 </resources>
 

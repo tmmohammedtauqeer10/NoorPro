@@ -793,6 +793,66 @@ fun AdvancedSettingsScreen(
             }
         }
 
+        // Battery optimization tip — helps exact prayer alarms + ongoing shade survive Doze.
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = GlassOverlay),
+            border = BorderStroke(1.dp, GlassBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .testTag("battery_opt_tip_card")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Battery optimization tip",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                    ),
+                )
+                Text(
+                    text = "Allow unrestricted battery so prayer alarms and the next-prayer shade stay reliable.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                )
+                Button(
+                    onClick = {
+                        val pkg = ongoingContext.packageName
+                        val intents = listOf(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                            ).apply { data = android.net.Uri.parse("package:$pkg") },
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                            ),
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                            ).apply { data = android.net.Uri.parse("package:$pkg") },
+                        )
+                        for (intent in intents) {
+                            try {
+                                ongoingContext.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                                break
+                            } catch (_: Exception) {
+                                // try next fallback
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MatteGold),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text("Open battery settings", color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
         Text(
             text = "Customizable Prayer Alarms",
             style = MaterialTheme.typography.titleMedium.copy(

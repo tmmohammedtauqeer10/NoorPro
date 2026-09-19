@@ -601,7 +601,7 @@ private fun TrackRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${track.artistName} · ${track.license.name.replace('_', ' ')}",
+                "${track.artistName} · ${track.license.name.replace('_', ' ')} · ${track.attributionText}",
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

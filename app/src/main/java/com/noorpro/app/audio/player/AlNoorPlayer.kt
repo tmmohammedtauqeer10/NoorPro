@@ -2,6 +2,7 @@ package com.noorpro.app.audio.player
 
 import android.content.Context
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.noorpro.app.audio.models.PlaybackState
@@ -176,7 +177,21 @@ class AlNoorPlayer(context: Context) {
 
     private fun prepareCurrent(autoPlay: Boolean) {
         val track = _queue.value.currentTrack ?: return
-        val item = MediaItem.fromUri(track.audioUrl)
+        // Metadata feeds Media3 session notification (title / artist / play-pause-next).
+        val metadata = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artistName)
+            .setAlbumTitle("Al Noor Audio")
+            .setDisplayTitle(track.title)
+            .setSubtitle(track.artistName)
+            .setDescription(track.attributionText)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+            .build()
+        val item = MediaItem.Builder()
+            .setMediaId(track.id)
+            .setUri(track.audioUrl)
+            .setMediaMetadata(metadata)
+            .build()
         exo.setMediaItem(item)
         exo.prepare()
         _playback.update {

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!-- Production theme name (was Theme.MyApplication after AI Studio template). -->
+    <style name="Theme.NoorPro" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!-- Temporary alias so any stale references keep compiling during rename. -->
+    <style name="Theme.MyApplication" parent="Theme.NoorPro" />
 </resources>

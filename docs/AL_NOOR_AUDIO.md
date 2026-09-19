@@ -98,11 +98,13 @@ Do not overload `AudioQueueItem` for nasheed; keep models separate.
 
 ## Implementation order
 
-1. Models + in-memory / JSON repository stubs ✅ (this foundation)
-2. Player wrapper + unit-testable queue logic
-3. Compose screens + mini-player slot
-4. MediaSessionService + notification channel `al_noor_playback` (channel + service skeleton ✅)
-5. Curated asset pack + license audit checklist
+1. Models + in-memory / JSON repository stubs ✅
+2. Player wrapper + unit-testable queue logic ✅
+3. Compose screens + mini-player slot ✅
+4. MediaSessionService + notification channel `al_noor_playback` ✅
+   (`DefaultMediaNotificationProvider`, play/pause/next, metadata)
+5. Curated asset pack + license audit checklist — demo catalog ✅;
+   production drop-in via `catalog.production.json` (see `docs/AL_NOOR_CATALOG_SWAP.md`)
 6. Optional Firestore/CDN catalog sync
 
 ## Compliance checklist before shipping tracks
