@@ -10,4 +10,6 @@ enum class LicenseType {
     CC_BY,
     CC_BY_SA,
     PERMISSION_LETTER,
+    /** Pixabay Content License (commercial app embedding OK). */
+    PIXABAY,
 }
