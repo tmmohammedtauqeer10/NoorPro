@@ -38,7 +38,8 @@ class NoorProApplication : Application(), ImageLoaderFactory {
         AlNoorAudioSession.init(this)
         AlNoorPlaybackChannels.ensure(this)
         PrayerNotificationChannels.ensureAll(this)
-        NextPrayerOngoingScheduler.schedule(this)
+        // Never let a scheduling failure (e.g. WorkManager unavailable) crash app startup.
+        runCatching { NextPrayerOngoingScheduler.schedule(this) }
 
         // Initialize AdMob first so it runs even if Firebase fails to init. MAX_AD_CONTENT_RATING_G
         // keeps ads family-friendly (filters most gambling/alcohol/dating) — finer category blocking
