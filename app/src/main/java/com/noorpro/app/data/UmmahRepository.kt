@@ -155,8 +155,11 @@ class UmmahRepository {
     private val publicationRetryAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val publicationRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** A creator can interact with a reel during its brief submission-to-publication window.
-     * Retry public counters so those first likes, saves, shares, and views are not lost. */
+    /**
+     * Update the public counter, or the creator-owned submission while a new reel is waiting for
+     * backend promotion. This removes the publication race that used to make a successful Like,
+     * Save, Comment, Share, or View fall back to zero on a newly uploaded reel.
+     */
     private fun incrementPublishedCounter(
         postId: String,
         field: String,
@@ -169,21 +172,29 @@ class UmmahRepository {
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     onResult(true)
-                } else if (attempt < 6) {
-                    publicationRetryHandler.postDelayed(
-                        {
-                            incrementPublishedCounter(
-                                postId = postId,
-                                field = field,
-                                delta = delta,
-                                attempt = attempt + 1,
-                                onResult = onResult
-                            )
-                        },
-                        ((attempt + 1) * 1_500L).coerceAtMost(6_000L)
-                    )
                 } else {
-                    onResult(false)
+                    firestore.collection("ummah_submissions").document(postId)
+                        .update(field, com.google.firebase.firestore.FieldValue.increment(delta))
+                        .addOnCompleteListener { submissionTask ->
+                            if (submissionTask.isSuccessful) {
+                                onResult(true)
+                            } else if (attempt < 3) {
+                                publicationRetryHandler.postDelayed(
+                                    {
+                                        incrementPublishedCounter(
+                                            postId = postId,
+                                            field = field,
+                                            delta = delta,
+                                            attempt = attempt + 1,
+                                            onResult = onResult
+                                        )
+                                    },
+                                    ((attempt + 1) * 1_000L).coerceAtMost(3_000L)
+                                )
+                            } else {
+                                onResult(false)
+                            }
+                        }
                 }
             }
     }
@@ -626,6 +637,7 @@ class UmmahRepository {
         creatorHandle: String = "",
         creatorDisplayName: String = "",
         creatorPhotoUrlOverride: String = "",
+        onSubmitted: (String) -> Unit = {},
         onResult: (Boolean, String?) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
@@ -691,6 +703,7 @@ class UmmahRepository {
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
             ).addOnSuccessListener { document ->
+                onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
                 // Keep storage-provider and backend workflow details out of the member experience.
                 val message = if (type == "reel" || type == "video") {
@@ -883,10 +896,7 @@ class UmmahRepository {
             )
         ).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // Pending AWS reels do not have a public post document yet. Keep the successful
-                // comment and update the public counter only when that document is available.
-                firestore.collection("ummah_posts").document(postId)
-                    .update("commentCount", com.google.firebase.firestore.FieldValue.increment(1))
+                incrementPublishedCounter(postId, "commentCount")
             }
             onResult(task.isSuccessful)
         }

@@ -2265,6 +2265,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
+    /** Return from a Quran sub-reader to the Quran tab without leaving a stale loop in history. */
+    fun returnToQuranRoot() {
+        _selectedSurah.value = null
+        _activeDbVerses.value = emptyList()
+        _quranError.value = null
+        backStack.clear()
+        _currentScreen.value = DeenScreen.QURAN
+    }
+
     fun downloadAllQuranData(onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {

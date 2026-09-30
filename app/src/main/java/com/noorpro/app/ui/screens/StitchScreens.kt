@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -3468,8 +3467,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // instead of waiting for the Firestore round-trip; reverted only if the write fails.
     var optimisticLikes by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var optimisticSaves by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var optimisticLikeCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticSaveCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticCommentCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticShareCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticViewCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var playbackErrorReelId by remember { mutableStateOf<String?>(null) }
     var playbackRetryToken by remember { mutableStateOf(0) }
     // Reels already counted as a view this session (dedupe so one watch = one view).
@@ -3489,7 +3491,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             }
     }
     var stableReelIds by remember(feedRefreshKey, topTab, currentUid) { mutableStateOf(emptyList<String>()) }
-    val orderedReelIds = stableReelOrder(stableReelIds, rankedReels.map { it.id })
+    val orderedReelIds = reelOrderWithFocus(
+        previousIds = stableReelIds,
+        rankedIds = rankedReels.map { it.id },
+        focusedId = requestedReelId
+    )
     SideEffect {
         if (stableReelIds != orderedReelIds) stableReelIds = orderedReelIds
     }
@@ -3586,6 +3592,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         val watchedId = activePost.id
         if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
             viewedReelIds = viewedReelIds + watchedId
+            val currentViews = optimisticViewCounts[watchedId] ?: activePost.viewCount
+            optimisticViewCounts = optimisticViewCounts + (watchedId to currentViews + 1L)
             followRepository.incrementViews(watchedId)
         }
         userPaused = false
@@ -3763,16 +3771,16 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     val effectiveLiked = optimisticLikes[post.id] ?: persistedLiked
                     val persistedSaved = post.id in interactions.saved
                     val effectiveSaved = optimisticSaves[post.id] ?: persistedSaved
-                    val displayedLikeCount = (post.likeCount + when {
-                        effectiveLiked && !persistedLiked -> 1L
-                        !effectiveLiked && persistedLiked -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
-                    val displayedSaveCount = (post.saveCount + when {
-                        effectiveSaved && !persistedSaved -> 1L
-                        !effectiveSaved && persistedSaved -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
+                    val displayedLikeCount = displayedEngagementCount(
+                        post.likeCount,
+                        effectiveLiked,
+                        optimisticLikeCounts[post.id]
+                    )
+                    val displayedSaveCount = displayedEngagementCount(
+                        post.saveCount,
+                        effectiveSaved,
+                        optimisticSaveCounts[post.id]
+                    )
                         StitchLiveReelPage(
                             post = post,
                             displayName = displayName,
@@ -3786,6 +3794,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             displayCommentCount = maxOf(post.commentCount, optimisticCommentCounts[post.id] ?: 0L),
                             displaySaveCount = displayedSaveCount,
                             displayShareCount = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L),
+                            displayViewCount = maxOf(post.viewCount, optimisticViewCounts[post.id] ?: 0L),
                             isActive = page == activePage,
                             isPlaying = page == activePage && !userPaused,
                             playbackFailed = page == activePage && playbackErrorReelId == post.id,
@@ -3824,9 +3833,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticLikes[post.id] ?: (post.id in interactions.liked)
                                     val next = !current
                                     optimisticLikes = optimisticLikes + (post.id to next)
+                                    val previousCount = displayedLikeCount
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", next) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to current)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -3848,9 +3862,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticSaves[post.id] ?: (post.id in interactions.saved)
                                     val next = !current
                                     optimisticSaves = optimisticSaves + (post.id to next)
+                                    val previousCount = displayedSaveCount
+                                    optimisticSaveCounts = optimisticSaveCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "saved", next) { ok ->
                                         if (!ok) {
                                             optimisticSaves = optimisticSaves + (post.id to current)
+                                            optimisticSaveCounts = optimisticSaveCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update saved", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.45f)
@@ -3872,9 +3891,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     Toast.makeText(context, "Sign in to like reels", Toast.LENGTH_SHORT).show()
                                 } else if (!(optimisticLikes[post.id] ?: (post.id in interactions.liked))) {
                                     optimisticLikes = optimisticLikes + (post.id to true)
+                                    val previousCount = displayedLikeCount
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, true)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", true) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to false)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -4153,6 +4177,7 @@ private fun StitchLiveReelPage(
     displayCommentCount: Long,
     displaySaveCount: Long,
     displayShareCount: Long,
+    displayViewCount: Long,
     isActive: Boolean,
     isPlaying: Boolean,
     playbackFailed: Boolean,
@@ -4182,7 +4207,6 @@ private fun StitchLiveReelPage(
     var captionsOn by remember(post.id) { mutableStateOf(true) }
     var selectedQuality by remember(post.id) { mutableStateOf(stitchReelQualityOptions.first()) }
     var selectedSpeed by remember(post.id) { mutableStateOf(1f) }
-    var speedBoosting by remember(post.id) { mutableStateOf(false) }
     var seekFeedback by remember(post.id) { mutableStateOf<String?>(null) }
     var showTransportControls by remember(post.id) { mutableStateOf(false) }
     val context = LocalContext.current
@@ -4283,62 +4307,25 @@ private fun StitchLiveReelPage(
             }
         }
 
-        // Tap anywhere on the reel to play/pause.
+        // Use Compose's click gesture arbitration here. The old full-screen detectTapGestures
+        // consumed the initial pointer press, which could prevent the parent VerticalPager from
+        // receiving a swipe after a reel was opened from Profile.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(post.id, selectedSpeed) {
-                    detectTapGestures(
-                        onTap = {
-                            if (landscapeMode) {
-                                showTransportControls = if (isPlaying) !showTransportControls else true
-                            } else {
-                                onTogglePlay()
-                            }
-                        },
-                        onDoubleTap = { offset ->
-                            // YouTube-style zones: double-tap left = back 10s, right = forward 10s,
-                            // middle = like.
-                            val third = size.width / 3f
-                            when {
-                                offset.x < third -> seekBy(-10_000L)
-                                offset.x > third * 2 -> seekBy(10_000L)
-                                else -> onDoubleTapLike()
-                            }
-                        },
-                        onPress = {
-                            // Instagram-style: press and hold to fast-forward at 2x; release to restore.
-                            val pressScope = this
-                            val releasedQuickly = withTimeoutOrNull(180L) { pressScope.tryAwaitRelease() }
-                            if (releasedQuickly == null) {
-                                speedBoosting = true
-                                player?.setPlaybackSpeed(2f)
-                                pressScope.tryAwaitRelease()
-                                player?.setPlaybackSpeed(selectedSpeed)
-                                speedBoosting = false
-                            }
+                .combinedClickable(
+                    interactionSource = remember(post.id) { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (landscapeMode) {
+                            showTransportControls = if (isPlaying) !showTransportControls else true
+                        } else {
+                            onTogglePlay()
                         }
-                    )
-                }
+                    },
+                    onDoubleClick = onDoubleTapLike
+                )
         )
-
-        // "2x" indicator while holding to fast-forward.
-        if (speedBoosting) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 18.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("2x", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-        }
 
         Box(
             modifier = Modifier
@@ -4634,7 +4621,7 @@ private fun StitchLiveReelPage(
             // Keep the views row present from the first play instead of making it appear later.
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                "▶  ${compactCount(post.viewCount)} views",
+                "▶  ${compactCount(displayViewCount)} views",
                 color = Color.White.copy(alpha = 0.86f),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
@@ -7607,7 +7594,12 @@ fun StitchUmmahCreateScreen(
                             sourceReference = "",
                             creatorHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
                             creatorDisplayName = viewModel.userDisplayName,
-                            creatorPhotoUrlOverride = viewModel.userPhotoUrl
+                            creatorPhotoUrlOverride = viewModel.userPhotoUrl,
+                            // Preserve the exact new document ID before navigating. The Reels
+                            // screen uses it to start a full scrollable session at this upload.
+                            onSubmitted = { submittedId ->
+                                if (reelMode) viewModel.reelFocusId = submittedId
+                            }
                         ) { success, message ->
                             submitting = false
                             if (success) {

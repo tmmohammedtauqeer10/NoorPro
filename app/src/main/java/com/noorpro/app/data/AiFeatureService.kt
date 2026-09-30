@@ -3,6 +3,7 @@ package com.noorpro.app.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import android.os.Build
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -60,13 +61,20 @@ data class NoorAiMessage(
 )
 
 object AiFeatureService {
+    // Self-host is only reachable from the Android emulator (10.0.2.2 -> host loopback). On real phones it
+    // would just burn the connect timeout, so it is skipped unless an explicit non-default override is set.
+    internal const val NOOR_AI_SELFHOST_URL = "http://10.0.2.2:8080/v1/chat"
+
+    /** Optional explicit self-host URL (set at app start, or NOOR_AI_SELFHOST_URL env). Non-default only. */
+    @Volatile
+    var selfHostUrlOverride: String? = null
     private const val NOOR_AI_FUNCTION_URL =
         "https://us-central1-noor-pro-d87e3.cloudfunctions.net/askNoorAi"
     private const val SAFE_DISCLAIMER =
         "Note: Noor AI can make mistakes. For fatwa, divorce, inheritance, medical, legal, or serious personal issues, consult a qualified scholar."
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(2, TimeUnit.SECONDS)
         .readTimeout(28, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
         .build()
@@ -76,9 +84,96 @@ object AiFeatureService {
         mode: NoorAiMode,
         history: List<NoorAiMessage> = emptyList()
     ): String = withContext(Dispatchers.IO) {
-        callNoorAiFunction(prompt.trim(), mode, history) ?: run {
-            delay(120)
-            buildLocalGuidedResponse(prompt.trim(), mode)
+        val selfHostUrl = resolveSelfHostUrl(isEmulator(), selfHostUrlOverride ?: System.getenv("NOOR_AI_SELFHOST_URL"))
+        (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, prompt.trim(), mode, history) else null)
+            ?: callNoorAiFunction(prompt.trim(), mode, history)
+            ?: run {
+                delay(120)
+                buildLocalGuidedResponse(prompt.trim(), mode)
+            }
+    }
+
+    /** Returns the self-host URL to try, or null to skip straight to Firebase. */
+    internal fun resolveSelfHostUrl(isEmulator: Boolean, override: String?): String? {
+        val custom = override?.trim()?.takeIf { it.isNotEmpty() && it != NOOR_AI_SELFHOST_URL }
+        return custom ?: if (isEmulator) NOOR_AI_SELFHOST_URL else null
+    }
+
+    internal fun isEmulator(
+        fingerprint: String? = Build.FINGERPRINT,
+        model: String? = Build.MODEL,
+        product: String? = Build.PRODUCT,
+        manufacturer: String? = Build.MANUFACTURER,
+        brand: String? = Build.BRAND,
+        device: String? = Build.DEVICE,
+        hardware: String? = Build.HARDWARE
+    ): Boolean {
+        val fp = fingerprint.orEmpty()
+        val md = model.orEmpty()
+        val pr = product.orEmpty()
+        val hw = hardware.orEmpty()
+        return fp.startsWith("generic") ||
+            fp.startsWith("unknown") ||
+            fp.contains("emulator", true) ||
+            md.contains("google_sdk", true) ||
+            md.contains("Emulator", true) ||
+            md.contains("Android SDK built for", true) ||
+            manufacturer.orEmpty().contains("Genymotion", true) ||
+            (brand.orEmpty().startsWith("generic") && device.orEmpty().startsWith("generic")) ||
+            pr.contains("sdk_gphone", true) ||
+            pr.contains("google_sdk", true) ||
+            pr.contains("emulator", true) ||
+            pr.contains("simulator", true) ||
+            pr == "sdk" || pr == "sdk_x86" || pr == "vbox86p" ||
+            hw.contains("goldfish", true) || hw.contains("ranchu", true)
+    }
+
+    private suspend fun callNoorAiSelfHost(
+        url: String,
+        prompt: String,
+        mode: NoorAiMode,
+        history: List<NoorAiMessage>
+    ): String? {
+        if (prompt.isBlank()) return null
+        return try {
+            val historyJson = org.json.JSONArray()
+            history.takeLast(10).forEach { message ->
+                historyJson.put(
+                    JSONObject()
+                        .put("role", if (message.isUser) "user" else "assistant")
+                        .put("content", message.text.take(3500))
+                )
+            }
+            val payload = JSONObject()
+                .put("message", prompt.take(4000))
+                .put("mode", mode.name)
+                .put("history", historyJson)
+                .toString()
+            val request = Request.Builder()
+                .url(url)
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("Content-Type", "application/json")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string().orEmpty()
+                val root = JSONObject(body)
+                val answer = root.optString("answer").takeIf { it.isNotBlank() } ?: return null
+                val citations = root.optJSONArray("citations")
+                if (citations == null || citations.length() == 0) return answer
+                val cites = buildString {
+                    append("\n\nSources:\n")
+                    for (i in 0 until minOf(citations.length(), 5)) {
+                        val c = citations.getJSONObject(i)
+                        append("- ")
+                        append(c.optString("ref"))
+                        append('\n')
+                    }
+                }
+                answer + cites
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -273,3 +368,4 @@ object AiFeatureService {
         }
     }
 }
+
