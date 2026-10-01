@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Next-prayer 2x2 widget: emerald card, masjid silhouette, gold accent. RemoteViews-safe views only. -->
+<!-- Static preview of emerald card, masjid silhouette, gold accent. RemoteViews-safe views only. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_next_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg_gradient">
@@ -38,7 +37,6 @@
                 android:src="@drawable/widget_crescent" />
 
             <TextView
-            android:id="@+id/widget_next_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="5dp"
@@ -51,30 +49,27 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/widget_next_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:fontFamily="serif"
             android:maxLines="1"
-            android:text="Prayer"
+            android:text="Dhuhr"
             android:textColor="@color/widget_text"
             android:textSize="25sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/widget_next_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-medium"
             android:maxLines="1"
-            android:text="--:--"
+            android:text="12:16"
             android:textColor="@color/widget_gold"
             android:textSize="20sp" />
 
         <TextView
-            android:id="@+id/widget_next_countdown"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -85,20 +80,19 @@
             android:paddingTop="2dp"
             android:paddingEnd="9dp"
             android:paddingBottom="2dp"
-            android:text="Open Noor Pro"
+            android:text="in 2h 56m"
             android:textColor="@color/widget_text"
             android:textSize="11sp" />
 
         <TextView
-            android:id="@+id/widget_next_hijri"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text=""
+            android:text="19 Rabi al-Awwal"
             android:textColor="@color/widget_muted"
             android:textSize="10sp"
-            android:visibility="gone" />
+            android:visibility="visible" />
     </LinearLayout>
 </FrameLayout>

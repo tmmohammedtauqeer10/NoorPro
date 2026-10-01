@@ -18,6 +18,7 @@ import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import com.noorpro.app.utils.CrashReporter
 import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.prayer.PrayerDisplay
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater
 import com.noorpro.app.prayer.widget.PrayerWidgetUpdater
 import kotlinx.coroutines.withContext
@@ -122,18 +123,24 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         val bigText = "$reminderText\n$arabicCall  •  Hayya 'alas-salah\n" +
             "Hasten to the prayer. May Allah accept it from you."
 
-        val largeIcon = try {
+        // Emerald masjid tile (matches the home hero / widgets); fall back to the launcher icon.
+        val largeIcon = PrayerDisplay.masjidLargeIcon(context) ?: try {
             BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
         } catch (_: Exception) {
             null
         }
+        val hijri = PrayerDisplay.hijriLabel(context, short = false)
 
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_adhan_notification)
-            .setContentTitle("$prayerName • Prayer reminder")
+            .setContentTitle(if (offsetMinutes > 0) "$prayerName in $offsetMinutes min" else "Time for $prayerName")
             .setContentText(reminderText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setColor(0xFF0E8C73.toInt())
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(bigText)
+                    .setBigContentTitle(if (offsetMinutes > 0) "$prayerName in $offsetMinutes min" else "Time for $prayerName")
+            )
+            .setColor(PrayerDisplay.DEEP_GREEN)
             .setColorized(true)
             .setContentIntent(contentPendingIntent)
             .addAction(R.drawable.ic_adhan_notification, "Open App", contentPendingIntent)
@@ -145,6 +152,9 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
 
         if (largeIcon != null) {
             builder.setLargeIcon(largeIcon)
+        }
+        if (hijri.isNotBlank()) {
+            builder.setSubText(hijri)
         }
 
         if (isAlarm) {

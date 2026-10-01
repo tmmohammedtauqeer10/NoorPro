@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Day-strip 4x2 widget: emerald card, masjid silhouette, gold next-prayer chip. RemoteViews-safe views only. -->
+<!-- Static preview of emerald card, masjid silhouette, gold next-prayer chip. RemoteViews-safe views only. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_day_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg_gradient">
@@ -40,7 +39,6 @@
                 android:src="@drawable/widget_crescent" />
 
             <TextView
-                android:id="@+id/widget_day_header"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
@@ -48,19 +46,18 @@
                 android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="@string/widget_day_header"
+                android:text="Next: Dhuhr · in 2h 56m"
                 android:textColor="@color/widget_gold"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/widget_day_hijri"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text=""
+                android:text="19 Rabi al-Awwal"
                 android:textColor="@color/widget_muted"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -73,7 +70,6 @@
             android:orientation="horizontal">
 
         <LinearLayout
-            android:id="@+id/widget_day_fajr_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
@@ -85,7 +81,6 @@
             android:paddingBottom="4dp">
 
             <TextView
-                android:id="@+id/widget_day_fajr_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
@@ -95,55 +90,51 @@
                 android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/widget_day_fajr_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="--:--"
+                android:text="05:04"
                 android:textColor="@color/widget_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/widget_day_dhuhr_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
             android:layout_marginEnd="2dp"
             android:layout_weight="1"
+            android:background="@drawable/widget_slot_next"
             android:gravity="center"
             android:orientation="vertical"
             android:paddingTop="4dp"
             android:paddingBottom="4dp">
 
             <TextView
-                android:id="@+id/widget_day_dhuhr_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:text="Dhuhr"
-                android:textColor="@color/widget_muted"
+                android:textColor="@color/widget_gold"
                 android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/widget_day_dhuhr_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="--:--"
-                android:textColor="@color/widget_text"
+                android:text="12:16"
+                android:textColor="@color/widget_gold"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/widget_day_asr_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
@@ -155,7 +146,6 @@
             android:paddingBottom="4dp">
 
             <TextView
-                android:id="@+id/widget_day_asr_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
@@ -165,20 +155,18 @@
                 android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/widget_day_asr_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="--:--"
+                android:text="15:36"
                 android:textColor="@color/widget_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/widget_day_maghrib_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
@@ -190,7 +178,6 @@
             android:paddingBottom="4dp">
 
             <TextView
-                android:id="@+id/widget_day_maghrib_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
@@ -200,20 +187,18 @@
                 android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/widget_day_maghrib_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="--:--"
+                android:text="18:07"
                 android:textColor="@color/widget_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/widget_day_isha_slot"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_marginStart="2dp"
@@ -225,7 +210,6 @@
             android:paddingBottom="4dp">
 
             <TextView
-                android:id="@+id/widget_day_isha_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
@@ -235,13 +219,12 @@
                 android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/widget_day_isha_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:text="--:--"
+                android:text="19:24"
                 android:textColor="@color/widget_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
