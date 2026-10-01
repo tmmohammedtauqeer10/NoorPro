@@ -25,32 +25,42 @@
   </div>
 </nav></header>
 <main class="wrap" id="main"><article class="legal">
-  <h1>Privacy Policy</h1><p class="updated">Effective: June 20, 2026</p>
-  <p>Noor Pro respects your privacy. This policy explains what information the Android app processes and why.</p>
+  <h1>Privacy Policy</h1><p class="updated">Effective: October 1, 2026</p>
+  <p>Noor Pro (package <code>com.noorpro.app</code>) respects your privacy. This policy explains what the Android app and this website process, why, and the choices you have. Contact: <a href="mailto:noorpro.official@gmail.com">noorpro.official@gmail.com</a>.</p>
   <h2>Information you provide</h2>
-  <p>If you create an account or sign in with Google, Firebase Authentication processes your email address, display name, account identifier, and authentication credentials. Noor Pro never receives your Google password.</p>
-  <h2>Location information</h2>
-  <p>With your permission, Noor Pro uses device location to calculate prayer times, identify an approximate location label, and calculate Qibla direction. Location is stored locally for future calculations and may be sent to the AlAdhan prayer-time API to retrieve prayer and Hijri information.</p>
+  <p>If you create an account or sign in with Google, Firebase Authentication processes your email address, display name, account identifier, and credentials. Noor Pro never receives your Google password. If you reset your password, we send the reset email through the Resend email service.</p>
+  <h2>Community content</h2>
+  <p>Signed-in users can publish posts, photos, videos and reels, write comments, like and save posts, follow people, and exchange private messages and group messages (text, photos, voice notes and shared location). This content, your public profile (name, username, bio, photo) and related counts are stored in Google Cloud Firestore and Cloud Storage, and reel videos are stored and streamed using Amazon Web Services (S3, MediaConvert and CloudFront). Posts, reels, comments and your profile are visible to other users; chats and groups are visible to their participants.</p>
+  <h2>Reporting, blocking and moderation</h2>
+  <p>You can report posts, reels, comments, messages, groups and profiles, and block users. A report contains the content identifier, reason, your user identifier and the time, and is reviewed by us within 24 hours so we can remove harmful content and act against accounts that break our <a href="/terms">Terms</a>.</p>
+  <h2>Location</h2>
+  <p>With your permission, Noor Pro uses your device location (Google Play Services Location) to calculate prayer times, label your approximate place, and compute Qibla direction. Coordinates are stored on your device and sent to the AlAdhan prayer-time API to retrieve prayer and Hijri information. Location is also shared with other people only if you explicitly send a location in a chat. Maps are provided by Google Maps.</p>
+  <h2>Camera, microphone and media</h2>
+  <p>The camera is used only to take photos or videos you choose to send or post; the microphone is used only to record voice notes. Neither is used in the background.</p>
+  <h2>Noor AI</h2>
+  <p>When you use Noor AI, your question, the selected mode and up to the last 10 messages of that conversation, together with your app-check/sign-in token, are sent to our Firebase Cloud Function, which forwards them to an AI model provider (NVIDIA NIM hosted models) to generate an answer. Our function does not store prompts or answers; it logs only errors. The provider processes the request under its own terms.</p>
+  <h2>Advertising and consent</h2>
+  <p>Noor Pro shows ads using Google AdMob, which may use your Android advertising ID and device information to serve and measure ads. Where required (EEA, UK and similar regions), we show Google&rsquo;s consent form (User Messaging Platform) before requesting ads and you can review or change your choice at any time in Settings &gt; Ad privacy choices. You can reset your advertising ID in Android Settings &gt; Privacy &gt; Ads.</p>
   <h2>App activity and local data</h2>
-  <p>Bookmarks, prayer logs, Qaza counts, Noor Points, settings, downloaded reading data, and learning progress are primarily stored locally on your device. Backup files are created only when you explicitly request them.</p>
-  <h2>Firebase and Ummah community</h2>
-  <p>Firebase Authentication supports account sign-in. The Ummah community feed lets signed-in users publish posts (text, captions, and uploaded photos or videos), write comments, like and save posts, and send messages to other members. This content is stored in Cloud Firestore and Cloud Storage so it can be shown in the community feed.</p>
-  <h2>Community safety: reporting and blocking</h2>
-  <p>You can report any post (selecting a reason) and block any account directly from the post menu. Blocked accounts are hidden from your feed. Reports include the post identifier, reason, your Firebase user identifier, and the report time, and are reviewed so harmful content can be removed.</p>
+  <p>Bookmarks, prayer logs, Qaza counts, Noor Points, settings, downloaded reading data, and learning progress are primarily stored locally on your device. If you use cloud backup (Settings), a copy of your settings, your email and your app version is stored in Firestore under your account.</p>
   <h2>Diagnostics and crash reporting</h2>
-  <p>To detect and fix crashes, release versions of Noor Pro send anonymous diagnostic information (such as crash stack traces, device model, and operating-system version) to Firebase Crashlytics. This data is used only to improve app stability and is not used to identify you.</p>
-  <h2>Notifications</h2>
-  <p>If enabled, Noor Pro schedules local prayer reminders. Notification permission can be disabled in Android settings.</p>
+  <p>Release versions send crash reports (stack traces, device model, OS version) to Firebase Crashlytics to improve stability. Firebase App Check (Play Integrity) is used to protect our backend from abuse.</p>
+  <h2>Notifications and alarms</h2>
+  <p>If you allow notifications, Noor Pro schedules prayer reminders locally on your device, an optional ongoing next-prayer notification and optional daily ayah reminders. Exact-alarm access is used only so the adhan sounds on time. You can turn these off in the app or in Android settings.</p>
   <h2>Third-party services</h2>
-  <p>Noor Pro may communicate with Google Firebase, Google Play Services Location, AlAdhan, AlQuran Cloud, approved Quran recitation hosts, and approved content hosts. Their own privacy policies govern their processing.</p>
+  <p>Noor Pro communicates with: Google Firebase (Authentication, Firestore, Storage, App Check, Crashlytics, Cloud Functions), Google AdMob and User Messaging Platform, Google Maps and Play Services Location, Credential Manager (Google sign-in), AlAdhan (prayer times), AlQuran Cloud, Quran.com and EveryAyah (Quran text and recitation), GitHub / jsDelivr / Google Drive (library content), LottieFiles (animations), Amazon Web Services (reel storage and streaming), Resend (password-reset email) and NVIDIA (AI). Their own privacy policies govern their processing.</p>
   <h2>Data sharing and sale</h2>
-  <p>Noor Pro does not sell personal information. Information is shared only with service providers needed to deliver requested app functions, comply with law, or protect users and the service.</p>
+  <p>Noor Pro does not sell personal information. Information is shared only with the service providers listed above to deliver app functions, to comply with law, or to protect users and the service.</p>
   <h2>Retention and deletion</h2>
-  <p>Local data remains until you clear app data or uninstall Noor Pro. You may sign out at any time. To request deletion of your authenticated account or associated reports, follow the instructions on the <a href="/delete-account">account deletion page</a>.</p>
+  <p>Local data remains until you clear app data or uninstall Noor Pro. You can delete your account and associated data inside the app (Profile &gt; Account &gt; Delete account, or Settings &gt; Support &gt; Delete account) or by following the <a href="/delete-account">account deletion page</a>. We then delete your profile, posts, comments, likes, saves, follows, backup and sign-in account; some files and moderation records are purged or retained as described there.</p>
+  <h2>Your rights</h2>
+  <p>Depending on where you live, you may have the right to access, correct, delete or export your personal data and to withdraw consent. Email <a href="mailto:noorpro.official@gmail.com">noorpro.official@gmail.com</a> and we will respond within 30 days.</p>
   <h2>Children</h2>
-  <p>Noor Pro is not intended to collect personal information from children without appropriate parental or guardian consent.</p>
+  <p>Noor Pro is intended for users aged 16 and over. We do not knowingly collect personal information from children under 16; if you believe a child has given us personal information, contact us and we will delete it.</p>
+  <h2>Changes</h2>
+  <p>We will update this page and its date when practices change.</p>
   <h2>Contact</h2>
-  <p>For privacy questions, use the instructions on our <a href="/support">support page</a>.</p>
+  <p>Privacy questions: <a href="mailto:noorpro.official@gmail.com">noorpro.official@gmail.com</a> or our <a href="/support">support page</a>.</p>
 </article></main>
 <footer class="site"><div class="wrap"><div class="footer-bottom" style="margin-top:0;border-top:0;padding-top:0">
   <span>&copy; 2026 Noor Pro</span>

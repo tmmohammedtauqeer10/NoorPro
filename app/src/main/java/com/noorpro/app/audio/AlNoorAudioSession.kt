@@ -9,8 +9,13 @@ import com.noorpro.app.audio.session.AlNoorMediaSessionController
 import com.noorpro.app.audio.session.AlNoorPlaybackChannels
 
 /**
- * App-wide Al Noor Audio session (separate from Quran MediaPlayer).
- * Initialized once from [com.noorpro.app.NoorProApplication].
+ * Process-wide Al Noor Audio session (separate from Quran MediaPlayer).
+ *
+ * The single [AlNoorPlayer] lives for the whole process and is bound to a MediaSession by
+ * [com.noorpro.app.audio.session.AlNoorMediaSessionService], which is (re)started whenever playback
+ * starts and runs as a `mediaPlayback` foreground service while audio plays. UI composables
+ * (mini-player, Now Playing) only observe / command this player, so leaving a screen or tab never
+ * touches playback. Initialised lazily - never from Application.onCreate.
  */
 object AlNoorAudioSession {
     @Volatile
@@ -33,11 +38,7 @@ object AlNoorAudioSession {
             AlNoorPlaybackChannels.ensure(app)
             repository = BundledAlNoorAudioRepository(app)
             player = AlNoorPlayer(app)
-            mediaSession = AlNoorMediaSession.obtain(app).also {
-                it.attach(player)
-                // Starts AlNoorMediaSessionService (media3-session).
-                it.startSession()
-            }
+            mediaSession = AlNoorMediaSession.obtain(app).also { it.attach(player) }
             initialized = true
         }
     }

@@ -1520,6 +1520,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             areaAndCity
                         }
+                        // Prayer notifications (alarm receiver) show this same place name.
+                        runCatching { com.noorpro.app.prayer.PrayerPrefs(app).locationLabel = _currentLocationName.value }
                     }
                 }
             } catch (e: Exception) {
@@ -1533,10 +1535,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                 
                 val isHanafi = prayerSettingsController.selectedMadhab.value == Madhab.HANAFI
                 val schoolStr = if (isHanafi) "1" else "0" 
-                val method = when (prayerSettingsController.selectedMethod.value) {
-                    CalculationMethod.KARACHI -> 1
-                    CalculationMethod.MWL -> 3
-                }
+                val method = prayerSettingsController.selectedMethod.value.aladhanId
                 // Let AlAdhan resolve the timezone from the current coordinates. A fixed
                 // timezone (for example UTC) produces incorrect prayer times for most users.
                 val url = okhttp3.HttpUrl.Builder()
@@ -2263,6 +2262,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         if (backStack.isEmpty()) return false
         _currentScreen.value = backStack.removeAt(backStack.lastIndex)
         return true
+    }
+
+    /** Return from a Quran sub-reader to the Quran tab without leaving a stale loop in history. */
+    fun returnToQuranRoot() {
+        _selectedSurah.value = null
+        _activeDbVerses.value = emptyList()
+        _quranError.value = null
+        backStack.clear()
+        _currentScreen.value = DeenScreen.QURAN
     }
 
     fun downloadAllQuranData(onResult: (Boolean) -> Unit) {

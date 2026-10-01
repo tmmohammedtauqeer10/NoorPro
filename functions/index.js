@@ -42,11 +42,28 @@ let mediaConvertEndpoint = "";
 const REGION = process.env.NOOR_AI_REGION || "us-central1";
 const RESET_FROM_EMAIL = process.env.RESET_FROM_EMAIL || "Noor Pro <onboarding@resend.dev>";
 const RESET_CONTINUE_URL = process.env.RESET_CONTINUE_URL || "https://noor-pro-d87e3.web.app";
-// NVIDIA NIM (OpenAI-compatible) endpoint + model. Override via env if needed.
+// NVIDIA NIM (OpenAI-compatible) endpoint + models. NVIDIA retires hosted models without notice
+// (meta/llama-3.3-70b-instruct now answers HTTP 410 Gone), so we keep an ordered fallback list and
+// fall through on 404/410/429/5xx/empty answers. Override the whole list with NOOR_AI_MODELS
+// (comma separated) or the first entry with NOOR_AI_MODEL.
 const NVIDIA_BASE_URL =
   process.env.NOOR_AI_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODEL = process.env.NOOR_AI_MODEL || "meta/llama-3.3-70b-instruct";
-const MAX_PROMPT_CHARS = 2500;
+const DEFAULT_MODELS = [
+  "mistralai/mistral-large-2-instruct",
+  "nvidia/llama-3.1-nemotron-70b-instruct",
+  "nvidia/nemotron-3-super-120b-a12b",
+  "google/gemma-4-31b-it",
+  "mistralai/mistral-large",
+  "nvidia/nemotron-4-340b-instruct"
+];
+const MODELS = (process.env.NOOR_AI_MODELS ?
+  process.env.NOOR_AI_MODELS.split(",") :
+  [process.env.NOOR_AI_MODEL, ...DEFAULT_MODELS])
+  .map((m) => (m || "").trim()).filter(Boolean)
+  .filter((m, i, all) => all.indexOf(m) === i);
+const MAX_PROMPT_CHARS = 4000;
+const MAX_HISTORY_TURNS = 10;
+const MODEL_TIMEOUT_MS = 40000;
 
 const modeInstructions = {
   AskNoor: "Answer general Islamic questions with mainstream Sunni-safe guidance. Be humble and avoid issuing binding fatwa.",
@@ -75,20 +92,30 @@ function cors(res) {
 }
 
 /**
- * Require a valid Firebase App Check token. In production this blocks scrapers/scripts.
- * Set NOOR_REQUIRE_APPCHECK=false only for local function emulators without App Check.
+ * Gate for the AI endpoint: the caller must present a valid Firebase App Check token (proves the
+ * request comes from the genuine app) OR a valid Firebase Auth ID token (signed-in user). A token
+ * that is present but invalid is always rejected. Set NOOR_REQUIRE_APPCHECK=false only for local
+ * emulators / temporary diagnostics: it lets requests with NO token through.
  */
 async function requireAppCheck(req) {
-  if ((process.env.NOOR_REQUIRE_APPCHECK || "true").toLowerCase() === "false") {
-    return;
-  }
   const appCheckToken = req.get("X-Firebase-AppCheck") || "";
-  if (!appCheckToken) {
-    const err = new Error("Missing App Check token");
+  const authHeader = req.get("Authorization") || "";
+  const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!appCheckToken && !idToken) {
+    if ((process.env.NOOR_REQUIRE_APPCHECK || "true").toLowerCase() === "false") return;
+    const err = new Error("Missing App Check or ID token");
     err.code = 401;
     throw err;
   }
-  await admin.appCheck().verifyToken(appCheckToken);
+  if (appCheckToken) {
+    try {
+      await admin.appCheck().verifyToken(appCheckToken);
+      return;
+    } catch (error) {
+      if (!idToken) throw error;
+    }
+  }
+  await admin.auth().verifyIdToken(idToken);
 }
 
 /** Optional Auth — returns uid when present, null otherwise. */
@@ -109,25 +136,95 @@ function cleanString(value, fallback = "") {
   return value.trim().slice(0, MAX_PROMPT_CHARS);
 }
 
-function buildSystemPrompt(mode) {
+function buildSystemPrompt(mode, instructions) {
   const modeText = modeInstructions[mode] || modeInstructions.AskNoor;
-  return [
-    "You are Noor AI inside an Islamic mobile app.",
+  const lines = [
+    "You are Noor AI, the assistant inside the Noor Pro Islamic app. Answer the user's ACTUAL question directly and specifically; never reply with generic boilerplate that ignores what was asked. Use the earlier conversation turns for context and follow-up questions.",
     modeText,
-    "Use clear, gentle English. If useful, include short Urdu-friendly wording, but do not overdo it.",
-    "Whenever you include a dua, a Quran ayah, or any Arabic phrase, present it in three lines: 'Arabic: <arabic script>', 'Transliteration: <latin>', 'Meaning: <english>'. Keep the Arabic script accurate; if unsure of exact wording, give the meaning only and say to verify.",
-    "Never claim to be a scholar. Do not give final fatwa.",
-    "For divorce, inheritance, medical, legal, self-harm, abuse, or complex rulings, tell the user to consult a qualified scholar or relevant professional.",
-    "If citing Quran or Hadith, only cite when you are confident. Otherwise say to verify with reliable sources.",
+    "Creed and fiqh: follow the mainstream Sunni position (Ahl as-Sunnah wal-Jama'ah). For fiqh questions, mention the four Sunni madhhabs (Hanafi, Maliki, Shafi'i, Hanbali) where they differ and say which is which. Never promote Shia, Ahmadi, Quranist or other deviant views as correct, and do not take sectarian polemic positions; stay respectful.",
+    "Sources: ground answers in the Quran and authentic Sunnah (Sahih al-Bukhari, Sahih Muslim, and the other books of the Sunan). Cite only what you are confident of: Quran as (Surah Name 2:255), hadith as collection plus number, e.g. (Sahih al-Bukhari 1). Never invent a verse, hadith, number or scholar. If you are unsure of a reference, say so and tell the user to verify.",
+    "Format: clear, warm English (short Urdu/Arabic terms are fine). Use short paragraphs or bullet points. Present Arabic in three lines: 'Arabic: ...', 'Transliteration: ...', 'Meaning: ...'; if unsure of the exact Arabic wording, give the meaning only.",
+    "When you used any Quran/hadith/scholarly reference, finish with a line 'Sources:' followed by a bullet list of the references. If none, omit that line.",
+    "Never claim to be a scholar and do not issue a binding fatwa. For divorce, inheritance, medical, legal, self-harm, abuse, or complex rulings, advise consulting a qualified scholar or professional. Decline politely to answer requests that are unrelated to Islam or the app, or that are harmful.",
     "Always end with: Allah knows best."
-  ].join("\n");
+  ];
+  if (instructions) lines.push(`Style note from the app: ${instructions}`);
+  return lines.join("\n");
+}
+
+/** Strip hidden chain-of-thought some reasoning models put in the answer. */
+function stripThinking(text) {
+  return String(text || "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^[\s\S]*?<\/think>/i, "")
+    .trim();
+}
+
+/** Pull "Sources:" bullets out of the answer so the client can render citations separately. */
+function extractCitations(answer) {
+  const idx = answer.search(/\n\s*\**Sources?:?\**\s*\n/i);
+  if (idx < 0) return {body: answer, citations: []};
+  const tail = answer.slice(idx);
+  const citations = tail.split("\n")
+    .map((l) => l.replace(/^\s*[-*•\d.)]+\s*/, "").trim())
+    .filter((l) => l && !/^\**sources?:?\**$/i.test(l) && !/^allah knows best/i.test(l))
+    .slice(0, 8)
+    .map((ref) => ({ref: ref.slice(0, 200)}));
+  return {body: answer, citations};
+}
+
+async function callNvidia(apiKey, model, messages, temperature) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  try {
+    const response = await fetch(NVIDIA_BASE_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        top_p: 0.9,
+        max_tokens: 1800,
+        stream: false
+      })
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return {ok: false, status: response.status, detail: detail.slice(0, 300)};
+    }
+    const data = await response.json();
+    const message = data && Array.isArray(data.choices) && data.choices[0] && data.choices[0].message;
+    const text = stripThinking(message && typeof message.content === "string" ? message.content : "");
+    return text ? {ok: true, text} : {ok: false, status: 200, detail: "empty answer"};
+  } catch (error) {
+    return {ok: false, status: 0, detail: error && error.message ? error.message : "request failed"};
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Very small per-instance throttle so a leaked endpoint cannot burn the NVIDIA quota.
+const recentCalls = new Map();
+function throttled(key) {
+  const now = Date.now();
+  const list = (recentCalls.get(key) || []).filter((t) => now - t < 60000);
+  list.push(now);
+  recentCalls.set(key, list);
+  if (recentCalls.size > 5000) recentCalls.clear();
+  return list.length > 20;
 }
 
 exports.askNoorAi = onRequest(
   {
     region: REGION,
     cors: false,
-    timeoutSeconds: 60,
+    timeoutSeconds: 120,
     memory: "512MiB",
     maxInstances: 10,
     secrets: [NVIDIA_API_KEY]
@@ -152,74 +249,80 @@ exports.askNoorAi = onRequest(
 
     try {
       const prompt = cleanString(req.body && req.body.prompt);
-      const mode = cleanString(req.body && req.body.mode, "AskNoor");
+      const mode = cleanString(req.body && req.body.mode, "AskNoor").slice(0, 40);
+      const instructions = cleanString(req.body && req.body.instructions).slice(0, 400);
       if (!prompt) {
         res.status(400).json({error: "Prompt is required."});
         return;
       }
 
-      // Optional Auth uid is available for future per-user rate limits / logging.
-      await optionalAuthUid(req);
+      const uid = await optionalAuthUid(req);
+      if (throttled(uid || req.ip || "anon")) {
+        res.status(429).json({error: "Too many questions. Please wait a minute and try again."});
+        return;
+      }
 
-      // Optional conversation history so Noor AI remembers the chat (last 8 turns max).
+      // Conversation history so Noor AI remembers the chat. Drop a trailing copy of the current
+      // question if the client included it, and make sure roles alternate starting with a user turn.
       const rawHistory = Array.isArray(req.body && req.body.history) ? req.body.history : [];
-      const history = rawHistory
-        .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-        .slice(-8)
-        .map((m) => ({role: m.role, content: m.content.slice(0, MAX_PROMPT_CHARS)}));
+      let history = rawHistory
+        .filter((m) => m && (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" && m.content.trim())
+        .slice(-MAX_HISTORY_TURNS)
+        .map((m) => ({role: m.role, content: m.content.trim().slice(0, MAX_PROMPT_CHARS)}));
+      if (history.length && history[history.length - 1].role === "user" &&
+          history[history.length - 1].content === prompt) {
+        history.pop();
+      }
+      while (history.length && history[0].role !== "user") history.shift();
+      const alternating = [];
+      for (const m of history) {
+        const last = alternating[alternating.length - 1];
+        if (last && last.role === m.role) last.content += `\n${m.content}`;
+        else alternating.push({...m});
+      }
+      history = alternating;
+      if (history.length && history[history.length - 1].role === "user") history.pop();
 
-      const apiKey = NVIDIA_API_KEY.value();
+      const rawKey = NVIDIA_API_KEY.value() || "";
+      // A secret saved with a trailing newline/space or wrapping quotes is rejected by NVIDIA with 403.
+      const apiKey = rawKey.trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "");
+      if (apiKey !== rawKey) console.warn("askNoorAi: NVIDIA_API_KEY had stray whitespace/quotes; sanitized");
       if (!apiKey) {
         res.status(500).json({error: "Noor AI key is not configured."});
         return;
       }
 
-      const temperature = mode === "DuaGenerator" ? 0.65 : 0.35;
-      const nvResponse = await fetch(NVIDIA_BASE_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            {role: "system", content: buildSystemPrompt(mode)},
-            ...history,
-            {role: "user", content: prompt}
-          ],
-          temperature,
-          top_p: 0.9,
-          max_tokens: 1024,
-          stream: false
-        })
-      });
+      const messages = [
+        {role: "system", content: buildSystemPrompt(mode, instructions)},
+        ...history,
+        {role: "user", content: prompt}
+      ];
+      const temperature = mode === "DuaGenerator" ? 0.65 : 0.3;
 
-      if (!nvResponse.ok) {
-        const detail = await nvResponse.text().catch(() => "");
-        console.error("NVIDIA API error", nvResponse.status, detail.slice(0, 500));
-        res.status(502).json({
-          error: "Noor AI is temporarily unavailable.",
-          detail: `Upstream status ${nvResponse.status}`
-        });
-        return;
+      let last = {status: 0, detail: "no models configured"};
+      const tried = [];
+      for (const model of MODELS) {
+        const result = await callNvidia(apiKey, model, messages, temperature);
+        if (result.ok) {
+          const {citations} = extractCitations(result.text);
+          console.log("askNoorAi served by", model);
+          res.json({answer: result.text, citations, provider: "nvidia", model});
+          return;
+        }
+        console.error("askNoorAi model failed", model, result.status, result.detail);
+        last = result;
+        tried.push(`${model}:${result.status}`);
       }
-
-      const data = await nvResponse.json();
-      const text =
-        data &&
-        Array.isArray(data.choices) &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        typeof data.choices[0].message.content === "string"
-          ? data.choices[0].message.content.trim()
-          : "";
-
-      res.json({
-        answer: text || "Noor AI could not generate an answer right now. Please try again.",
-        provider: "nvidia",
-        model: MODEL
+      // Shape-only hint (never the key): NVIDIA personal keys start with "nvapi-".
+      const keyLooksValid = /^nvapi-/.test(apiKey);
+      if (last.status === 401 || last.status === 403) {
+        console.error(`askNoorAi: NVIDIA rejected the API key (HTTP ${last.status}); key length ${apiKey.length}, nvapi- prefix: ${keyLooksValid}. Create a new key at build.nvidia.com and run: firebase functions:secrets:set NVIDIA_API_KEY`);
+      }
+      res.status(502).json({
+        error: "Noor AI is temporarily unavailable.",
+        detail: `Upstream status ${last.status}`,
+        tried
       });
     } catch (error) {
       console.error("askNoorAi failed", error);

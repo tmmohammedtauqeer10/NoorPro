@@ -1,43 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Next-prayer 2x2 widget: emerald card, masjid silhouette, gold accent. RemoteViews-safe views only. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_next_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/widget_bg"
-    android:orientation="vertical"
-    android:padding="12dp"
-    android:gravity="center_vertical">
+    android:background="@drawable/widget_bg_gradient">
 
-    <TextView
-        android:id="@+id/widget_next_label"
-        android:layout_width="wrap_content"
+    <ImageView
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/widget_next_prayer_label"
-        android:textColor="@color/widget_muted"
-        android:textSize="12sp" />
+        android:layout_gravity="bottom"
+        android:adjustViewBounds="true"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_masjid_compact" />
 
-    <TextView
-        android:id="@+id/widget_next_name"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Maghrib"
-        android:textColor="@color/widget_accent"
-        android:textSize="22sp"
-        android:textStyle="bold" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="10dp">
 
-    <TextView
-        android:id="@+id/widget_next_time"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="18:42"
-        android:textColor="@color/widget_text"
-        android:textSize="18sp" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/widget_next_countdown"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="in 42m"
-        android:textColor="@color/widget_muted"
-        android:textSize="13sp" />
-</LinearLayout>
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/widget_crescent" />
+
+            <TextView
+            android:id="@+id/widget_next_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.1"
+                android:maxLines="1"
+                android:text="@string/widget_next_prayer_label_caps"
+                android:textColor="@color/widget_gold"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_next_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="serif"
+            android:maxLines="1"
+            android:text="Prayer"
+            android:textColor="@color/widget_text"
+            android:textSize="25sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_next_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="--:--"
+            android:textColor="@color/widget_gold"
+            android:textSize="20sp" />
+
+        <Chronometer
+            android:id="@+id/widget_next_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:background="@drawable/widget_pill_bg"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="9dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="9dp"
+            android:paddingBottom="2dp"
+            android:text="Open Noor Pro"
+            android:textColor="@color/widget_text"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_next_hijri"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text=""
+            android:textColor="@color/widget_muted"
+            android:textSize="10sp"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

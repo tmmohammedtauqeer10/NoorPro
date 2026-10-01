@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Islamic-green widget card: deep emerald -> app night background, 24dp corners, hairline gold stroke. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#FF14503F"
+        android:centerColor="#FF0C2B23"
+        android:endColor="#FF07110F"
+        android:type="linear" />
+    <corners android:radius="24dp" />
+    <stroke android:width="1dp" android:color="#33D4AF37" />
+</shape>

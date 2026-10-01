@@ -1,7 +1,13 @@
 package com.noorpro.app.audio.player
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -9,6 +15,7 @@ import com.noorpro.app.audio.models.PlaybackState
 import com.noorpro.app.audio.models.QueueState
 import com.noorpro.app.audio.models.RepeatMode
 import com.noorpro.app.audio.models.Track
+import com.noorpro.app.audio.session.AlNoorMediaSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,11 +36,34 @@ class AlNoorPlayer(context: Context) {
     private val scope = CoroutineScope(Dispatchers.Main.immediate)
     private var positionJob: Job? = null
 
-    private val exo: ExoPlayer = ExoPlayer.Builder(appContext).build().also { player ->
+    private val exo: ExoPlayer = ExoPlayer.Builder(appContext)
+        // Real media audio attributes + automatic audio focus (pauses for calls / other media apps).
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build(),
+            /* handleAudioFocus = */ true,
+        )
+        .setHandleAudioBecomingNoisy(true)
+        // Keeps CPU + Wi-Fi awake while streaming with the screen off (needs WAKE_LOCK).
+        .setWakeMode(C.WAKE_MODE_NETWORK)
+        .build().also { player ->
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _playback.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) startPositionUpdates() else stopPositionUpdates()
+                updateAudible()
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                updateAudible()
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "Playback error ${error.errorCodeName}: ${error.message}")
+                _playback.update { it.copy(isPlaying = false) }
+                updateAudible()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -44,8 +74,48 @@ class AlNoorPlayer(context: Context) {
                 if (duration > 0) {
                     _playback.update { it.copy(durationMs = duration) }
                 }
+                updateAudible()
             }
         })
+    }
+
+    private val _audible = MutableStateFlow(false)
+
+    /** True while Al Noor audio is playing or about to play (buffering). Reels observe this to pause. */
+    val audible: StateFlow<Boolean> = _audible.asStateFlow()
+
+    private fun updateAudible() {
+        _audible.value = exo.playWhenReady &&
+            exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
+    }
+
+    /**
+     * Player handed to the MediaSession. Wraps ExoPlayer so the notification / lock screen always
+     * offer previous + next (routed to our own queue) even though ExoPlayer only holds one item.
+     */
+    val sessionPlayer: Player by lazy {
+        object : ForwardingPlayer(exo) {
+            override fun getAvailableCommands(): Player.Commands =
+                super.getAvailableCommands().buildUpon()
+                    .addAll(
+                        Player.COMMAND_PLAY_PAUSE,
+                        Player.COMMAND_SEEK_TO_NEXT,
+                        Player.COMMAND_SEEK_TO_PREVIOUS,
+                        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                    )
+                    .build()
+
+            override fun isCommandAvailable(command: Int): Boolean = availableCommands.contains(command)
+            override fun hasNextMediaItem(): Boolean = true
+            override fun hasPreviousMediaItem(): Boolean = true
+            override fun seekToNext() = skipNext()
+            override fun seekToNextMediaItem() = skipNext()
+            override fun seekToPrevious() = skipPrevious()
+            override fun seekToPreviousMediaItem() = skipPrevious()
+            override fun play() = this@AlNoorPlayer.play()
+            override fun pause() = this@AlNoorPlayer.pause()
+        }
     }
 
     private val _queue = MutableStateFlow(QueueState())
@@ -77,6 +147,9 @@ class AlNoorPlayer(context: Context) {
 
     fun play() {
         if (_queue.value.isEmpty) return
+        ensureService()
+        if (exo.playbackState == Player.STATE_ENDED) exo.seekTo(0L)
+        if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
         exo.play()
         _playback.update { it.copy(isPlaying = true) }
     }
@@ -175,8 +248,15 @@ class AlNoorPlayer(context: Context) {
         exo.release()
     }
 
+    /** (Re)starts the foreground-capable MediaSessionService so notification + lock-screen controls exist. */
+    private fun ensureService() {
+        runCatching { AlNoorMediaSession.obtain(appContext).startSession() }
+            .onFailure { Log.w(TAG, "Could not start Al Noor media service", it) }
+    }
+
     private fun prepareCurrent(autoPlay: Boolean) {
         val track = _queue.value.currentTrack ?: return
+        if (autoPlay) ensureService()
         // Metadata feeds Media3 session notification (title / artist / play-pause-next).
         val metadata = MediaMetadata.Builder()
             .setTitle(track.title)
@@ -186,6 +266,7 @@ class AlNoorPlayer(context: Context) {
             .setSubtitle(track.artistName)
             .setDescription(track.attributionText)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+            .apply { track.coverUrl?.takeIf { it.isNotBlank() }?.let { setArtworkUri(Uri.parse(it)) } }
             .build()
         val item = MediaItem.Builder()
             .setMediaId(track.id)
@@ -241,5 +322,9 @@ class AlNoorPlayer(context: Context) {
     private fun stopPositionUpdates() {
         positionJob?.cancel()
         positionJob = null
+    }
+
+    companion object {
+        private const val TAG = "AlNoorPlayer"
     }
 }

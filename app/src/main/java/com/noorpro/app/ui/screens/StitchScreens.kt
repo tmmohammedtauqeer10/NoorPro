@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -2105,6 +2104,8 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
     val isLoggedIn = viewModel.isLoggedIn
     val displayName = viewModel.userDisplayName.ifBlank { if (isLoggedIn) "User" else "Guest" }
     val email = viewModel.userEmail.ifBlank { "Sign in to post in the ummah" }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    if (showDeleteAccount) DeleteAccountDialog(viewModel) { showDeleteAccount = false }
 
     if (!isLoggedIn) {
         StitchGuestProfileScreen(
@@ -2318,6 +2319,15 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                             viewModel.handleLogout()
                             viewModel.navigateTo(DeenScreen.LOGIN)
                         }
+                        StitchDivider()
+                        StitchListRow(
+                            title = "Delete account",
+                            subtitle = "Permanently delete your account and data",
+                            icon = Icons.Default.Delete,
+                            iconTint = Color(0xFFBA1A1A),
+                            titleColor = Color(0xFFBA1A1A),
+                            trailing = {}
+                        ) { showDeleteAccount = true }
                     } else {
                         StitchListRow("Sign In", "Post in the Ummah and sync progress", Icons.Default.Person) {
                             viewModel.navigateTo(DeenScreen.LOGIN)
@@ -3187,7 +3197,11 @@ private fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
         }
     }
 
-    return StitchUmmahFeedState(posts = mergedPosts, error = error, loading = loading)
+    val blockedUids = rememberBlockedUids()
+    val visiblePosts = remember(mergedPosts, blockedUids) {
+        if (blockedUids.isEmpty()) mergedPosts else mergedPosts.filter { it.creatorUid.isBlank() || it.creatorUid !in blockedUids }
+    }
+    return StitchUmmahFeedState(posts = visiblePosts, error = error, loading = loading)
 }
 
 /**
@@ -3461,6 +3475,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     var reelFeedback by remember(feedbackStore) { mutableStateOf(feedbackStore.load()) }
     var topTab by remember { mutableStateOf("For You") }
     var userPaused by remember { mutableStateOf(false) }
+    var reelReportTarget by remember { mutableStateOf<ReportTarget?>(null) }
+    reelReportTarget?.let { UgcReportDialog(it) { reelReportTarget = null } }
     var landscapeViewer by remember { mutableStateOf(false) }
     var commentPost by remember { mutableStateOf<UmmahPost?>(null) }
     var optimisticFollowing by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -3468,8 +3484,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // instead of waiting for the Firestore round-trip; reverted only if the write fails.
     var optimisticLikes by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var optimisticSaves by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var optimisticLikeCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticSaveCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticCommentCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticShareCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticViewCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var playbackErrorReelId by remember { mutableStateOf<String?>(null) }
     var playbackRetryToken by remember { mutableStateOf(0) }
     // Reels already counted as a view this session (dedupe so one watch = one view).
@@ -3489,7 +3508,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             }
     }
     var stableReelIds by remember(feedRefreshKey, topTab, currentUid) { mutableStateOf(emptyList<String>()) }
-    val orderedReelIds = stableReelOrder(stableReelIds, rankedReels.map { it.id })
+    val orderedReelIds = reelOrderWithFocus(
+        previousIds = stableReelIds,
+        rankedIds = rankedReels.map { it.id },
+        focusedId = requestedReelId
+    )
     SideEffect {
         if (stableReelIds != orderedReelIds) stableReelIds = orderedReelIds
     }
@@ -3557,8 +3580,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             }
     }
     DisposableEffect(Unit) { onDispose { reelPlayer.release() } }
+    // Al Noor Audio owns audio focus while it plays: pause reels and don't auto-resume over it.
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.player.audible.collectAsState()
+    LaunchedEffect(alNoorAudible) { if (alNoorAudible) reelPlayer.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { reelPlayer.pause() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused) reelPlayer.play() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) reelPlayer.play() }
 
     // When a pull-to-refresh finishes, jump back to the top so the newest reel plays    
     // the same behaviour as Instagram.
@@ -3586,6 +3612,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         val watchedId = activePost.id
         if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
             viewedReelIds = viewedReelIds + watchedId
+            val currentViews = optimisticViewCounts[watchedId] ?: activePost.viewCount
+            optimisticViewCounts = optimisticViewCounts + (watchedId to currentViews + 1L)
             followRepository.incrementViews(watchedId)
         }
         userPaused = false
@@ -3612,7 +3640,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             reelPlayer.setMediaItem(MediaItem.Builder().setUri(Uri.parse(playUrl)).setMediaId(post.id).build())
             reelPlayer.prepare()
             reelPlayer.seekTo(0)
-            if (!userPaused) reelPlayer.play()
+            if (!userPaused && !alNoorAudible) reelPlayer.play()
         } else {
             reelPlayer.clearMediaItems()
         }
@@ -3763,16 +3791,16 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     val effectiveLiked = optimisticLikes[post.id] ?: persistedLiked
                     val persistedSaved = post.id in interactions.saved
                     val effectiveSaved = optimisticSaves[post.id] ?: persistedSaved
-                    val displayedLikeCount = (post.likeCount + when {
-                        effectiveLiked && !persistedLiked -> 1L
-                        !effectiveLiked && persistedLiked -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
-                    val displayedSaveCount = (post.saveCount + when {
-                        effectiveSaved && !persistedSaved -> 1L
-                        !effectiveSaved && persistedSaved -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
+                    val displayedLikeCount = displayedEngagementCount(
+                        post.likeCount,
+                        effectiveLiked,
+                        optimisticLikeCounts[post.id]
+                    )
+                    val displayedSaveCount = displayedEngagementCount(
+                        post.saveCount,
+                        effectiveSaved,
+                        optimisticSaveCounts[post.id]
+                    )
                         StitchLiveReelPage(
                             post = post,
                             displayName = displayName,
@@ -3786,6 +3814,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             displayCommentCount = maxOf(post.commentCount, optimisticCommentCounts[post.id] ?: 0L),
                             displaySaveCount = displayedSaveCount,
                             displayShareCount = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L),
+                            displayViewCount = maxOf(post.viewCount, optimisticViewCounts[post.id] ?: 0L),
                             isActive = page == activePage,
                             isPlaying = page == activePage && !userPaused,
                             playbackFailed = page == activePage && playbackErrorReelId == post.id,
@@ -3824,9 +3853,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticLikes[post.id] ?: (post.id in interactions.liked)
                                     val next = !current
                                     optimisticLikes = optimisticLikes + (post.id to next)
+                                    val previousCount = displayedLikeCount
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", next) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to current)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -3848,9 +3882,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticSaves[post.id] ?: (post.id in interactions.saved)
                                     val next = !current
                                     optimisticSaves = optimisticSaves + (post.id to next)
+                                    val previousCount = displayedSaveCount
+                                    optimisticSaveCounts = optimisticSaveCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "saved", next) { ok ->
                                         if (!ok) {
                                             optimisticSaves = optimisticSaves + (post.id to current)
+                                            optimisticSaveCounts = optimisticSaveCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update saved", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.45f)
@@ -3872,9 +3911,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     Toast.makeText(context, "Sign in to like reels", Toast.LENGTH_SHORT).show()
                                 } else if (!(optimisticLikes[post.id] ?: (post.id in interactions.liked))) {
                                     optimisticLikes = optimisticLikes + (post.id to true)
+                                    val previousCount = displayedLikeCount
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, true)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", true) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to false)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -3887,9 +3931,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 if (!viewModel.isLoggedIn) {
                                     Toast.makeText(context, "Sign in to report", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    followRepository.report(post.id, "Reported from reels") { ok ->
-                                        Toast.makeText(context, if (ok) "Reported. Thank you." else "Unable to report", Toast.LENGTH_SHORT).show()
-                                    }
+                                    reelReportTarget = ReportTarget("reel", post.id, post.creatorUid, reelUsername(post), post.caption)
                                 }
                             },
                             onInterested = { reelFeedback = feedbackStore.markInterested(post) },
@@ -4153,6 +4195,7 @@ private fun StitchLiveReelPage(
     displayCommentCount: Long,
     displaySaveCount: Long,
     displayShareCount: Long,
+    displayViewCount: Long,
     isActive: Boolean,
     isPlaying: Boolean,
     playbackFailed: Boolean,
@@ -4182,7 +4225,6 @@ private fun StitchLiveReelPage(
     var captionsOn by remember(post.id) { mutableStateOf(true) }
     var selectedQuality by remember(post.id) { mutableStateOf(stitchReelQualityOptions.first()) }
     var selectedSpeed by remember(post.id) { mutableStateOf(1f) }
-    var speedBoosting by remember(post.id) { mutableStateOf(false) }
     var seekFeedback by remember(post.id) { mutableStateOf<String?>(null) }
     var showTransportControls by remember(post.id) { mutableStateOf(false) }
     val context = LocalContext.current
@@ -4283,62 +4325,25 @@ private fun StitchLiveReelPage(
             }
         }
 
-        // Tap anywhere on the reel to play/pause.
+        // Use Compose's click gesture arbitration here. The old full-screen detectTapGestures
+        // consumed the initial pointer press, which could prevent the parent VerticalPager from
+        // receiving a swipe after a reel was opened from Profile.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(post.id, selectedSpeed) {
-                    detectTapGestures(
-                        onTap = {
-                            if (landscapeMode) {
-                                showTransportControls = if (isPlaying) !showTransportControls else true
-                            } else {
-                                onTogglePlay()
-                            }
-                        },
-                        onDoubleTap = { offset ->
-                            // YouTube-style zones: double-tap left = back 10s, right = forward 10s,
-                            // middle = like.
-                            val third = size.width / 3f
-                            when {
-                                offset.x < third -> seekBy(-10_000L)
-                                offset.x > third * 2 -> seekBy(10_000L)
-                                else -> onDoubleTapLike()
-                            }
-                        },
-                        onPress = {
-                            // Instagram-style: press and hold to fast-forward at 2x; release to restore.
-                            val pressScope = this
-                            val releasedQuickly = withTimeoutOrNull(180L) { pressScope.tryAwaitRelease() }
-                            if (releasedQuickly == null) {
-                                speedBoosting = true
-                                player?.setPlaybackSpeed(2f)
-                                pressScope.tryAwaitRelease()
-                                player?.setPlaybackSpeed(selectedSpeed)
-                                speedBoosting = false
-                            }
+                .combinedClickable(
+                    interactionSource = remember(post.id) { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (landscapeMode) {
+                            showTransportControls = if (isPlaying) !showTransportControls else true
+                        } else {
+                            onTogglePlay()
                         }
-                    )
-                }
+                    },
+                    onDoubleClick = onDoubleTapLike
+                )
         )
-
-        // "2x" indicator while holding to fast-forward.
-        if (speedBoosting) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 18.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("2x", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-        }
 
         Box(
             modifier = Modifier
@@ -4634,7 +4639,7 @@ private fun StitchLiveReelPage(
             // Keep the views row present from the first play instead of making it appear later.
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                "▶  ${compactCount(post.viewCount)} views",
+                "▶  ${compactCount(displayViewCount)} views",
                 color = Color.White.copy(alpha = 0.86f),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
@@ -5986,20 +5991,46 @@ fun StitchUmmahCloseFriendsScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahBlockedScreen(viewModel: DeenViewModel) {
+    val context = LocalContext.current
+    val blocked = rememberBlockedUids().toList().sorted()
+    val profiles = rememberStitchProfiles()
+    val repository = remember { UmmahRepository() }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Blocked",
         eyebrow = "Settings",
-        subtitle = "People you block will not appear in your Ummah feed.",
+        subtitle = "People you block are hidden from your feed, comments and chats.",
         icon = Icons.Default.Logout
     ) {
-        item {
-            StitchUmmahEmptyCard(
-                title = "No blocked accounts",
-                message = "If you block someone from Ummah, you can manage them here.",
-                action = "Back",
-                onAction = { viewModel.goBack() }
-            )
+        if (blocked.isEmpty()) {
+            item {
+                StitchUmmahEmptyCard(
+                    title = "No blocked accounts",
+                    message = "If you block someone from a post, comment, chat or profile, you can manage them here.",
+                    action = "Back",
+                    onAction = { viewModel.goBack() }
+                )
+            }
+        } else {
+            items(blocked, key = { it }) { uid ->
+                val profile = profiles[uid]
+                StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(profile?.name?.ifBlank { null } ?: "Community member", color = stitchText(), fontWeight = FontWeight.Bold)
+                            val handle = profile?.handle.orEmpty()
+                            if (handle.isNotBlank()) {
+                                Text(if (handle.startsWith("@")) handle else "@$handle", color = stitchMutedText(), fontSize = 12.sp)
+                            }
+                        }
+                        TextButton(onClick = {
+                            repository.setBlocked(uid, false) { ok ->
+                                Toast.makeText(context, if (ok) "Unblocked" else "Unable to unblock", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Text("Unblock", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
         }
     }
 }
@@ -6523,6 +6554,12 @@ private fun StitchRealPostCard(
                     ) {
                         Text(if (isOwnPost) "You" else if (isFollowing) "Following" else "Follow", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                    if (!isOwnPost) {
+                        UgcOverflowButton(
+                            ReportTarget("post", post.id, post.creatorUid, reelUsername(post), post.caption),
+                            tint = stitchMutedText()
+                        )
+                    }
                 }
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -6624,7 +6661,10 @@ private fun StitchYouTubePostCard(
                     val metaLine = if (views > 0) "${compactCount(views)} views · ${timeAgo(post.publishedAt)}" else timeAgo(post.publishedAt)
                     Text(metaLine, color = stitchMutedText(), fontSize = 12.sp)
                 }
-                Icon(Icons.Default.MoreVert, contentDescription = null, tint = stitchMutedText(), modifier = Modifier.padding(start = 4.dp))
+                UgcOverflowButton(
+                    ReportTarget("post", post.id, post.creatorUid, reelUsername(post), post.caption),
+                    tint = stitchMutedText()
+                )
             }
             Row(
                 modifier = Modifier.padding(start = 64.dp, end = 12.dp, bottom = 14.dp),
@@ -7038,6 +7078,8 @@ private fun StitchCommentSheet(
     var sending by remember(post.id) { mutableStateOf(false) }
     var replyTarget by remember(post.id) { mutableStateOf<UmmahComment?>(null) }
     val liveProfiles = rememberStitchProfiles()
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
 
     // Hide the app's floating bottom navigation while the sheet is open so its input row
     // never collides with the navbar.
@@ -7099,7 +7141,7 @@ private fun StitchCommentSheet(
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
                             )
                             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                items(comments, key = { it.id }) { c ->
+                                items(comments.filter { it.creatorUid !in blockedUids }, key = { it.id }) { c ->
                                     StitchCommentRow(
                                         comment = c,
                                         photoUrl = liveProfiles[c.creatorUid]?.photoUrl.orEmpty(),
@@ -7166,6 +7208,7 @@ private fun StitchCommentSheet(
                                         Toast.makeText(context, "Sign in to comment", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
+                                    if (!termsGate.check()) return@Button
                                     sending = true
                                     val target = replyTarget
                                     repository.submitComment(
@@ -7275,6 +7318,11 @@ private fun StitchCommentRow(
             contentDescription = "Like comment",
             tint = if (liked) Color(0xFFE8505B) else stitchMutedText().copy(alpha = 0.55f),
             modifier = Modifier.size(17.dp).clickable { liked = !liked }
+        )
+        UgcOverflowButton(
+            ReportTarget("comment", comment.id, comment.creatorUid, comment.creatorName, comment.text),
+            modifier = Modifier.size(32.dp),
+            tint = stitchMutedText()
         )
     }
 }
@@ -7439,6 +7487,7 @@ fun StitchUmmahCreateScreen(
     var arabicText by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(if (reelMode) "Reel" else "Reflection") }
     var postType by remember { mutableStateOf(if (reelMode) "reel" else "text") }
+    val termsGate = rememberUgcTermsGate()
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -7594,6 +7643,7 @@ fun StitchUmmahCreateScreen(
                 Button(
                     enabled = !submitting,
                     onClick = {
+                        if (!termsGate.check()) return@Button
                         submitting = true
                         error = null
                         val finalType = if (reelMode) "reel" else postType
@@ -7607,7 +7657,12 @@ fun StitchUmmahCreateScreen(
                             sourceReference = "",
                             creatorHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
                             creatorDisplayName = viewModel.userDisplayName,
-                            creatorPhotoUrlOverride = viewModel.userPhotoUrl
+                            creatorPhotoUrlOverride = viewModel.userPhotoUrl,
+                            // Preserve the exact new document ID before navigating. The Reels
+                            // screen uses it to start a full scrollable session at this upload.
+                            onSubmitted = { submittedId ->
+                                if (reelMode) viewModel.reelFocusId = submittedId
+                            }
                         ) { success, message ->
                             submitting = false
                             if (success) {
@@ -7720,7 +7775,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     if (isOther) {
-                        Spacer(modifier = Modifier.size(48.dp))
+                        UgcOverflowButton(ReportTarget("user", profileUid, profileUid, displayName), tint = stitchMutedText())
                     } else {
                         IconButton(
                             onClick = {
@@ -9585,6 +9640,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
     var peopleQuery by remember { mutableStateOf("") }
     var showMyQr by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
+    val groupTermsGate = rememberUgcTermsGate()
     var groupName by remember { mutableStateOf("") }
     var groupDescription by remember { mutableStateOf("") }
     var creatingGroup by remember { mutableStateOf(false) }
@@ -9929,6 +9985,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 TextButton(
                     enabled = !creatingGroup,
                     onClick = {
+                        if (!groupTermsGate.check()) return@TextButton
                         creatingGroup = true
                         repository.createGroup(groupName, groupDescription) { ok, message ->
                             creatingGroup = false
@@ -10207,6 +10264,11 @@ private fun StitchGroupChatPanel(
     var replyTarget by remember(group.id) { mutableStateOf<UmmahMessage?>(null) }
     val context = LocalContext.current
 
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
+    var messageReport by remember { mutableStateOf<ReportTarget?>(null) }
+    messageReport?.let { UgcReportDialog(it) { messageReport = null } }
+
     fun sendGroupPayload(
         text: String = draft.trim(),
         type: String = pendingType,
@@ -10214,6 +10276,7 @@ private fun StitchGroupChatPanel(
         sharedMediaUrl: String = ""
     ) {
         if (sending) return
+        if (!termsGate.check()) return
         if (text.isBlank() && mediaUri == null && sharedMediaUrl.isBlank()) {
             Toast.makeText(context, "Write a message or choose media.", Toast.LENGTH_SHORT).show()
             return
@@ -10394,7 +10457,7 @@ private fun StitchGroupChatPanel(
     val groupListState = rememberLazyListState()
     val groupChatScope = rememberCoroutineScope()
     var highlightedGroupMessageId by remember(group.id) { mutableStateOf("") }
-    val displayedGroupMessages = messages.asReversed()
+    val displayedGroupMessages = messages.filter { it.senderUid !in blockedUids }.asReversed()
 
     fun openGroupReplyTarget(messageId: String) {
         if (messageId.isBlank()) return
@@ -10446,6 +10509,9 @@ private fun StitchGroupChatPanel(
                             canDelete = mineMsg,
                             currentUid = currentUid,
                             highlighted = highlightedGroupMessageId == message.id,
+                            onReport = {
+                                messageReport = ReportTarget("group_message", "${group.id}/${message.id}", message.senderUid, message.senderName, message.text)
+                            },
                             onReply = { replyTarget = it },
                             onOpenReplyTarget = ::openGroupReplyTarget,
                             onReact = { emoji ->
@@ -10860,6 +10926,8 @@ private fun StitchGroupInfoSheet(
     var selectedNew by remember { mutableStateOf<Set<String>>(emptySet()) }
     var saving by remember { mutableStateOf(false) }
     var showGroupQr by remember { mutableStateOf(false) }
+    var reportGroup by remember { mutableStateOf<ReportTarget?>(null) }
+    reportGroup?.let { UgcReportDialog(it) { reportGroup = null } }
     val candidates = people.filter { it.uid !in group.memberUids }
 
     fun memberDisplay(uid: String): Pair<String, String> {
@@ -10938,6 +11006,17 @@ private fun StitchGroupInfoSheet(
                             Spacer(Modifier.width(6.dp))
                             Text("Share", fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
                         }
+                    }
+                    if (!isOwner) {
+                        Text(
+                            "Report group",
+                            color = Color(0xFFBA1A1A),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 10.dp).clickable {
+                                reportGroup = ReportTarget("group", group.id, group.ownerUid, group.name, "${group.name}: ${group.description}")
+                            }
+                        )
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -11152,7 +11231,7 @@ private fun StitchConstitutionContent() {
         )
         StitchConstitutionRule(
             "Moderation",
-            "Content against the Constitution may be removed. Repeated violations can lead to restricted posting, wiped harmful content, suspension, or account deletion."
+            "Every post, reel, comment, message and group has a Report option, and you can block any member. Reports are reviewed within 24 hours; content against the Constitution is removed and repeat or serious violations lead to restricted posting, suspension or account removal. Contact: noorpro.official@gmail.com."
         )
         StitchConstitutionRule(
             "Groups and popularity",
@@ -11212,6 +11291,11 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         if (otherUid.isBlank() || currentUid.isBlank()) null else listOf(currentUid, otherUid).sorted().joinToString("_")
     }
 
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
+    var messageReport by remember { mutableStateOf<ReportTarget?>(null) }
+    messageReport?.let { UgcReportDialog(it) { messageReport = null } }
+
     fun sendChatPayload(
         text: String = draft.trim(),
         type: String = pendingType,
@@ -11219,6 +11303,7 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         sharedMediaUrl: String = ""
     ) {
         if (sending) return
+        if (!termsGate.check()) return
         if (text.isBlank() && mediaUri == null && sharedMediaUrl.isBlank()) {
             Toast.makeText(context, "Write a message or choose media.", Toast.LENGTH_SHORT).show()
             return
@@ -11400,7 +11485,7 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
     val chatListState = rememberLazyListState()
     val chatScope = rememberCoroutineScope()
     var highlightedChatMessageId by remember(otherUid) { mutableStateOf("") }
-    val displayedChatMessages = messages.asReversed()
+    val displayedChatMessages = messages.filter { it.senderUid !in blockedUids }.asReversed()
 
     fun openChatReplyTarget(messageId: String) {
         if (messageId.isBlank()) return
@@ -11481,6 +11566,9 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                         canDelete = mine,
                         currentUid = currentUid,
                         highlighted = highlightedChatMessageId == m.id,
+                        onReport = {
+                            messageReport = ReportTarget("chat_message", "${chatId.orEmpty()}/${m.id}", m.senderUid, m.senderName, m.text)
+                        },
                         onReply = { replyTarget = it },
                         onOpenReplyTarget = ::openChatReplyTarget,
                         onReact = { emoji ->
@@ -11931,7 +12019,8 @@ private fun StitchChatMessageBubble(
     onReply: (UmmahMessage) -> Unit = {},
     onOpenReplyTarget: (String) -> Unit = {},
     onReact: (String) -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    onReport: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val bubbleColor = if (mine) stitchPrimary() else stitchSurface()
@@ -12112,6 +12201,12 @@ private fun StitchChatMessageBubble(
                 }
                 if (message.text.isNotBlank()) {
                     androidx.compose.material3.DropdownMenuItem(text = { Text("Copy") }, onClick = { menuOpen = false; copyText() })
+                }
+                if (!mine && onReport != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Report or block", color = Color(0xFFBA1A1A)) },
+                        onClick = { menuOpen = false; onReport() }
+                    )
                 }
                 if (canDelete) {
                     androidx.compose.material3.DropdownMenuItem(
