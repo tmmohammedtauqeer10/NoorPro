@@ -355,6 +355,9 @@ fun StitchHomeScreen(viewModel: DeenViewModel) {
                 StitchAudioHubEntryCard(onOpen = { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) })
             }
             item {
+                NoorTravelEntryCard { viewModel.navigateTo(DeenScreen.TRAVEL) }
+            }
+            item {
                 StitchHomeSponsoredAdCard()
             }
             item {

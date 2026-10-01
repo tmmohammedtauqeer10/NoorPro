@@ -37,6 +37,11 @@ service cloud.firestore {
 
     // Reviewed pilgrimage content is public and immutable for normal app users.
     // Publishing requires an administrator custom claim set by a trusted backend.
+    match /travelPartners/{partnerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /pilgrimageGuides/{guideId} {
       allow read: if resource.data.published == true;
       allow create, update, delete: if isAdmin();
