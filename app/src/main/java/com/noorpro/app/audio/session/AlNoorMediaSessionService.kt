@@ -42,6 +42,12 @@ class AlNoorMediaSessionService : MediaSessionService() {
             .setSessionActivity(sessionActivityPendingIntent())
             .setId("al_noor_audio_session")
             .build()
+        // ROOT CAUSE FIX: MediaSessionService only wires a session into its notification manager
+        // (and therefore only posts the media notification / goes foreground) after addSession().
+        // It is called implicitly from onGetSession() when a MediaController binds, but the app
+        // used plain startService() with no controller, so the session was never registered and no
+        // notification was ever posted ("No media playing" in the QS media player).
+        mediaSession?.let { addSession(it) }
         Log.i(TAG, "Al Noor media session service created")
     }
 
