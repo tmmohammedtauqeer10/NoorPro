@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import com.noorpro.app.data.PrayerTime
 import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.receiver.PrayerAlarmReceiver
@@ -35,6 +36,7 @@ object PrayerScheduler {
     const val KIND_SUHOOR = "suhoor"
     const val KIND_IFTAR = "iftar"
 
+    private const val TAG = "PrayerScheduler"
     const val EXTRA_KIND = "KIND"
     const val EXTRA_PRAYER = "PRAYER_NAME"
     const val EXTRA_TRIGGER_AT = "TRIGGER_AT"
@@ -259,13 +261,17 @@ object PrayerScheduler {
             .putExtra(EXTRA_PRAYER, p.prayer)
             .putExtra(EXTRA_TRIGGER_AT, p.triggerAt)
             .putExtra(EXTRA_MINUTES, PrayerPrefs(context).preReminderMinutes)
-        val pi = pending(context, p.requestCode, intent, create = true) ?: return
+        val pi = pending(context, p.requestCode, intent, create = true) ?: run {
+            Log.w(TAG, "could not create PendingIntent for ${p.kind}/${p.prayer}")
+            return
+        }
         try {
             if (p.exact && exactOk) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, p.triggerAt, pi)
             } else {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, p.triggerAt, pi)
             }
+            Log.i(TAG, "armed ${p.kind}/${p.prayer.ifEmpty { "-" }} at ${java.util.Date(p.triggerAt)} exact=${p.exact && exactOk}")
         } catch (e: SecurityException) {
             // Exact-alarm permission revoked between the check and the call: degrade to inexact.
             runCatching { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, p.triggerAt, pi) }

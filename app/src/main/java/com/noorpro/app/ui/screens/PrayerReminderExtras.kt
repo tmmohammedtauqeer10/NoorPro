@@ -28,6 +28,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -118,6 +120,8 @@ fun PrayerReminderExtrasCard(viewModel: DeenViewModel) {
                 else -> Text("Notifications and exact alarms are allowed.", color = Green, fontSize = 13.sp)
             }
             Spacer(Modifier.height(8.dp))
+            NotificationHealthCard(refresh)
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { viewModel.navigateTo(DeenScreen.QIBLA_MORE) }) { Text("Open Qibla compass") }
             Spacer(Modifier.height(8.dp))
 
@@ -147,6 +151,114 @@ fun PrayerReminderExtrasCard(viewModel: DeenViewModel) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * "Notification health": shows whether the three things prayer reminders depend on are working
+ * (app notifications permission, adhan channel, exact alarms) with a fix button for each, and a
+ * test notification that goes through the exact same code path as a real adhan.
+ */
+@Composable
+internal fun NotificationHealthCard(refreshKey: Int) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var testMessage by remember { mutableStateOf("") }
+    val askLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        testMessage = if (granted) "Notifications allowed." else "Permission denied - open settings to allow it."
+    }
+    @Suppress("UNUSED_EXPRESSION") refreshKey
+    val notifOk = remember(refreshKey, testMessage) { PrayerPermissions.notificationsGranted(context) }
+    val sound = com.noorpro.app.prayer.AdhanSound.fromPref(PrayerPrefs(context).alarmSound)
+    val channelId = com.noorpro.app.prayer.channels.PrayerNotificationChannels.adhanChannelFor(sound)
+    val channelState = remember(refreshKey, testMessage) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) 4
+        else {
+            com.noorpro.app.prayer.channels.PrayerNotificationChannels.ensureAll(context)
+            val nm = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.getNotificationChannel(channelId)?.importance ?: 0
+        }
+    }
+    val channelOk = channelState >= 3 // IMPORTANCE_DEFAULT or higher (HIGH = heads-up)
+    val exactOk = remember(refreshKey, testMessage) { PrayerScheduler.canScheduleExact(context) }
+
+    @Composable
+    fun Row3(ok: Boolean, label: String, detail: String, fixLabel: String, fix: () -> Unit) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text((if (ok) "\u2705 " else "\u26A0\uFE0F ") + label, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!ok) OutlinedButton(onClick = fix) { Text(fixLabel, fontSize = 12.sp) }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Notification health", fontWeight = FontWeight.Bold, color = Green, fontSize = 14.sp)
+        Row3(
+            notifOk, "Notifications permission",
+            if (notifOk) "Allowed" else "Blocked - no prayer, adhan or reminder can show",
+            "Fix"
+        ) {
+            val act = context as? android.app.Activity
+            val canAsk = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                (PrayerPrefs(context).notificationAskCount < 2 ||
+                    act?.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS) == true)
+            if (canAsk) {
+                PrayerPrefs(context).notificationAskCount = PrayerPrefs(context).notificationAskCount + 1
+                askLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else PrayerPermissions.openAppNotificationSettings(context)
+        }
+        Row3(
+            channelOk, "Adhan channel",
+            when {
+                channelState == 0 -> "Channel missing"
+                channelOk && channelState >= 4 -> "Pop-up (high importance)"
+                channelOk -> "On, but not pop-up (importance $channelState)"
+                else -> "Turned off in system settings"
+            },
+            "Fix"
+        ) {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, channelId)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(intent) }.onFailure { PrayerPermissions.openAppNotificationSettings(context) }
+        }
+        Row3(
+            exactOk, "Exact alarms",
+            if (exactOk) "Allowed - adhan at the exact minute" else "Off - adhan may be several minutes late",
+            "Fix"
+        ) { PrayerPermissions.openExactAlarmSettings(context) }
+        Spacer(Modifier.height(6.dp))
+        Button(
+            onClick = {
+                scope.launch {
+                    val r = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.noorpro.app.prayer.PrayerNotifications.postAdhan(
+                            context.applicationContext, "Maghrib", System.currentTimeMillis(), test = true
+                        )
+                    }
+                    testMessage = when (r) {
+                        com.noorpro.app.prayer.PrayerNotifications.PostResult.POSTED -> "Test notification sent - check the notification shade."
+                        com.noorpro.app.prayer.PrayerNotifications.PostResult.NOTIFICATIONS_DISABLED -> "Not shown: notifications are off for Noor Pro."
+                        com.noorpro.app.prayer.PrayerNotifications.PostResult.CHANNEL_BLOCKED -> "Not shown: the adhan channel is turned off."
+                        com.noorpro.app.prayer.PrayerNotifications.PostResult.FAILED -> "Could not post the notification."
+                    }
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Green)
+        ) { Text("Send test notification") }
+        if (testMessage.isNotBlank()) {
+            Text(testMessage, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

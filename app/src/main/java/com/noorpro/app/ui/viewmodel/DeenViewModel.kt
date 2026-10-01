@@ -1520,6 +1520,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             areaAndCity
                         }
+                        // Prayer notifications (alarm receiver) show this same place name.
+                        runCatching { com.noorpro.app.prayer.PrayerPrefs(app).locationLabel = _currentLocationName.value }
                     }
                 }
             } catch (e: Exception) {

@@ -30,10 +30,11 @@ object PrayerDisplay {
      * Today's Hijri date, honouring the user's adjustment from Settings.
      * Short = "19 Rabi al-Awwal", long = "19 Rabi al-Awwal 1448 AH". Empty if unavailable.
      */
-    fun hijriLabel(context: Context, short: Boolean): String = runCatching {
+    fun hijriLabel(context: Context, short: Boolean, atMillis: Long = System.currentTimeMillis()): String = runCatching {
         val adjustment = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             .getInt("hijri_adjustment", 0)
         val cal = android.icu.util.IslamicCalendar()
+        cal.timeInMillis = atMillis
         cal.add(android.icu.util.Calendar.DAY_OF_MONTH, adjustment)
         val month = HIJRI_MONTHS.getOrElse(cal.get(android.icu.util.Calendar.MONTH)) { "" }
         val day = cal.get(android.icu.util.Calendar.DAY_OF_MONTH)
@@ -50,4 +51,33 @@ object PrayerDisplay {
         drawable.draw(canvas)
         bitmap
     }.getOrNull()
+
+    /** "6:29 PM" from epoch millis in the device time zone. */
+    fun clock12(millis: Long, tz: java.util.TimeZone = java.util.TimeZone.getDefault()): String =
+        java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).apply { timeZone = tz }.format(java.util.Date(millis))
+
+    /** "6:29 PM" from a "HH:mm" prayer time; returns the input unchanged if it cannot be parsed. */
+    fun clock12(hhmm: String): String {
+        val parts = hhmm.trim().split(":")
+        val h = parts.getOrNull(0)?.toIntOrNull() ?: return hhmm
+        val m = parts.getOrNull(1)?.take(2)?.toIntOrNull() ?: return hhmm
+        val suffix = if (h < 12) "AM" else "PM"
+        val h12 = when (val x = h % 12) { 0 -> 12; else -> x }
+        return String.format(java.util.Locale.ENGLISH, "%d:%02d %s", h12, m, suffix)
+    }
+
+    /** "Thu, 1 Oct 2026" */
+    fun gregorianLabel(millis: Long, tz: java.util.TimeZone = java.util.TimeZone.getDefault()): String =
+        java.text.SimpleDateFormat("EEE, d MMM yyyy", java.util.Locale.ENGLISH).apply { timeZone = tz }.format(java.util.Date(millis))
+
+    /** Notification title, e.g. "Maghrib \u2014 6:29 PM". */
+    fun prayerTitle(prayer: String, timeLabel: String): String = "$prayer \u2014 $timeLabel"
+
+    /** Notification body line 1: "Thu, 1 Oct 2026 \u00B7 29 Rabi al-Awwal 1448 AH" (Hijri omitted when unknown). */
+    fun dateLine(gregorian: String, hijri: String): String =
+        if (hijri.isBlank()) gregorian else "$gregorian \u00B7 $hijri"
+
+    /** Same place string the Home card shows (saved by the UI); falls back to coordinates. */
+    fun locationLabel(context: Context): String =
+        PrayerPrefs(context).locationLabel
 }

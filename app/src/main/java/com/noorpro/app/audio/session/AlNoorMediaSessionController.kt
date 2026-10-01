@@ -34,7 +34,9 @@ class DefaultAlNoorMediaSessionController(
     }
 
     override fun startSession() {
-        if (started) return
+        // Idempotent on purpose: the service may have stopped itself (task removed while paused),
+        // so never short-circuit on a cached flag - just (re)start it. Called from the foreground UI
+        // when the user starts playback; Media3 then promotes it to a mediaPlayback foreground service.
         AlNoorPlaybackChannels.ensure(appContext)
         appContext.startService(Intent(appContext, AlNoorMediaSessionService::class.java))
         started = true

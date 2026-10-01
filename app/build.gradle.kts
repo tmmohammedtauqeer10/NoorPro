@@ -32,8 +32,8 @@ android {
     targetSdk = 36
     // Unit-test manifest merging does not receive placeholders from the Secrets plugin.
     manifestPlaceholders["MAPS_API_KEY"] = noorLocalProperties.getProperty("MAPS_API_KEY", "NO_KEY_CONFIGURED")
-        versionCode = 37
-        versionName = "1.0.35"
+        versionCode = 38
+        versionName = "1.0.36"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -104,10 +104,10 @@ dependencies {
   implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
   implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
   implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-  implementation("androidx.media3:media3-exoplayer:1.2.0")
-  implementation("androidx.media3:media3-exoplayer-hls:1.2.0")
-  implementation("androidx.media3:media3-ui:1.2.0")
-  implementation("androidx.media3:media3-session:1.2.0")
+  implementation("androidx.media3:media3-exoplayer:1.4.1")
+  implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+  implementation("androidx.media3:media3-ui:1.4.1")
+  implementation("androidx.media3:media3-session:1.4.1")
   // QR generation for WhatsApp-style profile/group sharing (pure-Java, small).
   implementation("com.google.zxing:core:3.5.3")
   // implementation(libs.androidx.navigation.compose)

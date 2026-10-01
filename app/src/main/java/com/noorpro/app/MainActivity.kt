@@ -482,13 +482,30 @@ fun MainLayout() {
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
         // Al Noor Audio mini-player (nasheed/naat) — separate from Quran mini player above.
         com.noorpro.app.audio.AlNoorAudioSession.init(context)
+        // Android 13+: the media notification needs POST_NOTIFICATIONS; ask the first time audio plays.
+        val mediaNotifLauncher = rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { }
+        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.player.audible.collectAsState()
+        LaunchedEffect(alNoorAudible) {
+            if (alNoorAudible &&
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                !onboardingPrefs.getBoolean("media_notif_asked", false)
+            ) {
+                onboardingPrefs.edit().putBoolean("media_notif_asked", true).apply()
+                runCatching { mediaNotifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+            }
+        }
         val alNoorQueue by com.noorpro.app.audio.AlNoorAudioSession.player.queue.collectAsState()
         val alNoorPlayback by com.noorpro.app.audio.AlNoorAudioSession.player.playback.collectAsState()
         val showAlNoorMini = !alNoorQueue.isEmpty &&
             currentScreen != DeenScreen.AL_NOOR_NOW_PLAYING &&
             currentScreen != DeenScreen.LOGIN &&
             currentScreen != DeenScreen.NOW_PLAYING &&
-            !showMiniPlayer
+            !((currentScreen == DeenScreen.UMMAH_FULL || currentScreen == DeenScreen.REELS) && isUmmahReelsImmersive)
         com.noorpro.app.audio.ui.AlNoorMiniPlayer(
             track = alNoorQueue.currentTrack,
             isPlaying = alNoorPlayback.isPlaying,
@@ -497,7 +514,8 @@ fun MainLayout() {
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(
-                    bottom = if (showBottomNavigation) 88.dp else 16.dp,
+                    // Stack above the Quran mini-player when both exist.
+                    bottom = (if (showBottomNavigation) 70.dp else 16.dp) + (if (showMiniPlayer) 70.dp else 0.dp),
                     start = 18.dp,
                     end = 18.dp,
                 ),

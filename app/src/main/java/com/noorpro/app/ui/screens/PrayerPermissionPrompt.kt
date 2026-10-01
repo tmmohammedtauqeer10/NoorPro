@@ -39,7 +39,18 @@ internal object PrayerPermissions {
         return runtimeOk && NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
+    /** True when the user blocked the adhan channel itself (app-level permission can still be on). */
+    fun adhanChannelBlocked(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val id = com.noorpro.app.prayer.channels.PrayerNotificationChannels.adhanChannelFor(
+            com.noorpro.app.prayer.AdhanSound.fromPref(PrayerPrefs(context).alarmSound)
+        )
+        return nm.getNotificationChannel(id)?.importance == android.app.NotificationManager.IMPORTANCE_NONE
+    }
+
     fun gap(context: Context): PrayerPermissionGap = when {
+        notificationsGranted(context) && adhanChannelBlocked(context) -> PrayerPermissionGap.NOTIFICATIONS
         !notificationsGranted(context) -> PrayerPermissionGap.NOTIFICATIONS
         !PrayerScheduler.canScheduleExact(context) -> PrayerPermissionGap.EXACT_ALARM
         else -> PrayerPermissionGap.NONE

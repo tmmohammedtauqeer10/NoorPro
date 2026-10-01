@@ -10,6 +10,7 @@ import com.noorpro.app.MainActivity
 import com.noorpro.app.R
 import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.prayer.PrayerDisplay
+import com.noorpro.app.prayer.PrayerNotifications
 import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import kotlinx.coroutines.flow.first
@@ -105,10 +106,19 @@ object NextPrayerOngoingUpdater {
 
         val remainingMs = (target.time - System.currentTimeMillis()).coerceAtLeast(0L)
         val countdown = formatCountdown(remainingMs)
-        val title = "${next.name} \u00B7 ${next.time}"
+        val title = PrayerDisplay.prayerTitle(next.name, PrayerDisplay.clock12(next.time))
         val body = "Next prayer in $countdown"
+        val whenMs = target.time
+        val dateLine = PrayerDisplay.dateLine(
+            PrayerDisplay.gregorianLabel(System.currentTimeMillis()),
+            PrayerDisplay.hijriLabel(context, short = false)
+        )
+        val place = PrayerNotifications.resolveLocation(context)
         val expanded = buildString {
             append(body)
+            append('\n')
+            append(dateLine)
+            if (place.isNotBlank()) append("\n\uD83D\uDCCD ").append(place)
             append('\n')
             append(
                 prayers.joinToString("   ") { p ->
@@ -116,7 +126,7 @@ object NextPrayerOngoingUpdater {
                 }
             )
         }
-        post(context, title, body, next.name, remainingMs, expanded)
+        post(context, title, dateLine + " \u00B7 " + body, next.name, remainingMs, expanded, place)
         return remainingMs
     }
 
@@ -127,6 +137,7 @@ object NextPrayerOngoingUpdater {
         prayerName: String?,
         remainingMs: Long,
         expanded: String?,
+        place: String = "",
     ) {
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -154,8 +165,8 @@ object NextPrayerOngoingUpdater {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
         PrayerDisplay.masjidLargeIcon(context)?.let { builder.setLargeIcon(it) }
-        val hijri = PrayerDisplay.hijriLabel(context, short = false)
-        if (hijri.isNotBlank()) builder.setSubText(hijri)
+        if (place.isNotBlank()) builder.setSubText(place)
+        else PrayerDisplay.hijriLabel(context, short = false).takeIf { it.isNotBlank() }?.let { builder.setSubText(it) }
         if (expanded != null) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(expanded).setBigContentTitle(title))
         }

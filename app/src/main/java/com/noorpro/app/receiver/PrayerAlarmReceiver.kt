@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.noorpro.app.MainActivity
@@ -15,6 +16,7 @@ import com.noorpro.app.audio.AlNoorAudioSession
 import com.noorpro.app.prayer.AdhanSound
 import com.noorpro.app.prayer.DailyReminderContent
 import com.noorpro.app.prayer.PrayerDisplay
+import com.noorpro.app.prayer.PrayerNotifications
 import com.noorpro.app.prayer.PrayerPrefs
 import com.noorpro.app.prayer.PrayerScheduler
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
@@ -39,6 +41,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         val prayer = intent.getStringExtra(PrayerScheduler.EXTRA_PRAYER).orEmpty()
         val triggerAt = intent.getLongExtra(PrayerScheduler.EXTRA_TRIGGER_AT, 0L)
         val minutes = intent.getIntExtra(PrayerScheduler.EXTRA_MINUTES, 10)
+        Log.i(PrayerNotifications.TAG, "alarm fired kind=$kind prayer=$prayer triggerAt=$triggerAt late=${System.currentTimeMillis() - triggerAt}ms")
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -49,7 +52,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                     PrayerNotificationChannels.ensureAll(app)
                     when (kind) {
                         PrayerScheduler.KIND_ADHAN -> {
-                            showAdhan(app, prayer)
+                            PrayerNotifications.postAdhan(app, prayer, triggerAt)
                             withContext(Dispatchers.Main) {
                                 runCatching {
                                     if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.pauseForAdhan()
@@ -74,8 +77,11 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                         )
                         PrayerScheduler.KIND_DAILY -> showDaily(app)
                     }
+                } else {
+                    Log.w(PrayerNotifications.TAG, "dropped stale alarm kind=$kind prayer=$prayer (late ${lateMs / 1000}s)")
                 }
             } catch (e: Exception) {
+                Log.e(PrayerNotifications.TAG, "notification failed kind=$kind", e)
                 CrashReporter.report(e, "Prayer notification failed")
             } finally {
                 try {
@@ -107,54 +113,20 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
     }
 
     private fun notifyOrIgnore(context: Context, id: Int, notification: android.app.Notification) {
-        try {
-            NotificationManagerCompat.from(context).notify(id, notification)
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS revoked - nothing we can show.
-        }
+        PrayerNotifications.notifySafely(context, id, notification, notification.channelId ?: PrayerNotificationChannels.REMINDER)
     }
 
-    private fun showAdhan(context: Context, prayerName: String) {
-        val sound = AdhanSound.fromPref(PrayerPrefs(context).alarmSound)
-        val channelId = PrayerNotificationChannels.adhanChannelFor(sound)
-        val pi = openApp(context, prayerName.hashCode(), "OPEN_PRAYER")
-        val hijri = PrayerDisplay.hijriLabel(context, short = false)
-        val title = "Time for $prayerName"
-        val text = "It's time for $prayerName prayer."
-        val big = "$text\n\u062D\u064E\u064A\u064E\u0651 \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u0635\u064E\u0651\u0644\u064E\u0627\u0629  \u2022  Hayya 'alas-salah\nHasten to the prayer. May Allah accept it from you."
-        val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_adhan_notification)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(big).setBigContentTitle(title))
-            .setColor(PrayerDisplay.DEEP_GREEN)
-            .setContentIntent(pi)
-            .addAction(R.drawable.ic_adhan_notification, "Open", pi)
-            // HIGH priority + channel IMPORTANCE_HIGH => heads-up pop-up. No full-screen intent is used.
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(if (sound == AdhanSound.SILENT) NotificationCompat.DEFAULT_VIBRATE else NotificationCompat.DEFAULT_ALL)
-            .setAutoCancel(true)
-        largeIcon(context)?.let { builder.setLargeIcon(it) }
-        if (hijri.isNotBlank()) builder.setSubText(hijri)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O && sound != AdhanSound.SILENT) {
-            val uri = android.media.RingtoneManager.getDefaultUri(
-                if (sound == AdhanSound.ALARM) android.media.RingtoneManager.TYPE_ALARM
-                else android.media.RingtoneManager.TYPE_NOTIFICATION
-            )
-            builder.setSound(uri)
-        }
-        notifyOrIgnore(context, 7000 + prayerName.hashCode().mod(50), builder.build())
-    }
-
-    private fun showReminder(context: Context, id: Int, title: String, text: String, big: String) {
+    private suspend fun showReminder(context: Context, id: Int, title: String, text: String, big: String) {
         val pi = openApp(context, id, "OPEN_PRAYER")
+        val now = System.currentTimeMillis()
+        val place = PrayerNotifications.resolveLocation(context)
+        val dateLine = PrayerDisplay.dateLine(PrayerDisplay.gregorianLabel(now), PrayerDisplay.hijriLabel(context, short = false))
+        val extra = if (place.isBlank()) dateLine else "$dateLine\n\uD83D\uDCCD $place"
         val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.REMINDER)
             .setSmallIcon(R.drawable.ic_adhan_notification)
             .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$text\n$big").setBigContentTitle(title))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$text\n$big\n$extra").setBigContentTitle(title))
             .setColor(PrayerDisplay.EMERALD)
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -165,7 +137,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         notifyOrIgnore(context, id, builder.build())
     }
 
-    private fun showDaily(context: Context) {
+    private suspend fun showDaily(context: Context) {
         val item = DailyReminderContent.forDay(Calendar.getInstance().get(Calendar.DAY_OF_YEAR))
         val pi = openApp(context, 7170, "OPEN_QURAN")
         val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.DAILY)
@@ -182,6 +154,6 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
 
     companion object {
         /** Adhan alarms older than this are dropped (e.g. the phone was off at prayer time). */
-        const val MAX_LATE_MS = 10 * 60_000L
+        const val MAX_LATE_MS = 20 * 60_000L
     }
 }

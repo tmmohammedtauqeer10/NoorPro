@@ -40,6 +40,11 @@ class PrayerPrefs(context: Context) {
         get() = p.getLong("perm_prompt_snooze_until", 0L)
         set(v) { p.edit().putLong("perm_prompt_snooze_until", v).apply() }
 
+    /** Human readable place (same string as the Home card, e.g. "Hagari Bommanahalli, IN"); written by the UI. */
+    var locationLabel: String
+        get() = p.getString("location_label", "") ?: ""
+        set(v) { p.edit().putString("location_label", v).apply() }
+
     var notificationAskCount: Int
         get() = p.getInt("notif_ask_count", 0)
         set(v) { p.edit().putInt("notif_ask_count", v).apply() }

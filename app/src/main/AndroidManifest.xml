@@ -12,7 +12,10 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Exact adhan alarms. Granted by default <= Android 12, user-controlled "Alarms & reminders"
+         special access on 13+/14+; PrayerScheduler falls back to setAndAllowWhileIdle when denied. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
@@ -83,7 +86,7 @@
         <receiver android:name="com.noorpro.app.receiver.PrayerAlarmReceiver" android:exported="false" />
         <receiver
             android:name="com.noorpro.app.receiver.BootCompletedReceiver"
-            android:exported="true"
+            android:exported="false"
             android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -121,8 +124,13 @@
 
         <service
             android:name="com.noorpro.app.audio.session.AlNoorMediaSessionService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <!-- Media3 controllers (system media UI, Bluetooth/headset buttons, Android Auto) bind via this action. -->
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

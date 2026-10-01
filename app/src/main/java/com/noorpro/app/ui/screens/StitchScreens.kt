@@ -3580,8 +3580,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             }
     }
     DisposableEffect(Unit) { onDispose { reelPlayer.release() } }
+    // Al Noor Audio owns audio focus while it plays: pause reels and don't auto-resume over it.
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.player.audible.collectAsState()
+    LaunchedEffect(alNoorAudible) { if (alNoorAudible) reelPlayer.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { reelPlayer.pause() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused) reelPlayer.play() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) reelPlayer.play() }
 
     // When a pull-to-refresh finishes, jump back to the top so the newest reel plays    
     // the same behaviour as Instagram.
@@ -3637,7 +3640,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             reelPlayer.setMediaItem(MediaItem.Builder().setUri(Uri.parse(playUrl)).setMediaId(post.id).build())
             reelPlayer.prepare()
             reelPlayer.seekTo(0)
-            if (!userPaused) reelPlayer.play()
+            if (!userPaused && !alNoorAudible) reelPlayer.play()
         } else {
             reelPlayer.clearMediaItems()
         }

@@ -11,7 +11,6 @@ import com.google.android.gms.ads.RequestConfiguration
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.crashlytics.FirebaseCrashlytics
-import com.noorpro.app.audio.AlNoorAudioSession
 import com.noorpro.app.audio.session.AlNoorPlaybackChannels
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingScheduler
@@ -35,9 +34,12 @@ class NoorProApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
 
-        AlNoorAudioSession.init(this)
-        AlNoorPlaybackChannels.ensure(this)
-        PrayerNotificationChannels.ensureAll(this)
+        // NOTE: the Al Noor player/service is created lazily when audio is first used. Building an
+        // ExoPlayer and calling startService() here ran on EVERY process start - including the
+        // process the system spawns for an adhan alarm or BOOT_COMPLETED - and could throw
+        // (background service start restrictions) before the receiver ever posted its notification.
+        runCatching { AlNoorPlaybackChannels.ensure(this) }
+        runCatching { PrayerNotificationChannels.ensureAll(this) }
         // Never let a scheduling failure (e.g. WorkManager unavailable) crash app startup.
         runCatching { NextPrayerOngoingScheduler.schedule(this) }
         // Always-on safety net: re-arms adhan alarms and refreshes widgets even if the ongoing
