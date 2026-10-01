@@ -88,6 +88,7 @@ private val exploreTools = listOf(
     ExploreTool("Azkar", "Morning, evening, and daily remembrance", "Worship", Icons.Default.Favorite, DeenScreen.AZKAR),
     ExploreTool("Dua Collection", "Supplications organized by occasion", "Worship", Icons.Default.Language, DeenScreen.DUA_HUB),
     ExploreTool("Tasbih", "Simple digital dhikr counter", "Worship", Icons.Default.TouchApp, DeenScreen.TASBIH),
+    ExploreTool("NoorPro Travel", "International flights and pilgrimage enquiries", "Worship", Icons.Default.TravelExplore, DeenScreen.TRAVEL),
     ExploreTool("Hajj & Umrah", "Step-by-step rituals, flights, hotels, and package planning", "Worship", Icons.Default.TravelExplore, DeenScreen.HAJJ_UMRAH),
     ExploreTool("Noor AI", "Ask Islamic questions, generate duas, and explain Quran or Hadith safely", "AI", Icons.Default.AutoAwesome, DeenScreen.AI_HUB),
     ExploreTool("Quran", "Read chapters, translations, and recitations", "Quran", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.QURAN),

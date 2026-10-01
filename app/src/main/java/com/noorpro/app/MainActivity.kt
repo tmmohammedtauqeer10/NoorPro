@@ -311,6 +311,7 @@ fun MainLayout() {
                 DeenScreen.HEALTH_WELLNESS -> com.noorpro.app.ui.screens.HealthWellnessScreen(viewModel = viewModel)
                 DeenScreen.AI_HUB -> com.noorpro.app.ui.screens.AiFeaturesHubScreen(viewModel = viewModel)
                 DeenScreen.PDF_LIBRARY -> com.noorpro.app.ui.screens.PdfLibraryHubScreen(viewModel = viewModel)
+                DeenScreen.TRAVEL -> com.noorpro.app.ui.screens.NoorTravelScreen(viewModel = viewModel)
                 DeenScreen.HAJJ_UMRAH -> com.noorpro.app.ui.screens.HajjUmrahScreen(viewModel = viewModel)
                 DeenScreen.CREATOR_STUDIO -> StitchCreatorStudioScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FOLLOWERS -> StitchFollowersScreen(viewModel = viewModel)

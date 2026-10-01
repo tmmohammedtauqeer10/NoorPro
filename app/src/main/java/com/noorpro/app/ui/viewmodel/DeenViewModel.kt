@@ -90,6 +90,7 @@ enum class DeenScreen {
     AI_HUB,
     PDF_LIBRARY,
     HAJJ_UMRAH,
+    TRAVEL,
     CREATOR_STUDIO,
     UMMAH_FOLLOWERS,
     UMMAH_FOLLOWING,
