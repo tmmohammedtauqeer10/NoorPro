@@ -101,6 +101,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        // Google UMP consent -> then MobileAds.initialize (never throws; no-op under tests).
+        runCatching { com.noorpro.app.ads.ConsentManager.gatherConsent(this) }
         // App Link (https://noor-pro-d87e3.web.app/reel?id=… or /u?uid=…) that launched us.
         val appLink = intent?.data
         setContent {
@@ -119,6 +121,11 @@ class MainActivity : ComponentActivity() {
                     "/g" -> link.getQueryParameter("id")?.takeIf { it.isNotBlank() }?.let { id ->
                         viewModel.openGroupInvite(id)
                     }
+                }
+            }
+            if (intent?.getBooleanExtra("OPEN_PRAYER", false) == true) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES)
                 }
             }
             val themeMode by viewModel.themeMode.collectAsState()
@@ -196,6 +203,8 @@ fun MainLayout() {
         )
         return@CompositionLocalProvider
     }
+
+    com.noorpro.app.ui.screens.PrayerPermissionPrompt()
 
     LaunchedEffect(onboardingComplete) {
         val hasLocationPermission =

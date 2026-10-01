@@ -778,6 +778,38 @@ class UmmahRepository {
         ).addOnCompleteListener { onResult(it.isSuccessful) }
     }
 
+    /**
+     * Report any kind of user-generated content (post, reel, comment, message, group, user).
+     * Moderators review `ummah_reports` within 24 hours.
+     */
+    fun reportContent(
+        type: String,
+        targetId: String,
+        targetUid: String,
+        reason: String,
+        details: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || targetId.isBlank()) {
+            onResult(false)
+            return
+        }
+        firestore.collection("ummah_reports").add(
+            mapOf(
+                "postId" to targetId,
+                "targetType" to type.take(20),
+                "targetId" to targetId.take(200),
+                "targetUid" to targetUid.take(128),
+                "reason" to reason.take(120),
+                "details" to details.take(300),
+                "reporterUid" to user.uid,
+                "status" to "open",
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+        ).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
     /** Live set of UIDs the signed-in user has blocked. Empty for signed-out users. */
     fun observeBlockedUsers(onResult: (Set<String>) -> Unit) {
         blockedListeners.forEach { it.remove() }

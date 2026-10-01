@@ -40,16 +40,13 @@ class NoorProApplication : Application(), ImageLoaderFactory {
         PrayerNotificationChannels.ensureAll(this)
         // Never let a scheduling failure (e.g. WorkManager unavailable) crash app startup.
         runCatching { NextPrayerOngoingScheduler.schedule(this) }
+        // Always-on safety net: re-arms adhan alarms and refreshes widgets even if the ongoing
+        // notification is turned off, and re-plans immediately on every app start.
+        runCatching { com.noorpro.app.prayer.PrayerRefreshWorker.schedule(this) }
+        runCatching { com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(this) }
 
-        // Initialize AdMob first so it runs even if Firebase fails to init. MAX_AD_CONTENT_RATING_G
-        // keeps ads family-friendly (filters most gambling/alcohol/dating) — finer category blocking
-        // is configured in the AdMob console (Blocking controls → Sensitive categories).
-        MobileAds.initialize(this)
-        MobileAds.setRequestConfiguration(
-            RequestConfiguration.Builder()
-                .setMaxAdContentRating(RequestConfiguration.MAX_AD_CONTENT_RATING_G)
-                .build()
-        )
+        // AdMob is initialised by ConsentManager only after Google UMP consent has been gathered
+        // (or is not required); MainActivity starts that flow. See ads/ConsentManager.kt.
 
         FirebaseApp.initializeApp(this) ?: return
 

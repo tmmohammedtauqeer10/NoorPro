@@ -1,167 +1,187 @@
 package com.noorpro.app.receiver
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
-import android.media.AudioAttributes
-import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.noorpro.app.MainActivity
 import com.noorpro.app.R
-import com.noorpro.app.data.UserPreferencesRepository
-import com.noorpro.app.ui.viewmodel.PrayerSettingsController
-import com.noorpro.app.utils.CrashReporter
 import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.prayer.AdhanSound
+import com.noorpro.app.prayer.DailyReminderContent
 import com.noorpro.app.prayer.PrayerDisplay
+import com.noorpro.app.prayer.PrayerPrefs
+import com.noorpro.app.prayer.PrayerScheduler
+import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater
 import com.noorpro.app.prayer.widget.PrayerWidgetUpdater
-import kotlinx.coroutines.withContext
+import com.noorpro.app.utils.CrashReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
+/**
+ * Receives every prayer alarm planned by [PrayerScheduler]. Whatever the alarm kind, it ALWAYS
+ * re-plans the next alarms and refreshes the widgets / ongoing notification afterwards, so the
+ * chain cannot silently stop.
+ */
 class PrayerAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val prayerName = intent.getStringExtra("PRAYER_NAME") ?: "Prayer time"
-        val alarmSoundPref = intent.getStringExtra("ALARM_SOUND")
-            ?: context.getSharedPreferences("prayer_settings_prefs", Context.MODE_PRIVATE)
-                .getString("alarm_sound", "Mecca Adhan")
-            ?: "Mecca Adhan"
-        val pendingResult = goAsync()
+        val app = context.applicationContext
+        val kind = intent.getStringExtra(PrayerScheduler.EXTRA_KIND) ?: PrayerScheduler.KIND_ADHAN
+        val prayer = intent.getStringExtra(PrayerScheduler.EXTRA_PRAYER).orEmpty()
+        val triggerAt = intent.getLongExtra(PrayerScheduler.EXTRA_TRIGGER_AT, 0L)
+        val minutes = intent.getIntExtra(PrayerScheduler.EXTRA_MINUTES, 10)
+        val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                showNotification(context, prayerName, alarmSoundPref, intent.getIntExtra("REMINDER_OFFSET", 0))
-                // Pause Al Noor Audio when adhan fires (separate from Quran player).
-                withContext(Dispatchers.Main) {
-                    if (AlNoorAudioSession.isInitialized()) {
-                        AlNoorAudioSession.player.pauseForAdhan()
+                // Ignore alarms delivered very late (e.g. phone was off) so we never announce a stale prayer.
+                val lateMs = System.currentTimeMillis() - triggerAt
+                val fresh = triggerAt == 0L || lateMs < MAX_LATE_MS
+                if (fresh) {
+                    PrayerNotificationChannels.ensureAll(app)
+                    when (kind) {
+                        PrayerScheduler.KIND_ADHAN -> {
+                            showAdhan(app, prayer)
+                            withContext(Dispatchers.Main) {
+                                runCatching {
+                                    if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.pauseForAdhan()
+                                }
+                            }
+                        }
+                        PrayerScheduler.KIND_PRE -> showReminder(
+                            app, 7100 + prayer.hashCode().mod(50),
+                            "$prayer in $minutes minutes", "Get ready for $prayer prayer.", "Prepare for salah."
+                        )
+                        PrayerScheduler.KIND_JUMMAH -> showReminder(
+                            app, 7160, "Jumu'ah Mubarak",
+                            "Jumu'ah prayer is soon. Take ghusl, wear your best, and head to the masjid early.",
+                            "Recite Surah Al-Kahf and send salawat upon the Prophet \uFDFA."
+                        )
+                        PrayerScheduler.KIND_SUHOOR -> showReminder(
+                            app, 7161, "Suhoor time", "Fajr is in about 30 minutes - time for suhoor.", "Ramadan Mubarak."
+                        )
+                        PrayerScheduler.KIND_IFTAR -> showReminder(
+                            app, 7162, "Iftar time", "Maghrib has begun - you may break your fast.",
+                            "Dua: Dhahaba al-zama' wabtallatil-'uruq, wa thabata al-ajr in sha Allah."
+                        )
+                        PrayerScheduler.KIND_DAILY -> showDaily(app)
                     }
                 }
-                if (NextPrayerOngoingUpdater.isEnabled(context)) {
-                    NextPrayerOngoingUpdater.update(context)
-                }
-                PrayerWidgetUpdater.refreshAll(context)
             } catch (e: Exception) {
                 CrashReporter.report(e, "Prayer notification failed")
             } finally {
                 try {
-                    val appContext = context.applicationContext
-                    val location = UserPreferencesRepository(appContext).locationFlow.first()
-                    if (!location.isAvailable) return@launch
-                    val tomorrow = Calendar.getInstance().apply {
-                        timeInMillis = maxOf(intent.getLongExtra("PRAYER_DATE", 0L), System.currentTimeMillis())
-                        add(Calendar.DAY_OF_YEAR, 1)
-                    }.time
-                    val controller = PrayerSettingsController(appContext)
-                    val nextPrayer = controller.calculatePrayers(
-                        date = tomorrow, latitude = location.latitude,
-                        longitude = location.longitude, schedule = false
-                    ).firstOrNull { it.name == prayerName }
-                    if (nextPrayer != null) controller.scheduleAlarms(listOf(nextPrayer), tomorrow)
+                    // Re-arm the next occurrence first (cheap, offline), then refresh the UI surfaces.
+                    PrayerScheduler.rescheduleAll(app, allowNetwork = false, notBeforeMs = triggerAt + 1000L)
+                    NextPrayerOngoingUpdater.update(app)
+                    PrayerWidgetUpdater.refreshAll(app)
                 } catch (e: Exception) {
                     CrashReporter.report(e, "Unable to schedule next prayer reminder")
                 } finally {
-                    pendingResult.finish()
+                    pending.finish()
                 }
             }
         }
     }
 
-    private fun showNotification(context: Context, prayerName: String, alarmSoundPref: String, offsetMinutes: Int) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val reminderType = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            .getString("reminder_type", "Notification") ?: "Notification"
-        val isAlarm = reminderType == "Alarm" || !alarmSoundPref.equals("System Sound", ignoreCase = true)
-        val channelId = if (isAlarm) "prayer_adhan_channel_v2" else "prayer_notification_channel_v2"
-        val soundType = if (isAlarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION
-        val selectedSound: Uri = RingtoneManager.getDefaultUri(soundType)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                if (isAlarm) "Prayer Adhan" else "Prayer Notifications",
-                if (isAlarm) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Reminders for prayer (Adhan) times · $alarmSoundPref"
-                enableLights(true)
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 350, 250, 350)
-                val audioAttributes = AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(if (isAlarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
-                    .build()
-                setSound(selectedSound, audioAttributes)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val openIntent = Intent(context, MainActivity::class.java).apply {
+    private fun openApp(context: Context, code: Int, extra: String): PendingIntent {
+        val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("OPEN_PRAYER", true)
+            putExtra(extra, true)
         }
-        val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        val contentPendingIntent = PendingIntent.getActivity(
-            context, prayerName.hashCode(), openIntent, pendingFlags
-        )
+        return PendingIntent.getActivity(context, code, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
 
-        val arabicCall = "حَيَّ عَلَى الصَّلَاة"
-        val reminderText = if (offsetMinutes > 0) "$prayerName prayer is in $offsetMinutes minutes."
-            else "It's time for $prayerName prayer."
-        val bigText = "$reminderText\n$arabicCall  •  Hayya 'alas-salah\n" +
-            "Hasten to the prayer. May Allah accept it from you."
+    private fun largeIcon(context: Context) = PrayerDisplay.masjidLargeIcon(context) ?: try {
+        BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
+    } catch (_: Exception) {
+        null
+    }
 
-        // Emerald masjid tile (matches the home hero / widgets); fall back to the launcher icon.
-        val largeIcon = PrayerDisplay.masjidLargeIcon(context) ?: try {
-            BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
-        } catch (_: Exception) {
-            null
+    private fun notifyOrIgnore(context: Context, id: Int, notification: android.app.Notification) {
+        try {
+            NotificationManagerCompat.from(context).notify(id, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS revoked - nothing we can show.
         }
+    }
+
+    private fun showAdhan(context: Context, prayerName: String) {
+        val sound = AdhanSound.fromPref(PrayerPrefs(context).alarmSound)
+        val channelId = PrayerNotificationChannels.adhanChannelFor(sound)
+        val pi = openApp(context, prayerName.hashCode(), "OPEN_PRAYER")
         val hijri = PrayerDisplay.hijriLabel(context, short = false)
-
+        val title = "Time for $prayerName"
+        val text = "It's time for $prayerName prayer."
+        val big = "$text\n\u062D\u064E\u064A\u064E\u0651 \u0639\u064E\u0644\u064E\u0649 \u0627\u0644\u0635\u064E\u0651\u0644\u064E\u0627\u0629  \u2022  Hayya 'alas-salah\nHasten to the prayer. May Allah accept it from you."
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_adhan_notification)
-            .setContentTitle(if (offsetMinutes > 0) "$prayerName in $offsetMinutes min" else "Time for $prayerName")
-            .setContentText(reminderText)
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText(bigText)
-                    .setBigContentTitle(if (offsetMinutes > 0) "$prayerName in $offsetMinutes min" else "Time for $prayerName")
-            )
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(big).setBigContentTitle(title))
             .setColor(PrayerDisplay.DEEP_GREEN)
-            .setColorized(true)
-            .setContentIntent(contentPendingIntent)
-            .addAction(R.drawable.ic_adhan_notification, "Open App", contentPendingIntent)
-            .setPriority(if (isAlarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_DEFAULT)
-            .setCategory(if (isAlarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+            .setContentIntent(pi)
+            .addAction(R.drawable.ic_adhan_notification, "Open", pi)
+            // HIGH priority + channel IMPORTANCE_HIGH => heads-up pop-up. No full-screen intent is used.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setSound(selectedSound)
+            .setDefaults(if (sound == AdhanSound.SILENT) NotificationCompat.DEFAULT_VIBRATE else NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
-
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon)
+        largeIcon(context)?.let { builder.setLargeIcon(it) }
+        if (hijri.isNotBlank()) builder.setSubText(hijri)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O && sound != AdhanSound.SILENT) {
+            val uri = android.media.RingtoneManager.getDefaultUri(
+                if (sound == AdhanSound.ALARM) android.media.RingtoneManager.TYPE_ALARM
+                else android.media.RingtoneManager.TYPE_NOTIFICATION
+            )
+            builder.setSound(uri)
         }
-        if (hijri.isNotBlank()) {
-            builder.setSubText(hijri)
-        }
+        notifyOrIgnore(context, 7000 + prayerName.hashCode().mod(50), builder.build())
+    }
 
-        if (isAlarm) {
-            builder.setFullScreenIntent(contentPendingIntent, true)
-            builder.setOngoing(true)
-        }
+    private fun showReminder(context: Context, id: Int, title: String, text: String, big: String) {
+        val pi = openApp(context, id, "OPEN_PRAYER")
+        val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.REMINDER)
+            .setSmallIcon(R.drawable.ic_adhan_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$text\n$big").setBigContentTitle(title))
+            .setColor(PrayerDisplay.EMERALD)
+            .setContentIntent(pi)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+        largeIcon(context)?.let { builder.setLargeIcon(it) }
+        notifyOrIgnore(context, id, builder.build())
+    }
 
-        notificationManager.notify(prayerName.hashCode(), builder.build())
+    private fun showDaily(context: Context) {
+        val item = DailyReminderContent.forDay(Calendar.getInstance().get(Calendar.DAY_OF_YEAR))
+        val pi = openApp(context, 7170, "OPEN_QURAN")
+        val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.DAILY)
+            .setSmallIcon(R.drawable.ic_adhan_notification)
+            .setContentTitle("Ayah of the day")
+            .setContentText(item.text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("${item.text}\n\n${item.reference}").setBigContentTitle("Ayah of the day"))
+            .setColor(PrayerDisplay.EMERALD)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+        largeIcon(context)?.let { builder.setLargeIcon(it) }
+        notifyOrIgnore(context, 7170, builder.build())
+    }
+
+    companion object {
+        /** Adhan alarms older than this are dropped (e.g. the phone was off at prayer time). */
+        const val MAX_LATE_MS = 10 * 60_000L
     }
 }

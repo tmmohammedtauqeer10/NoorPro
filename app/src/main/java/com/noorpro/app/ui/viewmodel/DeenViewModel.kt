@@ -1533,10 +1533,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                 
                 val isHanafi = prayerSettingsController.selectedMadhab.value == Madhab.HANAFI
                 val schoolStr = if (isHanafi) "1" else "0" 
-                val method = when (prayerSettingsController.selectedMethod.value) {
-                    CalculationMethod.KARACHI -> 1
-                    CalculationMethod.MWL -> 3
-                }
+                val method = prayerSettingsController.selectedMethod.value.aladhanId
                 // Let AlAdhan resolve the timezone from the current coordinates. A fixed
                 // timezone (for example UTC) produces incorrect prayer times for most users.
                 val url = okhttp3.HttpUrl.Builder()

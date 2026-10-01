@@ -35,7 +35,7 @@ object NextPrayerOngoingUpdater {
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_ONGOING_ENABLED, false)
+            .getBoolean(KEY_ONGOING_ENABLED, true)
 
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

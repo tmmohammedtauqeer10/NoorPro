@@ -76,7 +76,7 @@ fun SponsoredHomeCard(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SponsoredCard(adUnitId: String, modifier: Modifier = Modifier) {
-    if (adUnitId.isBlank()) return
+    if (adUnitId.isBlank() || !ConsentManager.canRequestAds.value) return
     Column(modifier = modifier, horizontalAlignment = Alignment.Start) {
         Text(
             "Sponsored",
@@ -95,7 +95,7 @@ fun SponsoredAdMedia(
 ) {
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         // Empty id = release without real AdMob units configured; skip the request.
-        if (adUnitId.isNotBlank() && maxWidth >= 300.dp) {
+        if (adUnitId.isNotBlank() && maxWidth >= 300.dp && ConsentManager.canRequestAds.value) {
             val context = LocalContext.current
             // Anchored adaptive banners use the available card width and choose a safe height for
             // this device/orientation, avoiding clipped or oversized ads on small phones/tablets.

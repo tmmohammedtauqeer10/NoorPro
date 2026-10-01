@@ -56,6 +56,7 @@ fun LoginScreen(viewModel: DeenViewModel) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var googleErrorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var acceptedTerms by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -241,6 +242,28 @@ fun LoginScreen(viewModel: DeenViewModel) {
                 )
             }
 
+            if (isRegistering) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+                ) {
+                    Checkbox(checked = acceptedTerms, onCheckedChange = { acceptedTerms = it; errorMessage = null })
+                    Column {
+                        Text(
+                            "I agree to the Terms of Service and community rules (no objectionable content, reports reviewed within 24 hours).",
+                            color = sacredText, fontSize = 13.sp, lineHeight = 18.sp
+                        )
+                        Row {
+                            Text("Terms", color = sacredGoldDim, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) })
+                            Text("  \u00B7  ", color = sacredMuted, fontSize = 13.sp)
+                            Text("Privacy Policy", color = sacredGoldDim, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) })
+                        }
+                    }
+                }
+            }
+
             Button(
                 onClick = {
                     googleErrorMessage = null
@@ -251,6 +274,10 @@ fun LoginScreen(viewModel: DeenViewModel) {
                     }
                     if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
                         errorMessage = "Enter a valid email address."
+                        return@Button
+                    }
+                    if (isRegistering && !acceptedTerms) {
+                        errorMessage = "Please accept the Terms of Service to create an account."
                         return@Button
                     }
                     if (password.length < 6) {
@@ -428,6 +455,15 @@ fun LoginScreen(viewModel: DeenViewModel) {
                     )
                 }
             }
+
+            Text(
+                text = "By continuing with Google you agree to the Terms of Service and Privacy Policy.",
+                color = sacredMuted,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                    .clickable { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) }
+            )
 
             googleErrorMessage?.let { message ->
                 Text(

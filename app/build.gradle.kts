@@ -32,8 +32,8 @@ android {
     targetSdk = 36
     // Unit-test manifest merging does not receive placeholders from the Secrets plugin.
     manifestPlaceholders["MAPS_API_KEY"] = noorLocalProperties.getProperty("MAPS_API_KEY", "NO_KEY_CONFIGURED")
-        versionCode = 36
-        versionName = "1.0.34"
+        versionCode = 37
+        versionName = "1.0.35"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -126,6 +126,7 @@ dependencies {
   // 8.2.0 is compatible with NoorPro's compileSdk 36.
   implementation("com.google.maps.android:maps-compose:8.2.0")
   implementation("com.google.android.gms:play-services-ads:23.6.0")
+  implementation("com.google.android.ump:user-messaging-platform:3.2.0")
   implementation("com.squareup.retrofit2:retrofit:2.12.0")
   testImplementation("androidx.compose.ui:ui-test-junit4")
   testImplementation("androidx.test:core:1.6.1")

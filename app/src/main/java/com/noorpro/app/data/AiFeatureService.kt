@@ -74,9 +74,10 @@ object AiFeatureService {
         "Note: Noor AI can make mistakes. For fatwa, divorce, inheritance, medical, legal, or serious personal issues, consult a qualified scholar."
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     private val client = OkHttpClient.Builder()
-        .connectTimeout(2, TimeUnit.SECONDS)
-        .readTimeout(28, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
+        // Mobile networks (and a cold-started Cloud Function) routinely need more than 2s to connect.
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
     suspend fun generateResponse(
@@ -84,13 +85,45 @@ object AiFeatureService {
         mode: NoorAiMode,
         history: List<NoorAiMessage> = emptyList()
     ): String = withContext(Dispatchers.IO) {
+        val clean = prompt.trim()
         val selfHostUrl = resolveSelfHostUrl(isEmulator(), selfHostUrlOverride ?: System.getenv("NOOR_AI_SELFHOST_URL"))
-        (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, prompt.trim(), mode, history) else null)
-            ?: callNoorAiFunction(prompt.trim(), mode, history)
+        (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, clean, mode, history) else null)
+            ?: callNoorAiFunctionWithRetry(clean, mode, history)
             ?: run {
                 delay(120)
-                buildLocalGuidedResponse(prompt.trim(), mode)
+                offlineFallback(clean, mode)
             }
+    }
+
+    /**
+     * Shown only when the real AI could not be reached. App Help keeps its static feature map (it is
+     * not an AI answer anyway); every other mode says plainly that the AI is unavailable instead of
+     * returning canned text that looks like an answer and repeats for every question.
+     */
+    internal fun offlineFallback(prompt: String, mode: NoorAiMode): String =
+        if (mode == NoorAiMode.AppGuide) buildLocalGuidedResponse(prompt, mode)
+        else UNAVAILABLE_MESSAGE
+
+    internal const val UNAVAILABLE_MESSAGE =
+        "Noor AI could not be reached right now, so I can't answer this yet. Please check your internet connection and tap send again in a moment. " +
+            "I don't want to give you a generic answer that doesn't address your question."
+
+    /** Builds the history array sent to the backend: recent turns only, never the question being asked. */
+    internal fun trimHistoryForRequest(history: List<NoorAiMessage>, currentPrompt: String): List<NoorAiMessage> {
+        val turns = history.filter { it.text.isNotBlank() }.toMutableList()
+        if (turns.isNotEmpty() && turns.last().isUser && turns.last().text.trim() == currentPrompt.trim()) {
+            turns.removeAt(turns.lastIndex)
+        }
+        // Drop the greeting that the screen seeds as the first assistant message.
+        while (turns.isNotEmpty() && !turns.first().isUser) turns.removeAt(0)
+        return turns.takeLast(10)
+    }
+
+    /** Appends a "Sources" block only when the model did not already include one. */
+    internal fun withCitations(answer: String, refs: List<String>): String {
+        val clean = refs.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(6)
+        if (clean.isEmpty() || Regex("(?im)^\\s*\\**sources?:?\\**\\s*$").containsMatchIn(answer)) return answer
+        return answer.trimEnd() + "\n\nSources:\n" + clean.joinToString("\n") { "- $it" }
     }
 
     /** Returns the self-host URL to try, or null to skip straight to Firebase. */
@@ -159,31 +192,45 @@ object AiFeatureService {
                 val body = response.body?.string().orEmpty()
                 val root = JSONObject(body)
                 val answer = root.optString("answer").takeIf { it.isNotBlank() } ?: return null
-                val citations = root.optJSONArray("citations")
-                if (citations == null || citations.length() == 0) return answer
-                val cites = buildString {
-                    append("\n\nSources:\n")
-                    for (i in 0 until minOf(citations.length(), 5)) {
-                        val c = citations.getJSONObject(i)
-                        append("- ")
-                        append(c.optString("ref"))
-                        append('\n')
-                    }
-                }
-                answer + cites
+                withCitations(answer, jsonRefs(root.optJSONArray("citations")))
             }
         } catch (_: Exception) {
             null
         }
     }
 
+    private fun jsonRefs(array: org.json.JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { i ->
+            val item = array.opt(i)
+            when (item) {
+                is JSONObject -> item.optString("ref").takeIf { it.isNotBlank() }
+                is String -> item.takeIf { it.isNotBlank() }
+                else -> null
+            }
+        }
+    }
+
+    private suspend fun callNoorAiFunctionWithRetry(
+        prompt: String,
+        mode: NoorAiMode,
+        history: List<NoorAiMessage>
+    ): String? {
+        if (prompt.isBlank()) return null
+        repeat(2) { attempt ->
+            callNoorAiFunction(prompt, mode, history)?.let { return it }
+            if (attempt == 0) delay(1200)
+        }
+        return null
+    }
+
     private suspend fun callNoorAiFunction(prompt: String, mode: NoorAiMode, history: List<NoorAiMessage>): String? {
         if (prompt.isBlank()) return null
         return try {
-            // Send the recent conversation so Noor AI remembers context. The backend may cap this,
-            // but giving it a little more recent context improves follow-up answers.
+            // Send the raw question + recent turns. The backend owns the (Sunni-grounded) system prompt;
+            // wrapping the question in a long template used to push it past the server's length cap.
             val historyJson = org.json.JSONArray()
-            history.takeLast(10).forEach { message ->
+            trimHistoryForRequest(history, prompt).forEach { message ->
                 historyJson.put(
                     JSONObject()
                         .put("role", if (message.isUser) "user" else "assistant")
@@ -191,14 +238,9 @@ object AiFeatureService {
                 )
             }
             val payload = JSONObject()
-                .put("prompt", buildDetailedPrompt(prompt, mode).take(4500))
+                .put("prompt", prompt.take(3800))
                 .put("mode", mode.name)
-                .put("answerStyle", "detailed_structured_fast")
-                .put("maxWords", 950)
-                .put(
-                    "instructions",
-                    "Give a detailed, practical, Sunni-friendly answer in clear sections. Use simple language, include action steps, and mention when a qualified scholar is needed."
-                )
+                .put("instructions", mode.styleHint())
                 .put("history", historyJson)
                 .toString()
 
@@ -217,28 +259,19 @@ object AiFeatureService {
             client.newCall(requestBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val body = response.body?.string().orEmpty()
-                JSONObject(body).optString("answer").takeIf { it.isNotBlank() }
+                val root = JSONObject(body)
+                val answer = root.optString("answer").trim().takeIf { it.isNotBlank() } ?: return null
+                withCitations(answer, jsonRefs(root.optJSONArray("citations")))
             }
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun buildDetailedPrompt(prompt: String, mode: NoorAiMode): String {
-        return """
-            Mode: ${mode.title}
-
-            User question:
-            $prompt
-
-            Noor Pro answer requirements:
-            - Give a detailed but clear answer, around 500-900 words when the question needs depth.
-            - Use headings, short paragraphs, and practical action steps.
-            - Keep the tone warm, Sunni-friendly, and respectful.
-            - For Quran or hadith, explain safely and avoid inventing references.
-            - For fatwa, divorce, inheritance, medical, legal, or serious personal issues, advise the user to ask a qualified scholar.
-            - If the user asks how to use the Noor Pro app, answer with exact app steps.
-        """.trimIndent()
+    private fun NoorAiMode.styleHint(): String = when (this) {
+        NoorAiMode.DuaGenerator -> "Keep it concise and heartfelt."
+        NoorAiMode.AppGuide -> "Answer briefly with exact tap-by-tap steps."
+        else -> "Answer the exact question asked, with practical steps; be clear and not longer than needed (about 300-600 words)."
     }
 
     private fun buildLocalGuidedResponse(prompt: String, mode: NoorAiMode): String {

@@ -39,7 +39,7 @@
                 android:importantForAccessibility="no"
                 android:src="@drawable/widget_crescent" />
 
-            <TextView
+            <Chronometer
                 android:id="@+id/widget_day_header"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

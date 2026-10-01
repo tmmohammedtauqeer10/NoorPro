@@ -74,6 +74,7 @@ fun StitchDiscoverGroupsScreen(viewModel: DeenViewModel) {
     var loading by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var joining by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val termsGate = rememberUgcTermsGate()
 
     DisposableEffect(Unit) {
         val repo = UmmahRepository()
@@ -156,6 +157,8 @@ fun StitchDiscoverGroupsScreen(viewModel: DeenViewModel) {
                             onJoin = {
                                 if (!viewModel.isLoggedIn) {
                                     Toast.makeText(context, "Sign in to join groups", Toast.LENGTH_SHORT).show()
+                                } else if (!termsGate.check()) {
+                                    // The terms dialog is showing; the user can tap Join again after accepting.
                                 } else {
                                     joining = joining + group.id
                                     repository.joinGroup(group.id) { ok, err ->

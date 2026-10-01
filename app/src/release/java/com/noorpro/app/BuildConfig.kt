@@ -4,8 +4,8 @@ object BuildConfig {
     const val DEBUG: Boolean = false
     const val APPLICATION_ID: String = "com.noorpro.app"
     const val BUILD_TYPE: String = "release"
-    const val VERSION_CODE: Int = 3
-    const val VERSION_NAME: String = "1.0.2"
+    const val VERSION_CODE: Int = 37
+    const val VERSION_NAME: String = "1.0.35"
     // NEVER use Google sample units (ca-app-pub-394025609…) in release.
     // Real NoorPro banner units (app id ca-app-pub-9239932537224257~4622879088 is in the manifest).
     const val ADMOB_BOTTOM_BANNER: String = "ca-app-pub-9239932537224257/6312829655"

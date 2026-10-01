@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import com.noorpro.app.MainActivity
@@ -43,6 +44,8 @@ object PrayerWidgetUpdater {
         val countdown: String,
         val available: Boolean,
         val hijri: String = "",
+        /** Wall-clock time (epoch ms) of the next prayer; 0 when unknown. Drives the live countdown. */
+        val targetMs: Long = 0L,
     )
 
     private suspend fun loadSnapshot(context: Context): Snapshot {
@@ -90,7 +93,7 @@ object PrayerWidgetUpdater {
         } else {
             "--"
         }
-        return Snapshot(map, nextName, nextTime, countdown, true, hijri)
+        return Snapshot(map, nextName, nextTime, countdown, true, hijri, target?.time ?: 0L)
     }
 
     fun updateNext(context: Context, mgr: AppWidgetManager, id: Int, snap: Snapshot) {
@@ -106,10 +109,7 @@ object PrayerWidgetUpdater {
         val views = RemoteViews(context.packageName, R.layout.widget_next_prayer_2x2)
         views.setTextViewText(R.id.widget_next_name, if (snap.available) snap.nextName else "Prayer")
         views.setTextViewText(R.id.widget_next_time, if (snap.available) snap.nextTime else "--:--")
-        views.setTextViewText(
-            R.id.widget_next_countdown,
-            if (snap.available) "in ${snap.countdown}" else "Set location",
-        )
+        setCountdown(views, R.id.widget_next_countdown, snap, "in %s", "Set location")
         val showHijri = snap.hijri.isNotBlank() && (minHeightDp <= 0 || minHeightDp >= MIN_HEIGHT_FOR_HIJRI_NEXT_DP)
         views.setTextViewText(R.id.widget_next_hijri, snap.hijri)
         views.setViewVisibility(R.id.widget_next_hijri, if (showHijri) View.VISIBLE else View.GONE)
@@ -138,15 +138,30 @@ object PrayerWidgetUpdater {
         set(R.id.widget_day_asr_slot, R.id.widget_day_asr_label, R.id.widget_day_asr_time, "Asr")
         set(R.id.widget_day_maghrib_slot, R.id.widget_day_maghrib_label, R.id.widget_day_maghrib_time, "Maghrib")
         set(R.id.widget_day_isha_slot, R.id.widget_day_isha_label, R.id.widget_day_isha_time, "Isha")
-        views.setTextViewText(
-            R.id.widget_day_header,
-            if (snap.available) "Next: ${snap.nextName} \u00B7 in ${snap.countdown}" else "Prayer times",
+        setCountdown(
+            views, R.id.widget_day_header, snap,
+            "Next: ${snap.nextName.replace("%", "")} \u00B7 in %s", "Prayer times"
         )
         val showHijri = snap.hijri.isNotBlank() && (minHeightDp <= 0 || minHeightDp >= MIN_HEIGHT_FOR_HIJRI_DAY_DP)
         views.setTextViewText(R.id.widget_day_hijri, snap.hijri)
         views.setViewVisibility(R.id.widget_day_hijri, if (showHijri) View.VISIBLE else View.GONE)
         views.setOnClickPendingIntent(R.id.widget_day_root, openPrayerPending(context, id + 1000))
         return views
+    }
+
+    /**
+     * Live countdown: a Chronometer in count-down mode is ticked by the launcher itself every
+     * second, so no wake-ups are needed. The refresh alarms only re-point it at the next prayer.
+     */
+    private fun setCountdown(views: RemoteViews, viewId: Int, snap: Snapshot, format: String, placeholder: String) {
+        val remaining = snap.targetMs - System.currentTimeMillis()
+        if (snap.available && snap.targetMs > 0L && remaining > 0L) {
+            views.setChronometerCountDown(viewId, true)
+            views.setChronometer(viewId, SystemClock.elapsedRealtime() + remaining, format, true)
+        } else {
+            val text = if (snap.available) format.replace("%s", snap.countdown) else placeholder
+            views.setChronometer(viewId, SystemClock.elapsedRealtime(), text, false)
+        }
     }
 
     private fun minHeightDp(mgr: AppWidgetManager, id: Int): Int = try {

@@ -73,7 +73,7 @@
             android:textColor="@color/widget_gold"
             android:textSize="20sp" />
 
-        <TextView
+        <Chronometer
             android:id="@+id/widget_next_countdown"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
