@@ -486,7 +486,7 @@ fun MainLayout() {
         val mediaNotifLauncher = rememberLauncherForActivityResult(
             androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
         ) { }
-        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.player.audible.collectAsState()
+        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.anyAudible.collectAsState()
         LaunchedEffect(alNoorAudible) {
             if (alNoorAudible &&
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&

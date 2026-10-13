@@ -38,7 +38,8 @@ class AlNoorMediaSessionService : MediaSessionService() {
         provider.setSmallIcon(R.drawable.ic_adhan_notification)
         setMediaNotificationProvider(provider)
 
-        mediaSession = MediaSession.Builder(this, AlNoorAudioSession.player.sessionPlayer)
+        // Shared session: plays whichever source (Al Noor nasheeds or Quran recitation) is selected.
+        mediaSession = MediaSession.Builder(this, AlNoorSessionRouter.playerFor(this))
             .setSessionActivity(sessionActivityPendingIntent())
             .setId("al_noor_audio_session")
             .build()
@@ -47,7 +48,7 @@ class AlNoorMediaSessionService : MediaSessionService() {
         // It is called implicitly from onGetSession() when a MediaController binds, but the app
         // used plain startService() with no controller, so the session was never registered and no
         // notification was ever posted ("No media playing" in the QS media player).
-        mediaSession?.let { addSession(it) }
+        mediaSession?.let { addSession(it); AlNoorSessionRouter.attach(it) }
         Log.i(TAG, "Al Noor media session service created")
     }
 
@@ -75,7 +76,9 @@ class AlNoorMediaSessionService : MediaSessionService() {
         // The player is process-owned; just detach the session. Pause so nothing keeps playing
         // without a notification once the service is gone.
         runCatching { if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.pause() }
+        runCatching { QuranSessionBridge.pauseForOtherSource() }
         mediaSession?.run {
+            AlNoorSessionRouter.detach(this)
             release()
             mediaSession = null
         }

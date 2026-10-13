@@ -1180,6 +1180,72 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     private val _playingSampleReciterId = MutableStateFlow<Int?>(null)
     val playingSampleReciterId = _playingSampleReciterId.asStateFlow()
 
+    // ---- Quran recitation <-> shared Media3 session (notification, lock screen, QS, headset) ----
+    private val quranSessionCommands = object : com.noorpro.app.audio.session.QuranSessionBridge.Commands {
+        override fun play() { if (!_isAudioPlaying.value) toggleAudioPlayback() }
+        override fun pause() { if (_isAudioPlaying.value) toggleAudioPlayback() }
+        override fun next() = playNextSurah()
+        override fun previous() = playPreviousSurah()
+        override fun seekTo(positionMs: Long) {
+            runCatching { mediaPlayer?.seekTo(positionMs.toInt()) }.onFailure { CrashReporter.report(it) }
+        }
+        override fun stop() = dismissMiniAudioPlayer()
+        override fun positionMs(): Long = runCatching { mediaPlayer?.currentPosition?.toLong() }.getOrNull() ?: 0L
+    }
+
+    init {
+        com.noorpro.app.audio.session.QuranSessionBridge.commands = quranSessionCommands
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                _isAudioPlaying, _playingSurah, _currentAudioTrack, _playingAyahIndex, _selectedReciter
+            ) { playing, surah, track, ayahIndex, reciter ->
+                quranNowPlaying(playing, surah, track, ayahIndex, reciter)
+            }.collect { com.noorpro.app.audio.session.QuranSessionBridge.update(getApplication(), it) }
+        }
+    }
+
+    private fun quranNowPlaying(
+        playing: Boolean,
+        surah: Surah?,
+        track: com.noorpro.app.data.AudioItem?,
+        ayahIndex: Int,
+        reciter: com.noorpro.app.data.Reciter,
+    ): com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying? {
+        if (track != null) {
+            val duration = runCatching { mediaPlayer?.duration?.takeIf { it > 0 }?.toLong() }.getOrNull()
+            return com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying(
+                id = "track:${track.id}",
+                title = track.title,
+                artist = track.artist,
+                isPlaying = playing,
+                durationMs = duration ?: androidx.media3.common.C.TIME_UNSET,
+            )
+        }
+        if (surah == null) return null
+        val ayahCount = surah.verses.size.takeIf { it > 0 } ?: surah.versesCount
+        return com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying(
+            id = "surah:${surah.id}",
+            title = "${surah.nameEnglish} \u00b7 ${surah.nameArabic}",
+            artist = reciter.name,
+            subtitle = if (ayahCount > 1) "Ayah ${ayahIndex + 1} of $ayahCount \u00b7 ${reciter.name}" else reciter.name,
+            isPlaying = playing,
+        )
+    }
+
+    /** Releases a MediaPlayer without the "went away with unhandled events" log noise. */
+    private fun releaseQuietly(player: MediaPlayer?) {
+        player ?: return
+        player.setOnPreparedListener(null)
+        player.setOnCompletionListener(null)
+        player.setOnErrorListener(null)
+        runCatching { player.reset() }
+        runCatching { player.release() }
+    }
+
+    private fun logPlayerError(url: String, what: Int, extra: Int) {
+        android.util.Log.w("QuranAudio", "MediaPlayer error what=$what extra=$extra url=$url")
+    }
+
     // Azkar counting progress
     private val _azkarCounts = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val azkarCounts = _azkarCounts.asStateFlow()
@@ -1695,12 +1761,10 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val oldPlayer = mediaPlayer
             mediaPlayer = null
-            oldPlayer?.setOnPreparedListener(null)
-            oldPlayer?.setOnCompletionListener(null)
-            oldPlayer?.setOnErrorListener(null)
-            oldPlayer?.release()
+            releaseQuietly(oldPlayer)
 
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -1708,7 +1772,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(track.audioUrl)
-                setOnErrorListener { _, _, _ ->
+                setOnErrorListener { _, what, extra ->
+                    logPlayerError(track.audioUrl, what, extra)
                     _isAudioPlaying.value = false
                     true
                 }
@@ -1766,11 +1831,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissMiniAudioPlayer() {
         try {
-            mediaPlayer?.setOnPreparedListener(null)
-            mediaPlayer?.setOnCompletionListener(null)
-            mediaPlayer?.setOnErrorListener(null)
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
+            runCatching { mediaPlayer?.stop() }
+            releaseQuietly(mediaPlayer)
         } catch (e: Exception) {
             CrashReporter.report(e)
         } finally {
@@ -1785,7 +1847,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun playAyahAudioFromUrl(surahId: Int, ayahIndex: Int) {
+    private fun playAyahAudioFromUrl(surahId: Int, ayahIndex: Int, attempt: Int = 0) {
         val ayahNumberInSurah = ayahIndex + 1
         val surahStr = String.format("%03d", surahId)
         val ayahStr = String.format("%03d", ayahNumberInSurah)
@@ -1795,12 +1857,10 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val oldPlayer = mediaPlayer
             mediaPlayer = null
-            oldPlayer?.setOnPreparedListener(null)
-            oldPlayer?.setOnCompletionListener(null)
-            oldPlayer?.setOnErrorListener(null)
-            oldPlayer?.release()
+            releaseQuietly(oldPlayer)
             
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -1808,9 +1868,23 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(url)
-                setOnErrorListener { _, _, _ ->
-                    _isAudioPlaying.value = false
-                    true // Return true to indicate error was handled and prevent onCompletion from being called
+                setOnErrorListener { _, what, extra ->
+                    logPlayerError(url, what, extra)
+                    // Transient network/stream errors: retry the same ayah once, then skip to the next
+                    // one instead of silently stopping the whole surah.
+                    val surah = _playingSurah.value
+                    when {
+                        attempt < 1 -> viewModelScope.launch {
+                            delay(700)
+                            if (_playingSurah.value?.id == surahId && _playingAyahIndex.value == ayahIndex) {
+                                playAyahAudioFromUrl(surahId, ayahIndex, attempt + 1)
+                            }
+                        }
+                        surah != null && surah.id == surahId && ayahIndex + 1 < surah.verses.size ->
+                            viewModelScope.launch { selectAyahToPlay(ayahIndex + 1) }
+                        else -> _isAudioPlaying.value = false
+                    }
+                    true // handled: prevents onCompletion
                 }
                 setOnPreparedListener { 
                     try {
@@ -1963,11 +2037,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val old = mediaPlayer
             mediaPlayer = null
-            old?.setOnPreparedListener(null)
-            old?.setOnCompletionListener(null)
-            old?.setOnErrorListener(null)
-            old?.release()
+            releaseQuietly(old)
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -1975,7 +2047,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(url)
-                setOnErrorListener { _, _, _ -> _isAudioPlaying.value = false; true }
+                setOnErrorListener { _, what, extra -> logPlayerError(url, what, extra); _isAudioPlaying.value = false; true }
                 setOnPreparedListener { mp ->
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -3027,7 +3099,11 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             sensorManager?.unregisterListener(sensorEventListener)
         } catch (_: Exception) {}
         try {
-            mediaPlayer?.release()
+            if (com.noorpro.app.audio.session.QuranSessionBridge.commands === quranSessionCommands) {
+                com.noorpro.app.audio.session.QuranSessionBridge.commands = null
+                com.noorpro.app.audio.session.QuranSessionBridge.update(getApplication(), null)
+            }
+            releaseQuietly(mediaPlayer)
             mediaPlayer = null
         } catch (_: Exception) {}
         try {

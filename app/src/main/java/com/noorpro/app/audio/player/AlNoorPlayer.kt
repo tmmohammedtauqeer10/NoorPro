@@ -270,7 +270,8 @@ class AlNoorPlayer(context: Context) {
 
     /** (Re)starts the foreground-capable MediaSessionService so notification + lock-screen controls exist. */
     private fun ensureService() {
-        runCatching { AlNoorMediaSession.obtain(appContext).startSession() }
+        // Selecting Al Noor pauses Quran recitation and points the shared session at this player.
+        runCatching { com.noorpro.app.audio.session.AlNoorSessionRouter.select(appContext, com.noorpro.app.audio.session.AlNoorSessionRouter.Source.AL_NOOR) }
             .onFailure { Log.w(TAG, "Could not start Al Noor media service", it) }
     }
 

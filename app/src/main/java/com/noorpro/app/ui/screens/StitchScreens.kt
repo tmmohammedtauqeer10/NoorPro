@@ -3597,7 +3597,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     }
     DisposableEffect(Unit) { onDispose { reelPlayer.release() } }
     // Al Noor Audio owns audio focus while it plays: pause reels and don't auto-resume over it.
-    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.player.audible.collectAsState()
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.anyAudible.collectAsState()
     LaunchedEffect(alNoorAudible) { if (alNoorAudible) reelPlayer.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { reelPlayer.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) reelPlayer.play() }

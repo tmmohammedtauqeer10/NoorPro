@@ -1,6 +1,7 @@
 package com.noorpro.app.audio
 
 import android.content.Context
+import kotlinx.coroutines.flow.stateIn
 import com.noorpro.app.audio.player.AlNoorPlayer
 import com.noorpro.app.audio.repository.AlNoorAudioRepository
 import com.noorpro.app.audio.repository.BundledAlNoorAudioRepository
@@ -44,4 +45,14 @@ object AlNoorAudioSession {
     }
 
     fun isInitialized(): Boolean = initialized
+
+    /** True while Al Noor OR Quran recitation is audible; Reels pause on this. Requires [init]. */
+    val anyAudible: kotlinx.coroutines.flow.StateFlow<Boolean> by lazy {
+        kotlinx.coroutines.flow.combine(player.audible, com.noorpro.app.audio.session.QuranSessionBridge.audible) { a, q -> a || q }
+            .stateIn(
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate),
+                kotlinx.coroutines.flow.SharingStarted.Eagerly,
+                false,
+            )
+    }
 }
