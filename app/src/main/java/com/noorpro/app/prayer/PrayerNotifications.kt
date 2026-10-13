@@ -60,7 +60,7 @@ object PrayerNotifications {
         val ch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).getNotificationChannel(channelId)
         } else null
-        return "enabled=${nm.areNotificationsEnabled()} channel=$channelId importance=${ch?.importance ?: "n/a"} exact=${PrayerScheduler.canScheduleExact(context)}"
+        return "enabled=${nm.areNotificationsEnabled()} channel=$channelId importance=${(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ch?.importance else null) ?: "n/a"} exact=${PrayerScheduler.canScheduleExact(context)}"
     }
 
     suspend fun postAdhan(context: Context, prayer: String, triggerAt: Long, test: Boolean = false): PostResult {

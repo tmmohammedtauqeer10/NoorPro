@@ -113,7 +113,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
     }
 
     private fun notifyOrIgnore(context: Context, id: Int, notification: android.app.Notification) {
-        PrayerNotifications.notifySafely(context, id, notification, notification.channelId ?: PrayerNotificationChannels.REMINDER)
+        PrayerNotifications.notifySafely(context, id, notification, androidx.core.app.NotificationCompat.getChannelId(notification) ?: PrayerNotificationChannels.REMINDER)
     }
 
     private suspend fun showReminder(context: Context, id: Int, title: String, text: String, big: String) {

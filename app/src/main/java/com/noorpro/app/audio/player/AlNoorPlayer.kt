@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
  * Media3 ExoPlayer wrapper for Al Noor Audio (nasheed/naat).
  * Kept separate from Quran [android.media.MediaPlayer] in DeenViewModel.
  */
+// ForwardingPlayer (session wrapper) is @UnstableApi in Media3 1.4.
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class AlNoorPlayer(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(Dispatchers.Main.immediate)

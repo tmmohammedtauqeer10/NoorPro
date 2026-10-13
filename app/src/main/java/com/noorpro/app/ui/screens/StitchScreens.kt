@@ -49,6 +49,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -318,10 +322,12 @@ fun StitchHomeScreen(viewModel: DeenViewModel) {
         }
     }
 
+    // Add the system navigation-bar inset so the last card (Al-Noor Audio) never sits under the bottom nav.
+    val systemNavInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     StitchScreen {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, top = 30.dp, end = 20.dp, bottom = bottomInset),
+            contentPadding = PaddingValues(start = 20.dp, top = 30.dp, end = 20.dp, bottom = bottomInset + systemNavInset),
             verticalArrangement = Arrangement.spacedBy(26.dp)
         ) {
             item {
@@ -454,13 +460,14 @@ private fun StitchImmersivePrayerHero(
                 ) {
                     Text(hijriDateLabel(hijriAdjustment), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(if (hasLocation) "NEXT PRAYER" else "PRAYER TIMES", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text(if (hasLocation) nextPrayerName else "Location", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
+                    Text(if (hasLocation) "NEXT PRAYER" else "PRAYER TIMES", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1, softWrap = false)
+                    Text(if (hasLocation) nextPrayerName else "Location", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon, maxLines = 1, softWrap = false)
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Column {
+                // Left column takes the remaining width so a long location ellipsizes instead of squeezing the time.
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -477,17 +484,20 @@ private fun StitchImmersivePrayerHero(
                             fontSize = 13.sp,
                             fontWeight = if (hasLocation) FontWeight.Normal else FontWeight.Bold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text(if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location", color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location", color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(clock, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold, lineHeight = 44.sp)
+                // Time never wraps: measured at its intrinsic width; long clocks (e.g. "12:55") shrink slightly.
+                val clockSize = if (clock.length > 4) 38.sp else 44.sp
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.wrapContentWidth()) {
+                    Text(clock, color = Color.White, fontSize = clockSize, fontWeight = FontWeight.Bold, lineHeight = clockSize, maxLines = 1, softWrap = false)
                     if (meridiem.isNotBlank()) {
                         Spacer(Modifier.width(4.dp))
-                        Text(meridiem.uppercase(), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(meridiem.uppercase(), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 }
             }
@@ -882,16 +892,20 @@ private fun StitchNextPrayerHero(
                         color = Color.White,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = com.noorpro.app.ui.theme.LibreCaslon
+                        fontFamily = com.noorpro.app.ui.theme.LibreCaslon,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = friendlyCountdown(countdown),
                         color = StitchGold,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
                     Icon(
                         imageVector = prayerGlyph(nextPrayerName),
                         contentDescription = null,
@@ -904,6 +918,8 @@ private fun StitchNextPrayerHero(
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(Color.Black.copy(alpha = 0.18f))
