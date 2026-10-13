@@ -249,7 +249,9 @@ fun MainLayout() {
         // Core Screens crossfade transition
         Crossfade(
             targetState = currentScreen,
-            animationSpec = tween(300),
+            // Open the full player instantly: no cross-faded intermediate frame of the previous
+            // screen (or a stale reader) while the player composes.
+            animationSpec = tween(if (currentScreen == DeenScreen.NOW_PLAYING) 0 else 300),
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
@@ -406,7 +408,7 @@ fun MainLayout() {
                     .padding(bottom = 88.dp, start = 18.dp, end = 18.dp)
                     .fillMaxWidth()
                     .height(62.dp)
-                    .clickable { viewModel.navigateTo(DeenScreen.NOW_PLAYING) }
+                    .clickable { viewModel.openNowPlaying() }
             ) {
                 Row(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
