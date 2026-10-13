@@ -2931,9 +2931,9 @@ private fun StitchMoreProfilePostPreview(post: UmmahPost, onOpen: () -> Unit) {
                 .background(stitchSoftSurface()),
             contentAlignment = Alignment.Center
         ) {
-            if (post.thumbnailUrl.isNotBlank()) {
+            if (post.thumbnailUrl.isNotBlank() || post.mediaUrl.isNotBlank()) {
                 AsyncImage(
-                    model = post.thumbnailUrl,
+                    model = post.previewModel(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -3399,6 +3399,34 @@ private fun copyStitchReelLink(context: android.content.Context, postId: String)
     Toast.makeText(context, "Reel link copied", Toast.LENGTH_SHORT).show()
 }
 
+/**
+ * Stream to play for a reel. HLS is preferred when the stored geometry is trusted (old AWS jobs
+ * padded portrait sources to 16:9); after an MP4 failure (e.g. a 4K source the phone can't
+ * decode) the HLS ladder is used even without trusted geometry.
+ */
+internal fun reelPlaybackUrl(
+    mediaUrl: String,
+    hlsUrl: String,
+    trustedGeometry: Boolean,
+    hlsFailed: Boolean,
+    mp4Failed: Boolean
+): String = when {
+    hlsUrl.isBlank() -> mediaUrl
+    hlsFailed -> mediaUrl.ifBlank { hlsUrl }
+    mp4Failed || mediaUrl.isBlank() -> hlsUrl
+    trustedGeometry -> hlsUrl
+    else -> mediaUrl
+}
+
+/** Network hiccups worth one silent retry; 4xx responses and decoder errors are not. */
+internal fun isTransientReelError(errorCode: Int, httpCode: Int?): Boolean = when {
+    httpCode != null -> httpCode >= 500
+    else -> errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+        errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+        errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+}
+
 private fun UmmahPost.isReelLike(): Boolean {
     val cleanType = type.lowercase()
     return cleanType == "reel" || cleanType == "short"
@@ -3416,6 +3444,11 @@ private fun UmmahPost.isVideoMedia(): Boolean {
 }
 
 private fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
+
+/** Image model for a post preview: thumbnail, else (for videos) a streamed first frame. */
+private fun UmmahPost.previewModel(): Any? =
+    if (isVideoMedia()) com.noorpro.app.data.media.videoPreviewModel(thumbnailUrl, mediaUrl)
+    else thumbnailUrl.ifBlank { mediaUrl }
 
 private data class StitchReelQuality(
     val label: String,
@@ -3614,6 +3647,10 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     val activePost = reels.getOrNull(activePage)
     // Reels whose adaptive HLS stream failed (e.g. still transcoding)     play their MP4 instead.
     var hlsFailedIds by remember { mutableStateOf(emptySet<String>()) }
+    // Reels whose MP4 failed (e.g. a 4K source the device can't decode) — play the HLS ladder.
+    var mp4FailedIds by remember { mutableStateOf(emptySet<String>()) }
+    // One silent automatic retry per reel for transient network errors before showing Retry.
+    var autoRetriedIds by remember { mutableStateOf(emptySet<String>()) }
     // Keep measured dimensions per reel so a newly selected portrait reel never briefly inherits
     // the previous wide reel's Rotate button or letterboxed layout.
     var measuredReelAspects by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
@@ -3638,7 +3675,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // Load the active reel's stream. Prefer adaptive HLS (smooth on any network); if it errors or
     // is still transcoding, hlsFailedIds flips and this re-runs to play the original MP4.
     val useMp4Fallback = activePost != null && activePost.id in hlsFailedIds
-    LaunchedEffect(activePost?.id, useMp4Fallback, playbackRetryToken) {
+    val useHlsFallback = activePost != null && activePost.id in mp4FailedIds
+    LaunchedEffect(activePost?.id, useMp4Fallback, useHlsFallback, playbackRetryToken) {
         val post = activePost ?: run { reelPlayer.clearMediaItems(); return@LaunchedEffect }
         // HLS files created before source geometry was stored were forced to 16:9 by the old AWS
         // job. Play their original MP4 so existing portrait reels are repaired too.
@@ -3647,11 +3685,13 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             post.mediaHeight,
             post.mediaRotationDegrees
         ) != null
-        val playUrl = if (post.hlsUrl.isNotBlank() && hasTrustedSourceGeometry && post.id !in hlsFailedIds) {
-            post.hlsUrl
-        } else {
-            post.mediaUrl
-        }
+        val playUrl = reelPlaybackUrl(
+            mediaUrl = post.mediaUrl,
+            hlsUrl = post.hlsUrl,
+            trustedGeometry = hasTrustedSourceGeometry,
+            hlsFailed = post.id in hlsFailedIds,
+            mp4Failed = post.id in mp4FailedIds
+        )
         if (playUrl.isNotBlank()) {
             reelPlayer.setMediaItem(MediaItem.Builder().setUri(Uri.parse(playUrl)).setMediaId(post.id).build())
             reelPlayer.prepare()
@@ -3703,12 +3743,25 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             override fun onPlayerError(error: PlaybackException) {
                 val post = activePostState.value ?: return
                 if (reelPlayer.currentMediaItem?.mediaId != post.id) return
-                if (post.id !in hlsFailedState.value &&
-                    reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl
-                ) {
-                    hlsFailedIds = hlsFailedIds + post.id
-                } else {
-                    playbackErrorReelId = post.id
+                val failedUrl = reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                val httpCode = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
+                android.util.Log.w(
+                    "NoorReels",
+                    "reel playback error id=${post.id} code=${error.errorCode}/${error.errorCodeName}" +
+                        (httpCode?.let { " http=$it" } ?: "") +
+                        " url=${com.noorpro.app.data.media.MediaUrls.redact(failedUrl)}",
+                    error
+                )
+                when {
+                    failedUrl == post.hlsUrl && post.id !in hlsFailedState.value ->
+                        if (post.mediaUrl.isNotBlank()) hlsFailedIds = hlsFailedIds + post.id else playbackErrorReelId = post.id
+                    failedUrl == post.mediaUrl && post.hlsUrl.isNotBlank() && post.id !in hlsFailedState.value && post.id !in mp4FailedIds ->
+                        mp4FailedIds = mp4FailedIds + post.id
+                    isTransientReelError(error.errorCode, httpCode) && post.id !in autoRetriedIds -> {
+                        autoRetriedIds = autoRetriedIds + post.id
+                        reelPlayer.prepare()
+                    }
+                    else -> playbackErrorReelId = post.id
                 }
             }
         }
@@ -3955,6 +4008,10 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             onResetRecommendations = { reelFeedback = feedbackStore.reset() },
                             onRetry = {
                                 playbackErrorReelId = null
+                                // Real retry: forget earlier failures so HLS/MP4 are both tried again.
+                                hlsFailedIds = hlsFailedIds - post.id
+                                mp4FailedIds = mp4FailedIds - post.id
+                                autoRetriedIds = autoRetriedIds - post.id
                                 playbackRetryToken++
                             },
                             onTogglePlay = {
@@ -5497,8 +5554,8 @@ private fun StitchSearchResultCard(
             ) {
                 if (post.thumbnailUrl.isNotBlank()) {
                     AsyncImage(model = post.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                } else if (post.mediaUrl.isNotBlank() && !post.isReelLike()) {
-                    AsyncImage(model = post.mediaUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else if (post.mediaUrl.isNotBlank()) {
+                    AsyncImage(model = post.previewModel(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
                     Icon(if (post.isReelLike()) Icons.Default.SmartDisplay else Icons.Default.Article, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(28.dp))
                 }
@@ -6265,8 +6322,8 @@ private fun StitchSavedContentCard(
                 ) {
                     if (post.thumbnailUrl.isNotBlank()) {
                         AsyncImage(model = post.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    } else if (post.mediaUrl.isNotBlank() && !post.isReelLike()) {
-                        AsyncImage(model = post.mediaUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } else if (post.mediaUrl.isNotBlank()) {
+                        AsyncImage(model = post.previewModel(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
                         Icon(if (post.isReelLike()) Icons.Default.SmartDisplay else Icons.Default.Article, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(30.dp))
                     }
@@ -6412,7 +6469,7 @@ private fun StitchMiniLiveReelCard(post: UmmahPost, onClick: () -> Unit) {
             }
             post.mediaUrl.isNotBlank() -> {
                 AsyncImage(
-                    model = post.mediaUrl,
+                    model = post.previewModel(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -6638,7 +6695,7 @@ private fun StitchYouTubePostCard(
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
-                    model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                    model = post.previewModel(),
                     contentDescription = post.caption.ifBlank { "Video" },
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -6741,7 +6798,7 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
             // Show the real video frame (Coil decodes the first frame from the mediaUrl) instead of
             // a black box     like Instagram. A soft scrim + small play button keep it readable.
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption.ifBlank { "Post video" },
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -6759,7 +6816,7 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
             }
         } else if (!post.isReelLike()) {
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -6767,7 +6824,7 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
         } else {
             // Reel preview: show the real first frame (Coil video decoder) instead of a gradient.
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption.ifBlank { "Reel" },
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -9374,7 +9431,7 @@ private fun StitchProfileMediaTile(
                 modifier = Modifier.fillMaxSize()
             )
             post.mediaUrl.isNotBlank() -> AsyncImage(
-                model = post.mediaUrl,
+                model = post.previewModel(),
                 contentDescription = post.caption,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

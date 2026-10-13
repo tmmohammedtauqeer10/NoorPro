@@ -2149,7 +2149,7 @@ private fun UmmahReelsStrip(
                     ) {
                         if (reel.thumbnailUrl.isNotBlank() || reel.mediaUrl.isNotBlank()) {
                             AsyncImage(
-                                model = reel.thumbnailUrl.ifBlank { reel.mediaUrl },
+                                model = com.noorpro.app.data.media.videoPreviewModel(reel.thumbnailUrl, reel.mediaUrl),
                                 contentDescription = reel.caption,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()

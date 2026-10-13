@@ -34,7 +34,9 @@ data class UmmahPost(
     val mediaHeight: Int = 0,
     val mediaRotationDegrees: Int = 0,
     val publicationStatus: String = "published",
-    val storageProvider: String = ""
+    val storageProvider: String = "",
+    /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
+    val pendingStorageRef: String = ""
 )
 
 /** A member shown in a followers / following list (Instagram-style). */
@@ -246,6 +248,7 @@ class UmmahRepository {
                 .associateBy { it.id }
                 .values
                 .sortedByDescending { it.publishedAt }
+                .let { playableOnly(it) { mainHandler.post { emit() } } }
             val message = if (merged.isEmpty()) publishedError ?: submissionError else null
             onResult(merged, message)
         }
@@ -267,7 +270,7 @@ class UmmahRepository {
                         return@mapNotNull null
                     }
                     document.toUmmahPost()
-                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                 emit()
             }
 
@@ -299,18 +302,54 @@ class UmmahRepository {
                         }
                     mySubmissions = visibleSubmissions
                         .map { it.toUmmahPost(fallbackTimestamp = System.currentTimeMillis()) }
-                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                     emit()
                 }
         }
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Resolve legacy gs:// / storage-path media and drop video posts whose media is permanently
+     * unreachable on the server (missing object, revoked token, Storage disabled), so the feed
+     * and Reels never show a broken card. [reemit] fires when a background check changes the result.
+     */
+    private fun playableOnly(posts: List<UmmahPost>, reemit: () -> Unit): List<UmmahPost> =
+        posts.mapNotNull { post ->
+            var p = post
+            if (p.pendingStorageRef.isNotBlank()) {
+                val url = com.noorpro.app.data.media.ReelMediaAvailability.resolvedUrl(p.pendingStorageRef)
+                if (url == null) {
+                    com.noorpro.app.data.media.ReelMediaAvailability.resolveStorageRef(p.pendingStorageRef, reemit)
+                    // Text-only content can still be shown; a media-only post waits for its URL.
+                    return@mapNotNull if (p.caption.isNotBlank() || p.arabicText.isNotBlank()) p else null
+                }
+                p = p.copy(mediaUrl = url, pendingStorageRef = "")
+            }
+            if (!com.noorpro.app.data.media.MediaUrls.looksLikeVideo(p.type, p.mediaUrl)) return@mapNotNull p
+            val urls = listOf(p.hlsUrl, p.mediaUrl)
+            com.noorpro.app.data.media.ReelMediaAvailability.ensureChecked(urls, reemit)
+            if (com.noorpro.app.data.media.ReelMediaAvailability.isDead(urls)) null else p
+        }
+
+    private fun DocumentSnapshot.rawMediaUrl(): String =
+        com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_MEDIA_FIELDS) { getString(it) }
+
     private fun DocumentSnapshot.toUmmahPost(fallbackTimestamp: Long = 0L): UmmahPost = UmmahPost(
         id = id,
         type = getString("type")?.lowercase() ?: "image",
-        mediaUrl = getString("mediaUrl").orEmpty(),
-        hlsUrl = getString("hlsUrl").orEmpty(),
-        thumbnailUrl = getString("thumbnailUrl").orEmpty(),
+        mediaUrl = rawMediaUrl().let { raw ->
+            if (com.noorpro.app.data.media.MediaUrls.storagePathToResolve(raw, getString("mediaPath").orEmpty()) != null) ""
+            else com.noorpro.app.data.media.MediaUrls.normalize(raw)
+        },
+        pendingStorageRef = com.noorpro.app.data.media.MediaUrls
+            .storagePathToResolve(rawMediaUrl(), getString("mediaPath").orEmpty()).orEmpty(),
+        hlsUrl = com.noorpro.app.data.media.MediaUrls.normalize(getString("hlsUrl").orEmpty())
+            .takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
+        thumbnailUrl = com.noorpro.app.data.media.MediaUrls.normalize(
+            com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_THUMB_FIELDS) { getString(it) }
+        ).takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
         creatorUid = getString("creatorUid").orEmpty(),
         creatorName = getString("creatorName") ?: "Noor Pro",
         creatorHandle = getString("creatorHandle") ?: "@noorpro",

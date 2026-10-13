@@ -26,7 +26,10 @@ class NoorProApplication : Application(), ImageLoaderFactory {
     // real visual (like Instagram) instead of a black box when they have no separate thumbnail.
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
-            .components { add(VideoFrameDecoder.Factory()) }
+            .components {
+                add(com.noorpro.app.data.media.RemoteVideoFrameFetcher.Factory())
+                add(VideoFrameDecoder.Factory())
+            }
             .crossfade(true)
             .build()
     }
@@ -38,6 +41,7 @@ class NoorProApplication : Application(), ImageLoaderFactory {
         // ExoPlayer and calling startService() here ran on EVERY process start - including the
         // process the system spawns for an adhan alarm or BOOT_COMPLETED - and could throw
         // (background service start restrictions) before the receiver ever posted its notification.
+        runCatching { com.noorpro.app.data.media.ReelMediaAvailability.init(this) }
         runCatching { AlNoorPlaybackChannels.ensure(this) }
         runCatching { PrayerNotificationChannels.ensureAll(this) }
         // Never let a scheduling failure (e.g. WorkManager unavailable) crash app startup.
