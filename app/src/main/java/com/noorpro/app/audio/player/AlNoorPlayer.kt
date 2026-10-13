@@ -1,14 +1,19 @@
 package com.noorpro.app.audio.player
 
 import android.content.Context
+import android.util.Log
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.noorpro.app.audio.models.PlaybackState
 import com.noorpro.app.audio.models.QueueState
 import com.noorpro.app.audio.models.RepeatMode
 import com.noorpro.app.audio.models.Track
+import com.noorpro.app.audio.session.AlNoorMediaSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,28 +29,85 @@ import kotlinx.coroutines.launch
  * Media3 ExoPlayer wrapper for Al Noor Audio (nasheed/naat).
  * Kept separate from Quran [android.media.MediaPlayer] in DeenViewModel.
  */
+// ForwardingPlayer (session wrapper) is @UnstableApi in Media3 1.4.
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class AlNoorPlayer(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(Dispatchers.Main.immediate)
     private var positionJob: Job? = null
 
-    private val exo: ExoPlayer = ExoPlayer.Builder(appContext).build().also { player ->
+    private val exo: ExoPlayer = ExoPlayer.Builder(appContext)
+        // Real media audio attributes + automatic audio focus (pauses for calls / other media apps).
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build(),
+            /* handleAudioFocus = */ true,
+        )
+        .setHandleAudioBecomingNoisy(true)
+        // Keeps CPU + Wi-Fi awake while streaming with the screen off (needs WAKE_LOCK).
+        .setWakeMode(C.WAKE_MODE_NETWORK)
+        .build().also { player ->
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _playback.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) startPositionUpdates() else stopPositionUpdates()
+                updateAudible()
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                updateAudible()
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "Playback error ${error.errorCodeName}: ${error.message}")
+                _playback.update { it.copy(isPlaying = false) }
+                updateAudible()
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // PLAYLIST_CHANGED transitions come from our own setMediaItems/remove calls, which
+                // already update the queue state. Auto-advance / seek / repeat come from ExoPlayer.
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    syncQueueIndexFromExo()
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    onTrackEnded()
+                    onQueueEnded()
                 }
                 val duration = player.duration.coerceAtLeast(0L)
                 if (duration > 0) {
                     _playback.update { it.copy(durationMs = duration) }
                 }
+                updateAudible()
             }
         })
+    }
+
+    private val _audible = MutableStateFlow(false)
+
+    /** True while Al Noor audio is playing or about to play (buffering). Reels observe this to pause. */
+    val audible: StateFlow<Boolean> = _audible.asStateFlow()
+
+    private fun updateAudible() {
+        _audible.value = exo.playWhenReady &&
+            exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
+    }
+
+    /**
+     * Player handed to the MediaSession. ExoPlayer holds the whole queue (see [loadQueueIntoExo]),
+     * so previous / next / seek commands work natively from the notification, lock screen,
+     * Bluetooth and Android Auto. Only play / pause are routed through this class so the service is
+     * (re)started and our state flows stay in sync.
+     */
+    val sessionPlayer: Player by lazy {
+        object : ForwardingPlayer(exo) {
+            override fun play() = this@AlNoorPlayer.play()
+            override fun pause() = this@AlNoorPlayer.pause()
+        }
     }
 
     private val _queue = MutableStateFlow(QueueState())
@@ -65,8 +127,8 @@ class AlNoorPlayer(context: Context) {
             return
         }
         val index = startIndex.coerceIn(0, tracks.lastIndex)
-        _queue.value = QueueState(tracks = tracks, currentIndex = index)
-        prepareCurrent(autoPlay)
+        _queue.update { it.copy(tracks = tracks, currentIndex = index) }
+        loadQueueIntoExo(autoPlay)
     }
 
     fun playTrack(track: Track, queueTracks: List<Track> = listOf(track)) {
@@ -77,6 +139,9 @@ class AlNoorPlayer(context: Context) {
 
     fun play() {
         if (_queue.value.isEmpty) return
+        ensureService()
+        if (exo.playbackState == Player.STATE_ENDED) exo.seekTo(0L)
+        if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
         exo.play()
         _playback.update { it.copy(isPlaying = true) }
     }
@@ -96,31 +161,32 @@ class AlNoorPlayer(context: Context) {
     }
 
     fun skipNext() {
-        val q = _queue.value
-        if (q.isEmpty) return
-        val next = when {
-            q.currentIndex < q.tracks.lastIndex -> q.currentIndex + 1
-            q.repeatMode == RepeatMode.ALL -> 0
-            else -> return
-        }
-        _queue.update { it.copy(currentIndex = next) }
-        prepareCurrent(autoPlay = true)
+        if (_queue.value.isEmpty || !exo.hasNextMediaItem()) return
+        exo.seekToNextMediaItem()
+        resumeAfterSkip()
     }
 
     fun skipPrevious() {
-        val q = _queue.value
-        if (q.isEmpty) return
-        if (_playback.value.positionMs > 3_000L) {
+        if (_queue.value.isEmpty) return
+        if (_playback.value.positionMs > 3_000L || !exo.hasPreviousMediaItem()) {
             seekTo(0L)
             return
         }
-        val prev = if (q.currentIndex > 0) q.currentIndex - 1 else return
-        _queue.update { it.copy(currentIndex = prev) }
-        prepareCurrent(autoPlay = true)
+        exo.seekToPreviousMediaItem()
+        resumeAfterSkip()
+    }
+
+    private fun resumeAfterSkip() {
+        ensureService()
+        if (exo.playbackState == Player.STATE_IDLE) exo.prepare()
+        exo.play()
+        syncQueueIndexFromExo()
+        _playback.update { it.copy(positionMs = 0L, isPlaying = true) }
     }
 
     fun toggleShuffle() {
         _queue.update { it.copy(shuffle = !it.shuffle) }
+        applyModesToExo()
     }
 
     fun cycleRepeatMode() {
@@ -132,10 +198,33 @@ class AlNoorPlayer(context: Context) {
             }
             it.copy(repeatMode = next)
         }
-        exo.repeatMode = when (_queue.value.repeatMode) {
+        applyModesToExo()
+    }
+
+    private fun applyModesToExo() {
+        val q = _queue.value
+        exo.repeatMode = when (q.repeatMode) {
             RepeatMode.ONE -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
         }
+        exo.shuffleModeEnabled = q.shuffle
+    }
+
+    /** ExoPlayer owns the playback order (incl. shuffle); mirror its current item into [queue]. */
+    private fun syncQueueIndexFromExo() {
+        val q = _queue.value
+        val idx = exo.currentMediaItemIndex
+        if (idx !in q.tracks.indices || idx == q.currentIndex) {
+            if (idx in q.tracks.indices) resetProgressFor(q.tracks[idx])
+            return
+        }
+        _queue.value = q.copy(currentIndex = idx)
+        resetProgressFor(q.tracks[idx])
+    }
+
+    private fun resetProgressFor(track: Track) {
+        _playback.update { it.copy(positionMs = 0L, bufferedMs = 0L, durationMs = track.durationMs) }
     }
 
     fun removeFromQueue(index: Int) {
@@ -152,7 +241,11 @@ class AlNoorPlayer(context: Context) {
             else -> q.currentIndex
         }
         _queue.value = q.copy(tracks = newTracks, currentIndex = newIndex)
-        if (index == q.currentIndex) prepareCurrent(autoPlay = _playback.value.isPlaying)
+        if (index == q.currentIndex) {
+            loadQueueIntoExo(autoPlay = _playback.value.isPlaying)
+        } else {
+            exo.removeMediaItem(index)
+        }
     }
 
     fun clearQueue() {
@@ -175,24 +268,23 @@ class AlNoorPlayer(context: Context) {
         exo.release()
     }
 
-    private fun prepareCurrent(autoPlay: Boolean) {
-        val track = _queue.value.currentTrack ?: return
-        // Metadata feeds Media3 session notification (title / artist / play-pause-next).
-        val metadata = MediaMetadata.Builder()
-            .setTitle(track.title)
-            .setArtist(track.artistName)
-            .setAlbumTitle("Al Noor Audio")
-            .setDisplayTitle(track.title)
-            .setSubtitle(track.artistName)
-            .setDescription(track.attributionText)
-            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-            .build()
-        val item = MediaItem.Builder()
-            .setMediaId(track.id)
-            .setUri(track.audioUrl)
-            .setMediaMetadata(metadata)
-            .build()
-        exo.setMediaItem(item)
+    /** (Re)starts the foreground-capable MediaSessionService so notification + lock-screen controls exist. */
+    private fun ensureService() {
+        // Selecting Al Noor pauses Quran recitation and points the shared session at this player.
+        runCatching { com.noorpro.app.audio.session.AlNoorSessionRouter.select(appContext, com.noorpro.app.audio.session.AlNoorSessionRouter.Source.AL_NOOR) }
+            .onFailure { Log.w(TAG, "Could not start Al Noor media service", it) }
+    }
+
+    /**
+     * Hands the FULL queue to ExoPlayer as MediaItems (with title / artist / artwork metadata) so the
+     * Media3 session + notification expose real previous / next and update per track.
+     */
+    private fun loadQueueIntoExo(autoPlay: Boolean) {
+        val q = _queue.value
+        val track = q.currentTrack ?: return
+        if (autoPlay) ensureService()
+        exo.setMediaItems(q.tracks.map { AlNoorMediaItems.fromTrack(it) }, q.currentIndex, 0L)
+        applyModesToExo()
         exo.prepare()
         _playback.update {
             it.copy(
@@ -205,22 +297,9 @@ class AlNoorPlayer(context: Context) {
         if (autoPlay) exo.play() else exo.pause()
     }
 
-    private fun onTrackEnded() {
-        val q = _queue.value
-        when {
-            q.repeatMode == RepeatMode.ONE -> {
-                seekTo(0L)
-                play()
-            }
-            q.currentIndex < q.tracks.lastIndex -> skipNext()
-            q.repeatMode == RepeatMode.ALL -> {
-                _queue.update { it.copy(currentIndex = 0) }
-                prepareCurrent(autoPlay = true)
-            }
-            else -> {
-                _playback.update { it.copy(isPlaying = false, positionMs = 0L) }
-            }
-        }
+    /** Fired when the last item finished and repeat is off (repeat ONE/ALL never reach ENDED). */
+    private fun onQueueEnded() {
+        _playback.update { it.copy(isPlaying = false, positionMs = 0L) }
     }
 
     private fun startPositionUpdates() {
@@ -241,5 +320,9 @@ class AlNoorPlayer(context: Context) {
     private fun stopPositionUpdates() {
         positionJob?.cancel()
         positionJob = null
+    }
+
+    companion object {
+        private const val TAG = "AlNoorPlayer"
     }
 }

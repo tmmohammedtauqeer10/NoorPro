@@ -48,8 +48,26 @@ sourceReference: "Quran 2:286" (recommended)
 publishedAt: Firestore timestamp
 ```
 
-Only approved posts are readable in the app. User uploads and comments are
-intentionally disabled until moderation tooling is available.
+Only approved posts are readable in the app. Posting, reels, comments, groups
+and chats are live (1.0.35) behind the following safeguards: acceptance of the
+Terms before any user-generated-content action, a Report option on every post,
+reel, comment, chat message, group and profile, per-user blocking (Settings >
+Blocked accounts), a 24-hour review commitment, in-app account deletion
+(Profile > Account > Delete account, https://noor-pro-d87e3.web.app/delete-account)
+and Google UMP ad consent. Contact: noorpro.official@gmail.com.
+
+### 1.0.35 (versionCode 37)
+
+- Compliance: UGC terms gate + report/block everywhere, account deletion,
+  UMP consent, removed `USE_FULL_SCREEN_INTENT` and
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, refreshed terms/privacy/deletion pages.
+- Noor AI: `askNoorAi` now uses an ordered NVIDIA model fallback list (the old
+  hard-coded model was retired upstream), honest offline messaging, history,
+  Sunni-grounded system prompt and citations.
+- Prayer alerts: exact-time adhan, runtime notification/exact-alarm prompts,
+  v3 channels, self-healing reschedule (worker, boot, date change), widgets with
+  live count-down. New: per-prayer toggles, sound choice, pre-prayer reminder,
+  Jumu'ah/Ramadan/daily-ayah reminders, 5 calculation methods, Hijri date, Qibla shortcut.
 
 Debug builds use Android's standard generated debug keystore.
 

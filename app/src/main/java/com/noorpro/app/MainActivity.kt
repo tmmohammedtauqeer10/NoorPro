@@ -101,6 +101,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        // Google UMP consent -> then MobileAds.initialize (never throws; no-op under tests).
+        runCatching { com.noorpro.app.ads.ConsentManager.gatherConsent(this) }
         // App Link (https://noor-pro-d87e3.web.app/reel?id=… or /u?uid=…) that launched us.
         val appLink = intent?.data
         setContent {
@@ -119,6 +121,11 @@ class MainActivity : ComponentActivity() {
                     "/g" -> link.getQueryParameter("id")?.takeIf { it.isNotBlank() }?.let { id ->
                         viewModel.openGroupInvite(id)
                     }
+                }
+            }
+            if (intent?.getBooleanExtra("OPEN_PRAYER", false) == true) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES)
                 }
             }
             val themeMode by viewModel.themeMode.collectAsState()
@@ -197,6 +204,8 @@ fun MainLayout() {
         return@CompositionLocalProvider
     }
 
+    com.noorpro.app.ui.screens.PrayerPermissionPrompt()
+
     LaunchedEffect(onboardingComplete) {
         val hasLocationPermission =
             androidx.core.content.ContextCompat.checkSelfPermission(
@@ -240,7 +249,9 @@ fun MainLayout() {
         // Core Screens crossfade transition
         Crossfade(
             targetState = currentScreen,
-            animationSpec = tween(300),
+            // Open the full player instantly: no cross-faded intermediate frame of the previous
+            // screen (or a stale reader) while the player composes.
+            animationSpec = tween(if (currentScreen == DeenScreen.NOW_PLAYING) 0 else 300),
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
@@ -397,7 +408,7 @@ fun MainLayout() {
                     .padding(bottom = 88.dp, start = 18.dp, end = 18.dp)
                     .fillMaxWidth()
                     .height(62.dp)
-                    .clickable { viewModel.navigateTo(DeenScreen.NOW_PLAYING) }
+                    .clickable { viewModel.openNowPlaying() }
             ) {
                 Row(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -473,13 +484,30 @@ fun MainLayout() {
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
         // Al Noor Audio mini-player (nasheed/naat) — separate from Quran mini player above.
         com.noorpro.app.audio.AlNoorAudioSession.init(context)
+        // Android 13+: the media notification needs POST_NOTIFICATIONS; ask the first time audio plays.
+        val mediaNotifLauncher = rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { }
+        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.anyAudible.collectAsState()
+        LaunchedEffect(alNoorAudible) {
+            if (alNoorAudible &&
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                !onboardingPrefs.getBoolean("media_notif_asked", false)
+            ) {
+                onboardingPrefs.edit().putBoolean("media_notif_asked", true).apply()
+                runCatching { mediaNotifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+            }
+        }
         val alNoorQueue by com.noorpro.app.audio.AlNoorAudioSession.player.queue.collectAsState()
         val alNoorPlayback by com.noorpro.app.audio.AlNoorAudioSession.player.playback.collectAsState()
         val showAlNoorMini = !alNoorQueue.isEmpty &&
             currentScreen != DeenScreen.AL_NOOR_NOW_PLAYING &&
             currentScreen != DeenScreen.LOGIN &&
             currentScreen != DeenScreen.NOW_PLAYING &&
-            !showMiniPlayer
+            !((currentScreen == DeenScreen.UMMAH_FULL || currentScreen == DeenScreen.REELS) && isUmmahReelsImmersive)
         com.noorpro.app.audio.ui.AlNoorMiniPlayer(
             track = alNoorQueue.currentTrack,
             isPlaying = alNoorPlayback.isPlaying,
@@ -488,7 +516,8 @@ fun MainLayout() {
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(
-                    bottom = if (showBottomNavigation) 88.dp else 16.dp,
+                    // Stack above the Quran mini-player when both exist.
+                    bottom = (if (showBottomNavigation) 70.dp else 16.dp) + (if (showMiniPlayer) 70.dp else 0.dp),
                     start = 18.dp,
                     end = 18.dp,
                 ),

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Faint dome-and-minaret silhouette for the 4x2 widget. Vector = no bitmap memory. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="100dp"
+    android:viewportWidth="400"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="#FFFAF4E8"
+        android:fillAlpha="0.09"
+        android:pathData="M40,72 H360 V100 H40 Z
+M48,100 L48,46 L46,46 L46,42 L58,42 L58,46 L56,46 L56,100 Z M49,42 L49,24 L52,8 L55,24 L55,42 Z
+M344,100 L344,46 L342,46 L342,42 L354,42 L354,46 L352,46 L352,100 Z M345,42 L345,24 L348,8 L351,24 L351,42 Z
+M100,100 L100,56 L98,56 L98,52 L110,52 L110,56 L108,56 L108,100 Z M101,52 L101,38 L104,26 L107,38 L107,52 Z
+M292,100 L292,56 L290,56 L290,52 L302,52 L302,56 L300,56 L300,100 Z M293,52 L293,38 L296,26 L299,38 L299,52 Z
+M158,72 C158,42 180,28 200,22 C220,28 242,42 242,72 Z M199,22 L199,10 L201,10 L201,22 Z
+M118,72 C118,58 128,52 136,50 C144,52 154,58 154,72 Z
+M282,72 C282,58 272,52 264,50 C256,52 246,58 246,72 Z" />
+    <path
+        android:fillColor="#FFD4AF37"
+        android:fillAlpha="0.22"
+        android:pathData="M70,98 L70,88 Q73,82 76,88 L76,98 Z
+M90,98 L90,88 Q93,82 96,88 L96,98 Z
+M128,98 L128,88 Q131,82 134,88 L134,98 Z
+M148,98 L148,88 Q151,82 154,88 L154,98 Z
+M194,98 L194,86 Q200,78 206,86 L206,98 Z
+M246,98 L246,88 Q249,82 252,88 L252,98 Z
+M266,98 L266,88 Q269,82 272,88 L272,98 Z
+M304,98 L304,88 Q307,82 310,88 L310,98 Z
+M324,98 L324,88 Q327,82 330,88 L330,98 Z" />
+</vector>

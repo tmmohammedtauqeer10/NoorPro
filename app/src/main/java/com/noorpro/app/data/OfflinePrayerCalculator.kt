@@ -34,6 +34,9 @@ internal object OfflinePrayerCalculator {
         val parameters = when (method) {
             CalculationMethod.KARACHI -> com.batoulapps.adhan.CalculationMethod.KARACHI.parameters
             CalculationMethod.MWL -> com.batoulapps.adhan.CalculationMethod.MUSLIM_WORLD_LEAGUE.parameters
+            CalculationMethod.ISNA -> com.batoulapps.adhan.CalculationMethod.NORTH_AMERICA.parameters
+            CalculationMethod.MAKKAH -> com.batoulapps.adhan.CalculationMethod.UMM_AL_QURA.parameters
+            CalculationMethod.EGYPT -> com.batoulapps.adhan.CalculationMethod.EGYPTIAN.parameters
         }.apply {
             this.madhab = if (selectedMadhab == Madhab.HANAFI) com.batoulapps.adhan.Madhab.HANAFI
                 else com.batoulapps.adhan.Madhab.SHAFI

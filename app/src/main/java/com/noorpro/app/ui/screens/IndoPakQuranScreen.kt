@@ -3,6 +3,7 @@ package com.noorpro.app.ui.screens
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -40,6 +41,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +56,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.res.ResourcesCompat
 import com.noorpro.app.R
 import com.noorpro.app.data.QuranMetaData
-import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -161,6 +162,10 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
     }
     val colors = if (night) NightColors else DayColors
 
+    // The Indo-Pak reader is part of the Quran tab. Keep toolbar and system back
+    // behavior consistent regardless of which shortcut opened the reader.
+    BackHandler { viewModel.returnToQuranRoot() }
+
     LaunchedEffect(Unit) {
         runCatching { IndoPakSource.load(context) }
             .onSuccess { data = it }
@@ -169,7 +174,10 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
 
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.outside)) {
         val textWidth = with(density) {
-            (maxWidth.coerceAtMost(620.dp) - 62.dp).coerceAtLeast(210.dp).toPx()
+            // PageSheet uses 12 dp outside and 24 dp inside on both sides (72 dp
+            // total). Keep another 8 dp shaping margin because Arabic glyphs and
+            // diacritics can be wider in Compose than Android Paint reports.
+            (maxWidth.coerceAtMost(620.dp) - 80.dp).coerceAtLeast(210.dp).toPx()
         }
         val typeface = remember {
             ResourcesCompat.getFont(context, R.font.noto_naskh_arabic) ?: Typeface.SERIF
@@ -216,7 +224,7 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
                     name = QuranMetaData.surahNamesEn.getOrElse(surah - 1) { "" },
                     bookmarked = "$surah:${pager.currentPage}" in bookmarks,
                     colors = colors,
-                    onBack = { viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) },
+                    onBack = viewModel::returnToQuranRoot,
                     onPick = { picker = true },
                     onSettings = { settings = true },
                     onBookmark = {
@@ -394,6 +402,9 @@ private fun HeaderText(text: String, colors: ReaderColors) {
 @Composable
 private fun MushafRow(line: MushafLine, fontSize: Int, height: Dp, colors: ReaderColors) {
     val title = line.kind == MushafLineKind.SURAH_TITLE
+    val requestedFontSize = (if (title) fontSize - 3 else if (line.kind == MushafLineKind.BISMILLAH) fontSize - 2 else fontSize)
+        .coerceAtLeast(19)
+    val textMeasurer = rememberTextMeasurer()
     Box(
         Modifier.fillMaxWidth().height(height).drawBehind {
             drawLine(
@@ -413,21 +424,57 @@ private fun MushafRow(line: MushafLine, fontSize: Int, height: Dp, colors: Reade
         },
         contentAlignment = Alignment.Center
     ) {
-        if (line.kind != MushafLineKind.BLANK) Text(
-            text = line.text,
-            color = if (line.kind == MushafLineKind.QURAN) colors.ink else colors.primary,
-            fontSize = (if (title) fontSize - 3 else if (line.kind == MushafLineKind.BISMILLAH) fontSize - 2 else fontSize)
-                .coerceAtLeast(19).sp,
-            fontFamily = QuranFont,
-            fontWeight = if (title) FontWeight.SemiBold else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            style = TextStyle(textDirection = TextDirection.Rtl),
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (line.kind != MushafLineKind.BLANK) BoxWithConstraints(
+            Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val baseStyle = TextStyle(
+                fontSize = requestedFontSize.sp,
+                fontFamily = QuranFont,
+                fontWeight = if (title) FontWeight.SemiBold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                textDirection = TextDirection.Rtl
+            )
+            val availableWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
+            val measuredWidthPx = remember(line.text, requestedFontSize) {
+                textMeasurer.measure(
+                    text = line.text,
+                    style = baseStyle,
+                    maxLines = 1,
+                    softWrap = false
+                ).size.width.toFloat()
+            }
+            val fittedFontSize = fitMushafFontSize(
+                requestedSp = requestedFontSize.toFloat(),
+                measuredWidthPx = measuredWidthPx,
+                availableWidthPx = availableWidthPx
+            )
+            Text(
+                text = line.text,
+                color = if (line.kind == MushafLineKind.QURAN) colors.ink else colors.primary,
+                fontSize = fittedFontSize.sp,
+                fontFamily = QuranFont,
+                fontWeight = if (title) FontWeight.SemiBold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                style = TextStyle(textDirection = TextDirection.Rtl),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
+}
+
+internal fun fitMushafFontSize(
+    requestedSp: Float,
+    measuredWidthPx: Float,
+    availableWidthPx: Float
+): Float {
+    if (requestedSp <= 0f || measuredWidthPx <= 0f || availableWidthPx <= 0f) return requestedSp
+    // Retain a small final margin for joining marks and device-specific shaping.
+    val scale = ((availableWidthPx * 0.98f) / measuredWidthPx).coerceAtMost(1f)
+    return (requestedSp * scale).coerceAtLeast(14f)
 }
 
 private fun Modifier.mushafFrame(colors: ReaderColors) = drawBehind {

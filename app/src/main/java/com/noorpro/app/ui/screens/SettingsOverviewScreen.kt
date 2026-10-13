@@ -42,6 +42,9 @@ fun SettingsScreen(viewModel: DeenViewModel) {
     val language by viewModel.appLanguage.collectAsState()
     var showPrivacy by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    val showAdPrivacy = com.noorpro.app.ads.ConsentManager.privacyOptionsRequired.value
+    val signedIn = viewModel.isLoggedIn
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val cloudBackupRepository = remember { CloudBackupRepository() }
     var cloudBusy by remember { mutableStateOf(false) }
@@ -145,16 +148,6 @@ fun SettingsScreen(viewModel: DeenViewModel) {
             }
             item {
                 SettingsChoiceRow(
-                    title = "Reminder Type",
-                    subtitle = reminderType,
-                    icon = Icons.Default.Notifications,
-                    options = listOf("Notification", "Alarm"),
-                    selected = reminderType,
-                    onSelected = viewModel::updateReminderType
-                )
-            }
-            item {
-                SettingsChoiceRow(
                     title = "Time Format",
                     subtitle = if (use12HourTime) "12-hour time with AM/PM" else "24-hour time",
                     icon = Icons.Default.Schedule,
@@ -244,6 +237,30 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 }
             }
             item {
+                SettingsHubRow("Terms of Service", "Community rules, reporting and moderation", Icons.Default.Gavel) {
+                    UgcTerms.openUrl(context, UgcTerms.TERMS_URL)
+                }
+            }
+            item {
+                SettingsHubRow("Blocked accounts", "Manage people you blocked", Icons.Default.Block) {
+                    viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED)
+                }
+            }
+            if (showAdPrivacy) {
+                item {
+                    SettingsHubRow("Ad privacy choices", "Review or change your ad consent", Icons.Default.PrivacyTip) {
+                        (context as? android.app.Activity)?.let { com.noorpro.app.ads.ConsentManager.showPrivacyOptions(it) }
+                    }
+                }
+            }
+            if (signedIn) {
+                item {
+                    SettingsHubRow("Delete account", "Permanently delete your account and data", Icons.Default.Delete) {
+                        showDeleteAccount = true
+                    }
+                }
+            }
+            item {
                 SettingsHubRow("About Noor Pro", "Version ${com.noorpro.app.BuildConfig.VERSION_NAME}", Icons.Default.Info) {
                     showAbout = true
                 }
@@ -258,6 +275,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
             onDismiss = { showPrivacy = false }
         )
     }
+    if (showDeleteAccount) DeleteAccountDialog(viewModel) { showDeleteAccount = false }
     if (showAbout) {
         SettingsInfoDialog(
             title = "About Noor Pro",

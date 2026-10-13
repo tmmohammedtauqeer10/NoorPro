@@ -2149,7 +2149,7 @@ private fun UmmahReelsStrip(
                     ) {
                         if (reel.thumbnailUrl.isNotBlank() || reel.mediaUrl.isNotBlank()) {
                             AsyncImage(
-                                model = reel.thumbnailUrl.ifBlank { reel.mediaUrl },
+                                model = com.noorpro.app.data.media.videoPreviewModel(reel.thumbnailUrl, reel.mediaUrl),
                                 contentDescription = reel.caption,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
@@ -2290,8 +2290,10 @@ private fun UmmahReelsViewer(
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
     var userPaused by remember { mutableStateOf(false) }
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.anyAudible.collectAsState()
+    LaunchedEffect(alNoorAudible) { if (alNoorAudible) player.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { player.pause() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused) player.play() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) player.play() }
 
     // Load + play only the reel the pager has settled on. settledPage (not currentPage)
     // avoids swapping the video mid-drag while the user is still flinging.
@@ -2302,7 +2304,7 @@ private fun UmmahReelsViewer(
         player.setMediaItem(MediaItem.fromUri(Uri.parse(post.mediaUrl)))
         player.prepare()
         player.seekTo(0)
-        player.play()
+        if (!alNoorAudible) player.play()
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {

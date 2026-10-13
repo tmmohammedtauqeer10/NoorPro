@@ -158,7 +158,7 @@ fun AlNoorAudioHomeScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             ) {
-                                Column(Modifier = Modifier.padding(12.dp)) {
+                                Column(modifier = Modifier.padding(12.dp)) {
                                     Box(
                                         modifier = Modifier
                                             .size(48.dp)

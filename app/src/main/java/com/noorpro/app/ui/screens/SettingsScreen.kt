@@ -309,7 +309,7 @@ fun AdvancedSettingsScreen(
                     val isStandard = selectedMadhab == Madhab.STANDARD
 
                     Button(
-                        onClick = { controller.updateMadhab(Madhab.STANDARD) },
+                        onClick = { controller.updateMadhab(Madhab.STANDARD); viewModel.recalculatePrayers() },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isStandard) MatteGold else GlassOverlay,
@@ -331,7 +331,7 @@ fun AdvancedSettingsScreen(
 
                     val isHanafi = selectedMadhab == Madhab.HANAFI
                     Button(
-                        onClick = { controller.updateMadhab(Madhab.HANAFI) },
+                        onClick = { controller.updateMadhab(Madhab.HANAFI); viewModel.recalculatePrayers() },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isHanafi) MatteGold else GlassOverlay,
@@ -436,11 +436,7 @@ fun AdvancedSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val selectedLabel = if (selectedMethod == CalculationMethod.KARACHI) {
-                            "Karachi (Islamic Sciences)"
-                        } else {
-                            "Muslim World League (MWL)"
-                        }
+                        val selectedLabel = selectedMethod.label
                         Text(
                             text = selectedLabel,
                             color = TextPrimary,
@@ -466,77 +462,43 @@ fun AdvancedSettingsScreen(
                             .border(1.dp, GlassBorder, RoundedCornerShape(10.dp))
                             .padding(4.dp)
                     ) {
-                        // Option 1: Karachi
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp) // Touch target minimum
-                                .clickable {
-                                    controller.updateCalculationMethod(CalculationMethod.KARACHI)
-                                    methodExpanded = false
+                        CalculationMethod.values().forEachIndexed { index, method ->
+                            if (index > 0) HorizontalDivider(color = GlassBorder.copy(alpha = 0.3f), thickness = 1.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp) // Touch target minimum
+                                    .clickable {
+                                        controller.updateCalculationMethod(method)
+                                        viewModel.recalculatePrayers()
+                                        methodExpanded = false
+                                    }
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selectedMethod == method,
+                                    onClick = {
+                                        controller.updateCalculationMethod(method)
+                                        viewModel.recalculatePrayers()
+                                        methodExpanded = false
+                                    },
+                                    colors = RadioButtonDefaults.colors(selectedColor = MatteGold)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = method.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = method.region,
+                                        fontSize = 10.sp,
+                                        color = TextSecondary
+                                    )
                                 }
-                                .padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedMethod == CalculationMethod.KARACHI,
-                                onClick = {
-                                    controller.updateCalculationMethod(CalculationMethod.KARACHI)
-                                    methodExpanded = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = MatteGold)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "University of Islamic Sciences, Karachi",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "Best precision for South Asian regions",
-                                    fontSize = 10.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-
-                        HorizontalDivider(color = GlassBorder.copy(alpha = 0.3f), thickness = 1.dp)
-
-                        // Option 2: MWL
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp) // Touch target minimum
-                                .clickable {
-                                    controller.updateCalculationMethod(CalculationMethod.MWL)
-                                    methodExpanded = false
-                                }
-                                .padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedMethod == CalculationMethod.MWL,
-                                onClick = {
-                                    controller.updateCalculationMethod(CalculationMethod.MWL)
-                                    methodExpanded = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = MatteGold)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "Muslim World League (MWL)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "Standard convention for Europe & Global",
-                                    fontSize = 10.sp,
-                                    color = TextSecondary
-                                )
                             }
                         }
                     }
@@ -742,8 +704,7 @@ fun AdvancedSettingsScreen(
         // --- CUSTOMIZABLE PRAYER ALARMS CARD ---
         var soundDropdownExpanded by remember { mutableStateOf(false) }
         val currentSound by controller.alarmSound.collectAsState()
-        val alarmSounds = listOf("Mecca Adhan", "Medina Adhan", "Spiritual Oud", "Ascite Echo", "System Sound")
-        var configuringPrayerName by remember { mutableStateOf<String?>(null) }
+        val alarmSounds = com.noorpro.app.prayer.PrayerPrefs.SOUND_OPTIONS
 
         // Ongoing next-prayer shade notification (LOW channel — not adhan)
         val ongoingContext = androidx.compose.ui.platform.LocalContext.current
@@ -816,7 +777,7 @@ fun AdvancedSettingsScreen(
                     ),
                 )
                 Text(
-                    text = "Allow unrestricted battery so prayer alarms and the next-prayer shade stay reliable.",
+                    text = "Some phones (Xiaomi, Oppo, Vivo, Samsung, Huawei...) stop apps in the background. Set Noor Pro to \"Unrestricted\" / \"No restrictions\" and allow auto-start so the adhan is never missed.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
@@ -825,9 +786,6 @@ fun AdvancedSettingsScreen(
                     onClick = {
                         val pkg = ongoingContext.packageName
                         val intents = listOf(
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                            ).apply { data = android.net.Uri.parse("package:$pkg") },
                             android.content.Intent(
                                 android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
                             ),
@@ -852,6 +810,8 @@ fun AdvancedSettingsScreen(
                 }
             }
         }
+
+        PrayerReminderExtrasCard(viewModel)
 
         Text(
             text = "Customizable Prayer Alarms",
@@ -898,14 +858,14 @@ fun AdvancedSettingsScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Alarm Sound Profile",
+                            text = "Adhan alert sound",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                         )
                         Text(
-                            text = "Currently selected notification audio",
+                            text = "Sound played with the adhan pop-up",
                             style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
                             fontSize = 11.sp
                         )
@@ -952,6 +912,7 @@ fun AdvancedSettingsScreen(
                                     .clickable {
                                         controller.updateAlarmSound(sound)
                                         soundDropdownExpanded = false
+                                        com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
                                     }
                                     .padding(horizontal = 12.dp)
                             ) {
@@ -971,7 +932,10 @@ fun AdvancedSettingsScreen(
                                         controller.updateAlarmSound(sound)
                                         // Preview sound
                                         try {
-                                            val uri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+                                            val uri = android.media.RingtoneManager.getDefaultUri(
+                                                if (sound == "Alarm tone") android.media.RingtoneManager.TYPE_ALARM
+                                                else android.media.RingtoneManager.TYPE_NOTIFICATION
+                                            )
                                             val ringtone = android.media.RingtoneManager.getRingtone(context, uri)
                                             ringtone.play()
                                         } catch (e: Exception) {
@@ -997,7 +961,7 @@ fun AdvancedSettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Manage Prayer Reminder Schedules",
+                    text = "Adhan alert for each prayer",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MatteGold,
@@ -1009,9 +973,8 @@ fun AdvancedSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    prayers.forEach { prayer ->
+                    prayers.filter { it.name != "Sunrise" }.forEach { prayer ->
                         val isEnabled = prayer.isNotificationEnabled
-                        val offsetMinutes = controller.getReminderOffset(prayer.name)
 
                         Card(
                             shape = RoundedCornerShape(12.dp),
@@ -1045,35 +1008,10 @@ fun AdvancedSettingsScreen(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = if (isEnabled) {
-                                                if (offsetMinutes == 0) "Alarm: exact time (${prayer.time})" else "Alert: $offsetMinutes mins before"
-                                            } else {
-                                                "Alarm disabled"
-                                            },
+                                            text = if (isEnabled) "Adhan alert at ${viewModel.displayPrayerTime(prayer.time)}" else "Adhan alert off",
                                             fontSize = 11.sp,
                                             color = TextSecondary
                                         )
-                                    }
-
-                                    // Offset selector expander
-                                    if (isEnabled) {
-                                        Button(
-                                            onClick = {
-                                                configuringPrayerName = if (configuringPrayerName == prayer.name) null else prayer.name
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = GlassOverlay),
-                                            border = BorderStroke(1.dp, GlassBorder),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(32.dp).testTag("alarm_offset_trigger_${prayer.name}")
-                                        ) {
-                                            Text(
-                                                text = if (offsetMinutes == 0) "Exact" else "${offsetMinutes}m before",
-                                                fontSize = 11.sp,
-                                                color = MatteGold,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
                                     }
 
                                     // Alarm on/off switcher
@@ -1094,54 +1032,6 @@ fun AdvancedSettingsScreen(
                                     }
                                 }
 
-                                // Interactive offset selection Chips expanded block
-                                if (isEnabled && configuringPrayerName == prayer.name) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text(
-                                        text = "Select customized alert timing:",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextSecondary,
-                                        modifier = Modifier.padding(bottom = 6.dp)
-                                    )
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                                    ) {
-                                        val offsetOptions = listOf(-15, -10, -5, 0, 5, 10, 15, 30)
-                                        offsetOptions.forEach { opt ->
-                                            val isOptSelected = offsetMinutes == opt
-                                            val label = when {
-                                                opt == 0 -> "Exact time"
-                                                opt > 0 -> "${opt}m before"
-                                                else -> "${-opt}m after"
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(if (isOptSelected) MatteGold else GlassOverlay)
-                                                    .border(
-                                                        1.dp,
-                                                        if (isOptSelected) MatteGold else GlassBorder,
-                                                        RoundedCornerShape(8.dp)
-                                                    )
-                                                    .clickable {
-                                                        controller.setReminderOffset(prayer.name, opt)
-                                                        viewModel.recalculatePrayers() // Re-triggers full recalculation & reload cycle
-                                                    }
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                                                    .testTag("alarm_opt_${prayer.name}_$opt")
-                                            ) {
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isOptSelected) NightBackground else TextPrimary
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }

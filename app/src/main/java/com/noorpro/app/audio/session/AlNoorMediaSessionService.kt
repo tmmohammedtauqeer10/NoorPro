@@ -3,10 +3,9 @@ package com.noorpro.app.audio.session
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.annotation.OptIn
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -15,34 +14,42 @@ import com.noorpro.app.R
 import com.noorpro.app.audio.AlNoorAudioSession
 
 /**
- * Media3 [MediaSessionService] for Al Noor Audio shade / lock-screen controls.
+ * Media3 [MediaSessionService] (foregroundServiceType="mediaPlayback") for Al Noor Audio.
  *
- * Posts on channel [AlNoorPlaybackChannels.PLAYBACK] with play / pause / next
- * (Media3 default compact actions). Never shares prayer adhan channels.
- * Quran recitation continues to use the separate MediaPlayer path in DeenViewModel.
+ * Media3 posts the media-style notification (title / artist / artwork, previous / play-pause / next)
+ * on [AlNoorPlaybackChannels.PLAYBACK] and promotes this service to the foreground while audio plays,
+ * so playback survives Home / screen-off / tab changes. The session wraps the process-wide player
+ * from [AlNoorAudioSession]; the UI never releases it.
  */
 class AlNoorMediaSessionService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
-    private var localPlayer: ExoPlayer? = null
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
         AlNoorPlaybackChannels.ensure(this)
+        AlNoorAudioSession.init(this)
 
-        // Real Media3 session notification on al_noor_playback (not default_channel_id).
-        val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
+        val provider = DefaultMediaNotificationProvider.Builder(this)
             .setChannelId(AlNoorPlaybackChannels.PLAYBACK)
             .setChannelName(R.string.al_noor_playback_channel_name)
             .setNotificationId(AlNoorPlaybackChannels.PLAYBACK_NOTIFICATION_ID)
             .build()
-        setMediaNotificationProvider(notificationProvider)
+        provider.setSmallIcon(R.drawable.ic_adhan_notification)
+        setMediaNotificationProvider(provider)
 
-        val player: Player = resolvePlayer()
-        mediaSession = MediaSession.Builder(this, player)
+        // Shared session: plays whichever source (Al Noor nasheeds or Quran recitation) is selected.
+        mediaSession = MediaSession.Builder(this, AlNoorSessionRouter.playerFor(this))
             .setSessionActivity(sessionActivityPendingIntent())
             .setId("al_noor_audio_session")
             .build()
+        // ROOT CAUSE FIX: MediaSessionService only wires a session into its notification manager
+        // (and therefore only posts the media notification / goes foreground) after addSession().
+        // It is called implicitly from onGetSession() when a MediaController binds, but the app
+        // used plain startService() with no controller, so the session was never registered and no
+        // notification was ever posted ("No media playing" in the QS media player).
+        mediaSession?.let { addSession(it); AlNoorSessionRouter.attach(it) }
+        Log.i(TAG, "Al Noor media session service created")
     }
 
     private fun sessionActivityPendingIntent(): PendingIntent {
@@ -55,17 +62,9 @@ class AlNoorMediaSessionService : MediaSessionService() {
         return PendingIntent.getActivity(this, 72002, launch, flags)
     }
 
-    private fun resolvePlayer(): Player {
-        if (AlNoorAudioSession.isInitialized()) {
-            val shared = AlNoorAudioSession.player.exoPlayerOrNull()
-            if (shared != null) return shared
-        }
-        return ExoPlayer.Builder(this).build().also { localPlayer = it }
-    }
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
-        mediaSession
-
+    /** Swiping the app away keeps playing (foreground service); if nothing is playing, shut down. */
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
@@ -74,14 +73,19 @@ class AlNoorMediaSessionService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        // The player is process-owned; just detach the session. Pause so nothing keeps playing
+        // without a notification once the service is gone.
+        runCatching { if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.pause() }
+        runCatching { QuranSessionBridge.pauseForOtherSource() }
         mediaSession?.run {
-            if (localPlayer != null && player === localPlayer) {
-                player.release()
-            }
+            AlNoorSessionRouter.detach(this)
             release()
             mediaSession = null
         }
-        localPlayer = null
         super.onDestroy()
+    }
+
+    private companion object {
+        const val TAG = "AlNoorMediaService"
     }
 }

@@ -9,6 +9,8 @@ import androidx.core.app.NotificationManagerCompat
 import com.noorpro.app.MainActivity
 import com.noorpro.app.R
 import com.noorpro.app.data.UserPreferencesRepository
+import com.noorpro.app.prayer.PrayerDisplay
+import com.noorpro.app.prayer.PrayerNotifications
 import com.noorpro.app.ui.viewmodel.PrayerSettingsController
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import kotlinx.coroutines.flow.first
@@ -18,12 +20,13 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Posts / updates the quiet ongoing "Next: Maghrib · 01:24" notification.
+ * Posts / updates the quiet ongoing next-prayer notification:
+ *   title  "Dhuhr · 12:16"
+ *   text   "Next prayer in 2h 56m"  (+ live chronometer countdown)
+ *   sub    Hijri date, masjid-tile large icon, emerald accent, expanded list of today's times.
  * Never uses the adhan HIGH channel.
  *
- * Refresh improvements:
- * - Chronometer-style countdown when possible ([NotificationCompat.setWhen] +
- *   [NotificationCompat.setUsesChronometer] counting down).
+ * - Chronometer countdown ([NotificationCompat.setWhen] + [NotificationCompat.setUsesChronometer]).
  * - [setOnlyAlertOnce] + silent + LOW channel to avoid noise on each tick.
  * - Scheduler enqueues a near-prayer one-shot so the shade advances promptly.
  */
@@ -33,7 +36,7 @@ object NextPrayerOngoingUpdater {
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_ONGOING_ENABLED, false)
+            .getBoolean(KEY_ONGOING_ENABLED, true)
 
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -63,7 +66,7 @@ object NextPrayerOngoingUpdater {
 
         val location = UserPreferencesRepository(context).locationFlow.first()
         if (!location.isAvailable) {
-            post(context, "Next prayer", "Waiting for location…", null, 0L)
+            post(context, "Next prayer", "Waiting for location\u2026", null, 0L, null)
             return 0L
         }
 
@@ -89,7 +92,7 @@ object NextPrayerOngoingUpdater {
         }
 
         if (next == null) {
-            post(context, "Next prayer", "Unable to calculate", null, 0L)
+            post(context, "Next prayer", "Unable to calculate", null, 0L, null)
             return 0L
         }
 
@@ -103,9 +106,27 @@ object NextPrayerOngoingUpdater {
 
         val remainingMs = (target.time - System.currentTimeMillis()).coerceAtLeast(0L)
         val countdown = formatCountdown(remainingMs)
-        val title = "Next: ${next.name} · $countdown"
-        val body = "${next.time} · Local"
-        post(context, title, body, next.name, remainingMs)
+        val title = PrayerDisplay.prayerTitle(next.name, PrayerDisplay.clock12(next.time))
+        val body = "Next prayer in $countdown"
+        val whenMs = target.time
+        val dateLine = PrayerDisplay.dateLine(
+            PrayerDisplay.gregorianLabel(System.currentTimeMillis()),
+            PrayerDisplay.hijriLabel(context, short = false)
+        )
+        val place = PrayerNotifications.resolveLocation(context)
+        val expanded = buildString {
+            append(body)
+            append('\n')
+            append(dateLine)
+            if (place.isNotBlank()) append("\n\uD83D\uDCCD ").append(place)
+            append('\n')
+            append(
+                prayers.joinToString("   ") { p ->
+                    if (p.name == next.name) "\u25B8 ${p.name} ${p.time}" else "${p.name} ${p.time}"
+                }
+            )
+        }
+        post(context, title, dateLine + " \u00B7 " + body, next.name, remainingMs, expanded, place)
         return remainingMs
     }
 
@@ -115,6 +136,8 @@ object NextPrayerOngoingUpdater {
         body: String,
         prayerName: String?,
         remainingMs: Long,
+        expanded: String?,
+        place: String = "",
     ) {
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -137,9 +160,16 @@ object NextPrayerOngoingUpdater {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(pi)
-            .setColor(0xFF0E8C73.toInt())
+            .setColor(PrayerDisplay.EMERALD)
             .setShowWhen(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        PrayerDisplay.masjidLargeIcon(context)?.let { builder.setLargeIcon(it) }
+        if (place.isNotBlank()) builder.setSubText(place)
+        else PrayerDisplay.hijriLabel(context, short = false).takeIf { it.isNotBlank() }?.let { builder.setSubText(it) }
+        if (expanded != null) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(expanded).setBigContentTitle(title))
+        }
 
         // Live countdown in the shade when we know the target time.
         if (remainingMs > 0L) {
@@ -153,7 +183,7 @@ object NextPrayerOngoingUpdater {
             NotificationManagerCompat.from(context)
                 .notify(PrayerNotificationChannels.ONGOING_NOTIFICATION_ID, builder.build())
         } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS may be denied — ignore
+            // POST_NOTIFICATIONS may be denied - ignore
         }
     }
 
@@ -176,6 +206,7 @@ object NextPrayerOngoingUpdater {
         val totalMin = TimeUnit.MILLISECONDS.toMinutes(ms)
         val hours = totalMin / 60
         val mins = totalMin % 60
-        return String.format(Locale.US, "%02d:%02d", hours, mins)
+        return if (hours > 0) String.format(Locale.US, "%dh %dm", hours, mins)
+        else String.format(Locale.US, "%dm", mins)
     }
 }

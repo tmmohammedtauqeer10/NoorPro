@@ -71,6 +71,34 @@ class ReelExperienceLogicTest {
     }
 
     @Test
+    fun profileOrNewUploadFocusStartsAFullScrollableSession() {
+        assertEquals(
+            listOf("new-upload", "older-a", "older-b"),
+            reelOrderWithFocus(
+                previousIds = listOf("older-a", "older-b"),
+                rankedIds = listOf("new-upload", "older-a", "older-b"),
+                focusedId = "new-upload"
+            )
+        )
+        assertEquals(
+            listOf("older-b", "older-a", "new-upload"),
+            reelOrderWithFocus(
+                previousIds = listOf("older-a", "new-upload", "older-b"),
+                rankedIds = listOf("new-upload", "older-a", "older-b"),
+                focusedId = "older-b"
+            )
+        )
+    }
+
+    @Test
+    fun optimisticEngagementDoesNotDropWhenInteractionSnapshotArrivesFirst() {
+        assertEquals(1L, displayedEngagementCount(remoteCount = 0, activeForCurrentUser = true, optimisticCount = 1))
+        assertEquals(1L, displayedEngagementCount(remoteCount = 0, activeForCurrentUser = true, optimisticCount = null))
+        assertEquals(8L, nextEngagementCount(currentCount = 7, activating = true))
+        assertEquals(0L, nextEngagementCount(currentCount = 0, activating = false))
+    }
+
+    @Test
     fun ummahAdsStayBetweenPostsAtAWideCadence() {
         assertFalse(shouldShowUmmahFeedAd(0))
         assertTrue(shouldShowUmmahFeedAd(1))

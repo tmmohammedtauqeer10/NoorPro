@@ -86,6 +86,34 @@ internal fun stableReelOrder(previousIds: List<String>, rankedIds: List<String>)
 }
 
 /**
+ * A reel opened from Profile, Saved, a notification, or immediately after upload starts a fresh
+ * viewing session at page zero. Keeping the rest of the stable feed after it is important: if a
+ * brand-new reel were merely appended to the end, the pager would open on its final page and the
+ * member could not swipe forward to another reel.
+ */
+internal fun reelOrderWithFocus(
+    previousIds: List<String>,
+    rankedIds: List<String>,
+    focusedId: String
+): List<String> {
+    val stable = stableReelOrder(previousIds, rankedIds)
+    val cleanFocus = focusedId.trim()
+    if (cleanFocus.isEmpty() || cleanFocus !in stable) return stable
+    return listOf(cleanFocus) + stable.filterNot { it == cleanFocus }
+}
+
+/** Keep a successful local interaction visible until its Firestore counter snapshot catches up. */
+internal fun displayedEngagementCount(
+    remoteCount: Long,
+    activeForCurrentUser: Boolean,
+    optimisticCount: Long?
+): Long = optimisticCount
+    ?: maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+
+internal fun nextEngagementCount(currentCount: Long, activating: Boolean): Long =
+    (currentCount + if (activating) 1L else -1L).coerceAtLeast(0L)
+
+/**
  * Ads stay between ordinary Ummah cards: one after the first post and then only after eight more.
  * This gives a new/small feed one useful placement without making a busy feed feel ad-heavy.
  */

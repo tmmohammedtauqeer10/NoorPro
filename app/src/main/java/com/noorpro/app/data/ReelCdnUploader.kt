@@ -34,7 +34,7 @@ object ReelCdnUploader {
     private const val TRANSCODE_URL =
         "https://us-central1-noor-pro-d87e3.cloudfunctions.net/startReelTranscode"
     private const val PUBLISH_URL =
-        "https://us-central1-noor-pro-d87e3.cloudfunctions.net/publishUmmahSubmissionNow"
+        "https://publishummahsubmissionnow-684547719535.us-central1.run.app"
 
     /** Result of a CDN upload: the immediately-playable MP4 URL and (if transcoding kicked off) the
      *  adaptive HLS URL the player prefers. */

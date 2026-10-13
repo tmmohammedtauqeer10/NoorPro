@@ -34,7 +34,9 @@ data class UmmahPost(
     val mediaHeight: Int = 0,
     val mediaRotationDegrees: Int = 0,
     val publicationStatus: String = "published",
-    val storageProvider: String = ""
+    val storageProvider: String = "",
+    /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
+    val pendingStorageRef: String = ""
 )
 
 /** A member shown in a followers / following list (Instagram-style). */
@@ -155,8 +157,11 @@ class UmmahRepository {
     private val publicationRetryAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val publicationRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** A creator can interact with a reel during its brief submission-to-publication window.
-     * Retry public counters so those first likes, saves, shares, and views are not lost. */
+    /**
+     * Update the public counter, or the creator-owned submission while a new reel is waiting for
+     * backend promotion. This removes the publication race that used to make a successful Like,
+     * Save, Comment, Share, or View fall back to zero on a newly uploaded reel.
+     */
     private fun incrementPublishedCounter(
         postId: String,
         field: String,
@@ -169,21 +174,29 @@ class UmmahRepository {
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     onResult(true)
-                } else if (attempt < 6) {
-                    publicationRetryHandler.postDelayed(
-                        {
-                            incrementPublishedCounter(
-                                postId = postId,
-                                field = field,
-                                delta = delta,
-                                attempt = attempt + 1,
-                                onResult = onResult
-                            )
-                        },
-                        ((attempt + 1) * 1_500L).coerceAtMost(6_000L)
-                    )
                 } else {
-                    onResult(false)
+                    firestore.collection("ummah_submissions").document(postId)
+                        .update(field, com.google.firebase.firestore.FieldValue.increment(delta))
+                        .addOnCompleteListener { submissionTask ->
+                            if (submissionTask.isSuccessful) {
+                                onResult(true)
+                            } else if (attempt < 3) {
+                                publicationRetryHandler.postDelayed(
+                                    {
+                                        incrementPublishedCounter(
+                                            postId = postId,
+                                            field = field,
+                                            delta = delta,
+                                            attempt = attempt + 1,
+                                            onResult = onResult
+                                        )
+                                    },
+                                    ((attempt + 1) * 1_000L).coerceAtMost(3_000L)
+                                )
+                            } else {
+                                onResult(false)
+                            }
+                        }
                 }
             }
     }
@@ -235,6 +248,7 @@ class UmmahRepository {
                 .associateBy { it.id }
                 .values
                 .sortedByDescending { it.publishedAt }
+                .let { playableOnly(it) { mainHandler.post { emit() } } }
             val message = if (merged.isEmpty()) publishedError ?: submissionError else null
             onResult(merged, message)
         }
@@ -256,7 +270,7 @@ class UmmahRepository {
                         return@mapNotNull null
                     }
                     document.toUmmahPost()
-                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                 emit()
             }
 
@@ -288,18 +302,54 @@ class UmmahRepository {
                         }
                     mySubmissions = visibleSubmissions
                         .map { it.toUmmahPost(fallbackTimestamp = System.currentTimeMillis()) }
-                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                     emit()
                 }
         }
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Resolve legacy gs:// / storage-path media and drop video posts whose media is permanently
+     * unreachable on the server (missing object, revoked token, Storage disabled), so the feed
+     * and Reels never show a broken card. [reemit] fires when a background check changes the result.
+     */
+    private fun playableOnly(posts: List<UmmahPost>, reemit: () -> Unit): List<UmmahPost> =
+        posts.mapNotNull { post ->
+            var p = post
+            if (p.pendingStorageRef.isNotBlank()) {
+                val url = com.noorpro.app.data.media.ReelMediaAvailability.resolvedUrl(p.pendingStorageRef)
+                if (url == null) {
+                    com.noorpro.app.data.media.ReelMediaAvailability.resolveStorageRef(p.pendingStorageRef, reemit)
+                    // Text-only content can still be shown; a media-only post waits for its URL.
+                    return@mapNotNull if (p.caption.isNotBlank() || p.arabicText.isNotBlank()) p else null
+                }
+                p = p.copy(mediaUrl = url, pendingStorageRef = "")
+            }
+            if (!com.noorpro.app.data.media.MediaUrls.looksLikeVideo(p.type, p.mediaUrl)) return@mapNotNull p
+            val urls = listOf(p.hlsUrl, p.mediaUrl)
+            com.noorpro.app.data.media.ReelMediaAvailability.ensureChecked(urls, reemit)
+            if (com.noorpro.app.data.media.ReelMediaAvailability.isDead(urls)) null else p
+        }
+
+    private fun DocumentSnapshot.rawMediaUrl(): String =
+        com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_MEDIA_FIELDS) { getString(it) }
+
     private fun DocumentSnapshot.toUmmahPost(fallbackTimestamp: Long = 0L): UmmahPost = UmmahPost(
         id = id,
         type = getString("type")?.lowercase() ?: "image",
-        mediaUrl = getString("mediaUrl").orEmpty(),
-        hlsUrl = getString("hlsUrl").orEmpty(),
-        thumbnailUrl = getString("thumbnailUrl").orEmpty(),
+        mediaUrl = rawMediaUrl().let { raw ->
+            if (com.noorpro.app.data.media.MediaUrls.storagePathToResolve(raw, getString("mediaPath").orEmpty()) != null) ""
+            else com.noorpro.app.data.media.MediaUrls.normalize(raw)
+        },
+        pendingStorageRef = com.noorpro.app.data.media.MediaUrls
+            .storagePathToResolve(rawMediaUrl(), getString("mediaPath").orEmpty()).orEmpty(),
+        hlsUrl = com.noorpro.app.data.media.MediaUrls.normalize(getString("hlsUrl").orEmpty())
+            .takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
+        thumbnailUrl = com.noorpro.app.data.media.MediaUrls.normalize(
+            com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_THUMB_FIELDS) { getString(it) }
+        ).takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
         creatorUid = getString("creatorUid").orEmpty(),
         creatorName = getString("creatorName") ?: "Noor Pro",
         creatorHandle = getString("creatorHandle") ?: "@noorpro",
@@ -626,6 +676,7 @@ class UmmahRepository {
         creatorHandle: String = "",
         creatorDisplayName: String = "",
         creatorPhotoUrlOverride: String = "",
+        onSubmitted: (String) -> Unit = {},
         onResult: (Boolean, String?) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
@@ -691,6 +742,7 @@ class UmmahRepository {
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
             ).addOnSuccessListener { document ->
+                onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
                 // Keep storage-provider and backend workflow details out of the member experience.
                 val message = if (type == "reel" || type == "video") {
@@ -760,6 +812,38 @@ class UmmahRepository {
                 "postId" to postId,
                 "reason" to reason,
                 "reporterUid" to user.uid,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+        ).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /**
+     * Report any kind of user-generated content (post, reel, comment, message, group, user).
+     * Moderators review `ummah_reports` within 24 hours.
+     */
+    fun reportContent(
+        type: String,
+        targetId: String,
+        targetUid: String,
+        reason: String,
+        details: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || targetId.isBlank()) {
+            onResult(false)
+            return
+        }
+        firestore.collection("ummah_reports").add(
+            mapOf(
+                "postId" to targetId,
+                "targetType" to type.take(20),
+                "targetId" to targetId.take(200),
+                "targetUid" to targetUid.take(128),
+                "reason" to reason.take(120),
+                "details" to details.take(300),
+                "reporterUid" to user.uid,
+                "status" to "open",
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
         ).addOnCompleteListener { onResult(it.isSuccessful) }
@@ -883,10 +967,7 @@ class UmmahRepository {
             )
         ).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // Pending AWS reels do not have a public post document yet. Keep the successful
-                // comment and update the public counter only when that document is available.
-                firestore.collection("ummah_posts").document(postId)
-                    .update("commentCount", com.google.firebase.firestore.FieldValue.increment(1))
+                incrementPublishedCounter(postId, "commentCount")
             }
             onResult(task.isSuccessful)
         }

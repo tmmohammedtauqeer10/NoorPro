@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Emerald rounded tile with cream masjid + gold crescent. Used as the notification large icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <path
+        android:pathData="M22,0 H74 Q96,0 96,22 V74 Q96,96 74,96 H22 Q0,96 0,74 V22 Q0,0 22,0 Z">
+        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="96"
+                android:endY="96"
+                android:type="linear">
+                <item android:color="#FF16705A" android:offset="0.0" />
+                <item android:color="#FF0A3A2E" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFFAF4E8"
+        android:pathData="M18,66 H78 V80 H18 Z
+M19,80 L19,52 L18,52 L18,49 L26,49 L26,52 L25,52 L25,80 Z M20,49 L20,40 L22,32 L24,40 L24,49 Z
+M71,80 L71,52 L70,52 L70,49 L78,49 L78,52 L77,52 L77,80 Z M72,49 L72,40 L74,32 L76,40 L76,49 Z
+M28,66 C28,48 40,38 48,34 C56,38 68,48 68,66 Z M47.2,34 L47.2,24 L48.8,24 L48.8,34 Z" />
+    <path
+        android:fillColor="#FFD4AF37"
+        android:pathData="M64,12 C58,13 54,18 54,24 C54,31 59,36 66,36 C68,36 70,35.5 71.5,34.5 C65,35 60.5,30 60.5,24 C60.5,19 63,14.5 67,12.6 C66,12.2 65,12 64,12 Z" />
+    <path
+        android:fillColor="#FFD4AF37"
+        android:pathData="M42,70 L42,80 L54,80 L54,70 Q48,62 42,70 Z" />
+</vector>
