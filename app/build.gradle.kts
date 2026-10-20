@@ -32,8 +32,8 @@ android {
     targetSdk = 36
     // Unit-test manifest merging does not receive placeholders from the Secrets plugin.
     manifestPlaceholders["MAPS_API_KEY"] = noorLocalProperties.getProperty("MAPS_API_KEY", "NO_KEY_CONFIGURED")
-        versionCode = 42
-        versionName = "1.0.40"
+        versionCode = 43
+        versionName = "1.0.41"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -45,6 +45,27 @@ android {
       storePassword = System.getenv("STORE_PASSWORD")
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
+    }
+  }
+
+  androidResources {
+    // App UI is English (Quran content languages are bundled data, not resources). Strip the
+    // unused library translations except languages our users commonly run their phones in.
+    localeFilters += listOf("en", "ar", "ur", "hi", "bn", "ta", "ml", "tr", "in", "ms", "fr")
+  }
+
+  bundle {
+    language { enableSplit = true }
+    density { enableSplit = true }
+    abi { enableSplit = true }
+  }
+
+  packaging {
+    resources {
+      excludes += listOf(
+        "META-INF/*.version", "DebugProbesKt.bin",
+        "META-INF/com/android/build/gradle/app-metadata.properties"
+      )
     }
   }
 
@@ -119,8 +140,8 @@ dependencies {
   // implementation(libs.firebase.ai)
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-  implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
-  implementation("com.squareup.moshi:moshi-kotlin:1.15.2")
+  // Codegen adapters only (KSP); the reflective moshi-kotlin artifact pulled in kotlin-reflect.
+  implementation("com.squareup.moshi:moshi:1.15.2")
   implementation("com.squareup.okhttp3:okhttp:4.10.0")
   implementation("com.google.android.gms:play-services-location:21.3.0")
   // 8.2.0 is compatible with NoorPro's compileSdk 36.

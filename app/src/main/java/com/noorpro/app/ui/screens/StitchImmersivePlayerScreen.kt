@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -39,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -265,6 +268,36 @@ fun StitchImmersivePlayerScreen(viewModel: DeenViewModel) {
                         val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
                         val next = speeds[(speeds.indexOf(speed).coerceAtLeast(0) + 1) % speeds.size]
                         viewModel.setAudioPlaybackSpeed(next)
+                    }
+                    val audioDownload by viewModel.surahAudioDownload.collectAsState()
+                    var savedTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                    val surahId = surah?.id ?: 0
+                    val saved = androidx.compose.runtime.remember(surahId, reciter, savedTick, audioDownload) {
+                        surahId > 0 && viewModel.isSurahAudioCached(surahId)
+                    }
+                    val downloadLabel = when {
+                        audioDownload != null -> "${((audioDownload ?: 0f) * 100).toInt()}%"
+                        saved -> "Saved"
+                        else -> "Download"
+                    }
+                    SecondaryAction(
+                        if (saved) Icons.Default.DownloadDone else Icons.Default.Download,
+                        downloadLabel
+                    ) {
+                        if (surahId <= 0) return@SecondaryAction
+                        if (saved) {
+                            viewModel.deleteSurahAudio(surahId); savedTick++
+                            Toast.makeText(context, "Removed offline audio", Toast.LENGTH_SHORT).show()
+                        } else if (audioDownload == null) {
+                            viewModel.downloadSurahAudio(surahId) { ok ->
+                                savedTick++
+                                Toast.makeText(
+                                    context,
+                                    if (ok) "Surah audio saved for offline listening" else "Download incomplete. Check your internet and try again.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
                     SecondaryAction(Icons.Default.Subtitles, "Lyrics") {
                         surah?.let { viewModel.selectSurah(it) }

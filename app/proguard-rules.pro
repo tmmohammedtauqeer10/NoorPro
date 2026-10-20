@@ -22,8 +22,7 @@
 # ----------------------------------------------------------------------------
 # Moshi
 # ----------------------------------------------------------------------------
--keep class com.squareup.moshi.** { *; }
--keep interface com.squareup.moshi.** { *; }
+# Moshi ships its own consumer rules; only app adapters need keeping.
 -keep @com.squareup.moshi.JsonQualifier @interface *
 -keepnames @com.squareup.moshi.JsonClass class *
 -keep,allowobfuscation @com.squareup.moshi.JsonClass class *
@@ -74,7 +73,7 @@
     @com.google.firebase.firestore.PropertyName <methods>;
     @com.google.firebase.firestore.PropertyName <fields>;
 }
--keep class com.google.firebase.** { *; }
+# Firebase SDKs ship consumer rules (a blanket keep bloated dex by several MB).
 -dontwarn com.google.firebase.**
 
 # ----------------------------------------------------------------------------
@@ -96,14 +95,12 @@
 # ----------------------------------------------------------------------------
 # Firebase App Check
 # ----------------------------------------------------------------------------
--keep class com.google.firebase.appcheck.** { *; }
 -keep class com.noorpro.app.NoorAppCheckProviderFactory { *; }
 -dontwarn com.google.firebase.appcheck.**
 
 # ----------------------------------------------------------------------------
 # Firebase Crashlytics
 # ----------------------------------------------------------------------------
--keep class com.google.firebase.crashlytics.** { *; }
 -keepclassmembers class * extends java.lang.Throwable {
     <init>(...);
 }
@@ -112,7 +109,9 @@
 # ----------------------------------------------------------------------------
 # Media3 / ExoPlayer (Al Noor playback + session)
 # ----------------------------------------------------------------------------
--keep class androidx.media3.** { *; }
+# Media3 ships consumer rules; keep only what is created reflectively (HLS factory).
+-keep class androidx.media3.exoplayer.hls.HlsMediaSource$Factory { *; }
+-keep class androidx.media3.session.** { *; }
 -dontwarn androidx.media3.**
 
 # ----------------------------------------------------------------------------

@@ -115,11 +115,16 @@ enum class ThemeMode {
 class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     val userPreferencesRepo = com.noorpro.app.data.UserPreferencesRepository(application)
-    private val repository = QuranRepository(application)
-    private val httpClient = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+    private val repository = QuranRepository(application).also { repo ->
+        repo.arabicCleaner = { text, surah, ayah -> cleanAyaArabicText(text, surah, ayah) }
+        repo.htmlUnescaper = { text -> unescapeHtml(text) }
+    }
+    private val httpClient = com.noorpro.app.data.OfflineHttpCache.install(
+        application,
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+    ).build()
 
     var currentPdfUrl: String = ""
     var currentPdfTitle: String = ""
@@ -131,6 +136,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     init {
+        // Pre-seed the bundled offline Quran into Room in the background.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { repository.ensureBundledQuranSeeded() }
         viewModelScope.launch {
             application.dataStore.data
                 .map { preferences ->
@@ -941,6 +948,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchHijriCalendar(month: Int, year: Int) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _isLoadingCalendar.value = true
+            // Offline first: Umm al-Qura conversion on-device. Network is only a fallback.
+            val local = runCatching { com.noorpro.app.data.LocalHijri.gregorianMonth(month, year, _hijriAdjustment.value) }
+                .onFailure { CrashReporter.report(it) }
+                .getOrNull()
+            if (!local.isNullOrEmpty()) {
+                _hijriCalendarDays.value = local
+                _isLoadingCalendar.value = false
+                return@launch
+            }
             try {
                 val url = "https://api.aladhan.com/v1/gToHCalendar/$month/$year"
                 val request = okhttp3.Request.Builder().url(url).build()
@@ -1612,6 +1628,20 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             val dateFormatter = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
             val todayStr = dateFormatter.format(Date())
 
+            // Offline first: calculate locally (Adhan) from the last-known location and publish
+            // immediately. The AlAdhan request below only refines the values when online.
+            runCatching {
+                val calculated = prayerSettingsController.calculatePrayers(latitude = lat, longitude = lng)
+                if (calculated.none { it.time == "--:--" }) {
+                    _prayers.value = calculated
+                    calculateNextPrayer()
+                }
+                val now = java.util.Calendar.getInstance()
+                val h = com.noorpro.app.data.LocalHijri.fromGregorian(now, _hijriAdjustment.value)
+                _todayHijri.value = "${h.day} ${com.noorpro.app.data.LocalHijri.monthsEn[h.month - 1]} ${h.year} AH"
+                _todayGregorian.value = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.US).format(now.time)
+            }.onFailure { CrashReporter.report(it) }
+
             try {
                 
                 val isHanafi = prayerSettingsController.selectedMadhab.value == Madhab.HANAFI
@@ -1747,6 +1777,35 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         _moreActiveTab.value = index
     }
 
+    private val _surahAudioDownload = MutableStateFlow<Float?>(null)
+    /** Progress (0..1) of the current per-surah audio download, or null when idle. */
+    val surahAudioDownload: StateFlow<Float?> = _surahAudioDownload.asStateFlow()
+
+    fun isSurahAudioCached(surahId: Int): Boolean = com.noorpro.app.audio.QuranAudioCache.isSurahCached(
+        getApplication(), _selectedReciter.value.prefixUrl, surahId, IslamicData.surahAyahsCount[surahId] ?: 0
+    )
+
+    /** Saves every ayah of [surahId] for the selected reciter so it plays offline. */
+    fun downloadSurahAudio(surahId: Int, onResult: (Boolean) -> Unit) {
+        if (_surahAudioDownload.value != null) return
+        val prefix = _selectedReciter.value.prefixUrl
+        val count = IslamicData.surahAyahsCount[surahId] ?: 0
+        _surahAudioDownload.value = 0f
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val ok = runCatching {
+                com.noorpro.app.audio.QuranAudioCache.downloadSurah(getApplication(), prefix, surahId, count) {
+                    _surahAudioDownload.value = it
+                }
+            }.getOrDefault(false)
+            _surahAudioDownload.value = null
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onResult(ok) }
+        }
+    }
+
+    fun deleteSurahAudio(surahId: Int) {
+        com.noorpro.app.audio.QuranAudioCache.deleteSurah(getApplication(), _selectedReciter.value.prefixUrl, surahId)
+    }
+
     fun selectReciter(reciter: Reciter) {
         _selectedReciter.value = reciter
         _audioProgress.value = 0f
@@ -1866,7 +1925,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         val surahStr = String.format("%03d", surahId)
         val ayahStr = String.format("%03d", ayahNumberInSurah)
         val prefix = _selectedReciter.value.prefixUrl
-        val url = "${prefix}${surahStr}${ayahStr}.mp3"
+        val url = com.noorpro.app.audio.QuranAudioCache
+            .cachedFile(getApplication(), prefix, surahId, ayahNumberInSurah)?.absolutePath
+            ?: "${prefix}${surahStr}${ayahStr}.mp3"
 
         try {
             val oldPlayer = mediaPlayer

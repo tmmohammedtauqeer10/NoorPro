@@ -9,6 +9,61 @@ class QuranRepository(private val context: Context) {
     private val db by lazy { AppDatabase.getDatabase(context) }
     private val quranDao by lazy { db.quranDao() }
     @Volatile private var indoPakAyahCache: Map<Int, Map<Int, String>>? = null
+    @Volatile private var bundledSeeded = false
+    private val seedMutex = kotlinx.coroutines.sync.Mutex()
+
+    /** Cleans Uthmani ayah text (e.g. strips the leading Bismillah); set by the ViewModel. */
+    var arabicCleaner: (String, Int, Int) -> String = { text, _, _ -> text.replace("\uFEFF", "").trim() }
+    var htmlUnescaper: (String) -> String = { it }
+
+    /**
+     * Seeds Room from the bundled compressed Quran (Arabic + Urdu + English) so that reading
+     * never needs the network. Network fetches remain only as a fallback if this fails.
+     */
+    suspend fun ensureBundledQuranSeeded(): Boolean = withContext(Dispatchers.IO) {
+        if (bundledSeeded) return@withContext true
+        seedMutex.lock()
+        try {
+            if (bundledSeeded) return@withContext true
+            val headers = quranDao.getSurahHeaders()
+            val complete = headers.size == 114 && headers.sumOf { it.versesCount } >= OfflineQuranAssets.TOTAL_AYAHS
+            if (!complete) {
+                val core = OfflineQuranAssets.loadCore(context)
+                val verses = core.ayahs.map { a ->
+                    val arabic = arabicCleaner(a.arabic, a.surah, a.ayah)
+                    val names = core.surahNames[a.surah - 1]
+                    QuranVerse(
+                        id = a.surah * 1000 + a.ayah,
+                        jozz = a.juz,
+                        sora = a.surah,
+                        soraNameEn = names.first,
+                        soraNameAr = names.second,
+                        page = a.page,
+                        lineStart = 1,
+                        lineEnd = 1,
+                        ayaNo = a.ayah,
+                        ayaText = arabic,
+                        ayaTextEmlaey = arabic,
+                        maanyAya = "معاني الكلمات",
+                        earabQuran = "إعراب الآية",
+                        reasonsOfVerses = "سبب النزول",
+                        tafseerSaadi = htmlUnescaper(a.urdu),
+                        tafseerMoysar = htmlUnescaper(a.english),
+                        tafseerBughiu = "تفسير البغوي",
+                        ayaTextTashkil = arabic
+                    )
+                }
+                verses.chunked(500).forEach { quranDao.insertVerses(it) }
+            }
+            bundledSeeded = true
+            true
+        } catch (e: Exception) {
+            com.noorpro.app.utils.CrashReporter.report(e)
+            false
+        } finally {
+            seedMutex.unlock()
+        }
+    }
 
     suspend fun getSurahList(
         translationKey: String,
@@ -39,10 +94,12 @@ class QuranRepository(private val context: Context) {
     }
 
     suspend fun searchQuran(query: String): List<QuranVerse> = withContext(Dispatchers.IO) {
+        ensureBundledQuranSeeded()
         quranDao.searchQuran(query)
     }
 
     suspend fun getVersesForSurah(surahId: Int): List<QuranVerse> = withContext(Dispatchers.IO) {
+        ensureBundledQuranSeeded()
         quranDao.getVersesForSurah(surahId)
     }
 
@@ -59,6 +116,7 @@ class QuranRepository(private val context: Context) {
     }
 
     suspend fun getVersesForJuz(juzId: Int): List<QuranVerse> = withContext(Dispatchers.IO) {
+        ensureBundledQuranSeeded()
         quranDao.getVersesForJuz(juzId)
     }
 
@@ -84,24 +142,14 @@ class QuranRepository(private val context: Context) {
     private fun readIndoPakAyahsFromAssets(): Map<Int, Map<Int, String>> {
         val bySurah = mutableMapOf<Int, MutableMap<Int, MutableList<Pair<Int, String>>>>()
         return try {
-            val raw = context.assets.open("quran/indopak.json")
-                .bufferedReader(Charsets.UTF_8)
-                .use { it.readText() }
-            val json = JSONObject(raw)
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val parts = key.split(":")
-                val entry = json.optJSONObject(key) ?: continue
-                val surah = entry.optString("surah", parts.getOrNull(0).orEmpty()).toIntOrNull() ?: continue
-                val ayah = entry.optString("ayah", parts.getOrNull(1).orEmpty()).toIntOrNull() ?: continue
-                val word = entry.optString("word", parts.getOrNull(2).orEmpty()).toIntOrNull() ?: continue
-                val text = normalizeIndoPakWord(entry.optString("text"))
-                if (text.isBlank() || text.isAyahMarker()) continue
-                bySurah
-                    .getOrPut(surah) { mutableMapOf() }
-                    .getOrPut(ayah) { mutableListOf() }
-                    .add(word to text)
+            OfflineQuranAssets.forEachIndoPakWord(context) { surah, ayah, word, rawText ->
+                val text = normalizeIndoPakWord(rawText)
+                if (text.isNotBlank() && !text.isAyahMarker()) {
+                    bySurah
+                        .getOrPut(surah) { mutableMapOf() }
+                        .getOrPut(ayah) { mutableListOf() }
+                        .add(word to text)
+                }
             }
             bySurah.mapValues { (_, ayahs) ->
                 ayahs.mapValues { (_, words) ->

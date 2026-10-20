@@ -105,34 +105,12 @@ private object IndoPakSource {
 
     private fun read(context: Context): Map<Int, List<IndoPakAyah>> {
         val words = HashMap<Int, HashMap<Int, ArrayList<Pair<Int, String>>>>()
-        context.assets.open("quran/indopak.json").use { input ->
-            android.util.JsonReader(input.reader(Charsets.UTF_8)).use { reader ->
-                reader.beginObject()
-                while (reader.hasNext()) {
-                    reader.nextName()
-                    reader.beginObject()
-                    var surah = 0
-                    var ayah = 0
-                    var word = 0
-                    var text = ""
-                    while (reader.hasNext()) {
-                        when (reader.nextName()) {
-                            "surah" -> surah = reader.nextString().toIntOrNull() ?: 0
-                            "ayah" -> ayah = reader.nextString().toIntOrNull() ?: 0
-                            "word" -> word = reader.nextString().toIntOrNull() ?: 0
-                            "text" -> text = reader.nextString()
-                            else -> reader.skipValue()
-                        }
-                    }
-                    reader.endObject()
-                    val clean = normalizeWord(text)
-                    if (surah in 1..114 && ayah > 0 && clean.isNotBlank() && !clean.isMarker()) {
-                        words.getOrPut(surah) { HashMap() }
-                            .getOrPut(ayah) { ArrayList() }
-                            .add(word to clean)
-                    }
-                }
-                reader.endObject()
+        com.noorpro.app.data.OfflineQuranAssets.forEachIndoPakWord(context) { surah, ayah, word, text ->
+            val clean = normalizeWord(text)
+            if (surah in 1..114 && ayah > 0 && clean.isNotBlank() && !clean.isMarker()) {
+                words.getOrPut(surah) { HashMap() }
+                    .getOrPut(ayah) { ArrayList() }
+                    .add(word to clean)
             }
         }
         return words.mapValues { (surah, ayahs) ->

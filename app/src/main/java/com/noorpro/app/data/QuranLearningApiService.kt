@@ -94,7 +94,16 @@ object QuranLearningApiService {
                 )
             }
         } catch (e: Exception) {
-            emptyList()
+            // Offline: surah index from bundled metadata.
+            (1..114).map { i ->
+                QuranLearningSurah(
+                    number = i,
+                    nameArabic = QuranMetaData.surahNamesAr.getOrNull(i - 1) ?: "سورة $i",
+                    nameEnglish = QuranMetaData.surahNamesEn.getOrNull(i - 1) ?: "Surah $i",
+                    ayahsCount = IslamicData.surahAyahsCount[i] ?: 0,
+                    revelationType = QuranMetaData.surahTypes.getOrNull(i - 1) ?: "Meccan"
+                )
+            }
         }
     }
 

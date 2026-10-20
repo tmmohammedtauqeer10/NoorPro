@@ -1392,7 +1392,7 @@ fun StitchQuranScreen(viewModel: DeenViewModel) {
     var searchOpen by remember { mutableStateOf(false) }
     var showTranslationSheet by remember { mutableStateOf(false) }
     var isDownloadingOfflineQuran by remember { mutableStateOf(false) }
-    var offlineDownloadComplete by remember { mutableStateOf(false) }
+    var offlineDownloadComplete by remember { mutableStateOf(true) } // Quran text is bundled
 
     BackHandler(enabled = selectedSurah != null) {
         viewModel.closeSelectedSurah()
