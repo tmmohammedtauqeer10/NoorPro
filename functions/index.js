@@ -450,7 +450,10 @@ const ALLOWED_UPLOAD_TYPES = {
   "video/quicktime": "mov",
   "video/webm": "webm",
   "video/3gpp": "3gp",
-  "video/x-matroska": "mkv"
+  "video/x-matroska": "mkv",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp"
 };
 const MAX_REEL_BYTES = 100 * 1024 * 1024;
 

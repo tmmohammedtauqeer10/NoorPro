@@ -2468,6 +2468,8 @@ private fun shareUmmahPost(context: android.content.Context, post: UmmahPost) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, shareText)
     }, "Share Ummah post"))
+    // Count the share atomically (FieldValue.increment) so the live listener shows the new total.
+    runCatching { com.noorpro.app.data.UmmahRepository().incrementShare(post.id) }
 }
 
 @Composable

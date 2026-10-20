@@ -677,6 +677,7 @@ class UmmahRepository {
         creatorDisplayName: String = "",
         creatorPhotoUrlOverride: String = "",
         onSubmitted: (String) -> Unit = {},
+        onProgress: (Float) -> Unit = {},
         onResult: (Boolean, String?) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
@@ -752,7 +753,7 @@ class UmmahRepository {
                 }
                 onResult(true, message)
             }.addOnFailureListener { error ->
-                onResult(false, error.localizedMessage ?: "Post submit failed.")
+                onResult(false, "Couldn't publish your post. Check your connection and tap Retry.")
             }
         }
 
@@ -767,38 +768,73 @@ class UmmahRepository {
             return onResult(false, "This file is too large. Choose a photo or video smaller than 100 MB.")
         }
 
-        // Upload the raw bytes to Firebase Storage. Used directly for images, and as the fallback
-        // for videos when the AWS/CloudFront pipeline is off or unreachable.
-        fun uploadViaFirebase() {
+        // Firebase Storage is the primary upload path (images and reels). Each attempt reports
+        // progress; transient failures are retried with backoff, and if Storage is unavailable
+        // (e.g. HTTP 402/403 when billing lapses) reels/videos fall back to the AWS S3 +
+        // CloudFront pipeline. Members only ever see a friendly message.
+        val isVideo = type == "reel" || type == "video"
+        fun uploadViaCdn(lastError: Throwable?) {
+            if (!ReelCdnUploader.ENABLED) {
+                return onResult(false, UploadErrors.friendly(lastError, isVideo))
+            }
+            onProgress(0f)
+            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata, onProgress = { onProgress(it) }) { result ->
+                mainHandler.post {
+                    if (result != null) {
+                        onProgress(1f)
+                        publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+                    } else {
+                        onResult(false, UploadErrors.friendly(lastError, isVideo))
+                    }
+                }
+            }
+        }
+
+        fun uploadViaFirebase(attempt: Int) {
             val folder = if (type == "image") "images" else "videos"
             val ref = FirebaseStorage.getInstance().reference
                 .child("ummah_submissions/${user.uid}/$folder/${System.currentTimeMillis()}")
             val metadata = StorageMetadata.Builder()
                 .setContentType(contentType)
                 .build()
-            ref.putFile(mediaUri, metadata)
-                .addOnSuccessListener {
-                    ref.downloadUrl
-                        .addOnSuccessListener { downloadUri -> publishPost(downloadUri.toString(), ref.path) }
-                        .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Could not read uploaded media URL.") }
-                }
-                .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Media upload failed.") }
-        }
-
-        // Reels/videos: try the AWS S3 + CloudFront pipeline first (fast, cheap playback). On any
-        // failure or when it's disabled, fall back to Firebase Storage so uploads never break.
-        if (ReelCdnUploader.ENABLED && (type == "reel" || type == "video")) {
-            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata) { result ->
-                if (result != null) {
-                    publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+            fun failed(error: Throwable) {
+                android.util.Log.w("NoorUpload", "storage upload failed attempt=$attempt http=${UploadErrors.httpCodeOf(error)}: ${error.javaClass.simpleName}")
+                if (attempt < 2 && UploadErrors.isRetryable(error)) {
+                    mainHandler.postDelayed({ uploadViaFirebase(attempt + 1) }, 1_500L * (attempt + 1))
                 } else {
-                    uploadViaFirebase()
+                    uploadViaCdn(error)
                 }
             }
-            return
+            ref.putFile(mediaUri, metadata)
+                .addOnProgressListener { snap ->
+                    if (snap.totalByteCount > 0) onProgress((snap.bytesTransferred.toFloat() / snap.totalByteCount).coerceIn(0f, 1f))
+                }
+                .addOnSuccessListener {
+                    ref.downloadUrl
+                        .addOnSuccessListener { downloadUri -> onProgress(1f); publishPost(downloadUri.toString(), ref.path) }
+                        .addOnFailureListener { error -> failed(error) }
+                }
+                .addOnFailureListener { error -> failed(error) }
         }
 
-        uploadViaFirebase()
+        uploadViaFirebase(0)
+    }
+
+    /** X-style repost / quote-repost into the Ummah feed. Creates a normal text submission that
+     *  references the original post; the trusted publisher promotes it like any other post. */
+    fun repost(context: Context, original: UmmahPost, quote: String, onResult: (Boolean, String?) -> Unit) {
+        val link = "https://noor-pro-d87e3.web.app/reel?id=${original.id}"
+        val handle = original.creatorHandle.ifBlank { "@ummah" }
+        val body = buildString {
+            if (quote.isNotBlank()) { append(quote.trim()); append("\n\n") }
+            append("\uD83D\uDD01 Reposted from "); append(handle)
+            val text = original.caption.ifBlank { original.arabicText }.trim()
+            if (text.isNotBlank()) { append(": "); append(text.take(280)) }
+            append("\n"); append(link)
+        }.take(2000)
+        submitPost(context, body, "", original.category.ifBlank { "Reminder" }, "text", null, "repost:${original.id}", onResult = { ok, msg ->
+            onResult(ok, if (ok) (if (quote.isBlank()) "Reposted to the Ummah feed" else "Quote posted to the Ummah feed") else msg)
+        })
     }
 
     fun report(postId: String, reason: String, onResult: (Boolean) -> Unit) {

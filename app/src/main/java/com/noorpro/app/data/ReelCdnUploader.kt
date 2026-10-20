@@ -10,7 +10,6 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
-import okio.source
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -57,6 +56,7 @@ object ReelCdnUploader {
         uri: Uri,
         contentType: String,
         videoMetadata: ReelVideoMetadata,
+        onProgress: (Float) -> Unit = {},
         onResult: (CdnUploadResult?) -> Unit
     ) {
         if (!ENABLED) {
@@ -76,7 +76,7 @@ object ReelCdnUploader {
             }
             Thread {
                 val result = runCatching {
-                    doUpload(context, uri, contentType, videoMetadata, token)
+                    doUpload(context, uri, contentType, videoMetadata, token, onProgress)
                 }.getOrNull()
                 onResult(result)
             }.start()
@@ -124,7 +124,8 @@ object ReelCdnUploader {
         uri: Uri,
         contentType: String,
         videoMetadata: ReelVideoMetadata,
-        token: String
+        token: String,
+        onProgress: (Float) -> Unit = {}
     ): CdnUploadResult? {
         val type = contentType.ifBlank { "video/mp4" }
 
@@ -168,7 +169,21 @@ object ReelCdnUploader {
             override fun writeTo(sink: BufferedSink) {
                 val input = context.contentResolver.openInputStream(uri)
                     ?: throw IOException("Cannot open video stream")
-                input.use { sink.writeAll(it.source()) }
+                input.use { stream ->
+                    val buffer = ByteArray(64 * 1024)
+                    var sent = 0L
+                    var lastReported = 0L
+                    while (true) {
+                        val read = stream.read(buffer)
+                        if (read < 0) break
+                        sink.write(buffer, 0, read)
+                        sent += read
+                        if (sent - lastReported > 256 * 1024) {
+                            lastReported = sent
+                            onProgress((sent.toFloat() / size).coerceIn(0f, 0.99f))
+                        }
+                    }
+                }
             }
         }
 
@@ -186,7 +201,7 @@ object ReelCdnUploader {
 
         // 3. Kick off HLS transcoding (Phase 3). If it's configured, the function returns the HLS
         // playback URL the player will prefer; otherwise we just keep the MP4.
-        val hlsUrl = if (key.isNotBlank()) requestTranscode(key, videoMetadata, token) else ""
+        val hlsUrl = if (key.isNotBlank() && type.startsWith("video")) requestTranscode(key, videoMetadata, token) else ""
         return CdnUploadResult(playbackUrl, hlsUrl)
     }
 

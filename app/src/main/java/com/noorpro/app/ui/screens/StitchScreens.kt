@@ -1,5 +1,11 @@
 ﻿package com.noorpro.app.ui.screens
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.FormatQuote
 import android.Manifest
 import android.app.Activity
 import android.app.DownloadManager
@@ -3363,7 +3369,12 @@ private fun rememberStitchUserComments(isLoggedIn: Boolean): StitchUserCommentSt
     return StitchUserCommentState(comments = comments, loading = loading)
 }
 
-private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPost, repository: UmmahRepository): Boolean {
+private fun shareStitchUmmahPost(
+    context: android.content.Context,
+    post: UmmahPost,
+    repository: UmmahRepository,
+    onCounted: (Boolean) -> Unit = {}
+): Boolean {
     val body = buildString {
         val text = post.caption.ifBlank { post.arabicText }.trim()
         if (text.isNotBlank()) {
@@ -3384,7 +3395,11 @@ private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPo
     }
     return runCatching {
         context.startActivity(Intent.createChooser(intent, "Share from Noor Pro"))
-        repository.incrementShare(post.id)
+        // Atomic FieldValue.increment on ummah_posts/{id}.shareCount (submission while pending).
+        repository.incrementShare(post.id) { ok ->
+            if (!ok) android.util.Log.w("NoorReels", "share count increment failed id=${post.id}")
+            onCounted(ok)
+        }
         true
     }.getOrElse {
         Toast.makeText(context, "No sharing app is available", Toast.LENGTH_SHORT).show()
@@ -3485,13 +3500,27 @@ private fun ExoPlayer.applyStitchCaptions(enabled: Boolean) {
     )
 }
 
-private fun compactCount(value: Long): String {
+private fun compactCount(value: Long): String = abbreviateCount(value)
+
+/** X-style abbreviated counts: 999, 1.2K, 12K, 1.5M, 2.1B. */
+internal fun abbreviateCount(value: Long): String {
+    val v = value.coerceAtLeast(0L)
+    fun fmt(n: Double, suffix: String): String {
+        val rounded = if (n < 10) kotlin.math.floor(n * 10) / 10 else kotlin.math.floor(n)
+        val text = if (rounded % 1.0 == 0.0) rounded.toLong().toString() else "%.1f".format(java.util.Locale.US, rounded)
+        return text + suffix
+    }
     return when {
-        value >= 1_000_000 -> "${value / 1_000_000}M"
-        value >= 1_000 -> "${value / 1_000}k"
-        else -> value.toString()
+        v >= 1_000_000_000L -> fmt(v / 1_000_000_000.0, "B")
+        v >= 1_000_000L -> fmt(v / 1_000_000.0, "M")
+        v >= 1_000L -> fmt(v / 1_000.0, "K")
+        else -> v.toString()
     }
 }
+
+/** #hashtags and @mentions in a caption, in order, without duplicates. */
+internal fun captionTags(text: String): List<String> =
+    Regex("""(?<![\w])([#@][\p{L}\p{N}_]{2,40})""").findAll(text).map { it.groupValues[1] }.distinct().take(8).toList()
 
 private fun timeAgo(timestamp: Long): String {
     if (timestamp <= 0L) return "Just now"
@@ -3523,6 +3552,9 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     val feedbackStore = remember(context, currentUid) { ReelFeedbackStore(context.applicationContext, currentUid) }
     var reelFeedback by remember(feedbackStore) { mutableStateOf(feedbackStore.load()) }
     var topTab by remember { mutableStateOf("For You") }
+    var hashtagFilter by remember { mutableStateOf("") }
+    var reelsMuted by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var quoteTarget by remember { mutableStateOf<UmmahPost?>(null) }
     var userPaused by remember { mutableStateOf(false) }
     var reelReportTarget by remember { mutableStateOf<ReportTarget?>(null) }
     reelReportTarget?.let { UgcReportDialog(it) { reelReportTarget = null } }
@@ -3544,11 +3576,12 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     var viewedReelIds by remember { mutableStateOf(emptySet<String>()) }
     val requestedReelId = viewModel.reelFocusId.trim()
     val rankedReels = remember(
-        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback
+        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter
     ) {
         feedState.posts
             .filter { it.opensInVideoViewer() }
             .filter { topTab != "Following" || it.creatorUid in following }
+            .filter { hashtagFilter.isBlank() || hashtagFilter.lowercase() in captionTags(it.caption + " " + it.arabicText).map { t -> t.lowercase() } }
             .filterNot { it.id in reelFeedback.hiddenReelIds }
             .let { list ->
                 if (topTab == "Following") list else {
@@ -3623,6 +3656,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             .build()
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                    com.noorpro.app.data.media.ReelCache.dataSourceFactory(context)
+                )
+            )
             .build().apply {
                 repeatMode = Player.REPEAT_MODE_ONE
                 playWhenReady = false
@@ -3632,6 +3670,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // Al Noor Audio owns audio focus while it plays: pause reels and don't auto-resume over it.
     val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.anyAudible.collectAsState()
     LaunchedEffect(alNoorAudible) { if (alNoorAudible) reelPlayer.pause() }
+    LaunchedEffect(reelsMuted) { reelPlayer.volume = if (reelsMuted) 0f else 1f }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { reelPlayer.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) reelPlayer.play() }
 
@@ -3663,13 +3702,32 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         // Count one real view per reel per session (deduped). The Firestore increment flows back
         // through the live feed listener, so the count updates in search, profile & Creator Studio.
         val watchedId = activePost.id
-        if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
+        if (watchedId.isNotBlank() && watchedId !in viewedReelIds &&
+            com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+        ) {
             viewedReelIds = viewedReelIds + watchedId
             val currentViews = optimisticViewCounts[watchedId] ?: activePost.viewCount
             optimisticViewCounts = optimisticViewCounts + (watchedId to currentViews + 1L)
             followRepository.incrementViews(watchedId)
         }
         userPaused = false
+    }
+
+    // Reels without stored geometry: read the MP4 header (no decode) so portrait sources are
+    // known even when the phone must play the (possibly padded) HLS ladder instead.
+    var probedSourceAspects by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
+    LaunchedEffect(activePost?.id) {
+        val post = activePost ?: return@LaunchedEffect
+        if (uploadedReelAspectRatio(post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees) == null && post.mediaUrl.isNotBlank()) {
+            com.noorpro.app.data.media.ReelCache.probeSourceAspect(post.mediaUrl) { aspect ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post { probedSourceAspects = probedSourceAspects + (post.id to aspect) }
+            }
+        }
+    }
+    // Preload/cache the next 2 reels so the next swipe starts instantly.
+    LaunchedEffect(activePage, reels.size) {
+        val next = (1..2).mapNotNull { reels.getOrNull(activePage + it) }
+        com.noorpro.app.data.media.ReelCache.prefetch(context, next.map { it.mediaUrl })
     }
 
     // Load the active reel's stream. Prefer adaptive HLS (smooth on any network); if it errors or
@@ -3706,6 +3764,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // with the original MP4 (which is always present).
     val activePostState = rememberUpdatedState(activePost)
     val hlsFailedState = rememberUpdatedState(hlsFailedIds)
+    val mp4FailedState = rememberUpdatedState(mp4FailedIds)
+    val probedSourceAspectsState = rememberUpdatedState(probedSourceAspects)
     DisposableEffect(reelPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -3719,7 +3779,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                 if (reelPlayer.currentMediaItem?.mediaId != post.id) return
                 val sourceAspect = uploadedReelAspectRatio(
                     post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees
-                )
+                ) ?: probedSourceAspectsState.value[post.id]
+                    ?: com.noorpro.app.data.media.ReelCache.knownSourceAspect(post.mediaUrl)
                 // Media3 applies container rotation to VideoSize on supported Android devices, so
                 // the displayed dimensions are safe as the fallback for pre-metadata MP4 reels.
                 val streamAspect = displayedReelAspectRatio(
@@ -3727,14 +3788,16 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     height = videoSize.height,
                     pixelWidthHeightRatio = videoSize.pixelWidthHeightRatio
                 )
-                if (post.id !in hlsFailedState.value &&
-                    reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl &&
-                    shouldFallbackFromPaddedHls(sourceAspect, streamAspect)
-                ) {
+                val playingHls = reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl
+                val paddedHls = playingHls && shouldFallbackFromPaddedHls(sourceAspect, streamAspect)
+                if (paddedHls && post.id !in hlsFailedState.value && post.id !in mp4FailedState.value) {
                     hlsFailedIds = hlsFailedIds + post.id
                     return
                 }
-                val aspect = sourceAspect ?: streamAspect
+                // The decoded frame (videoSize) is the truth. Only a letterboxed HLS ladder that we
+                // must keep playing uses the source geometry, so ZOOM crops its padding away.
+                val aspect = if (paddedHls) sourceAspect ?: streamAspect
+                    else streamAspect.takeIf { it.isFinite() && it > 0f } ?: sourceAspect ?: 0f
                 if (aspect.isFinite() && aspect > 0f) {
                     measuredReelAspects = measuredReelAspects + (post.id to aspect)
                 }
@@ -3887,11 +3950,33 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             isActive = page == activePage,
                             isPlaying = page == activePage && !userPaused,
                             playbackFailed = page == activePage && playbackErrorReelId == post.id,
-                            videoAspectRatio = uploadedReelAspectRatio(
-                                post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees
-                            ) ?: measuredReelAspects[post.id] ?: 0f,
+                            // Real decoded aspect first; stored metadata only until the first frame.
+                            videoAspectRatio = measuredReelAspects[post.id]
+                                ?: (uploadedReelAspectRatio(post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees)
+                                    ?: probedSourceAspects[post.id])?.takeIf { it < 1.15f }
+                                ?: 0f,
                             landscapeMode = landscapeViewer,
                             player = reelPlayer,
+                            muted = reelsMuted,
+                            onToggleMute = { reelsMuted = !reelsMuted },
+                            onTag = { tag ->
+                                if (tag.startsWith("#")) {
+                                    hashtagFilter = tag
+                                    topTab = "For You"
+                                } else {
+                                    val target = feedState.posts.firstOrNull { it.creatorHandle.equals(tag, ignoreCase = true) && it.creatorUid.isNotBlank() }
+                                    if (target != null) viewModel.openCreatorProfile(target.creatorUid, target.creatorName, target.creatorHandle)
+                                    else Toast.makeText(context, "$tag isn't on Noor Pro yet", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onRepost = {
+                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to repost", Toast.LENGTH_SHORT).show()
+                                else followRepository.repost(context, post, "") { _, msg -> Toast.makeText(context, msg ?: "Done", Toast.LENGTH_SHORT).show() }
+                            },
+                            onQuote = {
+                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to quote", Toast.LENGTH_SHORT).show()
+                                else quoteTarget = post
+                            },
                             onFollow = {
                                 if (post.creatorUid == currentUid) {
                                     Toast.makeText(context, "This is your reel", Toast.LENGTH_SHORT).show()
@@ -3967,9 +4052,12 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 }
                             },
                             onShare = {
-                                if (shareStitchUmmahPost(context, post, followRepository)) {
-                                    val next = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L) + 1L
-                                    optimisticShareCounts = optimisticShareCounts + (post.id to next)
+                                val before = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L)
+                                if (shareStitchUmmahPost(context, post, followRepository) { ok ->
+                                        if (!ok) optimisticShareCounts = optimisticShareCounts + (post.id to before)
+                                    }
+                                ) {
+                                    optimisticShareCounts = optimisticShareCounts + (post.id to before + 1L)
                                 }
                             },
                             onOpenProfile = {
@@ -4037,6 +4125,48 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .padding(top = 18.dp, start = 22.dp, end = 22.dp)
+            )
+        }
+        if (hashtagFilter.isNotBlank() && !landscapeViewer) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 74.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { hashtagFilter = "" }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(hashtagFilter, color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.Close, contentDescription = "Clear hashtag", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
+        quoteTarget?.let { target ->
+            var quoteText by remember(target.id) { mutableStateOf("") }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { quoteTarget = null },
+                title = { Text("Quote repost") },
+                text = {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = quoteText,
+                        onValueChange = { quoteText = it.take(500) },
+                        placeholder = { Text("Add your reflection") },
+                        minLines = 3
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        enabled = quoteText.isNotBlank(),
+                        onClick = {
+                            quoteTarget = null
+                            followRepository.repost(context, target, quoteText) { _, msg -> Toast.makeText(context, msg ?: "Done", Toast.LENGTH_SHORT).show() }
+                        }
+                    ) { Text("Post") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { quoteTarget = null }) { Text("Cancel") } }
             )
         }
         commentPost?.let { target ->
@@ -4275,6 +4405,11 @@ private fun StitchLiveReelPage(
     videoAspectRatio: Float,
     landscapeMode: Boolean,
     player: ExoPlayer?,
+    muted: Boolean = false,
+    onToggleMute: () -> Unit = {},
+    onTag: (String) -> Unit = {},
+    onRepost: () -> Unit = {},
+    onQuote: () -> Unit = {},
     onFollow: () -> Unit,
     onLike: () -> Unit,
     onComment: () -> Unit,
@@ -4291,6 +4426,7 @@ private fun StitchLiveReelPage(
     onTogglePlay: () -> Unit
 ) {
     var captionExpanded by remember(post.id) { mutableStateOf(false) }
+    var heartBurst by remember(post.id) { mutableStateOf(0) }
     var showPlaybackSettings by remember(post.id) { mutableStateOf(false) }
     var showMoreSheet by remember(post.id) { mutableStateOf(false) }
     // Auto-captions default ON (Instagram-style): embedded video text tracks are enabled and
@@ -4414,9 +4550,54 @@ private fun StitchLiveReelPage(
                             onTogglePlay()
                         }
                     },
-                    onDoubleClick = onDoubleTapLike
+                    onLongClick = { if (!landscapeMode) onTogglePlay() },
+                    onDoubleClick = {
+                        heartBurst++
+                        onDoubleTapLike()
+                    }
                 )
         )
+        if (heartBurst > 0) {
+            val heartScale = remember(heartBurst) { androidx.compose.animation.core.Animatable(0.4f) }
+            val heartAlpha = remember(heartBurst) { androidx.compose.animation.core.Animatable(1f) }
+            LaunchedEffect(heartBurst) {
+                heartScale.animateTo(1.15f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 380f))
+                heartAlpha.animateTo(0f, androidx.compose.animation.core.tween(380))
+            }
+            Icon(
+                Icons.Default.Favorite,
+                contentDescription = null,
+                tint = Color(0xFFFF3B5C),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(120.dp)
+                    .graphicsLayer {
+                        scaleX = heartScale.value
+                        scaleY = heartScale.value
+                        alpha = heartAlpha.value
+                    }
+            )
+        }
+        if (isActive && showReelChrome && post.isVideoMedia()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 72.dp, end = 16.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(onClick = onToggleMute),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = if (muted) "Unmute" else "Mute",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -4709,6 +4890,28 @@ private fun StitchLiveReelPage(
                     captionExpanded = !captionExpanded
                 }
             )
+            val tags = remember(captionText) { captionTags(captionText) }
+            if (tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tags.forEach { tag ->
+                        Text(
+                            tag,
+                            color = if (tag.startsWith("#")) StitchGold else Color(0xFF8FD3FF),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.14f))
+                                .clickable { onTag(tag) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
             // Keep the views row present from the first play instead of making it appear later.
             Spacer(modifier = Modifier.height(5.dp))
             Text(
@@ -4792,6 +4995,8 @@ private fun StitchLiveReelPage(
                 onCopyLink = { copyStitchReelLink(context, post.id) },
                 onReport = onReport,
                 onShare = onShare,
+                onRepost = onRepost,
+                onQuote = onQuote,
                 onDismiss = { showMoreSheet = false }
             )
         }
@@ -4815,6 +5020,8 @@ private fun StitchReelMoreSheet(
     onCopyLink: () -> Unit,
     onReport: () -> Unit,
     onShare: () -> Unit,
+    onRepost: () -> Unit = {},
+    onQuote: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.82f
@@ -4864,6 +5071,8 @@ private fun StitchReelMoreSheet(
                     StitchReelSheetActionRow(Icons.Default.Bookmark, if (isSaved) "Remove from saved" else "Save reel") { onSave(); onDismiss() }
                     StitchReelSheetActionRow(Icons.Default.ContentCopy, "Copy link") { onCopyLink(); onDismiss() }
                     StitchReelSheetActionRow(Icons.Default.Share, "Share") { onShare(); onDismiss() }
+                    StitchReelSheetActionRow(Icons.Default.Repeat, "Repost to Ummah") { onRepost(); onDismiss() }
+                    StitchReelSheetActionRow(Icons.Default.FormatQuote, "Quote repost") { onQuote(); onDismiss() }
                     StitchReelSheetActionRow(Icons.Default.Flag, "Report") { onReport(); onDismiss() }
                 }
             }
@@ -7563,6 +7772,7 @@ fun StitchUmmahCreateScreen(
     val termsGate = rememberUgcTermsGate()
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
     var submitting by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableStateOf(-1f) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -7711,6 +7921,23 @@ fun StitchUmmahCreateScreen(
                     Text(error.orEmpty(), color = Color(0xFFBA1A1A), fontSize = 13.sp)
                 }
             }
+            if (submitting && mediaUri != null) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (uploadProgress in 0f..1f) {
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { uploadProgress },
+                                color = stitchPrimary(),
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp))
+                            )
+                            Text("Uploading ${(uploadProgress * 100).toInt()}%", color = stitchMutedText(), fontSize = 12.sp)
+                        } else {
+                            androidx.compose.material3.LinearProgressIndicator(color = stitchPrimary(), modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp)))
+                            Text("Preparing upload...", color = stitchMutedText(), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
 
             item {
                 Button(
@@ -7731,6 +7958,7 @@ fun StitchUmmahCreateScreen(
                             creatorHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
                             creatorDisplayName = viewModel.userDisplayName,
                             creatorPhotoUrlOverride = viewModel.userPhotoUrl,
+                            onProgress = { p -> android.os.Handler(android.os.Looper.getMainLooper()).post { uploadProgress = p } },
                             // Preserve the exact new document ID before navigating. The Reels
                             // screen uses it to start a full scrollable session at this upload.
                             onSubmitted = { submittedId ->
@@ -7738,6 +7966,7 @@ fun StitchUmmahCreateScreen(
                             }
                         ) { success, message ->
                             submitting = false
+                            uploadProgress = -1f
                             if (success) {
                                 Toast.makeText(
                                     context,
@@ -7758,7 +7987,7 @@ fun StitchUmmahCreateScreen(
                     if (submitting) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Text(if (reelMode) "Publish Reel" else "Publish", fontWeight = FontWeight.Bold)
+                        Text(if (error != null && mediaUri != null) "Retry upload" else if (reelMode) "Publish Reel" else "Publish", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -7894,7 +8123,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                     ) {
                         // Live avatar: own photo from the account, other members' from their
                         // public profile card so photo changes show here instantly.
-                        val profilePhoto = if (!isOther) viewModel.userPhotoUrl
+                        val profilePhoto = if (!isOther) viewModel.userPhotoUrl.ifBlank { liveProfiles[profileUid]?.photoUrl.orEmpty() }
                         else liveProfiles[profileUid]?.photoUrl.orEmpty()
                         if (profilePhoto.isNotBlank()) {
                             AsyncImage(
@@ -9404,6 +9633,43 @@ private fun StitchProfileMediaGrid(
     }
 }
 
+/** Profile grid image: thumbnail, then the post's own media / a streamed video frame, with Coil
+ *  memory+disk caching. A failed thumbnail falls through to the next candidate instead of grey. */
+@Composable
+private fun StitchProfileTileImage(post: UmmahPost) {
+    val context = LocalContext.current
+    val candidates = remember(post.id, post.thumbnailUrl, post.mediaUrl) {
+        buildList<Any> {
+            if (post.thumbnailUrl.isNotBlank()) add(post.thumbnailUrl)
+            if (post.mediaUrl.isNotBlank()) {
+                if (post.isVideoMedia()) add(com.noorpro.app.data.media.RemoteVideoFrame(post.mediaUrl)) else add(post.mediaUrl)
+            }
+        }.distinct()
+    }
+    var index by remember(candidates) { mutableStateOf(0) }
+    val model = candidates.getOrNull(index)
+    if (model == null) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(StitchEmerald.copy(alpha = 0.7f), Color.Black))), contentAlignment = Alignment.Center) {
+            Icon(if (post.isReelLike()) Icons.Default.PlayArrow else Icons.Default.Image, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(34.dp))
+        }
+        return
+    }
+    AsyncImage(
+        model = coil.request.ImageRequest.Builder(context)
+            .data(model)
+            .memoryCacheKey("tile:${post.id}:$index")
+            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+            .size(480, 860)
+            .crossfade(true)
+            .build(),
+        contentDescription = post.caption,
+        contentScale = ContentScale.Crop,
+        onError = { index++ },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
 @Composable
 private fun StitchProfileMediaTile(
     post: UmmahPost,
@@ -9424,18 +9690,7 @@ private fun StitchProfileMediaTile(
             // Show the real visual (Instagram-style): a thumbnail if present, otherwise the media
             // itself     for videos/reels the app-wide Coil VideoFrameDecoder renders the first frame
             // instead of a black/gradient placeholder.
-            post.thumbnailUrl.isNotBlank() -> AsyncImage(
-                model = post.thumbnailUrl,
-                contentDescription = post.caption,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            post.mediaUrl.isNotBlank() -> AsyncImage(
-                model = post.previewModel(),
-                contentDescription = post.caption,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            post.thumbnailUrl.isNotBlank() || post.mediaUrl.isNotBlank() -> StitchProfileTileImage(post)
             else -> {
                 Box(Modifier.fillMaxSize().background(stitchSurface()))
                 Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = stitchPrimary().copy(alpha = 0.4f), modifier = Modifier.align(Alignment.Center).size(42.dp))

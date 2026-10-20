@@ -19,7 +19,8 @@ import java.util.concurrent.Executors
 object ReelMediaAvailability {
     private const val TAG = "NoorReels"
     private const val PREFS = "reel_media_availability"
-    private const val DEAD_TTL_MS = 6 * 60 * 60 * 1000L
+    // Short TTL: a 402/403 from Storage billing lapses must not hide working posts for hours.
+    private const val DEAD_TTL_MS = 10 * 60 * 1000L
     private const val OK_TTL_MS = 30 * 60 * 1000L
 
     private data class Entry(val state: MediaUrls.Reachability, val at: Long)
