@@ -16,7 +16,26 @@ object OfflineQuranAssets {
     const val TOTAL_AYAHS = 6236
 
     /** Translation keys whose full text ships inside the app. */
-    val bundledTranslationKeys = setOf("en.ahmedraza", "ur.kanzuliman")
+    val coreTranslationKeys = setOf("en.ahmedraza", "ur.kanzuliman")
+
+    /** Optional translations shipped as quran/tr/{key}.jgz (6236 lines, one ayah per line). */
+    val extraTranslationKeys = setOf(
+        "en.sahih", "en.yusufali", "en.maududi", "en.itani", "bn.bengali",
+        "ta.tamil", "ml.abdulhameed", "ur.jalandhry", "ur.maududi", "tr.diyanet"
+    )
+
+    val bundledTranslationKeys = coreTranslationKeys + extraTranslationKeys
+
+    @Volatile private var extraCache: Pair<String, List<String>>? = null
+
+    private fun extraLines(context: Context, key: String): List<String> {
+        extraCache?.let { if (it.first == key) return it.second }
+        return synchronized(this) {
+            extraCache?.takeIf { it.first == key }?.second ?: GZIPInputStream(context.assets.open("quran/tr/$key.jgz"), 64 * 1024)
+                .bufferedReader(Charsets.UTF_8).use { it.readLines() }
+                .also { check(it.size == TOTAL_AYAHS) { "Bundled translation $key is incomplete" }; extraCache = key to it }
+        }
+    }
 
     class CoreAyah(
         val surah: Int, val ayah: Int, val juz: Int, val page: Int,
@@ -96,10 +115,11 @@ object OfflineQuranAssets {
     /** Text for a bundled translation, or null if [key] is not bundled. */
     fun bundledTranslation(context: Context, key: String, surah: Int, ayah: Int): String? {
         if (key !in bundledTranslationKeys) return null
-        val c = loadCore(context)
         var index = 0
         for (i in 1 until surah) index += IslamicData.surahAyahsCount[i] ?: 0
         index += ayah - 1
+        if (key in extraTranslationKeys) return extraLines(context, key).getOrNull(index)
+        val c = loadCore(context)
         val hit = c.ayahs.getOrNull(index)?.takeIf { it.surah == surah && it.ayah == ayah }
             ?: c.ayahs.firstOrNull { it.surah == surah && it.ayah == ayah } ?: return null
         return if (key == "ur.kanzuliman") hit.urdu else hit.english

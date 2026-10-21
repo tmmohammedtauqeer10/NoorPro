@@ -20,6 +20,7 @@ object OfflineHttpCache {
         val dir = File(context.applicationContext.cacheDir, "static_http")
         return builder
             .cache(Cache(dir, 30L * 1024 * 1024))
+            .addInterceptor(BundledContentInterceptor(context))
             .addInterceptor(Interceptor { chain ->
                 val request = chain.request()
                 val isStatic = request.method == "GET" && request.url.host in staticHosts
