@@ -74,6 +74,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -2256,6 +2257,14 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
                         StitchHubTile("Learning", Icons.Default.AutoStories, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) }
                         StitchHubTile("Hajj & Umrah", Icons.Default.Mosque, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.HAJJ_UMRAH) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        StitchHubTile("Darood Sharif", Icons.Default.Favorite, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.DAROOD_SHARIF) }
+                        StitchHubTile("Ruhani Ilaj", Icons.Default.Shield, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.RUHANI) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        StitchHubTile("Tasawwuf", Icons.Default.Spa, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.TASAWWUF) }
+                        Spacer(Modifier.weight(1f))
                     }
                 }
             }
