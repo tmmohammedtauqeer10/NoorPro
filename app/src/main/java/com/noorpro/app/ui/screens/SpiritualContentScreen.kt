@@ -66,6 +66,12 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
     var categoryId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     var itemId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
 
+    var readerBookId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
+    val readerBook = remember(readerBookId) { readerBookId?.let { com.noorpro.app.data.spiritual.BookLibrary.find(context.applicationContext, it) } }
+    if (readerBook != null) {
+        StitchScreen { Column(Modifier.fillMaxSize().statusBarsPadding()) { BookReaderScreen(readerBook) { readerBookId = null } } }
+        return
+    }
     BackHandler(enabled = itemId != null || categoryId != null) {
         if (itemId != null) itemId = null else categoryId = null
     }
@@ -109,7 +115,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
             when {
                 loadError -> Text("Content could not be loaded.", color = stitchMutedText(), modifier = Modifier.padding(24.dp))
                 s == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = stitchPrimary()) }
-                item != null -> SpiritualItemDetail(viewModel, s, item, fontSize) { fontSize = it; SpiritualPrefs.setArabicFontSize(context, it) }
+                item != null -> SpiritualItemDetail(viewModel, s, item, fontSize, onRead = { readerBookId = it }) { fontSize = it; SpiritualPrefs.setArabicFontSize(context, it) }
                 categoryId == FAV_CATEGORY -> SpiritualItemList(allItems.filter { it.id in favourites }, favourites, "No favourites yet. Tap the heart on any item.") { itemId = it.id }
                 category != null -> SpiritualItemList(category.items, favourites, null) { itemId = it.id }
                 else -> SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }) { categoryId = it }
@@ -181,7 +187,7 @@ private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String
 }
 
 @Composable
-private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSection, item: SpiritualItem, fontSize: Float, onFontSize: (Float) -> Unit) {
+private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSection, item: SpiritualItem, fontSize: Float, onRead: (String) -> Unit = {}, onFontSize: (Float) -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val shareText = remember(item) {
@@ -224,6 +230,16 @@ private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSect
                 style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth())
         }
         if (item.meta.isNotEmpty()) SpiritualMetaTable(item.meta)
+        if (section.id == "tasawwuf") {
+            val bookId = item.id.substringAfter('/')
+            val libBook = remember(bookId) { com.noorpro.app.data.spiritual.BookLibrary.find(context.applicationContext, bookId) }
+            if (libBook != null) {
+                Button(onClick = { onRead(bookId) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.MenuBook, contentDescription = null); Spacer(Modifier.width(8.dp))
+                    Text("Read full text (" + libBook.editions.joinToString(" / ") { when (it.lang) { "ar" -> "Arabic"; "fa" -> "Persian"; else -> "English" } } + ")")
+                }
+            }
+        }
         SpiritualTextBlock("Transliteration", item.translit, italic = true)
         if (!isReference) SpiritualTextBlock("اردو", item.urdu, rtl = true)
         SpiritualTextBlock(if (isReference) "Overview" else "English", item.english)
