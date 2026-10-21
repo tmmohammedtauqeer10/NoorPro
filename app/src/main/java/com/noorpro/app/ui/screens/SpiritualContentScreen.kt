@@ -3,6 +3,7 @@ package com.noorpro.app.ui.screens
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -190,6 +191,7 @@ private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSect
             if (item.translit.isNotBlank()) { appendLine(); appendLine(item.translit) }
             if (item.urdu.isNotBlank()) { appendLine(); appendLine(item.urdu) }
             if (item.english.isNotBlank()) { appendLine(); appendLine(item.english) }
+            item.blocks.forEach { (l, t) -> appendLine(); appendLine("$l: $t") }
             appendLine(); append("Source: ").appendLine(item.source)
             append("— NoorPro")
         }
@@ -216,9 +218,18 @@ private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSect
                 }
             }
         }
+        val isReference = item.meta.isNotEmpty() || item.chart != null || item.blocks.isNotEmpty()
+        if (isReference && item.urdu.isNotBlank()) {
+            Text(item.urdu, fontFamily = SpiritualArabicFont, fontSize = 22.sp, color = stitchPrimary(), textAlign = TextAlign.Right,
+                style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth())
+        }
+        if (item.meta.isNotEmpty()) SpiritualMetaTable(item.meta)
         SpiritualTextBlock("Transliteration", item.translit, italic = true)
-        SpiritualTextBlock("اردو", item.urdu, rtl = true)
-        SpiritualTextBlock("English", item.english)
+        if (!isReference) SpiritualTextBlock("اردو", item.urdu, rtl = true)
+        SpiritualTextBlock(if (isReference) "Overview" else "English", item.english)
+        if (item.toc.isNotEmpty()) SpiritualToc(item.toc)
+        item.blocks.forEach { (label, text) -> SpiritualTextBlock(label, text) }
+        item.chart?.let { SpiritualChartView(it) }
         SpiritualTextBlock("When / How many", item.whenText)
         SpiritualTextBlock("Virtue (as reported)", item.virtue)
         SpiritualTextBlock("Source", item.source)
@@ -274,6 +285,101 @@ private fun SpiritualCounter(viewModel: DeenViewModel, item: SpiritualItem) {
                 Modifier.size(72.dp).clip(CircleShape).background(stitchPrimary()).clickable { save(count + 1) },
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Default.Fingerprint, contentDescription = "Count", tint = Color.White, modifier = Modifier.size(36.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun SpiritualMetaTable(rows: List<Pair<String, String>>) {
+    StitchCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            rows.forEach { (k, v) ->
+                Row {
+                    Text(k, color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(96.dp))
+                    Text(v, color = stitchText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** Table of contents for a book: lines indented with two spaces are sub-entries; tap the header to collapse. */
+@Composable
+private fun SpiritualToc(lines: List<String>) {
+    var open by rememberSaveable { mutableStateOf(true) }
+    StitchCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.MenuBook, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("CONTENTS — KEY CHAPTERS", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp, modifier = Modifier.weight(1f))
+                Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = if (open) "Collapse" else "Expand", tint = stitchMutedText())
+            }
+            if (open) lines.forEach { line ->
+                val sub = line.startsWith("  ")
+                Row(Modifier.padding(start = if (sub) 18.dp else 0.dp)) {
+                    Text(if (sub) "•" else "▸", color = if (sub) stitchMutedText() else stitchPrimary(), fontSize = 14.sp, modifier = Modifier.width(16.dp))
+                    Text(line.trim(), color = stitchText(), fontSize = if (sub) 14.sp else 15.sp,
+                        fontWeight = if (sub) FontWeight.Normal else FontWeight.SemiBold, lineHeight = 20.sp)
+                }
+            }
+        }
+    }
+}
+
+/** Native chart renderer: vertical silsila chain, ladder (lowest level at the bottom) or numbered steps. Gap nodes are dashed. */
+@Composable
+private fun SpiritualChartView(chart: com.noorpro.app.data.spiritual.SpiritualChart) {
+    val nodes = if (chart.kind == "ladder") chart.nodes.reversed() else chart.nodes
+    val primary = stitchPrimary()
+    val muted = stitchMutedText()
+    StitchCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(chart.title, color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+            if (chart.kind == "ladder") Text("Highest ↑   ·   ↓ Starting point", color = muted, fontSize = 11.sp)
+            Spacer(Modifier.height(10.dp))
+            nodes.forEachIndexed { i, n ->
+                val number = when (chart.kind) { "steps" -> "${i + 1}"; "ladder" -> "${nodes.size - i}"; else -> null }
+                val shape = RoundedCornerShape(12.dp)
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(shape)
+                        .background(if (n.gap) Color.Transparent else primary.copy(alpha = if (i == 0 && chart.kind == "chain") 0.22f else 0.10f))
+                        .border(if (n.gap) 1.dp else 1.dp, if (n.gap) muted.copy(alpha = 0.6f) else primary.copy(alpha = 0.45f), shape)
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (number != null) {
+                        Box(Modifier.size(26.dp).clip(CircleShape).background(primary), contentAlignment = Alignment.Center) {
+                            Text(number, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (n.gap) "⋯ gap in chart ⋯" else n.label, color = if (n.gap) muted else stitchText(),
+                            fontSize = 14.sp, fontWeight = if (n.gap) FontWeight.Normal else FontWeight.SemiBold,
+                            fontStyle = if (n.gap) FontStyle.Italic else FontStyle.Normal,
+                            textAlign = if (number == null) TextAlign.Center else TextAlign.Start, modifier = Modifier.fillMaxWidth()
+                        )
+                        if (n.note.isNotBlank()) Text(n.note, color = muted, fontSize = 12.sp, lineHeight = 16.sp,
+                            textAlign = if (number == null) TextAlign.Center else TextAlign.Start, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                if (i < nodes.lastIndex) {
+                    androidx.compose.foundation.Canvas(Modifier.width(20.dp).height(18.dp)) {
+                        val x = size.width / 2
+                        val dashed = n.gap || nodes[i + 1].gap
+                        drawLine(primary, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height - 5f), strokeWidth = 3f,
+                            pathEffect = if (dashed) androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)) else null)
+                        val up = chart.kind == "ladder"
+                        val tipY = if (up) 0f else size.height
+                        val baseY = if (up) 8f else size.height - 8f
+                        drawLine(primary, androidx.compose.ui.geometry.Offset(x - 6f, baseY), androidx.compose.ui.geometry.Offset(x, tipY), strokeWidth = 3f)
+                        drawLine(primary, androidx.compose.ui.geometry.Offset(x + 6f, baseY), androidx.compose.ui.geometry.Offset(x, tipY), strokeWidth = 3f)
+                    }
+                }
+            }
         }
     }
 }

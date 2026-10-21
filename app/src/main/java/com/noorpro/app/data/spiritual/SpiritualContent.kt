@@ -16,8 +16,28 @@ data class SpiritualItem(
     val whenText: String,
     val virtue: String,
     val source: String,
-    val count: Int
+    val count: Int,
+    val meta: List<Pair<String, String>> = emptyList(),
+    val toc: List<String> = emptyList(),
+    val blocks: List<Pair<String, String>> = emptyList(),
+    val chart: SpiritualChart? = null
 )
+
+data class ChartNode(val label: String, val note: String, val gap: Boolean)
+
+/** kind: "chain" (silsila, top-down), "ladder" (levels, drawn bottom-up) or "steps" (numbered progression). */
+data class SpiritualChart(val kind: String, val title: String, val nodes: List<ChartNode>)
+
+private fun pairs(a: org.json.JSONArray?): List<Pair<String, String>> =
+    if (a == null) emptyList() else (0 until a.length()).map { val p = a.getJSONArray(it); p.optString(0) to p.optString(1) }
+
+private fun chart(o: JSONObject?): SpiritualChart? {
+    if (o == null) return null
+    val n = o.optJSONArray("nodes") ?: return null
+    return SpiritualChart(o.optString("kind", "chain"), o.optString("title"), (0 until n.length()).map {
+        val x = n.getJSONObject(it); ChartNode(x.optString("label"), x.optString("note"), x.optBoolean("gap"))
+    })
+}
 
 data class SpiritualCategory(val id: String, val title: String, val items: List<SpiritualItem>)
 
