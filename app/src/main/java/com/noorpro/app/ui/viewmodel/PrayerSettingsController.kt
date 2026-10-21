@@ -25,7 +25,13 @@ enum class CalculationMethod(val aladhanId: Int, val label: String, val region: 
     ISNA(2, "Islamic Society of North America (ISNA)", "North America"),
     MWL(3, "Muslim World League (MWL)", "Europe, Far East & global default"),
     MAKKAH(4, "Umm al-Qura University, Makkah", "Arabian Peninsula"),
-    EGYPT(5, "Egyptian General Authority of Survey", "Africa, Syria, Lebanon")
+    EGYPT(5, "Egyptian General Authority of Survey", "Africa, Syria, Lebanon"),
+    DUBAI(16, "Dubai (UAE)", "United Arab Emirates"),
+    QATAR(10, "Qatar", "Qatar"),
+    KUWAIT(9, "Kuwait", "Kuwait"),
+    SINGAPORE(11, "Majlis Ugama Islam Singapura", "Singapore, Malaysia, Indonesia"),
+    TURKEY(13, "Diyanet İşleri Başkanlığı, Turkey", "Turkey"),
+    TEHRAN(7, "Institute of Geophysics, University of Tehran", "Iran")
 }
 
 class PrayerSettingsController(private val context: Context) {
@@ -33,9 +39,9 @@ class PrayerSettingsController(private val context: Context) {
 
     private val _selectedMadhab = MutableStateFlow(
         try {
-            Madhab.valueOf(prefs.getString("madhab", Madhab.STANDARD.name) ?: Madhab.STANDARD.name)
+            Madhab.valueOf(prefs.getString("madhab", Madhab.HANAFI.name) ?: Madhab.HANAFI.name)
         } catch (e: Exception) {
-            Madhab.STANDARD
+            Madhab.HANAFI
         }
     )
     val selectedMadhab: StateFlow<Madhab> = _selectedMadhab.asStateFlow()
@@ -98,13 +104,24 @@ class PrayerSettingsController(private val context: Context) {
     }
 
     fun updateMadhab(madhab: Madhab) {
+        val changed = _selectedMadhab.value != madhab
         prefs.edit().putString("madhab", madhab.name).apply()
         _selectedMadhab.value = madhab
+        // Re-plan adhan notifications and redraw widgets with the new Asr convention.
+        if (changed) {
+            clearCachedApiTimings()
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
+        }
     }
 
     fun updateCalculationMethod(method: CalculationMethod) {
+        val changed = _selectedMethod.value != method
         prefs.edit().putString("method", method.name).apply()
         _selectedMethod.value = method
+        if (changed) {
+            clearCachedApiTimings()
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
+        }
     }
 
     fun calculatePrayers(
@@ -137,6 +154,14 @@ class PrayerSettingsController(private val context: Context) {
      * compatibility; scheduling always uses the current preferences. Call from a background thread.
      */
     @Suppress("UNUSED_PARAMETER")
+    /** AlAdhan responses cached per day were computed with the old method/madhab; drop them. */
+    private fun clearCachedApiTimings() {
+        val appPrefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val editor = appPrefs.edit()
+        appPrefs.all.keys.filter { it.startsWith("cached_prayer_data_") }.forEach { editor.remove(it) }
+        editor.apply()
+    }
+
     fun scheduleAlarms(prayers: List<PrayerTime>, date: Date = Date()) {
         try {
             com.noorpro.app.prayer.PrayerScheduler.rescheduleAll(context, allowNetwork = false)

@@ -37,6 +37,18 @@ internal object OfflinePrayerCalculator {
             CalculationMethod.ISNA -> com.batoulapps.adhan.CalculationMethod.NORTH_AMERICA.parameters
             CalculationMethod.MAKKAH -> com.batoulapps.adhan.CalculationMethod.UMM_AL_QURA.parameters
             CalculationMethod.EGYPT -> com.batoulapps.adhan.CalculationMethod.EGYPTIAN.parameters
+            CalculationMethod.DUBAI -> com.batoulapps.adhan.CalculationMethod.DUBAI.parameters
+            CalculationMethod.QATAR -> com.batoulapps.adhan.CalculationMethod.QATAR.parameters
+            CalculationMethod.KUWAIT -> com.batoulapps.adhan.CalculationMethod.KUWAIT.parameters
+            CalculationMethod.SINGAPORE -> com.batoulapps.adhan.CalculationMethod.SINGAPORE.parameters
+            // Diyanet: Fajr 18°, Isha 17° with the official minute offsets (as AlAdhan method 13).
+            CalculationMethod.TURKEY -> com.batoulapps.adhan.CalculationParameters(18.0, 17.0).apply {
+                methodAdjustments = com.batoulapps.adhan.PrayerAdjustments(0, -7, 5, 4, 7, 0)
+            }
+            // Tehran: Fajr 17.7°, Isha 14°; Maghrib (4.5° below horizon) approximated as sunset + 17 min.
+            CalculationMethod.TEHRAN -> com.batoulapps.adhan.CalculationParameters(17.7, 14.0).apply {
+                methodAdjustments = com.batoulapps.adhan.PrayerAdjustments(0, 0, 0, 0, 17, 0)
+            }
         }.apply {
             this.madhab = if (selectedMadhab == Madhab.HANAFI) com.batoulapps.adhan.Madhab.HANAFI
                 else com.batoulapps.adhan.Madhab.SHAFI

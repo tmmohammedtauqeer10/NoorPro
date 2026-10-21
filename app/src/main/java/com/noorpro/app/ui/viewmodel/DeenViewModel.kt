@@ -1807,7 +1807,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectReciter(reciter: Reciter) {
-        _selectedReciter.value = reciter
+        // Unknown or stale reciter objects fall back to the first reciter (Mishary Alafasy).
+        _selectedReciter.value = IslamicData.reciters.firstOrNull { it.id == reciter.id } ?: IslamicData.reciters[0]
         _audioProgress.value = 0f
         _audioPosition.value = "0:00"
         _currentAudioTrack.value = null

@@ -305,7 +305,7 @@ fun AdvancedSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val standardText = "Standard (Shafi'i, Maliki, Hanbali)"
+                    val standardText = "Shafi'i / Maliki / Hanbali"
                     val isStandard = selectedMadhab == Madhab.STANDARD
 
                     Button(
@@ -322,7 +322,7 @@ fun AdvancedSettingsScreen(
                             .testTag("madhab_standard_btn")
                     ) {
                         Text(
-                            text = "Standard",
+                            text = "Shafi/Maliki/Hanbali",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold
                             )
