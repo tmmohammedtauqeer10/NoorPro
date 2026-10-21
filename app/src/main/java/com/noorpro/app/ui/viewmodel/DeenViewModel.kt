@@ -1164,7 +1164,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val isDailyHadithLoading: StateFlow<Boolean> = _isDailyHadithLoading.asStateFlow()
 
     // Quran Audio Playback State Simulation
-    private val _selectedReciter = MutableStateFlow(IslamicData.reciters[0])
+    private fun defaultReciter(): Reciter =
+        IslamicData.reciters.firstOrNull { it.id == IslamicData.DEFAULT_RECITER_ID } ?: IslamicData.reciters.first()
+    private val _selectedReciter = MutableStateFlow(defaultReciter())
     val selectedReciter = _selectedReciter.asStateFlow()
 
     private val _isAudioPlaying = MutableStateFlow(false)
@@ -1807,8 +1809,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectReciter(reciter: Reciter) {
-        // Unknown or stale reciter objects fall back to the first reciter (Mishary Alafasy).
-        _selectedReciter.value = IslamicData.reciters.firstOrNull { it.id == reciter.id } ?: IslamicData.reciters[0]
+        // Unknown, removed (e.g. Alafasy, id 1) or stale reciters fall back to Al-Husary.
+        _selectedReciter.value = IslamicData.reciters.firstOrNull { it.id == reciter.id } ?: defaultReciter()
         _audioProgress.value = 0f
         _audioPosition.value = "0:00"
         _currentAudioTrack.value = null

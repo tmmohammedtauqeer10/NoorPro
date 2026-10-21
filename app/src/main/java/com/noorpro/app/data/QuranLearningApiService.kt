@@ -67,7 +67,7 @@ interface AlQuranApi {
     @GET("surah")
     suspend fun getSurahList(): AlQuranSurahListResponse
 
-    @GET("surah/{surahNumber}/editions/quran-uthmani,en.transliteration,en.asad,ar.alafasy")
+    @GET("surah/{surahNumber}/editions/quran-uthmani,en.transliteration,en.asad,ar.husary")
     suspend fun getSurahDetails(@Path("surahNumber") surahNumber: Int): AlQuranSurahDetailsResponse
 }
 
@@ -115,7 +115,7 @@ object QuranLearningApiService {
             // data[0] -> quran-uthmani (Arabic text)
             // data[1] -> en.transliteration (Transliteration)
             // data[2] -> en.asad (English Translation)
-            // data[3] -> ar.alafasy (Audio / Arabic text)
+            // data[3] -> ar.husary (Audio / Arabic text)
 
             val arabicEditions = data.getOrNull(0)?.ayahs ?: emptyList()
             val transliterationEditions = data.getOrNull(1)?.ayahs ?: emptyList()

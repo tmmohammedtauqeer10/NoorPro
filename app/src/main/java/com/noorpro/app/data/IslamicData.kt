@@ -45,14 +45,16 @@ data class Azkar(
 )
 
 object IslamicData {
+    // Mahmoud Khaleel Al-Husary is first: the default and the fallback (DEFAULT_RECITER_ID).
+    // Mishary Alafasy (id 1) was removed in 1.0.43; saved offline files stay on disk but cannot be selected.
+    const val DEFAULT_RECITER_ID = 7
     val reciters = listOf(
-        Reciter(1, "Mishary Alafasy", "Crystal clear high notes & calm rhythm", "https://everyayah.com/data/Alafasy_128kbps/"),
+        Reciter(7, "Mahmoud Khaleel Al-Husary", "Precise Tajweed and rhythmic pacing", "https://everyayah.com/data/Husary_128kbps/"),
         Reciter(2, "Abdul Rahman Al-Sudais", "Heartfelt & commanding Hijazi recitation", "https://everyayah.com/data/Abdurrahmaan_As-Sudais_192kbps/"),
         Reciter(3, "Maher Al-Muaiqly", "Deep, soulful and meditative", "https://everyayah.com/data/MaherAlMuaiqly128kbps/"),
         Reciter(4, "Saud Al-Shuraim", "Swift, rhythmic recitation", "https://everyayah.com/data/Saood_ash-Shuraym_128kbps/"),
         Reciter(5, "Abdul Basit (Murattal)", "Classic, powerful and resonant tone", "https://everyayah.com/data/Abdul_Basit_Murattal_192kbps/"),
         Reciter(6, "Abdul Basit (Mujawwad)", "Slow, melodic and expansive style", "https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps/"),
-        Reciter(7, "Mahmoud Khaleel Al-Husary", "Precise Tajweed and rhythmic pacing", "https://everyayah.com/data/Husary_128kbps/"),
         Reciter(8, "Muhammad Al-Minshawy", "Beautiful, emotional and crying tone", "https://everyayah.com/data/Minshawy_Murattal_128kbps/"),
         Reciter(9, "Abu Bakr Ash-Shaatree", "Melancholic and emotionally moving", "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/"),
         Reciter(10, "Muhammad Ayyoub", "Classical Hijazi spiritual tone", "https://everyayah.com/data/Muhammad_Ayyoub_128kbps/"),

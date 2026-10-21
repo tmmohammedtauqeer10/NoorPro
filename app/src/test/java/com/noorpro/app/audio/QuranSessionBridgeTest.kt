@@ -48,7 +48,7 @@ class QuranSessionBridgeTest {
         QuranSessionBridge.commands = commands
         val player = QuranSessionBridge.sessionPlayer()
         val np = QuranSessionBridge.NowPlaying(
-            id = "surah:55", title = "Ar-Rahman", artist = "Mishary Alafasy", isPlaying = false,
+            id = "surah:55", title = "Ar-Rahman", artist = "Mahmoud Khaleel Al-Husary", isPlaying = false,
         )
         // isPlaying=false: no service start / source switch, just state.
         QuranSessionBridge.update(ApplicationProvider.getApplicationContext(), np)
