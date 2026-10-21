@@ -1,47 +1,15 @@
 NoorPro - Tasawwuf library: sources and licences
 
-Texts are reproduced verbatim from the sources below (only whitespace, page markers and line-break hyphenation were normalised; unreadable OCR fragments in English scans were dropped).
-
-Kitab al-Ri'aya li-Huquq Allah [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file 0243HarithMuhasibi.Ricaya.Kraken2107192213391-ara1
-  Completeness: Uncorrected machine OCR (Kraken); no chapter headings in source, divided by page ranges.
+All texts below are public domain (published before 1929) and are reproduced verbatim from the scans listed (only whitespace and line-break hyphenation were normalised; unreadable OCR fragments were dropped).
 
 al-Luma' fi'l-Tasawwuf [en]
   Source/licence: R.A. Nicholson (ed.), The Kitab al-Luma' fi'l-Tasawwuf, E.J.W. Gibb Memorial Series XXII, London 1914 - English Preface and Abstract of Contents only; public domain (published 1914). Internet Archive scan kitaballuma00sarruoft, OCR text.
   Completeness: Arabic text not available as machine-readable public text (the scan OCR contains no Arabic). Only Nicholson's English preface, abstract of contents and glossary are included. OCR paragraphs that were unreadable were omitted.
 
-al-Ta'arruf li-Madhhab Ahl al-Tasawwuf [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file Shamela0006518-ara1 (from al-Maktaba al-Shamila)
-  Completeness: Complete text as in source.
-
-Qut al-Qulub [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file Shamela0000482-ara1 (from al-Maktaba al-Shamila)
-  Completeness: Complete text as in source.
-
-al-Risala al-Qushayriyya [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file Shamela0009953-ara1 (from al-Maktaba al-Shamila)
-  Completeness: Complete text as in source.
-
 Kashf al-Mahjub [en]
   Source/licence: The Kashf al-Mahjub, translated by Reynold A. Nicholson, E.J.W. Gibb Memorial Series XVII, Leiden/London 1911; public domain (published 1911). Internet Archive scan 32882019066896-thekashfalmahju, OCR text.
   Completeness: Complete English translation (OCR; footnotes and unreadable fragments may be mixed in or omitted). Persian original not available from an open source.
 
-Ihya Ulum al-Din [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file 0505Ghazali.IhyaCulumDin.Shamela0009472-ara1.completed (from al-Maktaba al-Shamila)
-  Completeness: Complete text (all 4 quarters / 40 books) as in source.
-
 Kimiya-e-Sa'adat [en]
   Source/licence: The Alchemy of Happiness, by al-Ghazzali, translated from the Hindustani by Claud Field, Wisdom of the East series, John Murray, London 1910; public domain (published 1910). Internet Archive scan alchemyofhappine00algh, OCR text.
   Completeness: An abridgement (8 chapters), not the complete Kimiya.
-
-Kimiya-e-Sa'adat [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file 0505Ghazali.KimiyaSacada.Shamela0009261-ara1
-  Completeness: Short Arabic treatise titled Kimiya al-Sa'ada attributed to al-Ghazali; NOT the full Persian Kimiya-e-Sa'adat. Persian original not available from an open source.
-
-Bidayat al-Hidaya [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file Shamela0012718-ara1 (from al-Maktaba al-Shamila)
-  Completeness: Complete text as in source.
-
-Minhaj al-'Abidin [ar]
-  Source/licence: OpenITI corpus (Open Islamicate Texts Initiative), licence CC BY-NC-SA 4.0; file 0505Ghazali.MinhajCabidin.Kraken220414225509-ara1
-  Completeness: Uncorrected machine OCR (Kraken); no chapter headings in source, divided by page ranges.
