@@ -3171,8 +3171,13 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun repairMojibake(value: String): String {
         return try {
-            if (value.any { it.code in 0x0080..0x00FF }) {
-                String(value.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+            // Only re-decode text that is really UTF-8 read as Latin-1; genuine Latin-1 letters
+            // (e.g. Turkish ü/ç/ö) are kept, otherwise they turn into U+FFFD boxes.
+            if (value.any { it.code in 0x0080..0x00FF } && value.all { it.code <= 0xFF }) {
+                Charsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(value.toByteArray(Charsets.ISO_8859_1))).toString()
             } else {
                 value
             }

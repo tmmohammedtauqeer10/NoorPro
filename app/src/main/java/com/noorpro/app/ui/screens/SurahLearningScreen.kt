@@ -144,11 +144,11 @@ fun QuranAyahCard(
                 contentAlignment = Alignment.TopEnd
             ) {
                 Text(
-                    text = displayArabicText,
+                    text = com.noorpro.app.ui.components.quranDisplayText(displayArabicText),
                     fontSize = 26.sp,
                     color = Color.White,
                     fontWeight = FontWeight.Normal,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                     softWrap = true,
                     overflow = TextOverflow.Visible,
                     lineHeight = 44.sp,
@@ -305,10 +305,10 @@ fun QuranAyahLearnMode(ayah: QuranLearningAyah) {
                                 .padding(8.dp)
                         ) {
                             Text(
-                                text = word,
+                                text = com.noorpro.app.ui.components.quranDisplayText(word),
                                 fontSize = 24.sp,
                                 color = Color.White,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
+                                fontFamily = com.noorpro.app.ui.components.QuranArabicFont
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(

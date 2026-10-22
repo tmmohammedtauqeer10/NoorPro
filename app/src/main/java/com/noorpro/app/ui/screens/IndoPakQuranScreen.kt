@@ -732,8 +732,9 @@ internal fun buildMushafPages(
 }
 
 internal fun normalizeWord(value: String) =
-    com.noorpro.app.data.OfflineQuranAssets.indoPakToUnicode(value).replace("\u200E", "")
+    value.replace("\u200E", "")
         .replace("\u200F", "")
+        .replace("\u2002", " ")
         .filterNot { it == '\u200B' || it == '\uFEFF' || it.code in 0xE000..0xF8FF }
         .trim()
 

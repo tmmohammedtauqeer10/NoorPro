@@ -39,8 +39,6 @@ import com.noorpro.app.ui.viewmodel.DeenViewModel
 private val MatteGold = Color(0xFF0E8C73)
 private val GlowGold = Color(0xFF17B892)
 private val LightGold = Color(0xFF7FD1BD)
-// Bundled Arabic font that covers all Indo-Pak waqf marks (system fonts on some phones do not).
-private val QuranArabicFont = FontFamily(androidx.compose.ui.text.font.Font(com.noorpro.app.R.font.noto_naskh_arabic, FontWeight.Normal))
 
 @Composable
 fun SurahListScreen(
@@ -881,8 +879,8 @@ fun SurahReaderView(
                                     text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = MatteGold,
-                                        fontFamily = LibreCaslon,
+                                        color = com.noorpro.app.ui.components.quranArabicColor(),
+                                        fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                                         textAlign = TextAlign.Center
                                     ),
                                     modifier = Modifier.fillMaxWidth()
@@ -1042,11 +1040,11 @@ fun SurahReaderView(
 
                         // Arabic Verse Text Align Right
                         Text(
-                            text = verse.first,
+                            text = com.noorpro.app.ui.components.quranDisplayText(verse.first),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Normal,
-                                color = com.noorpro.app.ui.components.stitchText(),
-                                fontFamily = QuranArabicFont,
+                                color = com.noorpro.app.ui.components.quranArabicColor(),
+                                fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                                 lineHeight = 44.sp,
                                 textAlign = TextAlign.Right
                             ),
@@ -1068,6 +1066,7 @@ fun SurahReaderView(
                                 text = verse.second,
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     color = TextPrimary,
+                                    fontFamily = if (selectedTranslationKey.startsWith("ur.")) com.noorpro.app.ui.components.QuranArabicFont else null,
                                     lineHeight = if (selectedTranslationKey.startsWith("ur.")) 32.sp else 24.sp,
                                     textAlign = if (selectedTranslationKey.startsWith("ur.")) TextAlign.Right else TextAlign.Start
                                 ),

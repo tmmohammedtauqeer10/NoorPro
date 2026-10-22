@@ -213,11 +213,11 @@ fun TafsirScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = arabicText,
+                            text = com.noorpro.app.ui.components.quranDisplayText(arabicText),
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = LightGold,
-                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Normal,
+                                color = com.noorpro.app.ui.components.quranArabicColor(),
+                                fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                                 lineHeight = 40.sp,
                                 textAlign = TextAlign.Right
                             ),
