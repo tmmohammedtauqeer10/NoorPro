@@ -284,7 +284,7 @@ fun MainLayout() {
                 DeenScreen.DASHBOARD -> StitchHomeScreen(viewModel = viewModel)
                 DeenScreen.QURAN -> StitchQuranScreen(viewModel = viewModel)
                 DeenScreen.REELS -> StitchReelsScreen(viewModel = viewModel)
-                DeenScreen.NOW_PLAYING -> com.noorpro.app.ui.screens.StitchImmersivePlayerScreen(viewModel = viewModel)
+                DeenScreen.NOW_PLAYING -> com.noorpro.app.ui.screens.AlNoorNowPlayingScreen(viewModel)
                 DeenScreen.PRAYER_TIMES -> PrayerTimesScreen(viewModel = viewModel)
                 DeenScreen.QIBLA_MORE -> StitchQiblaScreen(viewModel = viewModel)
                 DeenScreen.SETTINGS -> com.noorpro.app.ui.screens.SettingsScreen(viewModel = viewModel)
@@ -356,7 +356,7 @@ fun MainLayout() {
                 DeenScreen.UMMAH_FOLLOWING -> StitchFollowingScreen(viewModel = viewModel)
                 DeenScreen.DEEN_POINTS -> StitchDeenPointsScreen(viewModel = viewModel)
                 DeenScreen.AUDIO_LIBRARY -> com.noorpro.app.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
-                DeenScreen.AUDIO_PLAYLIST -> com.noorpro.app.ui.screens.StitchAudioPlaylistScreen(viewModel = viewModel)
+                DeenScreen.AUDIO_PLAYLIST -> com.noorpro.app.ui.screens.AlNoorAudioScreen(viewModel = viewModel, startRoute = "mix:" + viewModel.audioPlaylistKey.ifBlank { "morning" })
                 DeenScreen.DISCOVER_GROUPS -> com.noorpro.app.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
             }
         }
@@ -373,7 +373,6 @@ fun MainLayout() {
             currentScreen == DeenScreen.PROFILE_DASHBOARD ||
             currentScreen == DeenScreen.REELS ||
             currentScreen == DeenScreen.UMMAH ||
-            currentScreen == DeenScreen.AUDIO_LIBRARY ||
             (currentScreen == DeenScreen.QURAN && selectedSurah == null)) &&
             !((currentScreen == DeenScreen.UMMAH_FULL || currentScreen == DeenScreen.REELS) && isUmmahReelsImmersive) &&
             !isModalOverlayActive
@@ -397,124 +396,6 @@ fun MainLayout() {
             )
         }
         
-        if (showMiniPlayer) {
-            val miniContainer = if (appIsLightTheme) Color.White.copy(alpha = 0.98f) else StitchDarkSurface.copy(alpha = 0.98f)
-            val miniBorder = if (appIsLightTheme) StitchLine else StitchDarkLine
-            val miniTitle = currentAudioTrack?.title ?: playingSurah?.nameEnglish.orEmpty()
-            val miniSubtitle = currentAudioTrack?.let { track ->
-                listOfNotNull(track.artist, track.language).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Noor Audio" }
-            } ?: selectedReciter.name
-            val miniTitleColor = if (appIsLightTheme) StitchInk else Color(0xFFFAF4E8)
-            val miniSubColor = if (appIsLightTheme) StitchMuted else StitchDarkMuted
-
-            val miniDrag = remember { androidx.compose.animation.core.Animatable(0f) }
-            val miniScope = rememberCoroutineScope()
-            val miniProgress by viewModel.audioProgress.collectAsState()
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = miniContainer),
-                border = androidx.compose.foundation.BorderStroke(1.dp, miniBorder),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 88.dp, start = 18.dp, end = 18.dp)
-                    .fillMaxWidth()
-                    .height(62.dp)
-                    .graphicsLayer { translationX = miniDrag.value; alpha = 1f - (kotlin.math.abs(miniDrag.value) / 900f).coerceIn(0f, 0.5f) }
-                    .pointerInput(currentAudioTrack == null) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                val d = miniDrag.value
-                                if (currentAudioTrack == null && d < -140f) viewModel.playNextSurah()
-                                else if (currentAudioTrack == null && d > 140f) viewModel.playPreviousSurah()
-                                miniScope.launch { miniDrag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.55f)) }
-                            },
-                            onHorizontalDrag = { _, dx -> miniScope.launch { miniDrag.snapTo(miniDrag.value + dx) } }
-                        )
-                    }
-                    .pressScale { viewModel.openNowPlaying() }
-                    .drawWithContent {
-                        drawContent()
-                        val h = 2.5.dp.toPx()
-                        drawRect(miniBorder, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
-                        drawRect(MatteGold, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width * miniProgress.coerceIn(0f, 1f), h))
-                    }
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (currentAudioTrack == null) playingSurah?.let { s ->
-                        com.noorpro.app.ui.screens.SurahCover(s, 44.dp, 8.dp, showArabic = false)
-                        Spacer(modifier = Modifier.width(10.dp))
-                    }
-                    // Quick Play/Pause Button
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MatteGold)
-                            .clickable { viewModel.toggleAudioPlayback() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isAudioPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = Color(0xFF050C18),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    // Tracks Information
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = miniTitle,
-                            color = miniTitleColor,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1
-                        )
-                        Text(
-                            text = miniSubtitle,
-                            color = miniSubColor,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1
-                        )
-                    }
-
-                    if (currentAudioTrack == null) {
-                        IconButton(onClick = { viewModel.playNextSurah() }) {
-                            Icon(
-                                imageVector = Icons.Default.SkipNext,
-                                contentDescription = "Next Surah",
-                                tint = MatteGold
-                            )
-                        }
-                    }
-                    
-                    // Gorgeous Arabic Surah Badge
-                    if (currentAudioTrack == null && !playingSurah?.nameArabic.isNullOrBlank()) {
-                        Text(
-                            text = playingSurah?.nameArabic ?: "",
-                            color = MatteGold,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
-                    }
-
-                    IconButton(onClick = { viewModel.dismissMiniAudioPlayer() }) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close mini audio",
-                            tint = miniSubColor
-                        )
-                    }
-                }
-            }
-        }
-
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
         // Al Noor Audio mini-player (nasheed/naat) — separate from Quran mini player above.
         com.noorpro.app.audio.AlNoorAudioSession.init(context)
@@ -545,6 +426,16 @@ fun MainLayout() {
                     .padding(bottom = 0.dp, start = 0.dp, end = 0.dp)
             )
         }
+        // 1.0.81: Spotify-style mini player that expands (shared element) into full Now Playing.
+        com.noorpro.app.ui.screens.AlNoorPlayerHost(
+            vm = viewModel,
+            visible = showMiniPlayer,
+            bottomPadding = when {
+                showBottomNavigation -> 88.dp
+                currentScreen == DeenScreen.AUDIO_LIBRARY || currentScreen == DeenScreen.AUDIO_PLAYLIST -> 64.dp
+                else -> 12.dp
+            }
+        )
     }
     }
 }

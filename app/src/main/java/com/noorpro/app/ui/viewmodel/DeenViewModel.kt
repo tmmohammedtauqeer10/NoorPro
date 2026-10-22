@@ -2096,14 +2096,58 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- Playlist queue: "Play all" (and tapping a track) autoplays the whole playlist in order,
     //      advancing to the next track automatically when the current one finishes. ----
+    private val _queueState = MutableStateFlow<Pair<List<AudioQueueItem>, Int>>(emptyList<AudioQueueItem>() to -1)
     private var audioQueue: List<AudioQueueItem> = emptyList()
     private var audioQueueIndex: Int = -1
 
     private fun audioQueueActive(): Boolean = audioQueue.isNotEmpty()
 
+    // ---- 1.0.81: observable queue for the Spotify-style queue sheet (drag to reorder). ----
+    /** (items, currentIndex). Empty when no playlist queue is active. */
+    val queueState: StateFlow<Pair<List<AudioQueueItem>, Int>> = _queueState.asStateFlow()
+    private fun publishQueue() { _queueState.value = audioQueue to audioQueueIndex }
+
+    /** Turns "play surah N, then the next ones" into an explicit queue so the user can reorder it. */
+    fun ensureEditableQueue() {
+        if (audioQueueActive()) return
+        val cur = (_playingSurah.value ?: _selectedSurah.value)?.id ?: return
+        if (cur !in 1..114) return
+        audioQueue = (0 until 12).map { ((cur - 1 + it) % 114) + 1 }.map { id ->
+            AudioQueueItem(id, null, com.noorpro.app.data.QuranMetaData.surahNamesEn.getOrElse(id - 1) { "Surah $id" }, "")
+        }
+        audioQueueIndex = 0
+        publishQueue()
+    }
+
+    fun moveQueueItem(from: Int, to: Int) {
+        if (from !in audioQueue.indices || to !in audioQueue.indices || from == to) return
+        val list = audioQueue.toMutableList(); val item = list.removeAt(from); list.add(to, item)
+        audioQueueIndex = when (audioQueueIndex) {
+            from -> to
+            in (minOf(from, to)..maxOf(from, to)) -> if (from < to) audioQueueIndex - 1 else audioQueueIndex + 1
+            else -> audioQueueIndex
+        }
+        audioQueue = list
+        publishQueue()
+    }
+
+    fun removeQueueItem(index: Int) {
+        if (index !in audioQueue.indices || index == audioQueueIndex) return
+        audioQueue = audioQueue.toMutableList().also { it.removeAt(index) }
+        if (index < audioQueueIndex) audioQueueIndex--
+        publishQueue()
+    }
+
+    fun playQueueAt(index: Int) {
+        if (index !in audioQueue.indices) return
+        audioQueueIndex = index
+        playCurrentQueueItem()
+    }
+
     fun clearAudioQueue() {
         audioQueue = emptyList()
         audioQueueIndex = -1
+        publishQueue()
     }
 
     /** Start a playlist from [startIndex] and keep playing track-by-track. */
@@ -2116,6 +2160,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun playCurrentQueueItem() {
         val item = audioQueue.getOrNull(audioQueueIndex) ?: return
+        publishQueue()
         if (item.ayah != null) playAyahTrackInternal(item.surahId, item.ayah, item.title, item.arabic)
         else playSurahNow(playbackSurah(item.surahId), triggerPlayback = true)
     }
