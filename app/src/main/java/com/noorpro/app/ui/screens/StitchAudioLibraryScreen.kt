@@ -89,7 +89,7 @@ private data class AudioPlaylist(
  * are provided by the app scaffold in MainActivity.
  */
 @Composable
-fun StitchAudioLibraryScreen(viewModel: DeenViewModel) {
+fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String = "Recitations") {
     val context = LocalContext.current
     val light = isStitchLight()
     val surahs by viewModel.surahs.collectAsState()
@@ -100,8 +100,8 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel) {
         surahs.firstOrNull { it.id == 55 } ?: surahs.firstOrNull()
     }
 
-    var selectedCategory by remember { mutableStateOf("Recitations") }
-    val categories = listOf("Recitations", "Nasheeds", "Podcasts", "Dua Audio", "Tafsir")
+    var selectedCategory by remember { mutableStateOf(initialCategory) }
+    val categories = listOf("Recitations", "Nasheeds", "Podcasts", "Dua Audio", "Tarjuma", "Tafsir")
 
     val reciters = IslamicData.reciters
     // Portrait art for the first few reciters; the rest fall back to gradient initials.
@@ -170,13 +170,18 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel) {
                             selected = cat == selectedCategory,
                             onClick = {
                                 selectedCategory = cat
-                                if (cat != "Recitations") {
+                                if (cat == "Nasheeds" || cat == "Podcasts") {
                                     Toast.makeText(context, "$cat coming soon", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )
                     }
                 }
+            }
+
+            // 1.0.68: free, licensed Dua / Tarjuma / Tafsir audio (streaming only).
+            if (selectedCategory == "Dua Audio" || selectedCategory == "Tarjuma" || selectedCategory == "Tafsir") {
+                item(key = "free-audio-$selectedCategory") { FreeAudioSection(selectedCategory) }
             }
 
             // Top Reciters

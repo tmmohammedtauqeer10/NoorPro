@@ -113,3 +113,17 @@ Do not overload `AudioQueueItem` for nasheed; keep models separate.
 - [ ] Attribution visible in UI
 - [ ] No copyrighted commercial nasheed without written permission
 - [ ] Offline cache respects license (no redistribution of disallowed works)
+
+## 1.0.68 — Free Dua / Tarjuma / Tafsir audio (streaming only)
+
+Catalog: `audio/catalog/FreeAudioCatalog.kt` + `assets/al_noor_free_audio.txt`. All URLs were checked from the build box (HTTP 200/206, MP3). No offline download is offered.
+
+| Section | Source | License / terms |
+|---|---|---|
+| Duas (Hisn al-Muslim, 66 tracks) | archive.org/details/mp3-smart-muzakir — Hamad Al-Duraihim | Public Domain Mark 1.0 |
+| Duas (Quranic, Arabic + Urdu, 15) | archive.org/details/quranic-duas — Hajveri Apps | Public Domain Mark 1.0 |
+| Tarjuma (Urdu, English; 6 editions × 114 surahs) | cdn.islamic.network | `SOURCE_TERMS` — https://alquran.cloud/terms-and-conditions (free streaming; copyright stays with reciters; never paywalled) |
+| Tafsir Urdu (165 parts) | Dr. Ubaid ur Rahman, ISLAMFORT/MIRC uploads on archive.org | CC BY 4.0 |
+| Tafsir English (121 parts, Al-Baqarah) | archive.org/details/Eng_Commentary_AlBaqarah1-286 — Wahiduddin Khan | Public Domain Mark 1.0 |
+
+Rejected: everyayah.com (no clear license), mp3quran (terms unclear), NC-licensed archive items, YouTube rips, items with contradictory rights notes. Hindi/Bengali tarjuma: no clearly licensed source found.
