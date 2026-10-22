@@ -2050,14 +2050,23 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
 }
 
 @Composable
-private fun StitchCompass(rotation: Float) {
+internal fun StitchCompass(rotation: Float) {
+    val dark = com.noorpro.app.ui.theme.isAppDark
+    val dialFill = if (dark) Color(0xFF14211D) else Color.White
+    val dialRing = if (dark) Color(0xFF3B5148) else StitchLine
+    val minorTick = if (dark) Color(0xFF7E978D) else StitchLine
+    val majorTick = if (dark) Color(0xFFD4AF37) else StitchEmerald
+    val letter = if (dark) Color(0xFFEDE6D3) else stitchMutedText()
+    val needle = if (dark) Color(0xFFD4AF37) else StitchEmerald
+    val marker = if (dark) Color(0xFFD4AF37) else StitchGold
+    val markerIcon = if (dark) Color(0xFF0B1512) else Color.White
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2, size.height / 2)
                 val radius = min(size.width, size.height) / 2 - 10.dp.toPx()
-                drawCircle(Color.White, radius = radius, center = center)
-                drawCircle(StitchLine, radius = radius, center = center, style = Stroke(2.dp.toPx()))
+                drawCircle(dialFill, radius = radius, center = center)
+                drawCircle(dialRing, radius = radius, center = center, style = Stroke(2.dp.toPx()))
                 for (i in 0 until 60) {
                     val angle = Math.toRadians((i * 6 - 90).toDouble())
                     val outer = Offset(
@@ -2069,13 +2078,13 @@ private fun StitchCompass(rotation: Float) {
                         center.x + cos(angle).toFloat() * innerRadius,
                         center.y + sin(angle).toFloat() * innerRadius
                     )
-                    drawLine(if (i % 15 == 0) StitchEmerald else StitchLine, inner, outer, if (i % 15 == 0) 3.dp.toPx() else 1.dp.toPx())
+                    drawLine(if (i % 15 == 0) majorTick else minorTick, inner, outer, if (i % 15 == 0) 3.dp.toPx() else 1.dp.toPx())
                 }
             }
-            Text("N", modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("S", modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("E", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("W", modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("N", modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("S", modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("E", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("W", modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Box(
                 modifier = Modifier
                     .size(210.dp)
@@ -2087,20 +2096,20 @@ private fun StitchCompass(rotation: Float) {
                         .width(7.dp)
                         .height(118.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(StitchEmerald)
+                        .background(needle)
                 )
                 Box(
                     modifier = Modifier
                         .padding(top = 12.dp)
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(StitchGold),
+                        .background(marker),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Mosque, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Mosque, contentDescription = null, tint = markerIcon, modifier = Modifier.size(24.dp))
                 }
             }
-            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(StitchEmerald))
+            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(needle))
         }
     }
 }

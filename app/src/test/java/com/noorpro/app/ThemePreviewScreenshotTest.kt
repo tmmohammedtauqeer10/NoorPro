@@ -97,6 +97,10 @@ class ThemePreviewScreenshotTest {
         }
     }
 
+    @Test fun qibla() = both("qibla") {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { StitchCompass(rotation = 35f) }
+    }
+
     @Test fun appScreens() {
         val target = mutableStateOf(DeenScreen.DASHBOARD)
         rule.setContent {
