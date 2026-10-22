@@ -126,3 +126,23 @@ fun animatedProgress(target: Float): Float {
     val enabled = animationsEnabled()
     return animateFloatAsState(target.coerceIn(0f, 1f), if (enabled) tween(600, easing = FastOutSlowInEasing) else tween(0), label = "progress").value
 }
+
+/** Scale that pops (1 -> 1.25 -> 1) whenever [active] flips to true; static if motion is off. */
+@Composable
+fun popScale(active: Boolean): Float {
+    val enabled = animationsEnabled()
+    val s = remember { Animatable(1f) }
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(active) {
+        if (first) { first = false; return@LaunchedEffect }
+        if (enabled && active) {
+            s.snapTo(0.8f)
+            s.animateTo(1.18f, tween(120))
+            s.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 500f))
+        }
+    }
+    return s.value
+}
+
+/** Instagram-style story ring: gold -> emerald sweep. */
+val NoorRingBrush: Brush = Brush.sweepGradient(listOf(Color(0xFFD4AF37), Color(0xFF0E8C73), Color(0xFF89E6C8), Color(0xFFD4AF37)))
