@@ -694,6 +694,20 @@ fun SurahReaderView(
 
     var reciterDropdownExpanded by remember { mutableStateOf(false) }
 
+    // 1.0.76: Word-by-word + Hifz mode (normal reader only).
+    var showHifz by remember(surah.id) { mutableStateOf(false) }
+    if (showHifz && surah.id > 0) {
+        androidx.activity.compose.BackHandler { showHifz = false }
+        HifzWordScreen(
+            surahId = surah.id,
+            surahName = "${surah.englishTranslation.ifBlank { surah.nameArabic }} · ${surah.nameArabic}",
+            versesCount = surah.versesCount,
+            startAyah = lastReadAyah.coerceAtLeast(1),
+            onBack = { showHifz = false }
+        )
+        return
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -745,6 +759,15 @@ fun SurahReaderView(
                     )
                 }
 
+                if (surah.id > 0) {
+                    IconButton(
+                        onClick = { if (isPlaying) viewModel.toggleAudioPlayback(); showHifz = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.School, contentDescription = "Word by word & Hifz mode", tint = MatteGold, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
                 // Translation selector action
                 IconButton(
                     onClick = { showTranslationSheet = true },
