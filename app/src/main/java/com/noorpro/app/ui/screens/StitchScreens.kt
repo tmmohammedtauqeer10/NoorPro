@@ -1,5 +1,6 @@
 ﻿package com.noorpro.app.ui.screens
 
+import androidx.compose.animation.togetherWith
 import com.noorpro.app.ui.components.stitchLine
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
@@ -515,7 +516,17 @@ private fun StitchImmersivePrayerHero(
                         )
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text(if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location", color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val cdMotion = com.noorpro.app.ui.components.animationsEnabled()
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location",
+                        transitionSpec = {
+                            if (cdMotion)
+                                (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(220)) { it / 2 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220))) togetherWith
+                                    (androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(180)) { -it / 2 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+                            else androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                        },
+                        label = "countdown"
+                    ) { txt -> Text(txt, color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                 }
                 // Time never wraps: measured at its intrinsic width; long clocks (e.g. "12:55") shrink slightly.
                 val clockSize = if (clock.length > 4) 38.sp else 44.sp
@@ -2022,6 +2033,10 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
     val rotation by androidx.compose.animation.core.animateFloatAsState(needleAngle, androidx.compose.animation.core.tween(120), label = "needle")
     val dialRot by androidx.compose.animation.core.animateFloatAsState(dialAngle, androidx.compose.animation.core.tween(120), label = "dial")
     val offBy = kotlin.math.abs(com.noorpro.app.qibla.QiblaMath.shortestDelta(0f, com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth)))
+    // 1.0.73: one haptic tick when the needle comes into alignment (within 5 degrees).
+    val qiblaHaptic = com.noorpro.app.ui.components.rememberHaptic()
+    val qiblaAligned = offBy < 5f
+    LaunchedEffect(qiblaAligned) { if (qiblaAligned) qiblaHaptic() }
 
     DisposableEffect(Unit) {
         viewModel.startCompassListening()
@@ -2206,7 +2221,8 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
         StitchGuestProfileScreen(
             onBack = { viewModel.goBack() },
             onEdit = { viewModel.navigateTo(DeenScreen.LOGIN) },
-            onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) }
+            onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) },
+            onOpen = { viewModel.navigateTo(it) }
         )
         return
     }
@@ -2285,17 +2301,9 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
             item {
                 StitchPremiumBanner(onUpgrade = { viewModel.navigateTo(DeenScreen.NOOR_PRO_PLUS) })
             }
-            item {
-                StitchProfileSection("Quick Access") {
-                    StitchListRow("Bookmarks", null, Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.BOOKMARKS) }
-                    StitchDivider()
-                    StitchListRow("99 Names of Allah", null, Icons.Default.Star) { viewModel.navigateTo(DeenScreen.ASMA_UL_HUSNA) }
-                    StitchDivider()
-                    StitchListRow("Zakat Calculator", null, Icons.Default.Calculate) { viewModel.navigateTo(DeenScreen.ZAKAT) }
-                    StitchDivider()
-                    StitchListRow("Daily Reminder", null, Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                }
-            }
+            // 1.0.73: one categorized grid replaces Quick Access / Daily Dashboard / Knowledge / Lifestyle
+            // (same catalog as Home "See All"; no duplicate or dead entries).
+            item { MoreCategoryGrid(onOpen = { viewModel.navigateTo(it) }) }
             item {
                 StitchProfileSection("Your Activity") {
                     StitchListRow("Saved", "Saved reels and posts", Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
@@ -2305,48 +2313,6 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     StitchListRow("Likes & comments", "See posts you liked and comments you made", Icons.Default.ChatBubble) { viewModel.navigateTo(DeenScreen.UMMAH_LIKES_COMMENTS) }
                     StitchDivider()
                     StitchListRow("Time management", "Daily usage reminders and focus controls", Icons.Default.CalendarMonth) { viewModel.navigateTo(DeenScreen.UMMAH_TIME_MANAGEMENT) }
-                }
-            }
-            item {
-                StitchProfileSection("Daily Dashboard") {
-                    StitchListRow("Spiritual Progress", "Streak, daily checklist & weekly yield", Icons.Default.AutoGraph) { viewModel.navigateTo(DeenScreen.SPIRITUAL_PROGRESS) }
-                    StitchDivider()
-                    StitchListRow("Prayer Tracker", null, Icons.Default.CheckCircle) { viewModel.navigateTo(DeenScreen.QAZA_TRACKER) }
-                    StitchDivider()
-                    StitchListRow("Tasbih", null, Icons.Default.Fingerprint) { viewModel.navigateTo(DeenScreen.TASBIH) }
-                    StitchDivider()
-                    StitchListRow("Dua & Adhkar", null, Icons.Default.VolunteerActivism) { viewModel.navigateTo(DeenScreen.DUA_HUB) }
-                }
-            }
-            item {
-                StitchHubSectionLabel("Knowledge & Growth")
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Discover Library", Icons.Default.LocalLibrary, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
-                        StitchHubTile("Quiz", Icons.Default.Quiz, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Learning", Icons.Default.AutoStories, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QAIDA_TUTOR) }
-                        StitchHubTile("Hajj & Umrah", Icons.Default.Mosque, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.HAJJ_UMRAH) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Darood Sharif", Icons.Default.Favorite, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.DAROOD_SHARIF) }
-                        StitchHubTile("Ruhani Ilaj", Icons.Default.Shield, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.RUHANI) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Tasawwuf", Icons.Default.Spa, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.TASAWWUF) }
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-            item {
-                StitchProfileSection("Lifestyle") {
-                    StitchListRow("Health", null, Icons.Default.Favorite) { viewModel.navigateTo(DeenScreen.HEALTH_WELLNESS) }
-                    StitchDivider()
-                    StitchListRow("DeenPoints", null, Icons.Default.Star) { viewModel.navigateTo(DeenScreen.DEEN_POINTS) }
-                    StitchDivider()
-                    StitchListRow("Hijri Calendar", null, Icons.Default.CalendarMonth) { viewModel.navigateTo(DeenScreen.CALENDAR) }
                 }
             }
             item {
@@ -2447,14 +2413,16 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
 private fun StitchGuestProfileScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onSignIn: () -> Unit
+    onSignIn: () -> Unit,
+    onOpen: (DeenScreen) -> Unit = {}
 ) {
     StitchScreen {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 22.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -2487,9 +2455,12 @@ private fun StitchGuestProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(88.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             StitchGuestSignInProfileCard(onSignIn = onSignIn)
+            Spacer(modifier = Modifier.height(28.dp))
+            // 1.0.73: guests also get the full categorized "More" grid.
+            MoreCategoryGrid(onOpen = onOpen, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -2510,7 +2481,7 @@ private fun StitchGuestSignInProfileCard(
             )
             .clip(RoundedCornerShape(32.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 34.dp, vertical = 58.dp)
+            .padding(horizontal = 34.dp, vertical = 28.dp)
     ) {
         Box(
             modifier = Modifier

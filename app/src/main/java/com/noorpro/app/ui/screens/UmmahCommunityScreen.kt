@@ -223,6 +223,7 @@ private fun ComingSoonRow(icon: androidx.compose.ui.graphics.vector.ImageVector,
 @Composable
 fun UmmahCommunityScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
+    val likeHaptic = com.noorpro.app.ui.components.rememberHaptic()
     val repository = remember { UmmahRepository() }
     var posts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -382,6 +383,7 @@ fun UmmahCommunityScreen(viewModel: DeenViewModel) {
             },
             onFollowCreator = { post -> followPostCreator(post) },
             onLike = { post ->
+                likeHaptic()
                 repository.toggleInteraction(post.id, "likes", post.id !in likedIds) { success ->
                     if (!success) Toast.makeText(context, "Sign in to like reels.", Toast.LENGTH_SHORT).show()
                 }
@@ -465,6 +467,7 @@ fun UmmahCommunityScreen(viewModel: DeenViewModel) {
                     showMembership = true
                 },
                 onLike = { post ->
+                likeHaptic()
                     repository.toggleInteraction(post.id, "likes", post.id !in likedIds) { success ->
                         if (!success) Toast.makeText(context, "Sign in to like posts.", Toast.LENGTH_SHORT).show()
                     }

@@ -1,5 +1,7 @@
 package com.noorpro.app
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.togetherWith
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.util.Log // Added
@@ -235,11 +237,25 @@ fun MainLayout() {
             .background(appBackground)
     ) {
         // Core Screens crossfade transition
-        Crossfade(
+        // 1.0.73: Material fade-through between screens (outgoing fades 90ms, incoming fades in
+        // + scales 0.96->1 over 210ms). Bottom-nav tabs use a plain crossfade. Instant for the
+        // full player, and when the system "Remove animations" setting is on.
+        val motionOn = com.noorpro.app.ui.components.animationsEnabled()
+        androidx.compose.animation.AnimatedContent(
             targetState = currentScreen,
-            // Open the full player instantly: no cross-faded intermediate frame of the previous
-            // screen (or a stale reader) while the player composes.
-            animationSpec = tween(if (currentScreen == DeenScreen.NOW_PLAYING) 0 else 300),
+            transitionSpec = {
+                val tabs = setOf(DeenScreen.DASHBOARD, DeenScreen.QURAN, DeenScreen.REELS, DeenScreen.UMMAH, DeenScreen.PROFILE_DASHBOARD)
+                when {
+                    !motionOn || targetState == DeenScreen.NOW_PLAYING ->
+                        androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                    initialState in tabs && targetState in tabs ->
+                        androidx.compose.animation.fadeIn(tween(220, delayMillis = 60)) togetherWith androidx.compose.animation.fadeOut(tween(120))
+                    else ->
+                        (androidx.compose.animation.fadeIn(tween(210, delayMillis = 90)) +
+                            androidx.compose.animation.scaleIn(tween(210, delayMillis = 90), initialScale = 0.96f)) togetherWith
+                            androidx.compose.animation.fadeOut(tween(90))
+                }
+            },
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
@@ -580,13 +596,16 @@ fun RowScope.NavBarItem(
     val unselectedColor = if (isLightTheme) Color(0xFF8DA19A) else StitchDarkMuted
     val selectedContainer = if (isLightTheme) StitchEmerald else StitchDarkSoft
     val selectedLabelColor = if (isLightTheme) StitchEmerald else MatteGold
-    val labelColor = if (isSelected) selectedLabelColor else unselectedColor
+    val labelColor by androidx.compose.animation.animateColorAsState(if (isSelected) selectedLabelColor else unselectedColor, tween(200), label = "navLabel")
+    val pillColor by androidx.compose.animation.animateColorAsState(if (isSelected) selectedContainer else Color.Transparent, tween(200), label = "navPill")
+    val iconScale by androidx.compose.animation.core.animateFloatAsState(if (isSelected) 1.08f else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 500f), label = "navIcon")
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable(onClick = onClick)
+            .clickable(onClick = { if (!isSelected) haptic(); onClick() })
             .testTag("nav_${label.lowercase()}")
     ) {
         Column(
@@ -600,19 +619,14 @@ fun RowScope.NavBarItem(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (isSelected) selectedContainer else Color.Transparent)
-                    .border(
-                        1.dp,
-                        if (isSelected) selectedContainer else Color.Transparent,
-                        RoundedCornerShape(14.dp)
-                    )
+                    .background(pillColor)
                     .padding(horizontal = if (isSelected) 9.dp else 6.dp, vertical = 3.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
                     tint = if (isSelected) MatteGold else labelColor,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
                 )
             }
 

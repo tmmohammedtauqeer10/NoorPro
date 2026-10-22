@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,7 +20,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +44,7 @@ import com.noorpro.app.audio.podcast.FeedResult
 import com.noorpro.app.audio.podcast.Podcast
 import com.noorpro.app.audio.podcast.PodcastRepository
 import com.noorpro.app.ui.components.StitchGold
+import com.noorpro.app.ui.components.pressScale
 import com.noorpro.app.ui.components.stitchLine
 import com.noorpro.app.ui.components.stitchMutedText
 import com.noorpro.app.ui.components.stitchPrimary
@@ -109,7 +110,7 @@ private fun PodcastRow(p: Podcast, onOpen: () -> Unit) {
     val ctx = LocalContext.current
     val art = remember(p.id) { PodcastRepository.cachedArtwork(ctx, p) }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(stitchSurface())
+        Modifier.fillMaxWidth().pressScale().clip(RoundedCornerShape(16.dp)).background(stitchSurface())
             .border(1.dp, stitchLine(), RoundedCornerShape(16.dp)).clickable(onClick = onOpen).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -153,8 +154,17 @@ private fun PodcastEpisodes(p: Podcast, onBack: () -> Unit) {
     }
     val r = result
     when {
-        loading && r == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = stitchPrimary(), strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+        loading && r == null -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(5) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.noorpro.app.ui.components.ShimmerBox(Modifier.size(44.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth().height(12.dp), 6.dp)
+                        com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth(0.5f).height(10.dp), 5.dp)
+                    }
+                }
+            }
         }
         r == null || r.episodes.isEmpty() -> StateCard(
             "Couldn't load episodes",

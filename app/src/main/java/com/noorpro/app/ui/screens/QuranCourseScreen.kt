@@ -190,7 +190,8 @@ fun CourseHome(
                     Text("Your progress", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
                     Text("${done.size} of $total lessons", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(progress = { if (total == 0) 0f else done.size / total.toFloat() }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = CourseGold, trackColor = Color.White.copy(alpha = 0.25f))
+                    val courseP = com.noorpro.app.ui.components.animatedProgress(if (total == 0) 0f else done.size / total.toFloat())
+                    LinearProgressIndicator(progress = { courseP }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = CourseGold, trackColor = Color.White.copy(alpha = 0.25f))
                     if (resume != null) {
                         Spacer(Modifier.height(14.dp))
                         Button(onClick = { onResume(resume.id) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = CourseGreen)) {
@@ -215,7 +216,8 @@ fun CourseHome(
                         Text(lv.title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                         Text(lv.subtitle, color = p.muted, fontSize = 12.sp)
                         Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(progress = { n / lv.lessons.size.toFloat() }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape), color = CourseGreen, trackColor = p.chip)
+                        val lvP = com.noorpro.app.ui.components.animatedProgress(n / lv.lessons.size.toFloat())
+                        LinearProgressIndicator(progress = { lvP }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape), color = CourseGreen, trackColor = p.chip)
                     }
                     Spacer(Modifier.width(10.dp))
                     Text("$n/${lv.lessons.size}", color = p.muted, fontSize = 12.sp)
