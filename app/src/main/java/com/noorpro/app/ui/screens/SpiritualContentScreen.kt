@@ -65,6 +65,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
     var fontSize by remember { mutableFloatStateOf(SpiritualPrefs.arabicFontSize(context)) }
     var categoryId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     var itemId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
+    var query by rememberSaveable(sectionId) { mutableStateOf("") }
 
     var readerBookId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     val readerBook = remember(readerBookId) { readerBookId?.let { com.noorpro.app.data.spiritual.BookLibrary.find(context.applicationContext, it) } }
@@ -72,8 +73,8 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
         StitchScreen { Column(Modifier.fillMaxSize().statusBarsPadding()) { BookReaderScreen(readerBook) { readerBookId = null } } }
         return
     }
-    BackHandler(enabled = itemId != null || categoryId != null) {
-        if (itemId != null) itemId = null else categoryId = null
+    BackHandler(enabled = itemId != null || categoryId != null || query.isNotEmpty()) {
+        if (itemId != null) itemId = null else if (categoryId != null) categoryId = null else query = ""
     }
 
     val s = section
@@ -97,6 +98,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
                     when {
                         itemId != null -> itemId = null
                         categoryId != null -> categoryId = null
+                        query.isNotEmpty() -> query = ""
                         else -> viewModel.goBack()
                     }
                 }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchPrimary()) }
@@ -117,11 +119,56 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
                 s == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = stitchPrimary()) }
                 item != null -> SpiritualItemDetail(viewModel, s, item, fontSize, onRead = { readerBookId = it }) { fontSize = it; SpiritualPrefs.setArabicFontSize(context, it) }
                 categoryId == FAV_CATEGORY -> SpiritualItemList(allItems.filter { it.id in favourites }, favourites, "No favourites yet. Tap the heart on any item.") { itemId = it.id }
-                category != null -> SpiritualItemList(category.items, favourites, null) { itemId = it.id }
+                category != null -> SpiritualItemList(category.items, favourites, null, serif = s.id == "tasawwuf") { itemId = it.id }
+                s.id == "tasawwuf" -> Column {
+                    Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)) { SpiritualSearchField(query) { query = it } }
+                    if (query.isBlank()) SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }) { categoryId = it }
+                    else {
+                        val hits = remember(s, query) { spiritualSearch(s, query) }
+                        SpiritualItemList(hits.map { it.second }, favourites, "No results for \"$query\".", serif = true,
+                            labels = hits.associate { it.second.id to it.first }) { itemId = it.id }
+                    }
+                }
                 else -> SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }) { categoryId = it }
             }
         }
     }
+}
+
+/** Section-wide search (Tasawwuf): matches title, subtitle, overview, meta, contents, text blocks and chart names. */
+private fun spiritualSearch(section: SpiritualSection, q: String): List<Pair<String, SpiritualItem>> {
+    val terms = q.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (terms.isEmpty()) return emptyList()
+    val out = ArrayList<Triple<Int, String, SpiritualItem>>()
+    section.categories.forEach { c ->
+        c.items.forEach { i ->
+            val head = (i.title + " " + i.subtitle).lowercase()
+            val body = buildString {
+                append(i.english); append(' '); append(i.urdu); append(' '); append(i.source)
+                i.meta.forEach { append(' ').append(it.second) }
+                i.toc.forEach { append(' ').append(it) }
+                i.blocks.forEach { append(' ').append(it.second) }
+                i.chart?.nodes?.forEach { append(' ').append(it.label).append(' ').append(it.note) }
+            }.lowercase()
+            if (terms.all { head.contains(it) || body.contains(it) }) {
+                val score = terms.count { head.contains(it) } * 10 + (if (i.title.lowercase().startsWith(terms[0])) 5 else 0)
+                out.add(Triple(score, c.title.substringAfter(". ").substringBefore(" ("), i))
+            }
+        }
+    }
+    return out.sortedByDescending { it.first }.distinctBy { it.third.id }.map { it.second to it.third }
+}
+
+@Composable
+private fun SpiritualSearchField(query: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query, onValueChange = onChange, singleLine = true,
+        placeholder = { Text("Search books, tariqas, awliya, practices, terms") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = stitchPrimary()) },
+        trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Close, contentDescription = "Clear search") } },
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
@@ -162,7 +209,8 @@ private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, onOp
 }
 
 @Composable
-private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String>, emptyText: String?, onOpen: (SpiritualItem) -> Unit) {
+private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String>, emptyText: String?, serif: Boolean = false,
+                              labels: Map<String, String> = emptyMap(), onOpen: (SpiritualItem) -> Unit) {
     if (items.isEmpty() && emptyText != null) {
         Text(emptyText, color = stitchMutedText(), modifier = Modifier.padding(24.dp))
         return
@@ -171,15 +219,18 @@ private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String
         items(items, key = { it.id }) { it ->
             StitchCard(Modifier.fillMaxWidth().clickable { onOpen(it) }) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    labels[it.id]?.let { l -> Text(l.uppercase(), color = StitchGold, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(it.title, color = stitchText(), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        Text(it.title, color = stitchText(), fontWeight = FontWeight.SemiBold, fontSize = if (serif) 17.sp else 16.sp,
+                            fontFamily = if (serif) com.noorpro.app.ui.theme.LibreCaslon else null, modifier = Modifier.weight(1f))
                         if (it.id in favourites) Icon(Icons.Default.Favorite, contentDescription = null, tint = StitchGold, modifier = Modifier.size(16.dp))
                     }
                     if (it.arabic.isNotBlank()) Text(
                         it.arabic, fontFamily = SpiritualArabicFont, fontSize = 20.sp, color = stitchPrimary(), maxLines = 2,
                         overflow = TextOverflow.Ellipsis, style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl),
                         modifier = Modifier.fillMaxWidth()
-                    ) else if (it.english.isNotBlank()) Text(it.english, color = stitchMutedText(), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    ) else if (serif && it.subtitle.isNotBlank()) Text(it.subtitle, color = stitchMutedText(), fontSize = 13.sp, fontStyle = FontStyle.Italic, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    else if (it.english.isNotBlank()) Text(it.english, color = stitchMutedText(), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -311,7 +362,7 @@ private fun SpiritualMetaTable(rows: List<Pair<String, String>>) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             rows.forEach { (k, v) ->
                 Row {
-                    Text(k, color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(96.dp))
+                    Text(k, color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(104.dp))
                     Text(v, color = stitchText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
                 }
             }
