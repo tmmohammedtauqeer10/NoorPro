@@ -79,6 +79,11 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AccountBalance
@@ -190,6 +195,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -367,6 +373,12 @@ fun StitchHomeScreen(viewModel: DeenViewModel) {
                         onSeeAll = { viewModel.navigateTo(DeenScreen.EXPLORE) }
                     )
                 }
+            }
+            item {
+                StitchAskNoorAiCard(
+                    onOpen = { viewModel.navigateTo(DeenScreen.AI_HUB) },
+                    onAsk = { q -> NoorAiLaunch.pending = q; viewModel.navigateTo(DeenScreen.AI_HUB) }
+                )
             }
             item {
                 // Sponsor + inline ad live in the Audio item so a hidden sponsor / unfilled ad adds no gap.
@@ -1997,7 +2009,19 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
     val bearing by viewModel.qiblaBearing.collectAsState()
     val azimuth by viewModel.sensorAzimuth.collectAsState()
     val distanceKm by viewModel.qiblaDistanceKm.collectAsState()
-    val rotation = (bearing - azimuth + 360f) % 360f
+    val hasLocation by viewModel.hasCurrentLocation.collectAsState()
+    val accuracy by viewModel.compassAccuracy.collectAsState()
+    val compassOk by viewModel.compassAvailable.collectAsState()
+    // Unwrapped angles so animations take the short way across 0/360 (no full-circle spins).
+    var needleAngle by remember { mutableFloatStateOf(com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth)) }
+    var dialAngle by remember { mutableFloatStateOf(-azimuth) }
+    LaunchedEffect(bearing, azimuth) {
+        needleAngle += com.noorpro.app.qibla.QiblaMath.shortestDelta(needleAngle, com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth))
+        dialAngle += com.noorpro.app.qibla.QiblaMath.shortestDelta(dialAngle, -azimuth)
+    }
+    val rotation by androidx.compose.animation.core.animateFloatAsState(needleAngle, androidx.compose.animation.core.tween(120), label = "needle")
+    val dialRot by androidx.compose.animation.core.animateFloatAsState(dialAngle, androidx.compose.animation.core.tween(120), label = "dial")
+    val offBy = kotlin.math.abs(com.noorpro.app.qibla.QiblaMath.shortestDelta(0f, com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth)))
 
     DisposableEffect(Unit) {
         viewModel.startCompassListening()
@@ -2016,14 +2040,36 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
                     StitchHeadline("Direction to Makkah", fontSize = 36)
                 }
             }
+            if (!hasLocation) item {
+                StitchCard(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, null, tint = stitchPrimary())
+                        Spacer(Modifier.width(10.dp))
+                        Text("Location needed for an accurate Qibla. Enable location or choose your city.", color = stitchText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.checkLocationAndRefresh { } }) { Text("Update") }
+                    }
+                }
+            }
+            if (!compassOk) item {
+                Text("This phone has no compass sensor. Face ${bearing.toInt()}° from true north (use the sun or a landmark).", color = stitchMutedText(), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            } else if (accuracy <= android.hardware.SensorManager.SENSOR_STATUS_ACCURACY_LOW) item {
+                StitchCard(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AllInclusive, null, tint = StitchGold, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Compass needs calibration: move your phone in a figure-8 a few times, away from metal and magnets.", color = stitchText(), fontSize = 13.sp, lineHeight = 18.sp)
+                    }
+                }
+            }
             item {
-                StitchCompass(rotation = rotation)
+                StitchCompass(rotation = rotation, dialRotation = dialRot)
             }
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("${bearing.toInt()}° from North", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
+                    Text(if (hasLocation) "${bearing.toInt()}° from North" else "Waiting for location", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
+                    if (hasLocation && compassOk && offBy < 4f) Text("You are facing the Qibla", color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text(
-                        "Heading ${azimuth.toInt()}° · rotate yourself until the gold marker is at the top",
+                        "Heading ${azimuth.toInt()}° (true north) · turn until the gold Kaaba marker is at the top",
                         color = stitchMutedText(),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -2057,7 +2103,7 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
 }
 
 @Composable
-internal fun StitchCompass(rotation: Float) {
+internal fun StitchCompass(rotation: Float, dialRotation: Float = 0f) {
     val dark = com.noorpro.app.ui.theme.isAppDark
     val dialFill = if (dark) Color(0xFF14211D) else Color.White
     val dialRing = if (dark) Color(0xFF3B5148) else StitchLine
@@ -2069,6 +2115,8 @@ internal fun StitchCompass(rotation: Float) {
     val markerIcon = if (dark) Color(0xFF0B1512) else Color.White
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+          // Compass rose turns with the phone (-heading) so N on the dial always points to real north.
+          Box(modifier = Modifier.fillMaxSize().rotate(dialRotation), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2, size.height / 2)
                 val radius = min(size.width, size.height) / 2 - 10.dp.toPx()
@@ -2092,6 +2140,14 @@ internal fun StitchCompass(rotation: Float) {
             Text("S", modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Text("E", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Text("W", modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+          }
+            // Fixed index at the top = the direction the phone is pointing.
+            Canvas(Modifier.fillMaxSize()) {
+                val p = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width / 2 - 9.dp.toPx(), 0f); lineTo(size.width / 2 + 9.dp.toPx(), 0f); lineTo(size.width / 2, 12.dp.toPx()); close()
+                }
+                drawPath(p, needle)
+            }
             Box(
                 modifier = Modifier
                     .size(210.dp)
@@ -6361,34 +6417,93 @@ fun StitchNoorProPlusScreen(viewModel: DeenViewModel) {
         viewModel = viewModel,
         title = "Noor Pro Plus",
         eyebrow = "Subscription",
-        subtitle = "Premium features for deeper learning and a cleaner Ummah creator experience.",
+        subtitle = "Optional upgrade in development. See what is planned.",
         icon = Icons.Default.Star
     ) {
+        // Header
         item {
-            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Coming soon", color = stitchPrimary(), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Text("Noor Pro Plus", color = stitchText(), fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(StitchEmeraldDeep, StitchEmerald))).padding(22.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("COMING SOON", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                    Text("Noor Pro Plus", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                    Text("An optional upgrade we're building. Everything in Noor Pro today stays free.", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, lineHeight = 20.sp)
+                }
+            }
+        }
+        // Planned benefits, grouped
+        item { Text("What Plus will add", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        val groups = listOf(
+            Triple(Icons.Default.AutoAwesome, "Noor AI", listOf("Longer Ask Noor AI chat history")),
+            Triple(Icons.Default.School, "Learning", listOf("Premium learning paths", "Progress insights")),
+            Triple(Icons.Default.Groups, "Ummah creators", listOf("Creator tools for reels and posts")),
+            Triple(Icons.Default.Bookmark, "Library", listOf("More storage for saved collections")),
+        )
+        items(groups) { (icon, title, list) ->
+            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Row(Modifier.padding(16.dp)) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(stitchPrimary().copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = stitchPrimary(), modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        list.forEach { Text("• $it", color = stitchMutedText(), fontSize = 13.sp) }
+                    }
+                }
+            }
+        }
+        // Free vs Plus
+        item {
+            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row { Text("Feature", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("Free", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("Plus", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center) }
                     listOf(
-                        "Advanced Ask Imam Noor AI history",
-                        "Premium learning paths and progress insights",
-                        "Creator tools for Ummah reels and posts",
-                        "More storage for saved collections"
-                    ).forEach { benefit ->
+                        "Quran, translations & audio" to true, "Prayer times, adhan & Qibla" to true, "Duas, Darood & Tasawwuf" to true,
+                        "Ask Noor AI" to true, "Quran Reading Course" to true, "Ummah feed & reels" to true,
+                        "Premium learning paths" to false, "Creator tools" to false, "Extra saved-collection storage" to false,
+                    ).forEach { (f, free) ->
+                        androidx.compose.material3.HorizontalDivider(color = stitchLine(), modifier = Modifier.padding(vertical = 8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(benefit, color = stitchText(), fontSize = 14.sp)
+                            Text(f, color = stitchText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                if (free) Icon(Icons.Default.CheckCircle, "Included", tint = stitchPrimary(), modifier = Modifier.size(18.dp)) else Text("—", color = stitchMutedText())
+                            }
+                            Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                if (free) Icon(Icons.Default.CheckCircle, "Included", tint = StitchGold, modifier = Modifier.size(18.dp))
+                                else Text("Planned", color = StitchGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                    Button(
-                        onClick = { Toast.makeText(context, "Noor Pro Plus coming soon", Toast.LENGTH_SHORT).show() },
-                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                        shape = RoundedCornerShape(999.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Notify me", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        // CTA (unchanged behaviour: no purchase yet)
+        item {
+            Button(
+                onClick = { Toast.makeText(context, "Noor Pro Plus coming soon", Toast.LENGTH_SHORT).show() },
+                colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = stitchOnPrimaryAccent()),
+                shape = RoundedCornerShape(999.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp)
+            ) { Text("Notify me", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+            Text("Not available to buy yet — no price has been set.", color = stitchMutedText(), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        }
+        // FAQs
+        item { Text("FAQs", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        items(listOf(
+            "Will current features stay free?" to "Yes. Everything you use in Noor Pro today remains in the free app.",
+            "How much will Plus cost?" to "Pricing hasn't been announced. Nothing is charged from this screen.",
+            "Can I buy it now?" to "Not yet. Tap Notify me — we'll share news in the app when it's ready.",
+        )) { (q, ans) ->
+            var open by remember { mutableStateOf(false) }
+            StitchCard(modifier = Modifier.fillMaxWidth().clickable { open = !open }, shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(q, color = stitchText(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = stitchMutedText())
                     }
+                    if (open) Text(ans, color = stitchMutedText(), fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
         }
@@ -9084,8 +9199,8 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                 )
             }
 
-            // Locked reward (Umrah Essentials Kit)
-            item {
+            // Locked reward (Umrah Essentials Kit) - hidden from the UI by request (code kept).
+            if (SHOW_UMRAH_ESSENTIALS_KIT) item {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(18.dp))
                         .background(Brush.verticalGradient(listOf(StitchEmerald, StitchEmeraldDeep, Color.Black)))
@@ -13357,3 +13472,46 @@ private fun isSameDay(a: Calendar, b: Calendar): Boolean =
 
 /** Still frame used only by JVM screenshot previews (there is no video decoder in tests). */
 internal object ReelPreviewFrame { var frame: androidx.compose.ui.graphics.ImageBitmap? = null }
+
+
+/** Umrah Essentials Kit entry is hidden everywhere (feature code kept for later). */
+private const val SHOW_UMRAH_ESSENTIALS_KIT = false
+
+/** Home entry to Noor AI: search-style field + suggested question chips. */
+@Composable
+private fun StitchAskNoorAiCard(onOpen: () -> Unit, onAsk: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(stitchPrimary().copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = stitchPrimary(), modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Ask Noor AI", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                    Text("General Islamic guidance, with sources where possible", color = stitchMutedText(), fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(stitchSoftSurface())
+                    .border(1.dp, stitchLine(), RoundedCornerShape(16.dp)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Search, null, tint = stitchMutedText(), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Ask about salah, Quran, duas…", color = stitchMutedText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.Send, null, tint = stitchPrimary(), modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("How can I improve focus in salah?", "What breaks wudu?", "How do I build a daily Quran habit?", "Rights of parents in Islam")) { q ->
+                    Text(q, color = stitchText(), fontSize = 12.sp, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, stitchLine(), RoundedCornerShape(999.dp))
+                            .clickable { onAsk(q) }.padding(horizontal = 12.dp, vertical = 8.dp))
+                }
+            }
+        }
+    }
+}

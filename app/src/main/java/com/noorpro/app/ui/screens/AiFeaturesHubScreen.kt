@@ -100,6 +100,10 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         ask(clean, next)
     }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        NoorAiLaunch.pending?.let { q -> NoorAiLaunch.pending = null; if (mode == NoorAiMode.AskNoor) send(q) }
+    }
+
     NoorAiChatContent(
         mode = mode,
         messages = messages,
@@ -160,3 +164,7 @@ internal fun noorAiSuggestions(mode: NoorAiMode): List<String> = when (mode) {
     NoorAiMode.HajjUmrahGuide -> listOf("Umrah steps in order", "What do I do after tawaf?", "Packing list for Umrah", "Rules of ihram")
     NoorAiMode.AppGuide -> listOf("How do I upload a reel?", "How to change my username?", "How do group chats work?", "Where is the Qibla finder?")
 }
+
+
+/** A question handed over from the Home "Ask Noor AI" card; sent once when the chat opens. */
+object NoorAiLaunch { var pending: String? = null }

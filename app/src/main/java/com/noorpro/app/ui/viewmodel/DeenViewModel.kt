@@ -1301,29 +1301,83 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val sensorAzimuth = _sensorAzimuth.asStateFlow()
 
     private val sensorManager = application.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
+    // Prefer fused rotation vector; fall back to geomagnetic rotation vector, then accelerometer + magnetometer.
     private val rotationVectorSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR)
-    
+        ?: sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+    private val accelSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+    private val magSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_MAGNETIC_FIELD)
+    private val gravity = FloatArray(3); private val geomag = FloatArray(3)
+    private var hasGravity = false; private var hasGeomag = false
+    private var smoothedHeading = Float.NaN
+    private var declinationDeg = 0f
+    private var lastQiblaLat = Double.NaN; private var lastQiblaLng = Double.NaN
+
+    /** Compass accuracy (SensorManager.SENSOR_STATUS_*); low/unreliable shows a figure-8 calibration hint. */
+    private val _compassAccuracy = MutableStateFlow(android.hardware.SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
+    val compassAccuracy = _compassAccuracy.asStateFlow()
+    private val _compassAvailable = MutableStateFlow(true)
+    val compassAvailable = _compassAvailable.asStateFlow()
+
+    private fun updateDeclination(lat: Double, lng: Double) {
+        lastQiblaLat = lat; lastQiblaLng = lng
+        declinationDeg = runCatching {
+            android.hardware.GeomagneticField(lat.toFloat(), lng.toFloat(), 0f, System.currentTimeMillis()).declination
+        }.getOrDefault(0f)
+    }
+
+    private fun displayRotation(): Int = runCatching {
+        val app = getApplication<Application>()
+        val dm = app.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+        dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.rotation ?: android.view.Surface.ROTATION_0
+    }.getOrDefault(android.view.Surface.ROTATION_0)
+
+    private fun publishHeading(rotationMatrix: FloatArray) {
+        // Remap for the current screen rotation so "heading" is where the top of the screen points.
+        val remapped = FloatArray(9)
+        val (ax, ay) = when (displayRotation()) {
+            android.view.Surface.ROTATION_90 -> android.hardware.SensorManager.AXIS_Y to android.hardware.SensorManager.AXIS_MINUS_X
+            android.view.Surface.ROTATION_180 -> android.hardware.SensorManager.AXIS_MINUS_X to android.hardware.SensorManager.AXIS_MINUS_Y
+            android.view.Surface.ROTATION_270 -> android.hardware.SensorManager.AXIS_MINUS_Y to android.hardware.SensorManager.AXIS_X
+            else -> android.hardware.SensorManager.AXIS_X to android.hardware.SensorManager.AXIS_Y
+        }
+        android.hardware.SensorManager.remapCoordinateSystem(rotationMatrix, ax, ay, remapped)
+        val orientation = FloatArray(3)
+        android.hardware.SensorManager.getOrientation(remapped, orientation)
+        val magnetic = Math.toDegrees(orientation[0].toDouble()).toFloat()
+        if (magnetic.isNaN()) return
+        // Magnetic -> true north (Qibla bearing is relative to true north).
+        val trueHeading = com.noorpro.app.qibla.QiblaMath.normalize(magnetic + declinationDeg)
+        smoothedHeading = if (smoothedHeading.isNaN()) trueHeading else com.noorpro.app.qibla.QiblaMath.smooth(smoothedHeading, trueHeading, 0.2f)
+        _sensorAzimuth.value = smoothedHeading
+    }
+
     private val sensorEventListener = object : android.hardware.SensorEventListener {
         override fun onSensorChanged(event: android.hardware.SensorEvent?) {
             try {
                 if (event == null) return
-                if (event.sensor.type == android.hardware.Sensor.TYPE_ROTATION_VECTOR) {
-                    val rotationMatrix = FloatArray(9)
-                    android.hardware.SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                    val orientation = FloatArray(3)
-                    android.hardware.SensorManager.getOrientation(rotationMatrix, orientation)
-                    // Convert azimuth to degrees
-                    var azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                    if (!azimuth.isNaN()) {
-                        azimuth = (azimuth + 360f) % 360f
-                        _sensorAzimuth.value = azimuth
+                when (event.sensor.type) {
+                    android.hardware.Sensor.TYPE_ROTATION_VECTOR, android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> {
+                        val rotationMatrix = FloatArray(9)
+                        android.hardware.SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                        publishHeading(rotationMatrix)
+                    }
+                    android.hardware.Sensor.TYPE_ACCELEROMETER -> { System.arraycopy(event.values, 0, gravity, 0, 3); hasGravity = true }
+                    android.hardware.Sensor.TYPE_MAGNETIC_FIELD -> {
+                        System.arraycopy(event.values, 0, geomag, 0, 3); hasGeomag = true
+                        if (hasGravity && rotationVectorSensor == null) {
+                            val r = FloatArray(9)
+                            if (android.hardware.SensorManager.getRotationMatrix(r, null, gravity, geomag)) publishHeading(r)
+                        }
                     }
                 }
             } catch (e: Exception) {
                 // safe ignore
             }
         }
-        override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+        override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {
+            if (sensor?.type == android.hardware.Sensor.TYPE_MAGNETIC_FIELD || sensor?.type == android.hardware.Sensor.TYPE_ROTATION_VECTOR ||
+                sensor?.type == android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR) _compassAccuracy.value = accuracy
+        }
     }
 
     init {
@@ -1607,7 +1661,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             _hasCurrentLocation.value = true
             _currentLocationName.value = String.format(Locale.US, "%.4f, %.4f", lat, lng)
 
-            _qiblaBearing.value = calculateQiblaDirection(lat, lng)
+            _qiblaBearing.value = com.noorpro.app.qibla.QiblaMath.bearingToKaaba(lat, lng).toFloat()
+            updateDeclination(lat, lng)
             val qiblaDistance = FloatArray(1)
             android.location.Location.distanceBetween(lat, lng, 21.422487, 39.826206, qiblaDistance)
             _qiblaDistanceKm.value = qiblaDistance[0] / 1000f
@@ -3016,11 +3071,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startCompassListening() {
         try {
-            sensorManager?.registerListener(
-                sensorEventListener,
-                rotationVectorSensor,
-                android.hardware.SensorManager.SENSOR_DELAY_UI
-            )
+            smoothedHeading = Float.NaN
+            val sm = sensorManager
+            if (sm == null) { _compassAvailable.value = false; return }
+            if (rotationVectorSensor != null) {
+                sm.registerListener(sensorEventListener, rotationVectorSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            } else if (accelSensor != null && magSensor != null) {
+                sm.registerListener(sensorEventListener, accelSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+                sm.registerListener(sensorEventListener, magSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            } else { _compassAvailable.value = false; return }
+            // Magnetometer accuracy is reported separately; listen to it for the calibration hint.
+            if (magSensor != null && rotationVectorSensor != null) sm.registerListener(sensorEventListener, magSensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
         } catch (e: Exception) {
             CrashReporter.report(e, "startCompassListening")
         }
