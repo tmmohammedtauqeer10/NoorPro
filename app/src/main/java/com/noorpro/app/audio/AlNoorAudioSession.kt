@@ -3,8 +3,6 @@ package com.noorpro.app.audio
 import android.content.Context
 import kotlinx.coroutines.flow.stateIn
 import com.noorpro.app.audio.player.AlNoorPlayer
-import com.noorpro.app.audio.repository.AlNoorAudioRepository
-import com.noorpro.app.audio.repository.BundledAlNoorAudioRepository
 import com.noorpro.app.audio.session.AlNoorMediaSession
 import com.noorpro.app.audio.session.AlNoorMediaSessionController
 import com.noorpro.app.audio.session.AlNoorPlaybackChannels
@@ -22,9 +20,6 @@ object AlNoorAudioSession {
     @Volatile
     private var initialized = false
 
-    lateinit var repository: AlNoorAudioRepository
-        private set
-
     lateinit var player: AlNoorPlayer
         private set
 
@@ -37,7 +32,6 @@ object AlNoorAudioSession {
             if (initialized) return
             val app = context.applicationContext
             AlNoorPlaybackChannels.ensure(app)
-            repository = BundledAlNoorAudioRepository(app)
             player = AlNoorPlayer(app)
             mediaSession = AlNoorMediaSession.obtain(app).also { it.attach(player) }
             initialized = true
