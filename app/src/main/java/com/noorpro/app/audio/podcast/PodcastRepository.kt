@@ -61,6 +61,8 @@ object PodcastRepository {
         Podcast("seerah-yq", "Seerah of Prophet Muhammad ﷺ — Yasir Qadhi", "Supporting Yasir Qadhi", "English", "Seerah", "https://anchor.fm/s/1789206c/podcast/rss", "https://muslimcentral.com"),
         Podcast("tariq-jamil", "Tariq Jamil Podcast", "Maulana Tariq Jameel", "Urdu", "Bayan", "https://feeds.acast.com/public/shows/66c7556ca45b7b50379c85ef", "https://tariqjamil.org"),
         Podcast("israr", "Bayan ul Quran — Dr. Israr Ahmed", "BayanulQuran", "Urdu", "Tafsir", "https://anchor.fm/s/4cc85c20/podcast/rss", "https://tanzeem.org"),
+        Podcast("minhaj-tuq", "Shaykh-ul-Islam Dr Muhammad Tahir-ul-Qadri", "Minhaj TV India (Minhaj-ul-Quran)", "Urdu", "Ahl-e-Sunnat (Barelvi) Bayan", "https://anchor.fm/s/cce4c560/podcast/rss", "https://www.minhaj.org"),
+        Podcast("sdi-sadiq-razvi", "Maulana Mohammad Sadiq Razvi", "Sunni Dawat-e-Islami, Mumbai", "Urdu", "Ahl-e-Sunnat (Barelvi) Bayan", "https://anchor.fm/s/5b8bf7d0/podcast/rss", "https://sunnidawateislami.net"),
         Podcast("qc-urdu", "Urdu Translation — Al-Huthaify (Quran Central)", "Quran Central", "Urdu", "Quran", "https://rss.qurancentral.com/urdu-translation-ali-bin-abdur-rahman-al-huthaify.rss", "https://qurancentral.com"),
         Podcast("nadwi", "Jumma Bayan — Maulana Abdul Aleem Khateeb Nadwi", "QV Audio (Quranic Voice)", "Hindi", "Bayan", "https://anchor.fm/s/2d923ab0/podcast/rss", ""),
         Podcast("hindi-minshawi", "Quran with Hindi translation (Minshawi)", "qurantranslations.net", "Hindi", "Quran", "https://www.qurantranslations.net/podcast/Hindi/Holy_Quran_in_the_Hindi_Language_minshawi.rss", "https://www.qurantranslations.net"),
