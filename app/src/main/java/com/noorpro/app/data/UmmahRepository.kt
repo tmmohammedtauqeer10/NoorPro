@@ -69,7 +69,8 @@ data class UmmahChat(
     val lastMessageType: String,
     val lastSenderUid: String,
     val updatedAt: Long,
-    val unreadCount: Long = 0
+    val unreadCount: Long = 0,
+    val meta: ChatMeta = ChatMeta()
 )
 
 data class UmmahGroup(
@@ -106,7 +107,8 @@ data class UmmahComment(
     val creatorName: String,
     val createdAt: Long,
     val parentCommentId: String = "",
-    val replyToName: String = ""
+    val replyToName: String = "",
+    val likeCount: Long = 0
 )
 
 data class UmmahSavedCollection(
@@ -973,11 +975,53 @@ class UmmahRepository {
                         creatorName = document.getString("creatorName") ?: "Community member",
                         createdAt = document.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
                         parentCommentId = document.getString("parentCommentId").orEmpty(),
-                        replyToName = document.getString("replyToName").orEmpty()
+                        replyToName = document.getString("replyToName").orEmpty(),
+                        likeCount = document.getLong("likeCount") ?: 0L
                     )
                 }.sortedBy { it.createdAt }
-                onResult(comments)
+                // 1.0.78: Instagram threading - each reply sits under its top-level comment.
+                val ids = comments.map { it.id }.toSet()
+                val roots = comments.filter { it.parentCommentId.isBlank() || it.parentCommentId !in ids }
+                val byParent = comments.filter { it.parentCommentId.isNotBlank() && it.parentCommentId in ids }.groupBy { it.parentCommentId }
+                fun thread(c: UmmahComment): List<UmmahComment> = listOf(c) + byParent[c.id].orEmpty().flatMap { thread(it) }
+                onResult(roots.flatMap { thread(it) })
             }
+    }
+
+    /** 1.0.78: real comment likes - per-member like doc + public likeCount (+/-1 only by rules). */
+    fun toggleCommentLike(commentId: String, active: Boolean, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        if (commentId.isBlank()) return onResult(false)
+        val likeDoc = firestore.collection("ummah_users").document(user.uid).collection("comment_likes").document(commentId)
+        firestore.runTransaction { tx ->
+            val already = tx.get(likeDoc).exists()
+            when {
+                active && !already -> { tx.set(likeDoc, mapOf("commentId" to commentId, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())); 1L }
+                !active && already -> { tx.delete(likeDoc); -1L }
+                else -> 0L
+            }
+        }.addOnCompleteListener { task ->
+            val delta = if (task.isSuccessful) task.result ?: 0L else 0L
+            if (delta != 0L) {
+                firestore.collection("ummah_comments").document(commentId)
+                    .update("likeCount", com.google.firebase.firestore.FieldValue.increment(delta))
+            }
+            onResult(task.isSuccessful)
+        }
+    }
+
+    fun observeMyCommentLikes(onResult: (Set<String>) -> Unit): ListenerRegistration? {
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
+        return firestore.collection("ummah_users").document(user.uid).collection("comment_likes")
+            .addSnapshotListener { snap, _ -> onResult(snap?.documents.orEmpty().map { it.id }.toSet()) }
+    }
+
+    fun deleteOwnComment(comment: UmmahComment, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        if (comment.creatorUid != user.uid) return onResult(false)
+        firestore.collection("ummah_comments").document(comment.id).delete().addOnCompleteListener { t ->
+            onResult(t.isSuccessful)
+        }
     }
 
     fun observeUserComments(onResult: (List<UmmahComment>) -> Unit) {
@@ -1071,9 +1115,15 @@ class UmmahRepository {
                         lastMessageType = document.getString("lastMessageType").orEmpty(),
                         lastSenderUid = document.getString("lastSenderUid").orEmpty(),
                         updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
-                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L
+                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L,
+                        meta = ChatMeta.fromFields(document.getData(com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior.ESTIMATE).orEmpty())
                     )
                 }.sortedByDescending { it.updatedAt }
+                // 1.0.78: double grey tick - acknowledge delivery of new incoming messages.
+                chats.filter { chat ->
+                    chat.lastSenderUid.isNotBlank() && chat.lastSenderUid != user.uid &&
+                        chat.updatedAt > (chat.meta.deliveredAt[user.uid] ?: 0L)
+                }.forEach { ChatRealtime.markDelivered(it.id) }
                 onResult(chats, null)
             }
         chatListeners += registration
@@ -1083,8 +1133,7 @@ class UmmahRepository {
     fun markChatRead(chatId: String) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         if (chatId.isBlank()) return
-        firestore.collection("ummah_chats").document(chatId)
-            .update("unread_$uid", 0L)
+        ChatRealtime.markRead(chatId)
     }
 
     fun observeGroups(onResult: (List<UmmahGroup>, String?) -> Unit) {
@@ -1238,7 +1287,11 @@ class UmmahRepository {
                     onResult(emptyList(), error.localizedMessage ?: "Unable to load messages.")
                     return@addSnapshotListener
                 }
-                val messages = snapshot?.documents.orEmpty().map { document ->
+                val me = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                val messages = snapshot?.documents.orEmpty().filter { document ->
+                    // 1.0.78 "Delete for me": hide messages this member removed from their view.
+                    ((document.get("hiddenFor") as? List<*>)?.contains(me) != true)
+                }.map { document ->
                     UmmahMessage(
                         id = document.id,
                         senderUid = document.getString("senderUid").orEmpty(),
@@ -1444,7 +1497,7 @@ class UmmahRepository {
 
         fun writeMessage(mediaUrl: String) {
             val cleanType = when (type) {
-                "image", "video", "reel", "audio", "location", "file", "pdf" -> type
+                "image", "video", "reel", "audio", "location", "file", "pdf", "call" -> type
                 else -> "text"
             }
             val preview = text.ifBlank {

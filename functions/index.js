@@ -1016,3 +1016,35 @@ exports.qfProxy = onRequest(
     }
   }
 );
+
+// 1.0.78: push a high-priority data message to the callee when a 1:1 call is created, so the
+// app can show a full-screen incoming-call UI. Firestore rules already restrict who may call.
+exports.notifyIncomingCall = onDocumentCreated(
+    {document: "ummah_calls/{callId}", region: REGION},
+    async (event) => {
+      const call = event.data && event.data.data();
+      if (!call || call.status !== "ringing" || !call.calleeUid) return;
+      const db = admin.firestore();
+      const tokensSnap = await db.collection("ummah_device_tokens").doc(call.calleeUid).collection("tokens").get();
+      const tokens = tokensSnap.docs.map((d) => d.id).filter(Boolean).slice(0, 20);
+      if (!tokens.length) return;
+      const resp = await admin.messaging().sendEachForMulticast({
+        tokens,
+        data: {
+          kind: "call",
+          callId: event.params.callId,
+          callerUid: String(call.callerUid || ""),
+          callerName: String(call.callerName || "Noor member").slice(0, 60),
+          video: call.video ? "1" : "0",
+        },
+        android: {priority: "high", ttl: 45000},
+      });
+      // Remove tokens FCM reports as permanently invalid.
+      await Promise.all(resp.responses.map((r, i) => {
+        const code = r.error && r.error.code;
+        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+          return tokensSnap.docs[i].ref.delete().catch(() => null);
+        }
+        return null;
+      }));
+    });

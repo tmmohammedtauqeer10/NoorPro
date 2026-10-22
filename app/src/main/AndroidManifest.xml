@@ -11,6 +11,9 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 1.0.78: 1:1 calls (speaker routing, full-screen incoming call over the lock screen). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Exact adhan alarms. Granted by default <= Android 12, user-controlled "Alarms & reminders"
          special access on 13+/14+; PrayerScheduler falls back to setAndAllowWhileIdle when denied. -->
@@ -74,6 +77,23 @@
                 <data android:scheme="https" android:host="noor-pro-d87e3.web.app" android:path="/g" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.noorpro.app.calls.CallActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.noorpro.app.calls"
+            android:theme="@style/Theme.NoorPro" />
+        <service
+            android:name="com.noorpro.app.calls.NoorMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

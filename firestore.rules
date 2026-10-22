@@ -135,7 +135,8 @@ service cloud.firestore {
     match /ummah_users/{userId}/{interaction}/{postId} {
       allow read, create, update, delete: if request.auth != null
         && request.auth.uid == userId
-        && (interaction == "likes" || interaction == "saved" || interaction == "saved_collections" || interaction == "blocked");
+        && (interaction == "likes" || interaction == "saved" || interaction == "saved_collections" || interaction == "blocked"
+            || interaction == "comment_likes");
     }
 
     // Public profile cards (name, @username, photo). Anyone can read so posts/reels can show
@@ -237,8 +238,68 @@ service cloud.firestore {
       // Comments are public to read (Instagram-style comment lists); no edits.
       // An author can delete their own comment (needed for account deletion).
       allow read: if true;
-      allow update: if false;
+      // 1.0.78: signed-in members may move ONLY likeCount by exactly +/-1 (Instagram comment likes).
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likeCount"])
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount >= 0
+        && (request.resource.data.likeCount == resource.data.get("likeCount", 0) + 1
+            || request.resource.data.likeCount == resource.data.get("likeCount", 0) - 1);
       allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
+    }
+
+    // 1.0.78: FCM device tokens (used only by Cloud Functions for incoming-call pushes).
+    match /ummah_device_tokens/{userId}/tokens/{token} {
+      allow create, update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(["token", "updatedAt", "platform"])
+        && request.resource.data.token == token;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if false;
+    }
+
+    // 1.0.78: online / last-seen presence. Owner writes; signed-in members read.
+    match /ummah_presence/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(["online", "lastSeen"])
+        && request.resource.data.online is bool;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 1.0.78: 1:1 WebRTC call signaling. Only allowed when the callee follows the caller and
+    // neither has blocked the other; only the two participants can read or update.
+    match /ummah_calls/{callId} {
+      function callParticipant() {
+        return request.auth != null
+          && (request.auth.uid == resource.data.callerUid || request.auth.uid == resource.data.calleeUid);
+      }
+      allow read: if callParticipant();
+      allow create: if request.auth != null
+        && request.resource.data.callerUid == request.auth.uid
+        && request.resource.data.calleeUid is string
+        && request.resource.data.calleeUid != request.auth.uid
+        && request.resource.data.status == "ringing"
+        && request.resource.data.video is bool
+        && exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.calleeUid)/following/$(request.auth.uid))
+        && !exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.calleeUid)/blocked/$(request.auth.uid))
+        && !exists(/databases/$(database)/documents/ummah_users/$(request.auth.uid)/blocked/$(request.resource.data.calleeUid));
+      allow update: if callParticipant()
+        && request.resource.data.callerUid == resource.data.callerUid
+        && request.resource.data.calleeUid == resource.data.calleeUid
+        && request.resource.data.video == resource.data.video
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "answer", "offer", "acceptedAt", "endedAt"])
+        && request.resource.data.status in ["ringing", "accepted", "declined", "ended", "missed", "busy"];
+      allow delete: if false;
+
+      match /{side}/{candidateId} {
+        function callDoc() { return get(/databases/$(database)/documents/ummah_calls/$(callId)).data; }
+        allow read: if request.auth != null
+          && (request.auth.uid == callDoc().callerUid || request.auth.uid == callDoc().calleeUid);
+        allow create: if request.auth != null
+          && ((side == "callerCandidates" && request.auth.uid == callDoc().callerUid)
+              || (side == "calleeCandidates" && request.auth.uid == callDoc().calleeUid));
+        allow update, delete: if false;
+      }
     }
 
     match /ummah_chats/{chatId} {
@@ -265,7 +326,7 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
           && request.resource.data.senderUid == request.auth.uid
-          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf"]
+          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf", "call"]
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
           && request.resource.data.mediaUrl is string;
@@ -273,6 +334,13 @@ service cloud.firestore {
         allow update: if request.auth != null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"])
           && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids;
+        // 1.0.78: "Delete for me" - a participant may append ONLY their own uid to hiddenFor.
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["hiddenFor"])
+          && request.resource.data.hiddenFor is list
+          && request.resource.data.hiddenFor.toSet().difference(resource.data.get("hiddenFor", []).toSet()) == [request.auth.uid].toSet()
+          && request.resource.data.hiddenFor.toSet().hasAll(resource.data.get("hiddenFor", []).toSet());
         // A member can delete their OWN message (WhatsApp/WeChat-style).
         allow delete: if request.auth != null && resource.data.senderUid == request.auth.uid;
       }

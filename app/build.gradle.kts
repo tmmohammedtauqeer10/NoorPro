@@ -32,8 +32,8 @@ android {
     targetSdk = 36
     // Unit-test manifest merging does not receive placeholders from the Secrets plugin.
     manifestPlaceholders["MAPS_API_KEY"] = noorLocalProperties.getProperty("MAPS_API_KEY", "NO_KEY_CONFIGURED")
-        versionCode = 79
-        versionName = "1.0.77"
+        versionCode = 80
+        versionName = "1.0.78"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -101,6 +101,9 @@ dependencies {
   implementation("com.google.firebase:firebase-firestore")
   implementation("com.google.firebase:firebase-storage")
   implementation("com.google.firebase:firebase-config")
+  implementation("com.google.firebase:firebase-messaging")
+  // 1.0.78: 1:1 voice/video calls (open-source WebRTC build, Maven Central).
+  implementation("io.getstream:stream-webrtc-android:1.3.8")
   implementation("com.google.firebase:firebase-appcheck-playintegrity")
   debugImplementation("com.google.firebase:firebase-appcheck-debug")
   implementation("com.google.firebase:firebase-crashlytics")

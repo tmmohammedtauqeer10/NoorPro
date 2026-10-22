@@ -79,6 +79,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -2372,6 +2374,10 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                 StitchProfileSection("Account") {
                     StitchListRow("Account Settings", null, Icons.Default.Settings) { viewModel.navigateTo(DeenScreen.SETTINGS) }
                     StitchDivider()
+                    if (viewModel.isLoggedIn) {
+                        PhoneLinkRow { title, subtitle, onClick -> StitchListRow(title, subtitle, Icons.Default.Phone) { onClick() } }
+                        StitchDivider()
+                    }
                     StitchListRow(
                         "Switch Account",
                         "Add accounts and switch securely by Firebase uid",
@@ -4325,26 +4331,28 @@ internal fun StitchReelAction(
     icon: ImageVector,
     label: String,
     selected: Boolean = false,
+    selectedIcon: ImageVector? = null,
+    selectedTint: Color = Color.White,
     onClick: () -> Unit
 ) {
+    // 1.0.78: Instagram-style - bare outline glyphs (no white chip) with a soft shadow so they
+    // stay readable on bright video; liked heart fills red, saved bookmark fills white.
     val haptic = com.noorpro.app.ui.components.rememberHaptic()
     val pop = com.noorpro.app.ui.components.popScale(selected)
-    val bg by androidx.compose.animation.animateColorAsState(if (selected) StitchEmerald.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.28f), label = "reelActBg")
-    val tint by androidx.compose.animation.animateColorAsState(if (selected) StitchGold else Color.White, label = "reelActTint")
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = { haptic(); onClick() })) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .graphicsLayer { scaleX = pop; scaleY = pop }
-                .clip(CircleShape)
-                .background(bg)
-                .border(1.dp, if (selected) StitchGold.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.18f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(23.dp))
-        }
+    val tint by androidx.compose.animation.animateColorAsState(if (selected) selectedTint else Color.White, label = "reelActTint")
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = { haptic(); onClick() }).padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        com.noorpro.app.ui.components.ShadowedIcon(
+            icon = if (selected && selectedIcon != null) selectedIcon else icon,
+            contentDescription = label,
+            tint = tint,
+            size = 30.dp,
+            modifier = Modifier.graphicsLayer { scaleX = pop; scaleY = pop }
+        )
         if (label.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             androidx.compose.animation.AnimatedContent(
                 targetState = label,
                 transitionSpec = {
@@ -4352,7 +4360,12 @@ internal fun StitchReelAction(
                         (androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut())
                 },
                 label = "countRoll"
-            ) { l -> Text(l, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            ) { l ->
+                Text(
+                    l, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, 2f), 6f))
+                )
+            }
         }
     }
 }
@@ -4700,10 +4713,10 @@ internal fun StitchLiveReelPage(
             ) {
                 // Every counter is visible from zero so a newly published reel has the same action
                 // layout as an established reel.
-                StitchReelAction(Icons.Default.Favorite, compactCount(displayLikeCount), selected = isLiked, onClick = onLike)
-                StitchReelAction(Icons.Default.ChatBubble, compactCount(displayCommentCount), onClick = onComment)
-                StitchReelAction(Icons.Default.Bookmark, compactCount(displaySaveCount), selected = isSaved, onClick = onSave)
-                StitchReelAction(Icons.Default.Share, compactCount(displayShareCount), onClick = onShare)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Heart, compactCount(displayLikeCount), selected = isLiked, selectedIcon = com.noorpro.app.ui.components.InstaIcons.HeartFilled, selectedTint = com.noorpro.app.ui.components.InstaLikeRed, onClick = onLike)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Comment, compactCount(displayCommentCount), onClick = onComment)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Send, compactCount(displayShareCount), onClick = onShare)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Bookmark, compactCount(displaySaveCount), selected = isSaved, selectedIcon = com.noorpro.app.ui.components.InstaIcons.BookmarkFilled, onClick = onSave)
                 if (showRotateAction) {
                     StitchReelAction(
                         Icons.Default.ScreenRotation,
@@ -4712,7 +4725,7 @@ internal fun StitchLiveReelPage(
                         onClick = { onLandscapeModeChange(true) }
                     )
                 }
-                StitchReelAction(Icons.Default.MoreVert, "More", onClick = { showMoreSheet = true })
+                StitchReelAction(Icons.Default.MoreVert, "", onClick = { showMoreSheet = true })
             }
         } else if (showRotateAction && (!isPlaying || showTransportControls || showPlaybackSettings)) {
             Row(
@@ -7493,7 +7506,7 @@ private fun StitchPostHeader(
 }
 
 @Composable
-private fun StitchPostActions(
+internal fun StitchPostActions(
     isLiked: Boolean = false,
     isSaved: Boolean = false,
     likeCount: Long = 0,
@@ -7506,38 +7519,57 @@ private fun StitchPostActions(
     onSave: () -> Unit = {},
     onShare: () -> Unit = {}
 ) {
-    // Facebook-style: a counts line, a hairline, then equal-width Like / Comment / Share / Save buttons.
+    // 1.0.78: Instagram layout - heart / comment / send on the left, bookmark on the right, then
+    // "N likes" and "View all N comments". Counts update optimistically on tap and re-sync with
+    // the live Firestore counter.
     val muted = stitchMutedText()
-    val summary = buildList {
-        if (commentCount > 0) add("${compactCount(commentCount)} comment" + if (commentCount == 1L) "" else "s")
-        if (shareCount > 0) add("${compactCount(shareCount)} share" + if (shareCount == 1L) "" else "s")
-        if (isVideo && viewCount > 0) add("${compactCount(viewCount)} views")
-    }.joinToString(" · ")
-    if (likeCount > 0 || summary.isNotEmpty()) {
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            if (likeCount > 0) {
-                Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFE8505B)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Favorite, null, tint = Color.White, modifier = Modifier.size(11.dp))
-                }
-                Spacer(Modifier.width(6.dp))
-                Text(compactCount(likeCount), color = muted, fontSize = 13.sp)
-            }
-            Spacer(Modifier.weight(1f))
-            Text(summary, color = muted, fontSize = 13.sp)
+    var pendingLike by remember { mutableStateOf(0L) }
+    LaunchedEffect(likeCount) { pendingLike = 0L }
+    val shownLikes = (likeCount + pendingLike).coerceAtLeast(0L)
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    val likePop = com.noorpro.app.ui.components.popScale(isLiked)
+    val savePop = com.noorpro.app.ui.components.popScale(isSaved)
+    val likeTint by androidx.compose.animation.animateColorAsState(if (isLiked) com.noorpro.app.ui.components.InstaLikeRed else stitchText(), label = "likeC")
+    Spacer(modifier = Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        IconButton(onClick = { haptic(); pendingLike += if (isLiked) -1 else 1; onLike() }) {
+            Icon(
+                if (isLiked) com.noorpro.app.ui.components.InstaIcons.HeartFilled else com.noorpro.app.ui.components.InstaIcons.Heart,
+                contentDescription = if (isLiked) "Unlike" else "Like", tint = likeTint,
+                modifier = Modifier.size(26.dp).graphicsLayer { scaleX = likePop; scaleY = likePop }
+            )
+        }
+        IconButton(onClick = onComment) {
+            Icon(com.noorpro.app.ui.components.InstaIcons.Comment, contentDescription = "Comment", tint = stitchText(), modifier = Modifier.size(25.dp))
+        }
+        IconButton(onClick = onShare) {
+            Icon(com.noorpro.app.ui.components.InstaIcons.Send, contentDescription = "Share", tint = stitchText(), modifier = Modifier.size(25.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        if (isVideo && viewCount > 0) Text("${compactCount(viewCount)} views", color = muted, fontSize = 12.sp)
+        IconButton(onClick = { haptic(); onSave() }) {
+            Icon(
+                if (isSaved) com.noorpro.app.ui.components.InstaIcons.BookmarkFilled else com.noorpro.app.ui.components.InstaIcons.Bookmark,
+                contentDescription = if (isSaved) "Saved" else "Save", tint = stitchText(),
+                modifier = Modifier.size(25.dp).graphicsLayer { scaleX = savePop; scaleY = savePop }
+            )
         }
     }
-    Spacer(modifier = Modifier.height(10.dp))
-    Box(Modifier.fillMaxWidth().height(1.dp).background(stitchLine().copy(alpha = 0.6f)))
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        StitchPostActionButton(if (isLiked) Icons.Default.Favorite else Icons.Default.Favorite, "Like", androidx.compose.animation.animateColorAsState(if (isLiked) Color(0xFFE8505B) else muted, label = "likeC").value, Modifier.weight(1f), onLike, pop = com.noorpro.app.ui.components.popScale(isLiked))
-        StitchPostActionButton(Icons.Default.ChatBubble, "Comment", muted, Modifier.weight(1f), onComment)
-        StitchPostActionButton(Icons.Default.Share, "Share", muted, Modifier.weight(1f), onShare)
-        IconButton(onClick = onSave) {
-            val sp = com.noorpro.app.ui.components.popScale(isSaved)
-            Icon(if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = if (isSaved) "Saved" else "Save",
-                tint = if (isSaved) stitchPrimary() else muted, modifier = Modifier.size(20.dp).graphicsLayer { scaleX = sp; scaleY = sp })
+    Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+        androidx.compose.animation.AnimatedContent(targetState = shownLikes, label = "likesLine") { n ->
+            Text(
+                if (n == 1L) "1 like" else "${compactCount(n)} likes",
+                color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold
+            )
         }
+        if (commentCount > 0) {
+            Text(
+                if (commentCount == 1L) "View 1 comment" else "View all ${compactCount(commentCount)} comments",
+                color = muted, fontSize = 13.sp,
+                modifier = Modifier.padding(top = 3.dp).clickable(onClick = onComment)
+            )
+        }
+        if (shareCount > 0) Text("${compactCount(shareCount)} shares", color = muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -7581,6 +7613,12 @@ private fun StitchCommentSheet(
         onDispose { viewModel.setModalOverlayActive(false) }
     }
 
+    var myCommentLikes by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val currentCommentUid = remember(isLoggedIn) { repository.currentUserUid().orEmpty() }
+    DisposableEffect(isLoggedIn) {
+        val reg = if (isLoggedIn) repository.observeMyCommentLikes { myCommentLikes = it } else null
+        onDispose { reg?.remove() }
+    }
     DisposableEffect(post.id) {
         val registration = repository.observeComments(post.id) { list ->
             comments = list
@@ -7638,6 +7676,20 @@ private fun StitchCommentSheet(
                                     StitchCommentRow(
                                         comment = c,
                                         photoUrl = liveProfiles[c.creatorUid]?.photoUrl.orEmpty(),
+                                        liked = c.id in myCommentLikes,
+                                        mine = c.creatorUid == currentCommentUid,
+                                        onToggleLike = { now ->
+                                            if (!isLoggedIn) { Toast.makeText(context, "Sign in to like comments", Toast.LENGTH_SHORT).show() }
+                                            else {
+                                                myCommentLikes = if (now) myCommentLikes + c.id else myCommentLikes - c.id
+                                                repository.toggleCommentLike(c.id, now)
+                                            }
+                                        },
+                                        onDelete = {
+                                            repository.deleteOwnComment(c) { ok ->
+                                                Toast.makeText(context, if (ok) "Comment deleted" else "Unable to delete", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
                                         onOpenProfile = { onOpenProfile(c.creatorUid, c.creatorName, "") },
                                         onReply = { target ->
                                             replyTarget = target
@@ -7739,19 +7791,31 @@ private fun StitchCommentSheet(
     }
 
 @Composable
-private fun StitchCommentRow(
+internal fun StitchCommentRow(
     comment: UmmahComment,
     photoUrl: String = "",
+    liked: Boolean = false,
+    mine: Boolean = false,
+    onToggleLike: (Boolean) -> Unit = {},
+    onDelete: () -> Unit = {},
     onOpenProfile: () -> Unit,
     onReply: (UmmahComment) -> Unit
 ) {
-    var liked by remember(comment.id) { mutableStateOf(false) }
+    // 1.0.78: persisted comment likes with a live count, threaded replies, delete own, report.
+    var pending by remember(comment.id) { mutableStateOf(0L) }
+    LaunchedEffect(comment.likeCount) { pending = 0L }
+    val shownLikes = (comment.likeCount + pending).coerceAtLeast(0L)
+    val pop = com.noorpro.app.ui.components.popScale(liked)
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    var confirmDelete by remember(comment.id) { mutableStateOf(false) }
+    fun toggle() { haptic(); pending += if (liked) -1 else 1; onToggleLike(!liked) }
+    val isReply = comment.parentCommentId.isNotBlank()
     Row(
         verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(start = if (comment.parentCommentId.isBlank()) 0.dp else 28.dp)
+        modifier = Modifier.padding(start = if (isReply) 46.dp else 0.dp)
     ) {
         Box(
-            modifier = Modifier.size(38.dp).clip(CircleShape).background(StitchEmerald).clickable(onClick = onOpenProfile),
+            modifier = Modifier.size(if (isReply) 30.dp else 38.dp).clip(CircleShape).background(StitchEmerald).clickable(onClick = onOpenProfile),
             contentAlignment = Alignment.Center
         ) {
             if (photoUrl.isNotBlank()) {
@@ -7770,52 +7834,63 @@ private fun StitchCommentRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     comment.creatorName.ifBlank { "Member" },
-                    color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable(onClick = onOpenProfile)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(commentAgo(comment.createdAt), color = stitchMutedText(), fontSize = 12.sp)
             }
-            Spacer(Modifier.height(3.dp))
-            if (comment.replyToName.isNotBlank()) {
-                Text(
-                    "Replying to ${comment.replyToName}",
-                    color = stitchPrimary(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(2.dp))
+            val body = androidx.compose.ui.text.buildAnnotatedString {
+                if (comment.replyToName.isNotBlank() && !comment.text.startsWith("@")) {
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = stitchPrimary(), fontWeight = FontWeight.SemiBold))
+                    append("@${comment.replyToName} "); pop()
+                }
+                append(comment.text)
             }
-            Text(comment.text, color = stitchText().copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 19.sp)
+            Text(body, color = stitchText().copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 19.sp)
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (shownLikes > 0) {
+                    Text(if (shownLikes == 1L) "1 like" else "${compactCount(shownLikes)} likes", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(16.dp))
+                }
                 Text(
-                    "Like",
-                    color = if (liked) Color(0xFFE8505B) else stitchMutedText(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { liked = !liked }
-                )
-                Spacer(Modifier.width(18.dp))
-                Text(
-                    "Reply",
-                    color = stitchMutedText(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    "Reply", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable { onReply(comment) }
                 )
+                if (mine) {
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        "Delete", color = Color(0xFFE5484D).copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { confirmDelete = true }
+                    )
+                }
             }
         }
-        Icon(
-            Icons.Default.Favorite,
-            contentDescription = "Like comment",
-            tint = if (liked) Color(0xFFE8505B) else stitchMutedText().copy(alpha = 0.55f),
-            modifier = Modifier.size(17.dp).clickable { liked = !liked }
-        )
-        UgcOverflowButton(
-            ReportTarget("comment", comment.id, comment.creatorUid, comment.creatorName, comment.text),
-            modifier = Modifier.size(32.dp),
-            tint = stitchMutedText()
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                if (liked) com.noorpro.app.ui.components.InstaIcons.HeartFilled else com.noorpro.app.ui.components.InstaIcons.Heart,
+                contentDescription = if (liked) "Unlike comment" else "Like comment",
+                tint = if (liked) com.noorpro.app.ui.components.InstaLikeRed else stitchMutedText(),
+                modifier = Modifier.padding(top = 6.dp).size(16.dp).graphicsLayer { scaleX = pop; scaleY = pop }.clickable { toggle() }
+            )
+        }
+        if (!mine) {
+            UgcOverflowButton(
+                ReportTarget("comment", comment.id, comment.creatorUid, comment.creatorName, comment.text),
+                modifier = Modifier.size(32.dp),
+                tint = stitchMutedText()
+            )
+        }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete comment?") },
+            text = { Text("This removes your comment for everyone.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Delete", color = Color(0xFFE5484D)) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
     }
 }
@@ -10209,6 +10284,8 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
             .ifBlank { "TM" }
     }
     var chats by remember { mutableStateOf<List<UmmahChat>>(emptyList()) }
+    val chatPresence = rememberPresenceMap(chats.mapNotNull { c -> c.participantUids.firstOrNull { it != currentUid } })
+    val chatNow = rememberNowTicker()
     var error by remember { mutableStateOf<String?>(null) }
     var groups by remember { mutableStateOf<List<UmmahGroup>>(emptyList()) }
     var groupError by remember { mutableStateOf<String?>(null) }
@@ -10367,72 +10444,23 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                     val profile = profiles[otherUid]
                     val otherName = profile?.name?.ifBlank { null }
                         ?: chat.participantNames[otherUid]?.ifBlank { null } ?: "Member"
-                    val otherPhoto = profile?.photoUrl.orEmpty()
-                    StitchCard(
-                        modifier = Modifier.fillMaxWidth().clickable {
+                    // 1.0.78: WhatsApp-style row - online dot, ticks, typing, green unread badge.
+                    NoorChatListRow(
+                        name = otherName,
+                        photoUrl = profile?.photoUrl.orEmpty(),
+                        preview = chat.lastMessage,
+                        previewIsMine = chat.lastSenderUid == currentUid,
+                        tick = chat.meta.tickFor(otherUid, chat.updatedAt),
+                        typing = chat.meta.isTyping(otherUid, chatNow),
+                        online = chatPresence[otherUid]?.effectiveOnline(chatNow) == true,
+                        unread = chat.unreadCount,
+                        updatedAt = chat.updatedAt,
+                        isCall = chat.lastMessageType == "call",
+                        onClick = {
                             repository.markChatRead(chat.id)
                             viewModel.openCreatorChat(otherUid, otherName)
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(46.dp).clip(CircleShape).background(StitchEmerald),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (otherPhoto.isNotBlank()) {
-                                    AsyncImage(
-                                        model = otherPhoto,
-                                        contentDescription = "$otherName photo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize().clip(CircleShape)
-                                    )
-                                } else {
-                                    Text(otherName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(otherName, color = stitchText(), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                                    Spacer(Modifier.width(8.dp))
-                                    if (chat.updatedAt > 0) {
-                                        Text(commentAgo(chat.updatedAt), color = stitchMutedText(), fontSize = 11.sp)
-                                    }
-                                }
-                                val preview = chat.lastMessage.ifBlank { "Tap to chat" }
-                                Text(
-                                    if (chat.lastSenderUid == currentUid && chat.lastMessage.isNotBlank()) "You: $preview" else preview,
-                                    color = if (chat.unreadCount > 0) stitchText() else stitchMutedText(),
-                                    fontSize = 13.sp,
-                                    fontWeight = if (chat.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (chat.unreadCount > 0) {
-                                Spacer(Modifier.width(8.dp))
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier
-                                            .height(22.dp)
-                                            .clip(RoundedCornerShape(999.dp))
-                                            .background(stitchPrimary())
-                                            .padding(horizontal = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            if (chat.unreadCount > 9) "9+" else chat.unreadCount.toString(),
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Text("New", color = stitchPrimary(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
                         }
-                    }
+                    )
                 }
                 selectedTab == "People" -> {
                     item {
@@ -12041,12 +12069,34 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         if (granted) sendCurrentLocation() else Toast.makeText(context, "Location permission denied.", Toast.LENGTH_SHORT).show()
     }
 
+    var chatMeta by remember(chatId) { mutableStateOf(com.noorpro.app.data.ChatMeta()) }
+    var otherPresence by remember(otherUid) { mutableStateOf<com.noorpro.app.data.Presence?>(null) }
+    val chatNow = rememberNowTicker()
     DisposableEffect(chatId) {
+        val regs = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
         if (chatId != null) {
             repository.markChatRead(chatId)
-            repository.observeMessages(chatId) { list, err -> messages = list; error = err }
+            repository.observeMessages(chatId) { list, err ->
+                // Opening/keeping the chat open marks new incoming messages as read (blue ticks).
+                if (list.lastOrNull()?.let { it.senderUid != currentUid } == true) repository.markChatRead(chatId)
+                messages = list; error = err
+            }
+            com.noorpro.app.data.ChatRealtime.observeChatMeta(chatId) { chatMeta = it }?.let { regs += it }
         }
-        onDispose { repository.close() }
+        com.noorpro.app.data.ChatRealtime.observePresence(otherUid) { otherPresence = it }?.let { regs += it }
+        onDispose {
+            regs.forEach { it.remove() }
+            chatId?.let { com.noorpro.app.data.ChatRealtime.setTyping(it, false) }
+            repository.close()
+        }
+    }
+    val callPermissionHint = remember { mutableStateOf(false) }
+    fun startCall(video: Boolean) {
+        if (otherUid.isBlank()) return
+        if (otherUid in blockedUids) {
+            Toast.makeText(context, "Unblock $otherName to call.", Toast.LENGTH_SHORT).show(); return
+        }
+        com.noorpro.app.calls.CallActivity.startOutgoing(context, otherUid, otherName, video)
     }
 
     DisposableEffect(otherUid) {
@@ -12116,7 +12166,27 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(otherName, color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon, maxLines = 1)
-                        Text("View profile", color = stitchMutedText(), fontSize = 11.sp)
+                        // 1.0.78: typing… / online / last seen (WhatsApp-style).
+                        val status = com.noorpro.app.data.ChatRealtime.lastSeenLabel(otherPresence, chatNow)
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = if (chatMeta.isTyping(otherUid, chatNow)) "typing" else status,
+                            label = "chatStatus"
+                        ) { st ->
+                            when {
+                                st == "typing" -> NoorTypingDots()
+                                st == "online" -> Text("online", color = NoorOnlineGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                st.isNotBlank() -> Text(st, color = stitchMutedText(), fontSize = 11.sp, maxLines = 1)
+                                else -> Text("Tap for profile", color = stitchMutedText(), fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+                if (viewModel.isLoggedIn && otherUid.isNotBlank()) {
+                    IconButton(onClick = { startCall(video = true) }) {
+                        Icon(Icons.Default.Videocam, contentDescription = "Video call", tint = stitchText())
+                    }
+                    IconButton(onClick = { startCall(video = false) }) {
+                        Icon(Icons.Default.Call, contentDescription = "Voice call", tint = stitchText())
                     }
                 }
             }
@@ -12136,6 +12206,16 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
             ) {
                 items(displayedChatMessages, key = { it.id }) { m ->
                     val mine = m.senderUid == currentUid
+                    if (m.type == "call") {
+                        NoorCallLogBubble(
+                            text = m.text,
+                            mine = mine,
+                            time = if (m.createdAt > 0) android.text.format.DateFormat.format("h:mm a", m.createdAt).toString() else "",
+                            onCallBack = { startCall(video = m.text.contains("video", ignoreCase = true)) }
+                        )
+                        return@items
+                    }
+                    NoorSwipeToReply(onReply = { replyTarget = m }) {
                     StitchChatMessageBubble(
                         message = m,
                         mine = mine,
@@ -12151,8 +12231,11 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                             val current = m.reactions[currentUid]
                             repository.reactToChatMessage(chatId.orEmpty(), m.id, if (emoji == current) "" else emoji)
                         },
-                        onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) }
+                        onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) },
+                        tick = if (mine) chatMeta.tickFor(otherUid, m.createdAt) else -1,
+                        onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) }
                     )
+                    }
                 }
                 item {
                     StitchChatDateChip()
@@ -12248,7 +12331,10 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                     }
                     OutlinedTextField(
                         value = draft,
-                        onValueChange = { draft = it.take(2000) },
+                        onValueChange = {
+                            draft = it.take(2000)
+                            chatId?.let { id -> com.noorpro.app.data.ChatRealtime.setTyping(id, draft.isNotBlank()) }
+                        },
                         placeholder = { Text("Message…") },
                         modifier = Modifier.weight(1f),
                         maxLines = 4,
@@ -12586,7 +12672,7 @@ private fun StitchMessageTool(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StitchChatMessageBubble(
+internal fun StitchChatMessageBubble(
     message: UmmahMessage,
     mine: Boolean,
     canDelete: Boolean = false,
@@ -12596,7 +12682,9 @@ private fun StitchChatMessageBubble(
     onOpenReplyTarget: (String) -> Unit = {},
     onReact: (String) -> Unit = {},
     onDelete: () -> Unit = {},
-    onReport: (() -> Unit)? = null
+    onReport: (() -> Unit)? = null,
+    tick: Int = -1,
+    onDeleteForMe: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val bubbleColor = if (mine) stitchPrimary() else stitchSurface()
@@ -12673,20 +12761,6 @@ private fun StitchChatMessageBubble(
                     .clip(bubbleShape)
                     .background(bubbleColor)
                     .border(highlightBorder, bubbleShape)
-                    .pointerInput(message.id) {
-                        var dragTotal = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { dragTotal = 0f },
-                            onHorizontalDrag = { _, dragAmount ->
-                                if (dragAmount > 0) dragTotal += dragAmount
-                            },
-                            onDragEnd = {
-                                if (dragTotal > 90f) onReply(message)
-                                dragTotal = 0f
-                            },
-                            onDragCancel = { dragTotal = 0f }
-                        )
-                    }
                     .combinedClickable(
                         onClick = { if (hasMedia) openMedia() },
                         onLongClick = { menuOpen = true }
@@ -12725,8 +12799,14 @@ private fun StitchChatMessageBubble(
                     }
                     // Timestamp, right-aligned like WhatsApp.
                     val stamp = if (message.createdAt > 0) android.text.format.DateFormat.format("h:mm a", message.createdAt).toString() else ""
-                    if (stamp.isNotBlank()) {
-                        Text(stamp, color = textColor.copy(alpha = 0.7f), fontSize = 10.sp, modifier = Modifier.align(Alignment.End))
+                    if (stamp.isNotBlank() || tick >= 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.End)) {
+                            Text(stamp, color = textColor.copy(alpha = 0.7f), fontSize = 10.sp)
+                            if (tick >= 0) {
+                                Spacer(Modifier.width(3.dp))
+                                NoorReadTicks(tick, if (tick == 3) NoorReadBlue else textColor.copy(alpha = 0.75f))
+                            }
+                        }
                     }
                 }
             }
@@ -12784,9 +12864,15 @@ private fun StitchChatMessageBubble(
                         onClick = { menuOpen = false; onReport() }
                     )
                 }
+                if (onDeleteForMe != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Delete for me", color = Color(0xFFBA1A1A)) },
+                        onClick = { menuOpen = false; onDeleteForMe() }
+                    )
+                }
                 if (canDelete) {
                     androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Delete", color = Color(0xFFBA1A1A), fontWeight = FontWeight.SemiBold) },
+                        text = { Text("Delete for everyone", color = Color(0xFFBA1A1A), fontWeight = FontWeight.SemiBold) },
                         onClick = { menuOpen = false; onDelete() }
                     )
                 }

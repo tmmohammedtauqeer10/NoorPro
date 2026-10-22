@@ -100,6 +100,16 @@ import com.noorpro.app.ui.theme.AppLanguage
 
 class MainActivity : ComponentActivity() {
 
+    override fun onStart() {
+        super.onStart()
+        runCatching { com.noorpro.app.calls.IncomingCallWatcher.start(this) }
+    }
+
+    override fun onStop() {
+        runCatching { com.noorpro.app.calls.IncomingCallWatcher.stop() }
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Android 12+ SplashScreen API (back-ported): brand green + app mark, then hands over to Compose.
         installSplashScreen()
@@ -113,6 +123,10 @@ class MainActivity : ComponentActivity() {
         val appLink = intent?.data
         setContent {
             val viewModel: DeenViewModel = viewModel()
+            // 1.0.78: start presence + incoming-call ringing as soon as the member signs in.
+            androidx.compose.runtime.LaunchedEffect(viewModel.isLoggedIn) {
+                if (viewModel.isLoggedIn) runCatching { com.noorpro.app.calls.IncomingCallWatcher.start(this@MainActivity) }
+            }
 
             // Deep-link into the shared content once, after the UI is up.
             androidx.compose.runtime.LaunchedEffect(appLink) {
