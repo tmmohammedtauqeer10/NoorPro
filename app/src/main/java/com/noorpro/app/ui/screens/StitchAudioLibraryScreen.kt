@@ -170,7 +170,7 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
                             selected = cat == selectedCategory,
                             onClick = {
                                 selectedCategory = cat
-                                if (cat == "Nasheeds" || cat == "Podcasts") {
+                                if (cat == "Nasheeds") {
                                     Toast.makeText(context, "$cat coming soon", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -182,6 +182,10 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
             // 1.0.68: free, licensed Dua / Tarjuma / Tafsir audio (streaming only).
             if (selectedCategory == "Dua Audio" || selectedCategory == "Tarjuma" || selectedCategory == "Tafsir") {
                 item(key = "free-audio-$selectedCategory") { FreeAudioSection(selectedCategory) }
+            }
+            // 1.0.69: public podcast RSS feeds, loaded live and streamed from the publisher.
+            if (selectedCategory == "Podcasts") {
+                item(key = "podcasts") { PodcastSection() }
             }
 
             // Top Reciters

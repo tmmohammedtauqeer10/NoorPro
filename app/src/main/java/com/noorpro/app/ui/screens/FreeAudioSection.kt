@@ -59,7 +59,7 @@ import com.noorpro.app.ui.theme.LibreCaslon
 /** Test hook: lets Robolectric previews render without starting ExoPlayer. */
 internal object FreeAudioPreview { var disablePlayer = false }
 
-private fun playFree(ctx: android.content.Context, track: Track, queue: List<Track>) {
+internal fun playFree(ctx: android.content.Context, track: Track, queue: List<Track>) {
     if (FreeAudioPreview.disablePlayer) return
     runCatching {
         AlNoorAudioSession.init(ctx)
@@ -103,12 +103,12 @@ internal fun FreeAudioSection(category: String) {
 }
 
 @Composable
-private fun FreeNowPlayingBar() {
+internal fun FreeNowPlayingBar() {
     if (FreeAudioPreview.disablePlayer || !AlNoorAudioSession.isInitialized()) return
     val q by AlNoorAudioSession.player.queue.collectAsState()
     val pb by AlNoorAudioSession.player.playback.collectAsState()
     val t = q.currentTrack ?: return
-    if (!t.id.startsWith("free-")) return
+    if (!t.id.startsWith("free-") && !t.id.startsWith("pod-")) return
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stitchPrimary().copy(alpha = 0.12f))
             .border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).padding(12.dp),
@@ -121,10 +121,23 @@ private fun FreeNowPlayingBar() {
         }
         PlayCircle(pb.isPlaying) { AlNoorAudioSession.player.togglePlayPause() }
     }
+    if (pb.durationMs > 0) {
+        var drag by remember { mutableStateOf<Float?>(null) }
+        androidx.compose.material3.Slider(
+            value = drag ?: (pb.positionMs.toFloat() / pb.durationMs).coerceIn(0f, 1f),
+            onValueChange = { drag = it },
+            onValueChangeFinished = { drag?.let { AlNoorAudioSession.player.seekTo((it * pb.durationMs).toLong()) }; drag = null },
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = StitchGold, activeTrackColor = stitchPrimary()),
+        )
+        Row(Modifier.fillMaxWidth()) {
+            Text(fmt(pb.positionMs), color = stitchMutedText(), fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text(fmt(pb.durationMs), color = stitchMutedText(), fontSize = 11.sp)
+        }
+    }
 }
 
 @Composable
-private fun PlayCircle(playing: Boolean = false, onClick: () -> Unit) {
+internal fun PlayCircle(playing: Boolean = false, onClick: () -> Unit) {
     Box(
         Modifier.size(38.dp).clip(CircleShape).background(stitchPrimary()).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -135,7 +148,7 @@ private fun PlayCircle(playing: Boolean = false, onClick: () -> Unit) {
 }
 
 @Composable
-private fun FreeChips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
+internal fun FreeChips(options: List<String>, selected: String, onSelect: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { o ->
             val sel = o == selected
@@ -184,7 +197,7 @@ private fun TrackRow(index: Int, t: Track, onPlay: () -> Unit) {
     }
 }
 
-private fun fmt(ms: Long): String { val s = ms / 1000; return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
+internal fun fmt(ms: Long): String { val s = ms / 1000; return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60) }
 
 @Composable
 private fun DuaList(ctx: android.content.Context) {
