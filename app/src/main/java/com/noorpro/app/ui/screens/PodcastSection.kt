@@ -56,21 +56,37 @@ import java.util.Date
 
 /** Al-Noor Audio "Podcasts" tab: curated public RSS feeds by language + category. */
 @Composable
-internal fun PodcastSection(initialPodcastId: String? = null) {
-    var lang by rememberSaveable { mutableStateOf(PodcastRepository.languages.first()) }
+internal fun PodcastSection(initialPodcastId: String? = null, kind: String = "podcast", initialLanguage: String? = null) {
+    val langs = if (kind == "nasheed") PodcastRepository.nasheedLanguages else PodcastRepository.languages
+    var lang by rememberSaveable(kind) { mutableStateOf(initialLanguage ?: langs.firstOrNull { l -> PodcastRepository.podcasts.any { it.kind == kind && it.language == l } } ?: langs.first()) }
     var cat by rememberSaveable(lang) { mutableStateOf("All") }
     var openId by rememberSaveable { mutableStateOf(initialPodcastId) }
     val open = PodcastRepository.podcasts.firstOrNull { it.id == openId }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Islamic Podcasts", color = stitchPrimary(), fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
+        Text(if (kind == "nasheed") "Nasheeds & Naats" else "Islamic Podcasts", color = stitchPrimary(), fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
         FreeNowPlayingBar()
         if (open != null) {
             PodcastEpisodes(open) { openId = null }
         } else {
-            FreeChips(PodcastRepository.languages, lang) { lang = it }
-            FreeChips(PodcastRepository.categories(lang), cat) { cat = it }
-            val list = PodcastRepository.podcasts.filter { it.language == lang && (cat == "All" || it.category == cat) }
+            FreeChips(langs, lang) { lang = it }
+            val cats = PodcastRepository.categories(lang, kind)
+            if (cats.size > 2) FreeChips(cats, cat) { cat = it }
+            val list = PodcastRepository.podcasts.filter { it.kind == kind && it.language == lang && (cat == "All" || it.category == cat) }
             list.forEach { p -> PodcastRow(p) { openId = p.id } }
+            if (list.isEmpty()) StateCard(
+                "Nothing here yet",
+                "We only add $lang audio from sources that clearly allow free streaming in apps. None verified yet.",
+                retryLabel = null,
+            ) {}
+            if (kind == "nasheed") {
+                var showSrc by rememberSaveable { mutableStateOf(false) }
+                Text(if (showSrc) "Hide audio sources" else "Audio sources", color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(CircleShape).clickable { showSrc = !showSrc }.padding(vertical = 4.dp))
+                if (showSrc) PodcastRepository.podcasts.filter { it.kind == "nasheed" }.forEach { p ->
+                    Text("${p.name} — ${p.publisher} · ${p.language} · official public RSS: ${p.website.ifBlank { p.feedUrl }}",
+                        color = stitchMutedText(), fontSize = 11.sp)
+                }
+            }
             Text("Episodes load live from each publisher's public RSS feed and stream from their servers.",
                 color = stitchMutedText(), fontSize = 11.sp)
         }
@@ -174,7 +190,7 @@ private fun PodcastEpisodes(p: Podcast, onBack: () -> Unit) {
 }
 
 @Composable
-private fun StateCard(title: String, body: String, onRetry: () -> Unit) {
+private fun StateCard(title: String, body: String, retryLabel: String? = "Retry", onRetry: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(stitchSurface())
             .border(1.dp, stitchLine(), RoundedCornerShape(16.dp)).padding(18.dp),
@@ -182,7 +198,7 @@ private fun StateCard(title: String, body: String, onRetry: () -> Unit) {
     ) {
         Text(title, color = stitchText(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
         Text(body, color = stitchMutedText(), fontSize = 12.sp)
-        Text("Retry", color = stitchPrimary(), fontWeight = FontWeight.Bold,
+        if (retryLabel != null) Text(retryLabel, color = stitchPrimary(), fontWeight = FontWeight.Bold,
             modifier = Modifier.clip(CircleShape).clickable(onClick = onRetry).padding(vertical = 6.dp))
     }
 }

@@ -170,9 +170,7 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
                             selected = cat == selectedCategory,
                             onClick = {
                                 selectedCategory = cat
-                                if (cat == "Nasheeds") {
-                                    Toast.makeText(context, "$cat coming soon", Toast.LENGTH_SHORT).show()
-                                }
+
                             }
                         )
                     }
@@ -186,6 +184,10 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
             // 1.0.69: public podcast RSS feeds, loaded live and streamed from the publisher.
             if (selectedCategory == "Podcasts") {
                 item(key = "podcasts") { PodcastSection() }
+            }
+            // 1.0.71: nasheeds / naats from artists' own official podcast feeds (streamed).
+            if (selectedCategory == "Nasheeds") {
+                item(key = "nasheeds") { PodcastSection(kind = "nasheed") }
             }
 
             // Top Reciters

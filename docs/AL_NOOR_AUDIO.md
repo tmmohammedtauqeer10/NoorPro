@@ -131,3 +131,7 @@ Rejected: everyayah.com (no clear license), mp3quran (terms unclear), NC-license
 ## 1.0.69 — Podcasts tab (public RSS)
 
 `audio/podcast/PodcastRepository.kt` lists curated mainstream Sunni podcasts' public RSS feeds (the same feeds podcast directories use). Episodes (title, artwork, date, duration; newest 60) are parsed live at runtime, cached in `cacheDir/podcast_feeds` (6h TTL, used as offline fallback), and streamed from the publisher's enclosure URL via the Al-Noor player. No downloading or rehosting. Each podcast shows its name, publisher, "via RSS" and the publisher site as text. License type: `PUBLISHER_RSS`.
+
+## 1.0.71 — Bengali podcasts + Nasheeds tab
+
+Bengali podcasts: NAK Bangla (buzzsprout), Seerah in Bangla (Yasir Qadhi, translated). Nasheeds tab reuses the podcast RSS pipeline (`kind = "nasheed"`), artists'/publishers' own official feeds only: Abu Hassan Nasheeds (EN), Naat by Moin (UR), Badsha Baitul Haque (BN), Naat Geceleri / Çağlayan Dergisi (TR). Rejected: archive.org nasheed items whose PD mark was applied by third-party uploaders, Pixabay (would require bundling files or hotlinking its CDN), commercial label albums. No Bengali Quran tarjuma/tafsir audio with a clear license was found (islamic.network has none; archive.org Bengali items carry uploader-applied PD marks).
