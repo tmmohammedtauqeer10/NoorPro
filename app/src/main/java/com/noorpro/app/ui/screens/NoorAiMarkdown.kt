@@ -1,6 +1,22 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +62,10 @@ sealed class MdBlock {
     data class Quote(val text: String) : MdBlock()
     data class Sources(val refs: List<String>) : MdBlock()
     object Rule : MdBlock()
+    data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock()
+    data class Code(val text: String) : MdBlock()
+    /** A "### Evidence" style section, shown as a collapsible card. */
+    data class Evidence(val title: String, val blocks: List<MdBlock>) : MdBlock()
 }
 
 object NoorAiMarkdown {
@@ -71,8 +91,28 @@ object NoorAiMarkdown {
             if (para.isNotBlank()) out.add(MdBlock.Paragraph(para.toString().trim()))
             para.clear()
         }
-        for (raw in md.replace("\r", "").lines()) {
+        val tableLines = mutableListOf<String>()
+        val code = StringBuilder()
+        var inCode = false
+        fun flushTable() {
+            if (tableLines.isEmpty()) return
+            val rows = tableLines.filterNot { tableSep.matches(it) }.map { splitRow(it) }
+            tableLines.clear()
+            if (rows.isEmpty()) return
+            val width = rows.maxOf { it.size }
+            val norm = rows.map { r -> r + List(width - r.size) { "" } }
+            out.add(MdBlock.Table(norm.first(), norm.drop(1)))
+        }
+        for (raw in NoorAiMarkdown.withoutFollowups(md).replace("\r", "").lines()) {
             val line = raw.trimEnd()
+            if (line.trimStart().startsWith("```")) {
+                if (inCode) { out.add(MdBlock.Code(code.toString().trimEnd())); code.clear(); inCode = false }
+                else { flush(); flushTable(); inCode = true }
+                continue
+            }
+            if (inCode) { if (code.isNotEmpty()) code.append('\n'); code.append(raw); continue }
+            if (line.trimStart().startsWith("|") && line.count { it == '|' } >= 2) { flush(); tableLines.add(line.trim()); continue }
+            flushTable()
             if (inSources) {
                 val t = line.trim()
                 if (t.isEmpty()) continue
@@ -92,7 +132,8 @@ object NoorAiMarkdown {
                 else -> { if (para.isNotEmpty()) para.append('\n'); para.append(line.trim()) }
             }
         }
-        flush()
+        flush(); flushTable()
+        if (inCode && code.isNotBlank()) out.add(MdBlock.Code(code.toString().trimEnd()))
         if (inSources && refs.isNotEmpty()) out.add(MdBlock.Sources(refs))
         // Merge consecutive quote lines.
         val merged = mutableListOf<MdBlock>()
@@ -101,8 +142,25 @@ object NoorAiMarkdown {
             if (b is MdBlock.Quote && last is MdBlock.Quote) merged[merged.lastIndex] = MdBlock.Quote(last.text + "\n" + b.text)
             else merged.add(b)
         }
-        return merged
+        // Fold an Evidence/Proof/Dalil section (until the next heading or Sources) into a collapsible card.
+        val folded = mutableListOf<MdBlock>()
+        var i = 0
+        while (i < merged.size) {
+            val b = merged[i]
+            if (b is MdBlock.Heading && evidenceTitle.containsMatchIn(b.text)) {
+                val inner = mutableListOf<MdBlock>()
+                i++
+                while (i < merged.size && merged[i] !is MdBlock.Heading && merged[i] !is MdBlock.Sources) { inner.add(merged[i]); i++ }
+                folded.add(MdBlock.Evidence(stripInline(b.text), inner))
+            } else { folded.add(b); i++ }
+        }
+        return folded
     }
+
+    private val tableSep = Regex("^\\|?\\s*:?-{2,}:?\\s*(\\|\\s*:?-{2,}:?\\s*)*\\|?$")
+    private val evidenceTitle = Regex("(?i)\\b(evidence|proofs?|dal[iī]l|daleel)\\b")
+    fun splitRow(line: String): List<String> = line.trim().removePrefix("|").removeSuffix("|").split("|").map { it.trim() }
+    fun withoutFollowups(md: String): String = com.noorpro.app.data.AiFeatureService.splitFollowups(md).first
 
     fun stripInline(s: String): String = s.replace("**", "").replace("__", "").replace("`", "").trim()
 
@@ -139,13 +197,25 @@ object NoorAiMarkdown {
 
 data class NoorAiMdColors(val text: Color, val muted: Color, val accent: Color, val quoteBar: Color, val quoteBg: Color, val chipBg: Color, val codeBg: Color)
 
+@Composable
+fun NoorAiMarkdownText(markdown: String, colors: NoorAiMdColors, modifier: Modifier = Modifier, evidenceOpen: Boolean = false) {
+    val blocks = remember(markdown) { NoorAiMarkdown.parse(markdown) }
+    MdBlocks(blocks, colors, modifier, evidenceOpen)
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NoorAiMarkdownText(markdown: String, colors: NoorAiMdColors, modifier: Modifier = Modifier) {
-    val blocks = remember(markdown) { NoorAiMarkdown.parse(markdown) }
+private fun MdBlocks(blocks: List<MdBlock>, colors: NoorAiMdColors, modifier: Modifier = Modifier, evidenceOpen: Boolean = false) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         blocks.forEach { b ->
             when (b) {
+                is MdBlock.Table -> MdTable(b, colors)
+                is MdBlock.Code -> Text(
+                    b.text, color = colors.text, fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.codeBg)
+                        .horizontalScroll(rememberScrollState()).padding(12.dp)
+                )
+                is MdBlock.Evidence -> EvidenceCard(b, colors, evidenceOpen)
                 is MdBlock.Heading -> Text(
                     NoorAiMarkdown.stripInline(b.text), color = colors.text,
                     fontSize = if (b.level <= 2) 18.sp else 16.sp, fontWeight = FontWeight.Bold,
@@ -182,6 +252,56 @@ fun NoorAiMarkdownText(markdown: String, colors: NoorAiMdColors, modifier: Modif
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MdTable(t: MdBlock.Table, colors: NoorAiMdColors) {
+    val cellW = if (t.header.size <= 2) 150.dp else 120.dp
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, colors.chipBg, RoundedCornerShape(12.dp))
+            .horizontalScroll(rememberScrollState())
+    ) {
+        Column {
+            Row(Modifier.background(colors.chipBg)) {
+                t.header.forEach { h ->
+                    Text(NoorAiMarkdown.inline(h, colors.accent, colors.muted, colors.codeBg), color = colors.text, fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.width(cellW).padding(horizontal = 10.dp, vertical = 8.dp))
+                }
+            }
+            t.rows.forEachIndexed { ri, r ->
+                Row(Modifier.background(if (ri % 2 == 1) colors.quoteBg else Color.Transparent)) {
+                    r.forEach { c ->
+                        Text(NoorAiMarkdown.inline(c, colors.accent, colors.muted, colors.codeBg), color = colors.text, fontSize = 13.sp,
+                            lineHeight = 18.sp, modifier = Modifier.width(cellW).padding(horizontal = 10.dp, vertical = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EvidenceCard(e: MdBlock.Evidence, colors: NoorAiMdColors, startOpen: Boolean) {
+    var open by remember(e) { mutableStateOf(startOpen) }
+    val rot by animateFloatAsState(if (open) 180f else 0f, label = "evRot")
+    Column(
+        Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(14.dp)).background(colors.quoteBg)
+            .border(1.dp, colors.quoteBar.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(e.title.ifBlank { "Evidence" }, color = colors.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text("${e.blocks.size}", color = colors.muted, fontSize = 12.sp)
+            Icon(Icons.Default.ExpandMore, if (open) "Collapse" else "Expand", tint = colors.muted, modifier = Modifier.rotate(rot))
+        }
+        AnimatedVisibility(open) {
+            MdBlocks(e.blocks, colors, Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
         }
     }
 }

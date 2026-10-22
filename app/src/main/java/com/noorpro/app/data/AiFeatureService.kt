@@ -68,6 +68,10 @@ object AiFeatureService {
     /** Optional explicit self-host URL (set at app start, or NOOR_AI_SELFHOST_URL env). Non-default only. */
     @Volatile
     var selfHostUrlOverride: String? = null
+
+    /** Answer language code sent to askNoorAi (en, ur, hi, bn, ar). Set from the chat screen. */
+    @Volatile
+    var answerLanguage: String = "en"
     private const val NOOR_AI_FUNCTION_URL =
         "https://us-central1-noor-pro-d87e3.cloudfunctions.net/askNoorAi"
     private const val SAFE_DISCLAIMER =
@@ -79,7 +83,7 @@ object AiFeatureService {
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         // Whole-call cap (blocking execute is not cancelled by coroutine timeouts).
-        .callTimeout(25, TimeUnit.SECONDS)
+        .callTimeout(50, TimeUnit.SECONDS)
         .build()
 
     suspend fun generateResponse(
@@ -105,7 +109,7 @@ object AiFeatureService {
         if (mode == NoorAiMode.AppGuide) buildLocalGuidedResponse(prompt, mode)
         else (if (mode == NoorAiMode.DuaGenerator) null else NoorAiLocalCorpus.answer(prompt)) ?: UNAVAILABLE_MESSAGE
 
-    private const val ONLINE_TIMEOUT_MS = 55_000L
+    private const val ONLINE_TIMEOUT_MS = 75_000L
 
     internal const val UNAVAILABLE_MESSAGE =
         "Noor AI's online assistant is unavailable right now and no matching passage was found in the Qur'an and Hadith saved on your phone. Please tap send again in a little while. " +
@@ -244,6 +248,7 @@ object AiFeatureService {
                 .put("prompt", prompt.take(3800))
                 .put("mode", mode.name)
                 .put("instructions", mode.styleHint())
+                .put("language", answerLanguage)
                 .put("history", historyJson)
                 .toString()
 
@@ -264,11 +269,21 @@ object AiFeatureService {
                 val body = response.body?.string().orEmpty()
                 val root = JSONObject(body)
                 val answer = root.optString("answer").trim().takeIf { it.isNotBlank() } ?: return null
-                withCitations(answer, jsonRefs(root.optJSONArray("citations")))
+                val follow = root.optJSONArray("followups")
+                val fu = if (follow == null) emptyList() else (0 until follow.length()).mapNotNull { follow.optString(it).trim().takeIf { q -> q.isNotEmpty() } }
+                val cited = withCitations(answer, jsonRefs(root.optJSONArray("citations")))
+                if (fu.isEmpty()) cited else cited.trimEnd() + "\nFOLLOWUPS: " + fu.joinToString(" | ")
             }
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Splits the trailing "FOLLOWUPS: a | b | c" line (from the server) off an answer. */
+    fun splitFollowups(answer: String): Pair<String, List<String>> {
+        val m = Regex("\\n?\\s*FOLLOWUPS:\\s*(.+)\\s*$", RegexOption.IGNORE_CASE).find(answer) ?: return answer to emptyList()
+        val qs = m.groupValues[1].split("|").map { it.replace("**", "").trim() }.filter { it.isNotEmpty() }.take(3)
+        return answer.substring(0, m.range.first).trimEnd() to qs
     }
 
     private fun NoorAiMode.styleHint(): String = when (this) {

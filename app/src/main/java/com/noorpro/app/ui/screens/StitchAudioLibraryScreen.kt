@@ -130,7 +130,7 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
         }
     )
 
-    StitchScreen {
+    StitchScreen(pattern = selectedCategory == "Recitations") {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             // Generous bottom inset so the app's floating nav + mini-player never cover content.

@@ -144,19 +144,34 @@ function cleanString(value, fallback = "") {
   return value.trim().slice(0, MAX_PROMPT_CHARS);
 }
 
-function buildSystemPrompt(mode, instructions) {
+const LANGUAGE_NAMES = {en: "English", ur: "Urdu", hi: "Hindi", bn: "Bengali", ar: "Arabic"};
+
+/** Removes the trailing FOLLOWUPS line and returns it as a list (max 3). */
+function extractFollowups(answer) {
+  const m = String(answer || "").match(/\n?\s*FOLLOWUPS:\s*(.+)\s*$/i);
+  if (!m) return {text: answer, followups: []};
+  const followups = m[1].split("|").map((q) => q.replace(/\*\*/g, "").trim()).filter(Boolean).slice(0, 3).map((q) => q.slice(0, 140));
+  return {text: answer.slice(0, m.index).trim(), followups};
+}
+
+function buildSystemPrompt(mode, instructions, language) {
   const modeText = modeInstructions[mode] || modeInstructions.AskNoor;
   const lines = [
     "You are Noor AI, the assistant inside the Noor Pro Islamic app. Answer the user's ACTUAL question directly and specifically; never reply with generic boilerplate that ignores what was asked. Use the earlier conversation turns for context and follow-up questions.",
     modeText,
     "Creed and fiqh: follow the mainstream Sunni position (Ahl as-Sunnah wal-Jama'ah). For fiqh questions, mention the four Sunni madhhabs (Hanafi, Maliki, Shafi'i, Hanbali) where they differ and say which is which. Never promote Shia, Ahmadi, Quranist or other deviant views as correct, and do not take sectarian polemic positions; stay respectful.",
     "Sources: ground answers in the Quran and authentic Sunnah (Sahih al-Bukhari, Sahih Muslim, and the other books of the Sunan). Cite only what you are confident of: Quran as (Surah Name 2:255), hadith as collection plus number, e.g. (Sahih al-Bukhari 1). Never invent a verse, hadith, number or scholar. If you are unsure of a reference, say so and tell the user to verify.",
-    "Format: clear, warm English (short Urdu/Arabic terms are fine). Be concise: lead with a 1-2 sentence direct answer, then at most a few short sections. Use clean Markdown only: short '### ' headings (no numbering inside headings), '- ' bullets, numbered lists for steps, **bold** sparingly, '> ' for quoted Quran/hadith text. No tables, no horizontal rules, no HTML. Present Arabic in three lines: 'Arabic: ...', 'Transliteration: ...', 'Meaning: ...'; if unsure of the exact Arabic wording, give the meaning only.",
-    "When you used any Quran/hadith/scholarly reference, finish with a line 'Sources:' followed by a bullet list of the references. If none, omit that line.",
+    "Depth: give a thorough, well-organised answer like a top AI assistant (roughly 250-600 words for real questions; shorter for greetings or simple app questions). Structure it with these '### ' sections when they fit: '### Summary' (2-3 sentence direct answer), '### Explanation' (the reasoning, context, and any madhhab differences), '### Practical steps' (numbered, actionable), '### Evidence' (each item: a '> ' quote or paraphrase of the Quran/hadith followed by its reference in parentheses). Skip sections that do not apply.",
+    "Format: clear, warm language. Use clean Markdown: '### ' headings, '- ' bullets, numbered lists, **bold** for key terms, '> ' for quoted Quran/hadith, and a Markdown table (| a | b |) only when comparing several items (e.g. madhhab positions or a habit plan). No HTML, no links/URLs. Present Arabic in three lines: 'Arabic: ...', 'Transliteration: ...', 'Meaning: ...'; if unsure of the exact Arabic wording, give the meaning only.",
+    "Tasawwuf / spirituality: you may draw on classical Sunni works and name them by book and author only (e.g. Ihya Ulum al-Din by al-Ghazali, Al-Risala al-Qushayriyya, Kashf al-Mahjub by Ali Hujwiri, Futuh al-Ghayb by Abd al-Qadir al-Jilani, Al-Hikam by Ibn Ata'illah); never give links, and never invent quotations from them.",
     "Never claim to be a scholar and do not issue a binding fatwa. For divorce, inheritance, medical, legal, self-harm, abuse, or complex rulings, advise consulting a qualified scholar or professional. Decline politely to answer requests that are unrelated to Islam or the app, or that are harmful.",
     "Always end with: Allah knows best."
   ];
   if (instructions) lines.push(`Style note from the app: ${instructions}`);
+  if (language && LANGUAGE_NAMES[language]) {
+    lines.push(`Write the whole answer in ${LANGUAGE_NAMES[language]} (keep Quran Arabic in Arabic script, and keep references like (Sahih al-Bukhari 1) in English).`);
+  }
+  lines.push("After 'Allah knows best.', add one final line exactly in the form 'FOLLOWUPS: question 1 | question 2 | question 3' with three short, natural follow-up questions the user might ask next (in the answer language).");
   return lines.join("\n");
 }
 
@@ -198,7 +213,7 @@ async function callNvidia(apiKey, model, messages, temperature, baseUrl = NVIDIA
         messages,
         temperature,
         top_p: 0.9,
-        max_tokens: 1800,
+        max_tokens: 3000,
         stream: false
       })
     });
@@ -259,6 +274,7 @@ exports.askNoorAi = onRequest(
       const prompt = cleanString(req.body && req.body.prompt);
       const mode = cleanString(req.body && req.body.mode, "AskNoor").slice(0, 40);
       const instructions = cleanString(req.body && req.body.instructions).slice(0, 400);
+      const language = cleanString(req.body && req.body.language, "en").slice(0, 5);
       if (!prompt) {
         res.status(400).json({error: "Prompt is required."});
         return;
@@ -304,7 +320,7 @@ exports.askNoorAi = onRequest(
       }
 
       const messages = [
-        {role: "system", content: buildSystemPrompt(mode, instructions)},
+        {role: "system", content: buildSystemPrompt(mode, instructions, language)},
         ...history,
         {role: "user", content: prompt}
       ];
@@ -318,7 +334,8 @@ exports.askNoorAi = onRequest(
         if (result.ok) {
           const {citations} = extractCitations(result.text);
           console.log("askNoorAi served by groq", model);
-          res.json({answer: result.text, citations, provider: "groq", model});
+          const fu = extractFollowups(result.text);
+          res.json({answer: fu.text, followups: fu.followups, citations, provider: "groq", model});
           return;
         }
         console.error("askNoorAi groq model failed", model, result.status, result.detail);
@@ -330,7 +347,8 @@ exports.askNoorAi = onRequest(
         if (result.ok) {
           const {citations} = extractCitations(result.text);
           console.log("askNoorAi served by", model);
-          res.json({answer: result.text, citations, provider: "nvidia", model});
+          const fu = extractFollowups(result.text);
+          res.json({answer: fu.text, followups: fu.followups, citations, provider: "nvidia", model});
           return;
         }
         console.error("askNoorAi model failed", model, result.status, result.detail);

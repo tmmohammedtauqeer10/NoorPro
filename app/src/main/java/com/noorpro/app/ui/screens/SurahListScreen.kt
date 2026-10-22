@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
@@ -1009,6 +1010,24 @@ fun SurahReaderView(
                                         contentDescription = "Play this Verse",
                                         tint = MatteGold,
                                         modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // 1.0.79: Ask Noor AI about this ayah (opens the chat with the question pre-sent).
+                                IconButton(
+                                    onClick = {
+                                        NoorAiLaunch.pending = "Explain Surah ${surah.nameEnglish} ${surah.id}:$ayahNumber in detail — meaning, context of revelation, tafsir from classical Sunni mufassirun, and lessons for daily life."
+                                        viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.AI_HUB)
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.AutoAwesome,
+                                        contentDescription = "Ask Noor AI about this ayah",
+                                        tint = MatteGold,
+                                        modifier = Modifier.size(19.dp)
                                     )
                                 }
 

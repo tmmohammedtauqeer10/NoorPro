@@ -299,7 +299,6 @@ fun AuthContent(
         focusedLeadingIconColor = scheme.primary, unfocusedLeadingIconColor = scheme.onSurfaceVariant,
     )
     Box(Modifier.fillMaxSize().background(scheme.background)) {
-        IslamicPattern(scheme.primary.copy(alpha = 0.04f), Modifier.fillMaxWidth().height(320.dp))
         Column(
             Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
                 .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),

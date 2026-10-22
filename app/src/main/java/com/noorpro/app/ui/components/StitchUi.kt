@@ -81,16 +81,19 @@ fun stitchPrimary(): Color = if (isStitchLight()) StitchEmerald else MaterialThe
 @Composable
 fun StitchScreen(
     modifier: Modifier = Modifier,
+    /** 1.0.79: the geometric pattern is reserved for the Recitation section; every other screen is plain. */
+    pattern: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val light = isStitchLight()
     val backgroundColor = stitchBackground()
-    val pattern = if (light) StitchEmerald.copy(alpha = 0.035f) else StitchGold.copy(alpha = 0.025f)
+    val patternColor = if (light) StitchEmerald.copy(alpha = 0.035f) else StitchGold.copy(alpha = 0.025f)
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor)
             .drawBehind {
+                if (!pattern) return@drawBehind
                 val step = 96.dp.toPx()
                 val radius = 28.dp.toPx()
                 var x = -step / 2
@@ -98,13 +101,13 @@ fun StitchScreen(
                     var y = -step / 2
                     while (y < size.height + step) {
                         drawCircle(
-                            color = pattern,
+                            color = patternColor,
                             radius = radius,
                             center = Offset(x, y),
                             style = Stroke(width = 1.dp.toPx())
                         )
-                        drawLine(pattern, Offset(x - radius, y), Offset(x + radius, y), 1.dp.toPx())
-                        drawLine(pattern, Offset(x, y - radius), Offset(x, y + radius), 1.dp.toPx())
+                        drawLine(patternColor, Offset(x - radius, y), Offset(x + radius, y), 1.dp.toPx())
+                        drawLine(patternColor, Offset(x, y - radius), Offset(x, y + radius), 1.dp.toPx())
                         y += step
                     }
                     x += step

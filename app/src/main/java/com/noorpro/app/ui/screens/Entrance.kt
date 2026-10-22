@@ -267,7 +267,6 @@ fun OnboardingPager(
     val scope = rememberCoroutineScope()
     val scheme = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize().background(scheme.background)) {
-        IslamicPattern(scheme.primary.copy(alpha = 0.045f), Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
