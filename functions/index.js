@@ -905,7 +905,7 @@ exports.publishUmmahSubmissionNow = onRequest(
 // 1.0.77 qfProxy: the app never sees the Quran.Foundation client secret. Whitelisted read-only
 // content calls (word-by-word verses, chapter recitation timings, translations) are proxied with
 // a cached client-credentials token, guarded by App Check or a Firebase ID token, and cached.
-// QF_ENV=production switches hosts once production access is approved (default prelive).
+// Default is production (approved 2026-10-22); set QF_ENV=prelive to use prelive.
 // ---------------------------------------------------------------------------------------------
 const QF_HOSTS = {
   prelive: {auth: "https://prelive-oauth2.quran.foundation", api: "https://apis-prelive.quran.foundation"},
@@ -916,7 +916,7 @@ const qfCache = new Map(); // key -> {at, body}
 const QF_CACHE_MS = 12 * 60 * 60 * 1000;
 
 function qfEnv() {
-  return (process.env.QF_ENV || "prelive").toLowerCase() === "production" ? "production" : "prelive";
+  return (process.env.QF_ENV || "production").toLowerCase() === "prelive" ? "prelive" : "production";
 }
 
 async function qfAccessToken(force = false) {
