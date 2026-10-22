@@ -78,6 +78,8 @@ object AiFeatureService {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
+        // Whole-call cap (blocking execute is not cancelled by coroutine timeouts).
+        .callTimeout(25, TimeUnit.SECONDS)
         .build()
 
     suspend fun generateResponse(
@@ -87,12 +89,11 @@ object AiFeatureService {
     ): String = withContext(Dispatchers.IO) {
         val clean = prompt.trim()
         val selfHostUrl = resolveSelfHostUrl(isEmulator(), selfHostUrlOverride ?: System.getenv("NOOR_AI_SELFHOST_URL"))
-        (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, clean, mode, history) else null)
-            ?: callNoorAiFunctionWithRetry(clean, mode, history)
-            ?: run {
-                delay(120)
-                offlineFallback(clean, mode)
-            }
+        // Hard cap on the online attempt so the chat never spins for minutes on a bad network.
+        kotlinx.coroutines.withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
+            (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, clean, mode, history) else null)
+                ?: callNoorAiFunctionWithRetry(clean, mode, history)
+        } ?: offlineFallback(clean, mode)
     }
 
     /**
@@ -102,10 +103,12 @@ object AiFeatureService {
      */
     internal fun offlineFallback(prompt: String, mode: NoorAiMode): String =
         if (mode == NoorAiMode.AppGuide) buildLocalGuidedResponse(prompt, mode)
-        else UNAVAILABLE_MESSAGE
+        else (if (mode == NoorAiMode.DuaGenerator) null else NoorAiLocalCorpus.answer(prompt)) ?: UNAVAILABLE_MESSAGE
+
+    private const val ONLINE_TIMEOUT_MS = 55_000L
 
     internal const val UNAVAILABLE_MESSAGE =
-        "Noor AI could not be reached right now, so I can't answer this yet. Please check your internet connection and tap send again in a moment. " +
+        "Noor AI's online assistant is unavailable right now and no matching passage was found in the Qur'an and Hadith saved on your phone. Please tap send again in a little while. " +
             "I don't want to give you a generic answer that doesn't address your question."
 
     /** Builds the history array sent to the backend: recent turns only, never the question being asked. */

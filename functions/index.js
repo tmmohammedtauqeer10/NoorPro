@@ -15,6 +15,10 @@ admin.initializeApp();
 // NVIDIA API key is stored in Google Secret Manager, never in source or the app.
 // Set it once with:  firebase functions:secrets:set NVIDIA_API_KEY
 const NVIDIA_API_KEY = defineSecret("NVIDIA_API_KEY");
+const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODELS = (process.env.NOOR_AI_GROQ_MODELS || "openai/gpt-oss-120b,qwen/qwen3.8-27b,openai/gpt-oss-20b")
+  .split(",").map((m) => m.trim()).filter(Boolean);
 // Resend API key is stored in Google Secret Manager, never in source or the app.
 // Set it once with:  firebase functions:secrets:set RESEND_API_KEY
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
@@ -173,11 +177,11 @@ function extractCitations(answer) {
   return {body: answer, citations};
 }
 
-async function callNvidia(apiKey, model, messages, temperature) {
+async function callNvidia(apiKey, model, messages, temperature, baseUrl = NVIDIA_BASE_URL) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
   try {
-    const response = await fetch(NVIDIA_BASE_URL, {
+    const response = await fetch(baseUrl, {
       method: "POST",
       signal: controller.signal,
       headers: {
@@ -227,7 +231,7 @@ exports.askNoorAi = onRequest(
     timeoutSeconds: 120,
     memory: "512MiB",
     maxInstances: 10,
-    secrets: [NVIDIA_API_KEY]
+    secrets: [NVIDIA_API_KEY, GROQ_API_KEY]
   },
   async (req, res) => {
     cors(res);
@@ -284,11 +288,13 @@ exports.askNoorAi = onRequest(
       history = alternating;
       if (history.length && history[history.length - 1].role === "user") history.pop();
 
+      const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "");
+      const groqKey = clean(GROQ_API_KEY.value());
       const rawKey = NVIDIA_API_KEY.value() || "";
       // A secret saved with a trailing newline/space or wrapping quotes is rejected by NVIDIA with 403.
       const apiKey = rawKey.trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "");
       if (apiKey !== rawKey) console.warn("askNoorAi: NVIDIA_API_KEY had stray whitespace/quotes; sanitized");
-      if (!apiKey) {
+      if (!apiKey && !groqKey) {
         res.status(500).json({error: "Noor AI key is not configured."});
         return;
       }
@@ -302,7 +308,20 @@ exports.askNoorAi = onRequest(
 
       let last = {status: 0, detail: "no models configured"};
       const tried = [];
-      for (const model of MODELS) {
+      // Groq first (fast), then NVIDIA models as backup.
+      for (const model of groqKey ? GROQ_MODELS : []) {
+        const result = await callNvidia(groqKey, model, messages, temperature, GROQ_BASE_URL);
+        if (result.ok) {
+          const {citations} = extractCitations(result.text);
+          console.log("askNoorAi served by groq", model);
+          res.json({answer: result.text, citations, provider: "groq", model});
+          return;
+        }
+        console.error("askNoorAi groq model failed", model, result.status, result.detail);
+        last = result;
+        tried.push(`groq/${model}:${result.status}`);
+      }
+      for (const model of apiKey ? MODELS : []) {
         const result = await callNvidia(apiKey, model, messages, temperature);
         if (result.ok) {
           const {citations} = extractCitations(result.text);

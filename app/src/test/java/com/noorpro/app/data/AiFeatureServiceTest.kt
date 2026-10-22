@@ -41,7 +41,7 @@ class AiFeatureServiceTest {
         val b = AiFeatureService.offlineFallback("Is music haram?", NoorAiMode.AskNoor)
         assertEquals(AiFeatureService.UNAVAILABLE_MESSAGE, a)
         assertEquals(a, b)
-        assertTrue(a.contains("could not be reached"))
+        assertTrue(a.contains("unavailable"))
     }
 
     @Test

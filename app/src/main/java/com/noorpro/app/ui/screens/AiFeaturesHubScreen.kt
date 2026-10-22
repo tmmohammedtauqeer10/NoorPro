@@ -112,7 +112,13 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         focusManager.clearFocus()
         scope.launch {
             // Pass the running conversation before the new user turn so Noor AI has stable memory.
-            val answer = AiFeatureService.generateResponse(clean, selectedMode, previousMessages)
+            val answer = try {
+                AiFeatureService.generateResponse(clean, selectedMode, previousMessages)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                isTyping = false; throw e
+            } catch (_: Exception) {
+                AiFeatureService.UNAVAILABLE_MESSAGE
+            }
             messages = messages + NoorAiMessage(answer, false)
             isTyping = false
         }

@@ -36,6 +36,7 @@ class NoorProApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        com.noorpro.app.data.NoorAiLocalCorpus.appContext = applicationContext
 
         // NOTE: the Al Noor player/service is created lazily when audio is first used. Building an
         // ExoPlayer and calling startService() here ran on EVERY process start - including the
