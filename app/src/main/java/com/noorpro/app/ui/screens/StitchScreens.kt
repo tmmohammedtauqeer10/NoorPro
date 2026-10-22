@@ -5481,6 +5481,19 @@ fun StitchUmmahHubScreen(viewModel: DeenViewModel) {
                     onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
                 )
             }
+            // 1.0.75: Instagram-style 24h stories row.
+            item(key = "stories") {
+                var blocked by remember { mutableStateOf<Set<String>>(emptySet()) }
+                LaunchedEffect(viewModel.isLoggedIn) { if (viewModel.isLoggedIn) followRepository.observeBlockedUsers { blocked = it } }
+                StoriesSection(
+                    myName = displayName,
+                    myHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
+                    myAvatarUrl = viewModel.userPhotoUrl,
+                    isLoggedIn = viewModel.isLoggedIn,
+                    blocked = blocked,
+                    onOpenChat = { _, _ -> }
+                )
+            }
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -7158,7 +7171,7 @@ private fun StitchYouTubePostCard(
 private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit, onDoubleTapLike: (() -> Unit)? = null) {
     val isPostVideo = post.isVideoMedia() && !post.isReelLike()
     var burst by remember(post.id) { mutableStateOf(0) }
-    val canDoubleTap = onDoubleTapLike != null && !isPostVideo && !post.isReelLike()
+    val canDoubleTap = onDoubleTapLike != null && !isPostVideo && !post.isReelLike() && post.mediaUrls.size <= 1
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -7166,6 +7179,7 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit, onDo
                 when {
                     post.isReelLike() -> 240.dp
                     isPostVideo -> 214.dp
+                    post.mediaUrls.size > 1 -> 320.dp
                     else -> 190.dp
                 }
             )
@@ -7198,6 +7212,8 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit, onDo
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Open video", tint = Color.White, modifier = Modifier.size(34.dp))
             }
+        } else if (!post.isReelLike() && post.mediaUrls.size > 1) {
+            PhotoCarousel(urls = post.mediaUrls, contentDescription = post.caption, onDoubleTap = { onDoubleTapLike?.invoke() }, modifier = Modifier.fillMaxSize())
         } else if (!post.isReelLike()) {
             AsyncImage(
                 model = post.previewModel(),
@@ -7970,12 +7986,19 @@ fun StitchUmmahCreateScreen(
     var uploadProgress by remember { mutableStateOf(-1f) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        mediaUri = uri
-        postType = "image"
+    // 1.0.75: up to 10 photos per post (carousel). First photo stays the legacy mediaUrl.
+    var photos by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) {
+            photos = (photos + uris).distinct().take(10)
+            if (uris.size + photos.size > 10) Toast.makeText(context, "Up to 10 photos per post", Toast.LENGTH_SHORT).show()
+            mediaUri = photos.first()
+            postType = "image"
+        }
     }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         mediaUri = uri
+        photos = emptyList()
         postType = if (reelMode) "reel" else "video"
     }
 
@@ -8056,7 +8079,9 @@ fun StitchUmmahCreateScreen(
                                     .background(stitchSoftSurface()),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (postType == "image") {
+                                if (postType == "image" && photos.size > 1) {
+                                    PhotoCarousel(urls = photos.map { it.toString() }, models = photos, contentDescription = "Selected photos", onDoubleTap = {}, modifier = Modifier.fillMaxSize())
+                                } else if (postType == "image") {
                                     AsyncImage(
                                         model = mediaUri,
                                         contentDescription = "Selected image",
@@ -8071,6 +8096,14 @@ fun StitchUmmahCreateScreen(
                                     )
                                 }
                             }
+                        }
+                        if (!reelMode && postType == "image" && photos.isNotEmpty()) {
+                            PhotoReorderStrip(
+                                photos = photos,
+                                onRemove = { u -> photos = photos - u; mediaUri = photos.firstOrNull(); if (photos.isEmpty()) postType = "text" },
+                                onMoveLeft = { i -> if (i > 0) { photos = photos.toMutableList().apply { add(i - 1, removeAt(i)) }; mediaUri = photos.first() } },
+                                onAddMore = { imagePicker.launch("image/*") }
+                            )
                         }
                         if (reelMode) {
                             Button(
@@ -8093,7 +8126,7 @@ fun StitchUmmahCreateScreen(
                                 ) {
                                     Icon(Icons.Default.Image, contentDescription = null)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Photo")
+                                    Text(if (photos.isEmpty()) "Photos" else "Add photos")
                                 }
                                 Button(
                                     onClick = { videoPicker.launch("video/*") },
@@ -8149,6 +8182,7 @@ fun StitchUmmahCreateScreen(
                             category = category,
                             type = finalType,
                             mediaUri = mediaUri,
+                            extraImageUris = if (postType == "image") photos.drop(1) else emptyList(),
                             sourceReference = "",
                             creatorHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
                             creatorDisplayName = viewModel.userDisplayName,
@@ -13598,6 +13632,37 @@ internal fun StitchReelSkeleton() {
         }
         Column(Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 130.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             repeat(4) { com.noorpro.app.ui.components.ShimmerBox(Modifier.size(44.dp), 22.dp) }
+        }
+    }
+}
+
+
+/** Composer thumbnails: tap ◀ to move a photo earlier, ✕ to remove, + to add (max 10). */
+@Composable
+internal fun PhotoReorderStrip(photos: List<Any>, onRemove: (Uri) -> Unit, onMoveLeft: (Int) -> Unit, onAddMore: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("${photos.size}/10 photos · first photo is the cover", color = stitchMutedText(), fontSize = 12.sp)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(photos, key = { _, u -> u.toString() }) { i, u ->
+                Box(Modifier.size(76.dp).animateItem().clip(RoundedCornerShape(12.dp)).background(stitchSoftSurface())) {
+                    AsyncImage(model = u, contentDescription = "Photo ${i + 1}", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    Text("${i + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp))
+                    Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
+                        .clickable { (u as? Uri)?.let(onRemove) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Close, "Remove photo ${i + 1}", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                    if (i > 0) Box(Modifier.align(Alignment.TopStart).padding(3.dp).size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
+                        .clickable { onMoveLeft(i) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Move photo ${i + 1} earlier", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            if (photos.size < 10) item {
+                Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, stitchLine(), RoundedCornerShape(12.dp)).clickable(onClick = onAddMore), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Add, "Add photos", tint = stitchPrimary())
+                }
+            }
         }
     }
 }

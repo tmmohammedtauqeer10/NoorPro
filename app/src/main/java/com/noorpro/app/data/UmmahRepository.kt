@@ -36,7 +36,9 @@ data class UmmahPost(
     val publicationStatus: String = "published",
     val storageProvider: String = "",
     /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
-    val pendingStorageRef: String = ""
+    val pendingStorageRef: String = "",
+    /** 1.0.75: optional multi-photo carousel (first item == mediaUrl). Empty for legacy posts. */
+    val mediaUrls: List<String> = emptyList()
 )
 
 /** A member shown in a followers / following list (Instagram-style). */
@@ -371,7 +373,10 @@ class UmmahRepository {
         mediaHeight = (get("mediaHeight") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0,
         mediaRotationDegrees = (get("mediaRotationDegrees") as? Number)?.toInt() ?: 0,
         publicationStatus = getString("status") ?: "published",
-        storageProvider = getString("storageProvider").orEmpty()
+        storageProvider = getString("storageProvider").orEmpty(),
+        mediaUrls = (get("mediaUrls") as? List<*>).orEmpty().filterIsInstance<String>()
+            .map { com.noorpro.app.data.media.MediaUrls.normalize(it) }
+            .filter { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.take(10)
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
@@ -678,8 +683,11 @@ class UmmahRepository {
         creatorPhotoUrlOverride: String = "",
         onSubmitted: (String) -> Unit = {},
         onProgress: (Float) -> Unit = {},
+        extraImageUris: List<Uri> = emptyList(),
         onResult: (Boolean, String?) -> Unit
     ) {
+        val extras = if (type == "image") extraImageUris.take(9) else emptyList()
+        val photoCount = 1 + extras.size
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
         val resolvedHandle = creatorHandle.trim().ifBlank { "@${user.email?.substringBefore("@").orEmpty()}" }
             .let { if (it.startsWith("@")) it else "@$it" }
@@ -703,7 +711,8 @@ class UmmahRepository {
             mediaUrl: String,
             mediaPath: String = "",
             hlsUrl: String = "",
-            storageProvider: String = "firebase"
+            storageProvider: String = "firebase",
+            mediaUrls: List<String> = emptyList()
         ) {
             val publishedCaption = caption.trim().ifBlank {
                 if (mediaUrl.isNotBlank()) "Shared with the Ummah" else ""
@@ -741,7 +750,7 @@ class UmmahRepository {
                     "displayAspectRatio" to videoMetadata.displayAspectRatio.toDouble(),
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                )
+                ) + (if (mediaUrls.size > 1) mapOf("mediaUrls" to mediaUrls.take(10)) else emptyMap())
             ).addOnSuccessListener { document ->
                 onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
@@ -762,7 +771,8 @@ class UmmahRepository {
             return
         }
 
-        val contentType = normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
+        val mediaUri = if (type == "image") ImageCompressor.compress(context, mediaUri) else mediaUri
+        val contentType = if (type == "image") "image/jpeg" else normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
         val mediaSize = contentLength(context, mediaUri)
         if (mediaSize >= MAX_UMMAH_MEDIA_BYTES) {
             return onResult(false, "This file is too large. Choose a photo or video smaller than 100 MB.")
@@ -773,6 +783,8 @@ class UmmahRepository {
         // (e.g. HTTP 402/403 when billing lapses) reels/videos fall back to the AWS S3 +
         // CloudFront pipeline. Members only ever see a friendly message.
         val isVideo = type == "reel" || type == "video"
+        fun uploadExtras(start: Int, acc: List<String>, done: (List<String>?) -> Unit) =
+            uploadExtrasImpl(context, user.uid, extras, start, acc, onProgress) { r -> mainHandler.post { done(r) } }
         fun uploadViaCdn(lastError: Throwable?) {
             if (!ReelCdnUploader.ENABLED) {
                 return onResult(false, UploadErrors.friendly(lastError, isVideo))
@@ -807,17 +819,44 @@ class UmmahRepository {
             }
             ref.putFile(mediaUri, metadata)
                 .addOnProgressListener { snap ->
-                    if (snap.totalByteCount > 0) onProgress((snap.bytesTransferred.toFloat() / snap.totalByteCount).coerceIn(0f, 1f))
+                    if (snap.totalByteCount > 0) onProgress((snap.bytesTransferred.toFloat() / snap.totalByteCount / photoCount).coerceIn(0f, 1f))
                 }
                 .addOnSuccessListener {
                     ref.downloadUrl
-                        .addOnSuccessListener { downloadUri -> onProgress(1f); publishPost(downloadUri.toString(), ref.path) }
+                        .addOnSuccessListener { downloadUri ->
+                            if (extras.isEmpty()) { onProgress(1f); publishPost(downloadUri.toString(), ref.path) }
+                            else uploadExtras(0, listOf(downloadUri.toString())) { urls ->
+                                if (urls == null) onResult(false, "Couldn't upload all photos. Check your connection and tap Retry.")
+                                else { onProgress(1f); publishPost(urls.first(), ref.path, mediaUrls = urls) }
+                            }
+                        }
                         .addOnFailureListener { error -> failed(error) }
                 }
                 .addOnFailureListener { error -> failed(error) }
         }
 
         uploadViaFirebase(0)
+    }
+
+    /** Sequentially uploads the remaining carousel photos (compressed JPEG) to the same submissions folder. */
+    private fun uploadExtrasImpl(
+        context: Context, uid: String, extras: List<Uri>, index: Int, acc: List<String>,
+        onProgress: (Float) -> Unit, done: (List<String>?) -> Unit
+    ) {
+        if (index >= extras.size) return done(acc)
+        val total = extras.size + 1
+        val file = ImageCompressor.compress(context, extras[index])
+        val ref = FirebaseStorage.getInstance().reference.child("ummah_submissions/$uid/images/${System.currentTimeMillis()}_${index + 1}")
+        ref.putFile(file, StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .addOnProgressListener { snap ->
+                if (snap.totalByteCount > 0) onProgress(((index + 1) + snap.bytesTransferred.toFloat() / snap.totalByteCount) / total)
+            }
+            .addOnSuccessListener {
+                ref.downloadUrl.addOnSuccessListener { url ->
+                    uploadExtrasImpl(context, uid, extras, index + 1, acc + url.toString(), onProgress, done)
+                }.addOnFailureListener { done(null) }
+            }
+            .addOnFailureListener { done(null) }
     }
 
     /** X-style repost / quote-repost into the Ummah feed. Creates a normal text submission that

@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const {onRequest} = require("firebase-functions/v2/https");
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {defineSecret} = require("firebase-functions/params");
 const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
 const {getSignedUrl} = require("@aws-sdk/s3-request-presigner");
@@ -790,6 +791,7 @@ async function promoteUmmahSubmission(submission, submissionId) {
     mediaRotationDegrees: [0, 90, 180, 270].includes(Number(data.mediaRotationDegrees)) ?
       Number(data.mediaRotationDegrees) : 0,
     displayAspectRatio: Math.max(0, Number(data.displayAspectRatio) || 0),
+    ...carouselField(type, mediaUrl, data.mediaUrls),
     publishedAt: admin.firestore.FieldValue.serverTimestamp()
   };
 
@@ -805,6 +807,35 @@ async function promoteUmmahSubmission(submission, submissionId) {
   });
   return {published: true, status: "published", postId: postRef.id};
 }
+
+// 1.0.75: optional multi-photo carousel. Only for image posts; 2..10 https strings and the first
+// must equal mediaUrl (back-compat). Anything else is silently dropped (post stays single-photo).
+function carouselField(type, mediaUrl, raw) {
+  if (type !== "image" || !Array.isArray(raw)) return {};
+  const urls = raw.filter((u) => typeof u === "string" && /^https:\/\//i.test(u) && u.length <= 2000).slice(0, 10);
+  if (urls.length < 2 || urls[0] !== mediaUrl) return {};
+  return {mediaUrls: urls};
+}
+
+// 1.0.75: hourly cleanup of expired stories (backs up the Firestore TTL policy, which can lag up
+// to ~24h and never touches Storage). Deletes the doc, its viewers, and the story image.
+exports.cleanupExpiredStories = onSchedule(
+  {schedule: "every 60 minutes", region: REGION, timeoutSeconds: 300, memory: "256MiB"},
+  async () => {
+    const db = admin.firestore();
+    const bucket = admin.storage().bucket();
+    const snap = await db.collection("ummah_stories")
+      .where("expiresAt", "<=", admin.firestore.Timestamp.now()).limit(400).get();
+    for (const doc of snap.docs) {
+      const path = cleanString(doc.get("mediaPath"), "");
+      if (path.startsWith("ummah_stories/")) {
+        await bucket.file(path).delete().catch(() => {});
+      }
+      await db.recursiveDelete(doc.ref).catch((e) => console.warn("story delete failed", doc.id, e));
+    }
+    console.log(`cleanupExpiredStories removed ${snap.size}`);
+  }
+);
 
 // New uploads promote automatically.
 exports.publishUmmahSubmission = onDocumentCreated(

@@ -117,7 +117,15 @@ service cloud.firestore {
         && request.resource.data.caption.size() <= 2000
         && request.resource.data.arabicText is string
         && request.resource.data.arabicText.size() <= 2000
-        && (request.resource.data.caption.size() > 0 || request.resource.data.arabicText.size() > 0);
+        && (request.resource.data.caption.size() > 0 || request.resource.data.arabicText.size() > 0)
+        // 1.0.75: optional multi-photo carousel. Only image posts, 2..10 entries; the trusted
+        // publisher re-validates every entry is an https string before it goes public.
+        && (!('mediaUrls' in request.resource.data)
+          || (request.resource.data.type == "image"
+            && request.resource.data.mediaUrls is list
+            && request.resource.data.mediaUrls.size() >= 2
+            && request.resource.data.mediaUrls.size() <= 10
+            && request.resource.data.mediaUrls[0] == request.resource.data.mediaUrl));
       // Creators can see their own pending submissions; nobody else (admins use Admin SDK).
       allow read: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
@@ -160,6 +168,49 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, delete: if request.auth != null && request.auth.uid == followerId;
       allow update: if false;
+    }
+
+    // 1.0.75: 24-hour stories. Signed-in members read unexpired stories; authors create/delete
+    // only their own; no updates. Expiry is enforced by a Firestore TTL policy on expiresAt plus a
+    // scheduled cleanup function (which also removes the Storage file).
+    match /ummah_stories/{storyId} {
+      // Signed-in read (list queries can't be proven against request.time); the client hides
+      // expired stories and TTL + the cleanup function remove them server-side.
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["authorUid", "authorName", "authorHandle", "avatarUrl", "mediaUrl", "mediaPath", "type", "caption", "createdAt", "expiresAt"])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type == "image"
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.mediaUrl.matches("https://.*")
+        && request.resource.data.mediaUrl.size() <= 2000
+        && request.resource.data.mediaPath is string
+        && request.resource.data.mediaPath.matches("ummah_stories/" + request.auth.uid + "/.*")
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 300
+        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 60
+        && request.resource.data.authorHandle is string && request.resource.data.authorHandle.size() <= 40
+        && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm');
+      allow update: if false;
+      allow delete: if request.auth != null && resource.data.authorUid == request.auth.uid;
+
+      // One doc per viewer. A viewer can only write their own doc once (no edits); only the
+      // story author can list viewers; a viewer can read their own marker.
+      match /viewers/{viewerUid} {
+        allow create: if request.auth != null
+          && request.auth.uid == viewerUid
+          && request.resource.data.keys().hasOnly(["viewedAt"])
+          && request.resource.data.viewedAt == request.time
+          && get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid != request.auth.uid;
+        allow read: if request.auth != null
+          && (request.auth.uid == viewerUid
+            || get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid == request.auth.uid);
+        allow update, delete: if false;
+      }
     }
 
     match /ummah_reports/{reportId} {
