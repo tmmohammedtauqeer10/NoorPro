@@ -2014,9 +2014,9 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
             }
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("${bearing.toInt()}   from North", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
+                    Text("${bearing.toInt()}° from North", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
                     Text(
-                        "Heading ${azimuth.toInt()}   - rotate yourself until the gold marker is at the top",
+                        "Heading ${azimuth.toInt()}° · rotate yourself until the gold marker is at the top",
                         color = stitchMutedText(),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -2034,7 +2034,7 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
                         Spacer(modifier = Modifier.height(18.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             StitchInfoBox("Distance", if (distanceKm > 0f) "${distanceKm.toInt()} km" else "Updating", Modifier.weight(1f))
-                            StitchInfoBox("Bearing", "${bearing.toInt()}  ", Modifier.weight(1f))
+                            StitchInfoBox("Bearing", "${bearing.toInt()}°", Modifier.weight(1f))
                         }
                         Spacer(modifier = Modifier.height(18.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -3483,20 +3483,20 @@ private fun UmmahPost.previewModel(): Any? =
     if (isVideoMedia()) com.noorpro.app.data.media.videoPreviewModel(thumbnailUrl, mediaUrl)
     else thumbnailUrl.ifBlank { mediaUrl }
 
-private data class StitchReelQuality(
+internal data class StitchReelQuality(
     val label: String,
     val maxWidth: Int,
     val maxHeight: Int
 )
 
-private val stitchReelQualityOptions = listOf(
+internal val stitchReelQualityOptions = listOf(
     StitchReelQuality("Auto", Int.MAX_VALUE, Int.MAX_VALUE),
     StitchReelQuality("480p", 854, 480),
     StitchReelQuality("720p", 1280, 720),
     StitchReelQuality("1080p", 1920, 1080)
 )
 
-private val stitchReelSpeedOptions = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+internal val stitchReelSpeedOptions = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 
 private fun ExoPlayer.applyStitchReelQuality(quality: StitchReelQuality) {
     setTrackSelectionParameters(
@@ -4403,7 +4403,7 @@ private fun <T> StitchLandscapeSettingsGroup(
 }
 
 @Composable
-private fun StitchLiveReelPage(
+internal fun StitchLiveReelPage(
     post: UmmahPost,
     displayName: String,
     ownUsername: String = "",
@@ -4495,7 +4495,7 @@ private fun StitchLiveReelPage(
     // back every page with a soft emerald   black wash. The live (texture) surface, when present,
     // covers it edge-to-edge     but the wash means the frame never flashes pure black.
     val reelBackdrop = Brush.verticalGradient(
-        if (wideVideoChrome || landscapeMode) {
+        if (landscapeMode) {
             listOf(Color.Black, Color.Black)
         } else {
             listOf(StitchEmerald.copy(alpha = 0.55f), Color.Black, Color.Black)
@@ -4542,13 +4542,22 @@ private fun StitchLiveReelPage(
                 )
             }
         } else {
-            Box(
+            val previewFrame = ReelPreviewFrame.frame
+            if (previewFrame != null && wideFrame != null) {
+                // Screenshot previews only: a still frame where the wide video surface would be.
+                androidx.compose.foundation.Image(
+                    previewFrame, null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.align(Alignment.TopCenter).offset(y = wideFrame.topDp.dp)
+                        .width(wideFrame.widthDp.dp).height(wideFrame.heightDp.dp)
+                )
+            } else Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Brush.verticalGradient(listOf(StitchEmerald, Color.Black))),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Mosque, contentDescription = null, tint = StitchGold.copy(alpha = 0.2f), modifier = Modifier.size(220.dp))
+                if (previewFrame != null) androidx.compose.foundation.Image(previewFrame, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Icon(Icons.Default.Mosque, contentDescription = null, tint = StitchGold.copy(alpha = 0.2f), modifier = Modifier.size(220.dp))
             }
         }
 
@@ -4631,11 +4640,11 @@ private fun StitchLiveReelPage(
                 )
         )
 
-        if (showReelChrome && !wideVideoChrome) {
+        if (showReelChrome) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp, bottom = 118.dp),
+                    .padding(end = 10.dp, bottom = 118.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(11.dp)
             ) {
@@ -4654,23 +4663,6 @@ private fun StitchLiveReelPage(
                     )
                 }
                 StitchReelAction(Icons.Default.MoreVert, "More", onClick = { showMoreSheet = true })
-            }
-        } else if (wideVideoChrome) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (wideFrame?.actionsTopDp ?: 0f).dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                StitchLandscapeMiniAction(Icons.Default.Favorite, compactCount(displayLikeCount), isLiked, onLike)
-                StitchLandscapeMiniAction(Icons.Default.ChatBubble, compactCount(displayCommentCount), false, onComment)
-                StitchLandscapeMiniAction(Icons.Default.Bookmark, compactCount(displaySaveCount), isSaved, onSave)
-                StitchLandscapeMiniAction(Icons.Default.Share, compactCount(displayShareCount), false, onShare)
-                StitchWideIconAction(Icons.Default.ScreenRotation, "Rotate") { onLandscapeModeChange(true) }
-                StitchWideIconAction(Icons.Default.MoreVert, "More") { showMoreSheet = true }
             }
         } else if (showRotateAction && (!isPlaying || showTransportControls || showPlaybackSettings)) {
             Row(
@@ -4826,11 +4818,21 @@ private fun StitchLiveReelPage(
                     .align(Alignment.BottomStart)
                     .padding(
                         start = 16.dp,
-                        end = if (wideVideoChrome) 16.dp else 84.dp,
+                        end = 84.dp,
                         bottom = 126.dp
                     )
                     .fillMaxWidth()
             ) {
+            // Auto-caption: the reel's Arabic/dua text sits in the caption stack (above the creator
+            // row) so it can never overlap the caption text.
+            if (captionsOn && post.arabicText.isNotBlank()) {
+                Text(
+                    post.arabicText, color = Color.White, fontSize = 17.sp, lineHeight = 26.sp,
+                    textAlign = TextAlign.Start, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 10.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
             // Username only (Instagram-style)     tap avatar or @handle to open the profile,
             // with a compact inline Follow chip beside it.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -4941,32 +4943,6 @@ private fun StitchLiveReelPage(
             }
         }
 
-        // Auto-caption overlay: show the reel's Arabic/dua text as subtitles while playing.
-        if (captionsOn && showReelChrome && post.arabicText.isNotBlank()) {
-            Box(
-                modifier = (if (wideFrame != null) {
-                    Modifier.align(Alignment.TopCenter)
-                        .offset(y = (wideFrame.topDp + wideFrame.heightDp - 72f).dp)
-                } else {
-                    Modifier.align(Alignment.BottomCenter).padding(bottom = 218.dp)
-                })
-                    .padding(start = 30.dp, end = 30.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.58f))
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    post.arabicText,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
         // Instagram-style scrubber: drag (or tap) to seek/forward through the reel. Only the
         // settled page owns the shared player, so the bar is drawn for the active reel only.
         if (isActive && player != null && (!landscapeMode || !isPlaying || showTransportControls)) {
@@ -5042,7 +5018,7 @@ private fun StitchReelMoreSheet(
     onQuote: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.82f
+    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.86f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             Box(
@@ -5050,51 +5026,101 @@ private fun StitchReelMoreSheet(
                     .fillMaxSize()
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
             )
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF11161D)),
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = sheetMaxHeight)
-                        .verticalScroll(rememberScrollState()).padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(44.dp).height(4.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color.White.copy(alpha = 0.3f))
-                    )
-                    StitchLandscapeSettingsGroup(
-                        title = "Quality",
-                        options = stitchReelQualityOptions,
-                        selected = selectedQuality,
-                        label = { it.label },
-                        onSelected = onQualitySelected
-                    )
-                    StitchLandscapeSettingsGroup(
-                        title = "Playback speed",
-                        options = stitchReelSpeedOptions,
-                        selected = selectedSpeed,
-                        label = { if (it == 1f) "Normal" else "${it}x" },
-                        onSelected = onSpeedSelected
-                    )
-                    StitchReelSheetToggleRow(Icons.Default.ClosedCaption, "Auto captions", captionsOn) { onCaptionsToggle(!captionsOn) }
-                    StitchReelSheetActionRow(Icons.Default.Recommend, "Interested") { onInterested(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.NotInterested, "Not interested") { onNotInterested(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Refresh, "Reset recommendations") { onResetRecommendations(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.SupportAgent, "Find support") { onFindSupport(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Bookmark, if (isSaved) "Remove from saved" else "Save reel") { onSave(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.ContentCopy, "Copy link") { onCopyLink(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Share, "Share") { onShare(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Repeat, "Repost to Ummah") { onRepost(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.FormatQuote, "Quote repost") { onQuote(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Flag, "Report") { onReport(); onDismiss() }
+            ReelOptionsSheetContent(
+                selectedQuality, selectedSpeed, captionsOn, isSaved, onQualitySelected, onSpeedSelected, onCaptionsToggle,
+                onInterested, onNotInterested, onResetRecommendations, onFindSupport, onSave, onCopyLink, onReport, onShare,
+                onRepost, onQuote, onDismiss,
+                Modifier.fillMaxWidth().heightIn(max = sheetMaxHeight)
+            )
+        }
+    }
+}
+
+/** Instagram-style reel options: quick actions, playback, recommendations, then Report. */
+@Composable
+internal fun ReelOptionsSheetContent(
+    selectedQuality: StitchReelQuality, selectedSpeed: Float, captionsOn: Boolean, isSaved: Boolean,
+    onQualitySelected: (StitchReelQuality) -> Unit, onSpeedSelected: (Float) -> Unit, onCaptionsToggle: (Boolean) -> Unit,
+    onInterested: () -> Unit, onNotInterested: () -> Unit, onResetRecommendations: () -> Unit, onFindSupport: () -> Unit,
+    onSave: () -> Unit, onCopyLink: () -> Unit, onReport: () -> Unit, onShare: () -> Unit,
+    onRepost: () -> Unit, onQuote: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), color = scheme.surface, tonalElevation = 2.dp,
+        modifier = modifier
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).width(40.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(scheme.outlineVariant))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                ReelQuickAction(Icons.Default.Bookmark, if (isSaved) "Saved" else "Save", isSaved) { onSave(); onDismiss() }
+                ReelQuickAction(Icons.Default.Share, "Share") { onShare(); onDismiss() }
+                ReelQuickAction(Icons.Default.ContentCopy, "Copy link") { onCopyLink(); onDismiss() }
+                ReelQuickAction(Icons.Default.Repeat, "Repost") { onRepost(); onDismiss() }
+            }
+            ReelSheetGroup("Playback") {
+                Text("Quality", color = scheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stitchReelQualityOptions.forEach { q -> androidx.compose.material3.FilterChip(selected = q == selectedQuality, onClick = { onQualitySelected(q) }, label = { Text(q.label) }) }
+                }
+                Text("Speed", color = scheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stitchReelSpeedOptions.forEach { sp -> androidx.compose.material3.FilterChip(selected = sp == selectedSpeed, onClick = { onSpeedSelected(sp) }, label = { Text(if (sp == 1f) "Normal" else "${sp}x") }) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onCaptionsToggle(!captionsOn) }) {
+                    Icon(Icons.Default.ClosedCaption, null, tint = scheme.onSurface, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Captions", color = scheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Switch(checked = captionsOn, onCheckedChange = { onCaptionsToggle(it) })
                 }
             }
+            ReelSheetGroup("Your feed") {
+                ReelSheetRow(Icons.Default.Recommend, "Interested") { onInterested(); onDismiss() }
+                ReelSheetRow(Icons.Default.NotInterested, "Not interested") { onNotInterested(); onDismiss() }
+                ReelSheetRow(Icons.Default.Refresh, "Reset recommendations") { onResetRecommendations(); onDismiss() }
+            }
+            ReelSheetGroup(null) {
+                ReelSheetRow(Icons.Default.FormatQuote, "Quote repost") { onQuote(); onDismiss() }
+                ReelSheetRow(Icons.Default.SupportAgent, "Find support") { onFindSupport(); onDismiss() }
+                ReelSheetRow(Icons.Default.Flag, "Report", tint = scheme.error) { onReport(); onDismiss() }
+            }
         }
+    }
+}
+
+@Composable
+private fun ReelQuickAction(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(6.dp)) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(if (active) scheme.primary else scheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Icon(icon, label, tint = if (active) scheme.onPrimary else scheme.onSurface)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = scheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ReelSheetGroup(title: String?, content: @Composable ColumnScope.() -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(scheme.surfaceVariant.copy(alpha = 0.55f)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (title != null) Text(title, color = scheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        content()
+    }
+}
+
+@Composable
+private fun ReelSheetRow(icon: ImageVector, label: String, tint: Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 8.dp)) {
+        Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(label, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -6240,27 +6266,13 @@ fun StitchUmmahTimeManagementScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahPrivacyScreen(viewModel: DeenViewModel) {
-    var privateAccount by remember { mutableStateOf(viewModel.ummahPrivateAccount()) }
-    var hideCounts by remember { mutableStateOf(viewModel.ummahHideCounts()) }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Profile Visibility",
         eyebrow = "Settings",
-        subtitle = "Published community posts and reels are public. These controls affect your profile preview.",
+        subtitle = "Your profile, posts and reels are public in the Ummah community.",
         icon = Icons.Default.Fingerprint
     ) {
-        item {
-            StitchSettingsToggleCard("Limit profile preview", "Show your profile grid to followers. Published posts remain visible in the public feed.", Icons.Default.Fingerprint, privateAccount) {
-                privateAccount = it
-                viewModel.setUmmahPrivacy(it, hideCounts)
-            }
-        }
-        item {
-            StitchSettingsToggleCard("Hide follower & following counts", "Others won't see your follower or following numbers", Icons.Default.Groups, hideCounts) {
-                hideCounts = it
-                viewModel.setUmmahPrivacy(privateAccount, it)
-            }
-        }
         item {
             StitchListRow("Blocked accounts", "Manage accounts you blocked", Icons.Default.Logout) {
                 viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED)
@@ -6818,7 +6830,7 @@ internal fun StitchUmmahEmptyCard(
 }
 
 @Composable
-private fun StitchRealPostCard(
+internal fun StitchRealPostCard(
     post: UmmahPost,
     isFollowing: Boolean = false,
     isOwnPost: Boolean = false,
@@ -7128,7 +7140,7 @@ private fun StitchUmmahSectionHeader(title: String, action: String, onAction: ()
 }
 
 @Composable
-private fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
+internal fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -7337,27 +7349,49 @@ private fun StitchPostActions(
     onSave: () -> Unit = {},
     onShare: () -> Unit = {}
 ) {
-    Spacer(modifier = Modifier.height(14.dp))
-    Box(Modifier.fillMaxWidth().height(1.dp).background(StitchLine.copy(alpha = 0.7f)))
-    Spacer(modifier = Modifier.height(10.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val likeTint = if (isLiked) Color(0xFFE8505B) else stitchMutedText()
-        val saveTint = if (isSaved) stitchPrimary() else stitchMutedText()
-        val countStyleColor = stitchMutedText()
-        Icon(Icons.Default.Favorite, contentDescription = "Like", tint = likeTint, modifier = Modifier.size(19.dp).clickable(onClick = onLike))
-        if (likeCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(likeCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.width(18.dp))
-        Icon(Icons.Default.ChatBubble, contentDescription = "Comment", tint = stitchMutedText(), modifier = Modifier.size(18.dp).clickable(onClick = onComment))
-        if (commentCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(commentCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.width(18.dp))
-        Icon(Icons.Default.Share, contentDescription = "Share", tint = stitchMutedText(), modifier = Modifier.size(18.dp).clickable(onClick = onShare))
-        if (shareCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(shareCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.weight(1f))
-        Icon(Icons.Default.Bookmark, contentDescription = "Save", tint = saveTint, modifier = Modifier.size(18.dp).clickable(onClick = onSave))
+    // Facebook-style: a counts line, a hairline, then equal-width Like / Comment / Share / Save buttons.
+    val muted = stitchMutedText()
+    val summary = buildList {
+        if (commentCount > 0) add("${compactCount(commentCount)} comment" + if (commentCount == 1L) "" else "s")
+        if (shareCount > 0) add("${compactCount(shareCount)} share" + if (shareCount == 1L) "" else "s")
+        if (isVideo && viewCount > 0) add("${compactCount(viewCount)} views")
+    }.joinToString(" · ")
+    if (likeCount > 0 || summary.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            if (likeCount > 0) {
+                Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFE8505B)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Favorite, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(compactCount(likeCount), color = muted, fontSize = 13.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(summary, color = muted, fontSize = 13.sp)
+        }
     }
-    if (isVideo && viewCount > 0) {
-        Spacer(modifier = Modifier.height(6.dp))
-        Text("${compactCount(viewCount)} views", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Spacer(modifier = Modifier.height(10.dp))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(StitchLine.copy(alpha = 0.6f)))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        StitchPostActionButton(Icons.Default.Favorite, "Like", if (isLiked) Color(0xFFE8505B) else muted, Modifier.weight(1f), onLike)
+        StitchPostActionButton(Icons.Default.ChatBubble, "Comment", muted, Modifier.weight(1f), onComment)
+        StitchPostActionButton(Icons.Default.Share, "Share", muted, Modifier.weight(1f), onShare)
+        IconButton(onClick = onSave) {
+            Icon(if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = if (isSaved) "Saved" else "Save",
+                tint = if (isSaved) stitchPrimary() else muted, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun StitchPostActionButton(icon: ImageVector, label: String, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 10.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -8055,8 +8089,10 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
     val followingCount = if (isOther) profileFollowingUsers.size else following.size
     // Respect the viewed member's privacy flags (only applies when viewing someone else).
     val viewedProfile = if (isOther) liveProfiles[profileUid] else null
-    val hideOtherCounts = viewedProfile?.hideCounts == true
-    val privateLocked = viewedProfile?.isPrivate == true && !isFollowingCreator
+    // Public Instagram-style profile: real counts and the grid are always shown (published posts and
+    // reels are public in Ummah anyway).
+    val hideOtherCounts = false
+    val privateLocked = false
     val profileBio = if (isOther) {
         liveProfiles[profileUid]?.bio.orEmpty()
     } else {
@@ -8244,6 +8280,16 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                         ) {
                             Text(if (isFollowingCreator) "Following" else "Follow")
                         }
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                if (!viewModel.isLoggedIn) viewModel.navigateTo(DeenScreen.LOGIN)
+                                else viewModel.openCreatorChat(profileUid, displayName)
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, StitchLine),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = stitchText()),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Message") }
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -13305,3 +13351,6 @@ private fun currentWeekDates(): List<String> {
 private fun isSameDay(a: Calendar, b: Calendar): Boolean =
     a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
 
+
+/** Still frame used only by JVM screenshot previews (there is no video decoder in tests). */
+internal object ReelPreviewFrame { var frame: androidx.compose.ui.graphics.ImageBitmap? = null }

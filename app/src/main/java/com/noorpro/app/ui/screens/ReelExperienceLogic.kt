@@ -65,7 +65,7 @@ internal fun wideReelFrame(viewportWidthDp: Float, viewportHeightDp: Float, aspe
     val aspect = aspectRatio.takeIf { it.isFinite() && it > 1.15f } ?: (16f / 9f)
     val frameHeight = (width / aspect).coerceAtMost((height - 360f).coerceAtLeast(120f))
     val frameWidth = frameHeight * aspect
-    val top = ((height - 180f - frameHeight) / 2f).coerceAtLeast(112f)
+    val top = ((height - frameHeight) / 2f - 40f).coerceAtLeast(112f)
         .coerceAtMost((height - frameHeight - 80f).coerceAtLeast(0f))
     return WideReelFrame(frameWidth, frameHeight, top)
 }
