@@ -93,7 +93,7 @@ internal object PrayerPermissions {
  * time the app returns to the foreground, and can be dismissed ("Not now") for three days.
  */
 @Composable
-fun PrayerPermissionPrompt() {
+fun PrayerPermissionPrompt(suppress: Boolean = false) {
     val context = LocalContext.current
     val prefs = remember { PrayerPrefs(context) }
     var tick by remember { mutableIntStateOf(0) }
@@ -116,7 +116,10 @@ fun PrayerPermissionPrompt() {
     @Suppress("UNUSED_EXPRESSION") tick
     val gap = PrayerPermissions.gap(context)
     val snoozed = System.currentTimeMillis() < prefs.permissionPromptSnoozeUntil
-    if (gap == PrayerPermissionGap.NONE || snoozed) return
+    if (suppress) return
+    // Exact alarms are asked once only (onboarding or first adhan enable) - never as a general pop-up.
+    if (gap == PrayerPermissionGap.EXACT_ALARM && !ExactAlarmAsk.pending) return
+    if (gap == PrayerPermissionGap.NONE || (snoozed && gap != PrayerPermissionGap.EXACT_ALARM)) return
 
     val snooze: () -> Unit = {
         prefs.permissionPromptSnoozeUntil = System.currentTimeMillis() + 3L * 24 * 60 * 60 * 1000
@@ -147,7 +150,7 @@ fun PrayerPermissionPrompt() {
             dismissButton = { TextButton(onClick = snooze) { Text("Not now") } }
         )
         PrayerPermissionGap.EXACT_ALARM -> AlertDialog(
-            onDismissRequest = snooze,
+            onDismissRequest = { ExactAlarmAsk.markAsked(context) },
             title = { Text("Allow exact prayer alarms") },
             text = {
                 Text(
@@ -157,9 +160,9 @@ fun PrayerPermissionPrompt() {
                 )
             },
             confirmButton = {
-                TextButton(onClick = { PrayerPermissions.openExactAlarmSettings(context) }) { Text("Open settings") }
+                TextButton(onClick = { ExactAlarmAsk.markAsked(context); PrayerPermissions.openExactAlarmSettings(context) }) { Text("Open settings") }
             },
-            dismissButton = { TextButton(onClick = snooze) { Text("Not now") } }
+            dismissButton = { TextButton(onClick = { ExactAlarmAsk.markAsked(context) }) { Text("Not now") } }
         )
         PrayerPermissionGap.NONE -> Unit
     }

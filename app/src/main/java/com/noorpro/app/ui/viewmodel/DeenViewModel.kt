@@ -2903,6 +2903,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         if (current != null) {
             val newEnabled = !current.isNotificationEnabled
             prayerSettingsController.setAlarmEnabled(prayerName, newEnabled)
+            if (newEnabled) com.noorpro.app.ui.screens.ExactAlarmAsk.onAdhanEnabled(getApplication())
             recalculatePrayers()
         }
     }

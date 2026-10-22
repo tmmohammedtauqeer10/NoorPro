@@ -4,4 +4,11 @@
     <style name="Theme.NoorPro" parent="android:Theme.DeviceDefault.NoActionBar" />
     <!-- Temporary alias so any stale references keep compiling during rename. -->
     <style name="Theme.MyApplication" parent="Theme.NoorPro" />
+    <!-- Launch theme: Android 12+ SplashScreen API (androidx core-splashscreen back-port). -->
+    <style name="Theme.NoorPro.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#064E3B</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_mark</item>
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/Theme.NoorPro</item>
+    </style>
 </resources>

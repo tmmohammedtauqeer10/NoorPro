@@ -1,6 +1,7 @@
 package com.noorpro.app
 
 import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.util.Log // Added
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -98,7 +99,10 @@ import com.noorpro.app.ui.theme.AppLanguage
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 12+ SplashScreen API (back-ported): brand green + app mark, then hands over to Compose.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        val coldStart = savedInstanceState == null
 
         enableEdgeToEdge()
         // Google UMP consent -> then MobileAds.initialize (never throws; no-op under tests).
@@ -136,7 +140,16 @@ class MainActivity : ComponentActivity() {
                 com.noorpro.app.ui.viewmodel.ThemeMode.LIGHT -> false
             }
             MyApplicationTheme(darkTheme = useDarkTheme) {
-                MainLayout()
+                var showSplash by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(coldStart) }
+                androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(1100); showSplash = false }
+                androidx.compose.foundation.layout.Box {
+                    MainLayout()
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showSplash,
+                        enter = androidx.compose.animation.EnterTransition.None,
+                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(450)),
+                    ) { com.noorpro.app.ui.screens.BrandSplash() }
+                }
             }
         }
     }
@@ -170,41 +183,16 @@ fun MainLayout() {
         LocalAppStrings provides strings,
         LocalAppLanguage provides appLang
     ) {
-        val locationPermissionRequest = rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineGranted = permissions.getOrDefault(android.Manifest.permission.ACCESS_FINE_LOCATION, false)
-        val coarseGranted = permissions.getOrDefault(android.Manifest.permission.ACCESS_COARSE_LOCATION, false)
-        if (fineGranted || coarseGranted) {
-            viewModel.checkLocationAndRefresh { }
-        }
-        onboardingPrefs.edit().putBoolean("permissions_intro_complete", true).apply()
-        onboardingComplete = true
-    }
 
     if (!onboardingComplete) {
-        com.noorpro.app.ui.screens.PermissionOnboardingScreen(
-            selectedTheme = themeMode,
-            onThemeSelected = viewModel::updateThemeMode,
-            onEnableAndContinue = {
-                val requested = buildList {
-                    add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                    add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                        add(android.Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-                locationPermissionRequest.launch(requested.toTypedArray())
-            },
-            onSkip = {
-                onboardingPrefs.edit().putBoolean("permissions_intro_complete", true).apply()
-                onboardingComplete = true
-            }
-        )
+        com.noorpro.app.ui.screens.EntranceOnboarding(viewModel) {
+            onboardingPrefs.edit().putBoolean("permissions_intro_complete", true).apply()
+            onboardingComplete = true
+        }
         return@CompositionLocalProvider
     }
 
-    com.noorpro.app.ui.screens.PrayerPermissionPrompt()
+    com.noorpro.app.ui.screens.PrayerPermissionPrompt(suppress = currentScreen == DeenScreen.LOGIN)
 
     LaunchedEffect(onboardingComplete) {
         val hasLocationPermission =
