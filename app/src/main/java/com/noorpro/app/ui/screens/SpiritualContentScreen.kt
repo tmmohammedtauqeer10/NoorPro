@@ -66,6 +66,11 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
     var categoryId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     var itemId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     var query by rememberSaveable(sectionId) { mutableStateOf("") }
+    var levelId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
+    val history = remember(sectionId) { mutableStateListOf<String>() }
+    var done by remember { mutableStateOf(SpiritualPrefs.completedLessons(context)) }
+    fun openItem(id: String) { itemId?.let { history.add(it) }; itemId = id }
+    fun closeItem() { itemId = if (history.isNotEmpty()) history.removeAt(history.lastIndex) else null }
 
     var readerBookId by rememberSaveable(sectionId) { mutableStateOf<String?>(null) }
     val readerBook = remember(readerBookId) { readerBookId?.let { com.noorpro.app.data.spiritual.BookLibrary.find(context.applicationContext, it) } }
@@ -74,7 +79,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
         return
     }
     BackHandler(enabled = itemId != null || categoryId != null || query.isNotEmpty()) {
-        if (itemId != null) itemId = null else if (categoryId != null) categoryId = null else query = ""
+        if (itemId != null) closeItem() else if (levelId != null) levelId = null else if (categoryId != null) categoryId = null else query = ""
     }
 
     val s = section
@@ -84,6 +89,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
     val title = when {
         item != null -> item.title
         categoryId == FAV_CATEGORY -> "Favourites"
+        levelId != null -> s?.levels?.firstOrNull { it.id == levelId }?.title ?: ""
         category != null -> category.title
         else -> s?.title ?: ""
     }
@@ -96,7 +102,8 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
             ) {
                 IconButton(onClick = {
                     when {
-                        itemId != null -> itemId = null
+                        itemId != null -> closeItem()
+                        levelId != null -> levelId = null
                         categoryId != null -> categoryId = null
                         query.isNotEmpty() -> query = ""
                         else -> viewModel.goBack()
@@ -117,8 +124,17 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
             when {
                 loadError -> Text("Content could not be loaded.", color = stitchMutedText(), modifier = Modifier.padding(24.dp))
                 s == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = stitchPrimary()) }
+                item != null && item.lesson != null -> LessonReader(s, item, item.id in done,
+                    onDone = { d -> done = SpiritualPrefs.setLessonDone(context, item.id, d) },
+                    onGo = { id -> history.clear(); itemId = id }, onTerm = { openItem(it) })
                 item != null -> SpiritualItemDetail(viewModel, s, item, fontSize, onRead = { readerBookId = it }) { fontSize = it; SpiritualPrefs.setArabicFontSize(context, it) }
                 categoryId == FAV_CATEGORY -> SpiritualItemList(allItems.filter { it.id in favourites }, favourites, "No favourites yet. Tap the heart on any item.") { itemId = it.id }
+                category != null && category.id == "learn" && levelId == null -> LearnLevelList(s, done) { levelId = it }
+                category != null && category.id == "learn" -> {
+                    val lv = s.levels.firstOrNull { it.id == levelId }
+                    val lessons = lv?.lessonIds?.mapNotNull { id -> category.items.firstOrNull { it.id == id } }.orEmpty()
+                    SpiritualItemList(lessons, favourites, null, serif = true, done = done) { itemId = it.id }
+                }
                 category != null -> SpiritualItemList(category.items, favourites, null, serif = s.id == "tasawwuf") { itemId = it.id }
                 s.id == "tasawwuf" -> Column {
                     Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)) { SpiritualSearchField(query) { query = it } }
@@ -126,7 +142,7 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
                     else {
                         val hits = remember(s, query) { spiritualSearch(s, query) }
                         SpiritualItemList(hits.map { it.second }, favourites, "No results for \"$query\".", serif = true,
-                            labels = hits.associate { it.second.id to it.first }) { itemId = it.id }
+                            labels = hits.associate { it.second.id to it.first }, done = done) { itemId = it.id }
                     }
                 }
                 else -> SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }) { categoryId = it }
@@ -149,6 +165,14 @@ private fun spiritualSearch(section: SpiritualSection, q: String): List<Pair<Str
                 i.toc.forEach { append(' ').append(it) }
                 i.blocks.forEach { append(' ').append(it.second) }
                 i.chart?.nodes?.forEach { append(' ').append(it.label).append(' ').append(it.note) }
+                i.lesson?.let { l ->
+                    l.points.forEach { append(' ').append(it) }
+                    l.hadith.forEach { append(' ').append(it.first).append(' ').append(it.second) }
+                    l.sayings.forEach { append(' ').append(it.first).append(' ').append(it.second).append(' ').append(it.third) }
+                    l.ayat.forEach { append(' ').append(it.ref).append(' ').append(it.english) }
+                    append(' ').append(l.exercise)
+                    l.terms.forEach { append(' ').append(it.first) }
+                }
             }.lowercase()
             if (terms.all { head.contains(it) || body.contains(it) }) {
                 val score = terms.count { head.contains(it) } * 10 + (if (i.title.lowercase().startsWith(terms[0])) 5 else 0)
@@ -210,7 +234,7 @@ private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, onOp
 
 @Composable
 private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String>, emptyText: String?, serif: Boolean = false,
-                              labels: Map<String, String> = emptyMap(), onOpen: (SpiritualItem) -> Unit) {
+                              labels: Map<String, String> = emptyMap(), done: Set<String> = emptySet(), onOpen: (SpiritualItem) -> Unit) {
     if (items.isEmpty() && emptyText != null) {
         Text(emptyText, color = stitchMutedText(), modifier = Modifier.padding(24.dp))
         return
@@ -223,6 +247,7 @@ private fun SpiritualItemList(items: List<SpiritualItem>, favourites: Set<String
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(it.title, color = stitchText(), fontWeight = FontWeight.SemiBold, fontSize = if (serif) 17.sp else 16.sp,
                             fontFamily = if (serif) com.noorpro.app.ui.theme.LibreCaslon else null, modifier = Modifier.weight(1f))
+                        if (it.id in done) Icon(Icons.Default.CheckCircle, contentDescription = "Completed", tint = stitchPrimary(), modifier = Modifier.size(18.dp).padding(end = 2.dp))
                         if (it.id in favourites) Icon(Icons.Default.Favorite, contentDescription = null, tint = StitchGold, modifier = Modifier.size(16.dp))
                     }
                     if (it.arabic.isNotBlank()) Text(
@@ -448,5 +473,128 @@ private fun SpiritualChartView(chart: com.noorpro.app.data.spiritual.SpiritualCh
                 }
             }
         }
+    }
+}
+
+
+/** Level cards for the "Learn Tasawwuf" course, with locally saved progress. */
+@Composable
+private fun LearnLevelList(section: SpiritualSection, done: Set<String>, onOpen: (String) -> Unit) {
+    val total = section.levels.sumOf { it.lessonIds.size }
+    val doneAll = section.levels.sumOf { l -> l.lessonIds.count { it in done } }
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("A structured course from the foundations to advanced teachings. Take the lessons in order; mark each one complete when you have read it and tried its exercise.",
+                color = stitchMutedText(), fontSize = 14.sp, lineHeight = 20.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("Overall progress: $doneAll / $total lessons", color = stitchPrimary(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        items(section.levels, key = { it.id }) { l ->
+            val n = l.lessonIds.size
+            val d = l.lessonIds.count { it in done }
+            StitchCard(Modifier.fillMaxWidth().clickable { onOpen(l.id) }) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(l.title, color = stitchText(), fontFamily = com.noorpro.app.ui.theme.LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                        if (n > 0 && d == n) Icon(Icons.Default.CheckCircle, contentDescription = "Level complete", tint = stitchPrimary())
+                    }
+                    Text(l.subtitle, color = stitchMutedText(), fontSize = 13.sp, fontStyle = FontStyle.Italic)
+                    LinearProgressIndicator(progress = { if (n == 0) 0f else d / n.toFloat() }, color = stitchPrimary(),
+                        trackColor = stitchMutedText().copy(alpha = 0.2f), modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)))
+                    Text("$d / $n lessons completed", color = stitchMutedText(), fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LessonHeading(text: String) {
+    Text(text, color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+}
+
+/** Lesson reader in the serif reading style: intro, key points, Quran, hadith, sayings, exercise, terms, prev/next. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun LessonReader(section: SpiritualSection, item: SpiritualItem, isDone: Boolean, onDone: (Boolean) -> Unit, onGo: (String) -> Unit, onTerm: (String) -> Unit) {
+    val l = item.lesson ?: return
+    val serif = com.noorpro.app.ui.theme.LibreCaslon
+    val all = remember(section) { section.categories.flatMap { it.items }.associateBy { it.id } }
+    val scroll = rememberScrollState()
+    LaunchedEffect(item.id) { scroll.scrollTo(0) }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp).padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(item.subtitle.uppercase(), color = stitchMutedText(), fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+        Text(item.title, color = stitchText(), fontFamily = serif, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
+        Text(item.english, color = stitchText(), fontFamily = serif, fontSize = 18.sp, lineHeight = 29.sp)
+        if (l.points.isNotEmpty()) {
+            LessonHeading("KEY POINTS")
+            l.points.forEach { p ->
+                Row { Text("•", color = stitchPrimary(), fontSize = 18.sp, modifier = Modifier.width(18.dp)); Text(p, color = stitchText(), fontFamily = serif, fontSize = 17.sp, lineHeight = 26.sp) }
+            }
+        }
+        if (l.ayat.isNotEmpty()) {
+            LessonHeading("FROM THE QURAN")
+            l.ayat.forEach { a ->
+                StitchCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(a.arabic, fontFamily = com.noorpro.app.ui.components.QuranArabicFont, fontSize = 24.sp, lineHeight = 44.sp, color = stitchText(),
+                            textAlign = TextAlign.Right, style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth())
+                        if (a.urdu.isNotBlank()) Text(a.urdu, fontFamily = SpiritualArabicFont, fontSize = 17.sp, lineHeight = 30.sp, color = stitchMutedText(),
+                            textAlign = TextAlign.Right, style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth())
+                        Text(a.english, color = stitchText(), fontFamily = serif, fontSize = 16.sp, lineHeight = 24.sp, fontStyle = FontStyle.Italic)
+                        Text(a.ref, color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Text("Arabic, Kanz-ul-Iman (Urdu) and English as in NoorPro's Quran reader.", color = stitchMutedText(), fontSize = 11.sp)
+        }
+        if (l.hadith.isNotEmpty()) {
+            LessonHeading("FROM THE HADITH")
+            l.hadith.forEach { (t, src) ->
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(stitchPrimary().copy(alpha = 0.08f)).padding(14.dp)) {
+                    Text(t, color = stitchText(), fontFamily = serif, fontSize = 16.sp, lineHeight = 25.sp)
+                    Text("— $src", color = stitchMutedText(), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        if (l.sayings.isNotEmpty()) {
+            LessonHeading("FROM THE MASTERS")
+            l.sayings.forEach { (t, who, book) ->
+                Row(Modifier.fillMaxWidth()) {
+                    Box(Modifier.width(3.dp).height(48.dp).background(StitchGold))
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(t, color = stitchText(), fontFamily = serif, fontSize = 16.sp, lineHeight = 25.sp, fontStyle = FontStyle.Italic)
+                        Text("— $who, $book", color = stitchMutedText(), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+        }
+        if (l.exercise.isNotBlank()) {
+            LessonHeading("PRACTICAL EXERCISE")
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x33D4AF37)).padding(14.dp)) {
+                Icon(Icons.Default.SelfImprovement, contentDescription = null, tint = StitchGold, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(10.dp))
+                Text(l.exercise, color = stitchText(), fontFamily = serif, fontSize = 16.sp, lineHeight = 24.sp)
+            }
+        }
+        if (l.terms.isNotEmpty()) {
+            LessonHeading("KEY TERMS")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                l.terms.forEach { (t, id) -> AssistChip(onClick = { if (all.containsKey(id)) onTerm(id) }, label = { Text(t) }) }
+            }
+        }
+        if (item.source.isNotBlank()) Text("Sources: " + item.source, color = stitchMutedText(), fontSize = 12.sp, lineHeight = 17.sp)
+        if (isDone) OutlinedButton(onClick = { onDone(false) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = stitchPrimary()); Spacer(Modifier.width(8.dp)); Text("Completed — tap to undo")
+        } else Button(onClick = { onDone(true); if (l.next.isNotBlank()) onGo(l.next) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Check, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (l.next.isNotBlank()) "Mark complete & next lesson" else "Mark complete")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { onGo(l.prev) }, enabled = l.prev.isNotBlank(), modifier = Modifier.weight(1f)) { Text("‹ Previous", maxLines = 1) }
+            OutlinedButton(onClick = { onGo(l.next) }, enabled = l.next.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Next ›", maxLines = 1) }
+        }
+        all[l.next]?.let { Text("Next lesson: " + it.title, color = stitchMutedText(), fontFamily = serif, fontSize = 14.sp, fontStyle = FontStyle.Italic) }
     }
 }
