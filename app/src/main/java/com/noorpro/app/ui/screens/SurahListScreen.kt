@@ -39,6 +39,8 @@ import com.noorpro.app.ui.viewmodel.DeenViewModel
 private val MatteGold = Color(0xFF0E8C73)
 private val GlowGold = Color(0xFF17B892)
 private val LightGold = Color(0xFF7FD1BD)
+// Bundled Arabic font that covers all Indo-Pak waqf marks (system fonts on some phones do not).
+private val QuranArabicFont = FontFamily(androidx.compose.ui.text.font.Font(com.noorpro.app.R.font.noto_naskh_arabic, FontWeight.Normal))
 
 @Composable
 fun SurahListScreen(
@@ -1042,9 +1044,9 @@ fun SurahReaderView(
                         Text(
                             text = verse.first,
                             style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = LightGold,
-                                fontFamily = LibreCaslon,
+                                fontWeight = FontWeight.Normal,
+                                color = com.noorpro.app.ui.components.stitchText(),
+                                fontFamily = QuranArabicFont,
                                 lineHeight = 44.sp,
                                 textAlign = TextAlign.Right
                             ),

@@ -96,6 +96,31 @@ object OfflineQuranAssets {
         return Core(names, ayahs)
     }
 
+    /**
+     * The Indo-Pak source text uses Private-Use codepoints (from a font that may not be bundled) for some
+     * waqf/ruku marks and two vowel signs. Map them to their standard Unicode equivalents so every Arabic
+     * font in the app can draw them (nothing is dropped).
+     */
+    fun indoPakToUnicode(s: String): String {
+        val sb = StringBuilder(s.length)
+        for (ch in s) sb.append(
+            when (ch) {
+                '\uE003' -> '\u0656' // subscript (khari) alef
+                '\uE004' -> '\u0657' // inverted damma (ulta pesh)
+                '\uE01A' -> '\u0617' // waqf: small high zain (mujawwaz)
+                '\uE01B' -> '\u08D5' // waqf: small high sad
+                '\uE01C' -> '\u08D7' // waqf: small high qaf
+                '\uE01E' -> '\u08DE' // waqf: small high word qif
+                '\uE01F' -> '\u08DF' // waqf: small high word waqfa
+                '\uE021' -> '\u06EC' // round stop mark (ayah end in other counts)
+                '\uE022' -> '\u08D6' // ruku sign (small high ain)
+                '\u2002', '\u2003' -> ' '
+                else -> ch
+            }
+        )
+        return sb.toString()
+    }
+
     /** Streams Indo-Pak word rows without materialising the whole JSON. */
     inline fun forEachIndoPakWord(context: Context, block: (surah: Int, ayah: Int, word: Int, text: String) -> Unit) {
         GZIPInputStream(context.assets.open(INDOPAK_ASSET), 64 * 1024).use { gz ->

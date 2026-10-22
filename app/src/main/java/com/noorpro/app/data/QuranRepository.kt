@@ -162,7 +162,7 @@ class QuranRepository(private val context: Context) {
     }
 
     private fun normalizeIndoPakWord(value: String): String =
-        value.replace("\u200E", "")
+        OfflineQuranAssets.indoPakToUnicode(value).replace("\u200E", "")
             .replace("\u200F", "")
             .trim()
 
