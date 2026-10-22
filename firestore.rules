@@ -326,10 +326,27 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
           && request.resource.data.senderUid == request.auth.uid
-          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf", "call"]
+          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf", "call", "post_share"]
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
-          && request.resource.data.mediaUrl is string;
+          && request.resource.data.mediaUrl is string
+          // 1.0.82 (additive): Instagram-style shared reel/post card. Only applies to the new type.
+          && (request.resource.data.type != "post_share" || (
+            request.resource.data.text.size() <= 500
+            && request.resource.data.sharedTo is string
+            && request.resource.data.sharedTo != request.auth.uid
+            && request.resource.data.sharedTo in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
+            && !exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.sharedTo)/blocked/$(request.auth.uid))
+            && request.resource.data.sharedPostId is string
+            && request.resource.data.sharedPostId.size() > 0
+            && request.resource.data.sharedPostId.size() <= 128
+            && exists(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId))
+            && request.resource.data.sharedPostKind in ["reel", "post"]
+            && request.resource.data.sharedThumb is string && request.resource.data.sharedThumb.size() <= 2000
+            && request.resource.data.sharedCreatorUid is string && request.resource.data.sharedCreatorUid.size() <= 128
+            && request.resource.data.sharedCreatorName is string && request.resource.data.sharedCreatorName.size() <= 80
+            && request.resource.data.sharedCreatorPhoto is string && request.resource.data.sharedCreatorPhoto.size() <= 1000
+            && request.resource.data.sharedCaption is string && request.resource.data.sharedCaption.size() <= 300));
         // Participants may add/remove ONLY emoji reactions (no other field may change).
         allow update: if request.auth != null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"])

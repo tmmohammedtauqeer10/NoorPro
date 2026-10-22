@@ -3429,7 +3429,7 @@ private fun rememberStitchUserComments(isLoggedIn: Boolean): StitchUserCommentSt
     return StitchUserCommentState(comments = comments, loading = loading)
 }
 
-private fun shareStitchUmmahPost(
+internal fun shareStitchUmmahPost(
     context: android.content.Context,
     post: UmmahPost,
     repository: UmmahRepository,
@@ -3467,7 +3467,7 @@ private fun shareStitchUmmahPost(
     }
 }
 
-private fun copyStitchReelLink(context: android.content.Context, postId: String) {
+internal fun copyStitchReelLink(context: android.content.Context, postId: String) {
     val link = "https://noor-pro-d87e3.web.app/reel?id=$postId"
     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Noor Pro reel", link))
@@ -3636,9 +3636,9 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     var viewedReelIds by remember { mutableStateOf(emptySet<String>()) }
     val requestedReelId = viewModel.reelFocusId.trim()
     val rankedReels = remember(
-        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter
+        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter, viewModel.reelFocusPost
     ) {
-        feedState.posts
+        (feedState.posts + listOfNotNull(viewModel.reelFocusPost).filter { f -> feedState.posts.none { it.id == f.id } })
             .filter { it.opensInVideoViewer() }
             .filter { topTab != "Following" || it.creatorUid in following }
             .filter { hashtagFilter.isBlank() || hashtagFilter.lowercase() in captionTags(it.caption + " " + it.arabicText).map { t -> t.lowercase() } }
@@ -4109,13 +4109,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 }
                             },
                             onShare = {
-                                val before = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L)
-                                if (shareStitchUmmahPost(context, post, followRepository) { ok ->
-                                        if (!ok) optimisticShareCounts = optimisticShareCounts + (post.id to before)
-                                    }
-                                ) {
-                                    optimisticShareCounts = optimisticShareCounts + (post.id to before + 1L)
-                                }
+                                // 1.0.82: Instagram-style in-app share sheet (DMs, copy link, other apps, story).
+                                viewModel.sharePost = post
                             },
                             onOpenProfile = {
                                 viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle)
@@ -5572,7 +5567,7 @@ fun StitchUmmahHubScreen(viewModel: DeenViewModel) {
                                     }
                                 }
                             },
-                            onShare = { shareStitchUmmahPost(context, post, followRepository) },
+                            onShare = { viewModel.sharePost = post },
                             onOpen = { viewModel.openReel(post.id) },
                             onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) }
                         )
@@ -5624,7 +5619,7 @@ fun StitchUmmahHubScreen(viewModel: DeenViewModel) {
                                 }
                             }
                         },
-                        onShare = { shareStitchUmmahPost(context, post, followRepository) },
+                        onShare = { viewModel.sharePost = post },
                         onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) },
                         onOpenReel = { viewModel.openReel(post.id) }
                     )
@@ -11899,6 +11894,8 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
     val blockedUids = rememberBlockedUids()
     var messageReport by remember { mutableStateOf<ReportTarget?>(null) }
     messageReport?.let { UgcReportDialog(it) { messageReport = null } }
+    var sharedViewerPost by remember { mutableStateOf<UmmahPost?>(null) }
+    sharedViewerPost?.let { SharedPostViewer(it) { sharedViewerPost = null } }
 
     fun sendChatPayload(
         text: String = draft.trim(),
@@ -12233,7 +12230,9 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                         },
                         onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) },
                         tick = if (mine) chatMeta.tickFor(otherUid, m.createdAt) else -1,
-                        onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) }
+                        onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) },
+                        blockedUids = blockedUids,
+                        onOpenShared = { p -> if (p.type == "reel" || p.type == "video") viewModel.openSharedReel(p) else sharedViewerPost = p }
                     )
                     }
                 }
@@ -12365,6 +12364,7 @@ private fun noorMessageTypeLabel(type: String): String = when (type) {
     "image" -> "Photo"
     "video" -> "Video"
     "reel" -> "Reel"
+    "post_share" -> "Shared post"
     "audio" -> "Voice message"
     "location" -> "Location"
     "pdf" -> "PDF"
@@ -12684,7 +12684,9 @@ internal fun StitchChatMessageBubble(
     onDelete: () -> Unit = {},
     onReport: (() -> Unit)? = null,
     tick: Int = -1,
-    onDeleteForMe: (() -> Unit)? = null
+    onDeleteForMe: (() -> Unit)? = null,
+    blockedUids: Set<String> = emptySet(),
+    onOpenShared: ((UmmahPost) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val bubbleColor = if (mine) stitchPrimary() else stitchSurface()
@@ -12780,6 +12782,7 @@ internal fun StitchChatMessageBubble(
                     when {
                         message.type == "image" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "video" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
+                        message.type == "post_share" -> SharedPostCard(message, blockedUids) { p -> onOpenShared?.invoke(p) }
                         message.type == "reel" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "audio" && hasMedia -> StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
                         message.type == "location" && hasMedia -> StitchMessageMediaRow(Icons.Default.LocationOn, "Open shared location", textColor, hasMenu = false, onClick = ::openMedia)
@@ -12794,7 +12797,7 @@ internal fun StitchChatMessageBubble(
                             textAlign = if (isArabic) TextAlign.End else TextAlign.Start
                         )
                     }
-                    if (message.text.isBlank() && message.mediaUrl.isBlank()) {
+                    if (message.text.isBlank() && message.mediaUrl.isBlank() && message.type != "post_share") {
                         Text(message.type.replaceFirstChar { it.uppercase() }, color = textColor, fontSize = 14.sp)
                     }
                     // Timestamp, right-aligned like WhatsApp.

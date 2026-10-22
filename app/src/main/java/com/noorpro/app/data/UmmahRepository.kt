@@ -96,7 +96,15 @@ data class UmmahMessage(
     val replyToName: String = "",
     val replyToText: String = "",
     val replyToType: String = "",
-    val reactions: Map<String, String> = emptyMap()
+    val reactions: Map<String, String> = emptyMap(),
+    /** 1.0.82: Instagram-style in-app share of a reel / Ummah post ("post_share" messages). */
+    val sharedPostId: String = "",
+    val sharedPostKind: String = "",
+    val sharedThumb: String = "",
+    val sharedCreatorUid: String = "",
+    val sharedCreatorName: String = "",
+    val sharedCreatorPhoto: String = "",
+    val sharedCaption: String = ""
 )
 
 data class UmmahComment(
@@ -1304,12 +1312,87 @@ class UmmahRepository {
                         replyToName = document.getString("replyToName").orEmpty(),
                         replyToText = document.getString("replyToText").orEmpty(),
                         replyToType = document.getString("replyToType").orEmpty(),
-                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap()
+                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap(),
+                        sharedPostId = document.getString("sharedPostId").orEmpty(),
+                        sharedPostKind = document.getString("sharedPostKind").orEmpty(),
+                        sharedThumb = document.getString("sharedThumb").orEmpty(),
+                        sharedCreatorUid = document.getString("sharedCreatorUid").orEmpty(),
+                        sharedCreatorName = document.getString("sharedCreatorName").orEmpty(),
+                        sharedCreatorPhoto = document.getString("sharedCreatorPhoto").orEmpty(),
+                        sharedCaption = document.getString("sharedCaption").orEmpty()
                     )
                 }
                 onResult(messages, null)
             }
         chatListeners += registration
+    }
+
+    /** One-shot read of a published post for shared-post cards. null = deleted / not published. */
+    fun fetchPublishedPost(postId: String, onResult: (UmmahPost?) -> Unit) {
+        val id = postId.trim()
+        if (id.isBlank() || id.contains('/')) return onResult(null)
+        firestore.collection("ummah_posts").document(id).get()
+            .addOnSuccessListener { doc ->
+                val post = if (doc.exists()) runCatching { doc.toUmmahPost() }.getOrNull() else null
+                onResult(post?.takeIf { it.publicationStatus.isBlank() || it.publicationStatus == "published" })
+            }
+            .addOnFailureListener { onResult(null) }
+    }
+
+    /**
+     * 1.0.82: send [post] to each recipient's 1:1 chat as a "post_share" message (Instagram style).
+     * An optional [note] rides in the message text. The share counter is incremented once.
+     * Recipients the sender has blocked are skipped by the caller; Firestore rules also refuse a
+     * share to someone who has blocked the sender.
+     */
+    fun sendPostShare(post: UmmahPost, recipients: List<Pair<String, String>>, note: String, onResult: (Int, String?) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(0, "Please sign in to share.")
+        val targets = recipients.filter { it.first.isNotBlank() && it.first != user.uid }.distinctBy { it.first }.take(15)
+        if (targets.isEmpty()) return onResult(0, "Choose who to send to.")
+        val isReel = post.type == "reel" || post.type == "video"
+        val kind = if (isReel) "reel" else "post"
+        val preview = if (isReel) "Sent a reel" else "Sent a post"
+        val thumb = post.thumbnailUrl.ifBlank { post.mediaUrls.firstOrNull().orEmpty().ifBlank { if (post.type == "image") post.mediaUrl else "" } }
+            .takeIf { it.startsWith("https://") }.orEmpty().take(2000)
+        var done = 0; var ok = 0; var firstError: String? = null
+        targets.forEach { (uid, name) ->
+            val chatId = listOf(user.uid, uid).sorted().joinToString("_")
+            val chatRef = firestore.collection("ummah_chats").document(chatId)
+            firestore.runBatch { batch ->
+                batch.set(chatRef, mapOf(
+                    "participantUids" to listOf(user.uid, uid),
+                    "participantNames" to mapOf(user.uid to (user.displayName ?: user.email?.substringBefore("@") ?: "You"), uid to name.ifBlank { "Friend" }),
+                    "lastMessage" to preview,
+                    "lastMessageType" to "post_share",
+                    "lastSenderUid" to user.uid,
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "unread_$uid" to com.google.firebase.firestore.FieldValue.increment(1)
+                ), com.google.firebase.firestore.SetOptions.merge())
+                batch.set(chatRef.collection("messages").document(), mapOf(
+                    "senderUid" to user.uid,
+                    "senderName" to (user.displayName ?: "Community member"),
+                    "text" to note.trim().take(500),
+                    "mediaUrl" to "",
+                    "type" to "post_share",
+                    "sharedTo" to uid,
+                    "sharedPostId" to post.id.take(128),
+                    "sharedPostKind" to kind,
+                    "sharedThumb" to thumb,
+                    "sharedCreatorUid" to post.creatorUid.take(128),
+                    "sharedCreatorName" to post.creatorName.take(80),
+                    "sharedCreatorPhoto" to post.creatorPhotoUrl.takeIf { it.startsWith("https://") }.orEmpty().take(1000),
+                    "sharedCaption" to post.caption.ifBlank { post.arabicText }.trim().take(300),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                ))
+            }.addOnCompleteListener { task ->
+                done++
+                if (task.isSuccessful) ok++ else if (firstError == null) firstError = task.exception?.localizedMessage ?: "Couldn't send."
+                if (done == targets.size) {
+                    if (ok > 0) incrementShare(post.id)
+                    onResult(ok, firstError)
+                }
+            }
+        }
     }
 
     fun observeGroupMessages(groupId: String, onResult: (List<UmmahMessage>, String?) -> Unit) {

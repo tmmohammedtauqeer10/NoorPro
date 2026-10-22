@@ -426,6 +426,8 @@ fun MainLayout() {
                     .padding(bottom = 0.dp, start = 0.dp, end = 0.dp)
             )
         }
+        // 1.0.82: Instagram-style in-app share sheet for reels / Ummah posts.
+        com.noorpro.app.ui.screens.ShareToChatHost(viewModel)
         // 1.0.81: Spotify-style mini player that expands (shared element) into full Now Playing.
         com.noorpro.app.ui.screens.AlNoorPlayerHost(
             vm = viewModel,

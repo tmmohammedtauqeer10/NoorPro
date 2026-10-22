@@ -475,6 +475,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     // reel opens and plays — no static thumbnail or intermediate page. Cleared once focused.
     var reelFocusId by mutableStateOf("")
 
+    /** 1.0.82: post being shared via the Instagram-style in-app share sheet (null = closed). */
+    var sharePost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
+    var shareSentCount by mutableStateOf(0)
+    /** A reel opened from a chat card; merged into the Reels feed so it plays even if not ranked. */
+    var reelFocusPost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
+
+    fun openSharedReel(post: com.noorpro.app.data.UmmahPost) {
+        reelFocusPost = post
+        openReel(post.id)
+    }
+
     /** Open the Reels screen focused on a specific reel and play it. */
     fun openReel(postId: String) {
         reelFocusId = postId
