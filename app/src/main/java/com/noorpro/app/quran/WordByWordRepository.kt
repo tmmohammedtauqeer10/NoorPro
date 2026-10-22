@@ -11,8 +11,8 @@ import java.net.URL
 
 /**
  * 1.0.76 word-by-word data from Quran.Foundation (quran.com) public endpoints:
- *  - words + word-by-word English meaning/transliteration: api.quran.com/api/v4/verses/by_chapter
- *  - per-word recitation timings ("segments"): api.qurancdn.com/api/qdc/audio/reciters/{id}/audio_files
+ *  - words + word-by-word English meaning/transliteration and per-word recitation timings come from
+ *    the official Content API v4 via our qfProxy Cloud Function (client credentials stay server-side)
  *  - single-word audio: audio.qurancdn.com/wbw/SSS_AAA_WWW.mp3 (streamed, never stored)
  * Text is shown unmodified with the attribution "Quran data provided by Quran.Foundation".
  * Only the JSON is cached in-app (filesDir/qwbw) for offline display; audio is streamed only.
@@ -27,16 +27,22 @@ data class HifzReciter(val id: Int, val name: String)
 val HIFZ_RECITERS = listOf(HifzReciter(7, "Mishary al-Afasy"), HifzReciter(6, "Mahmoud al-Husary"), HifzReciter(12, "Al-Husary (Muallim)"), HifzReciter(9, "Al-Minshawi"))
 
 const val QF_ATTRIBUTION = "Quran data, word timings & word audio provided by Quran.Foundation (quran.com)"
+const val QF_PROXY = "https://us-central1-noor-pro-d87e3.cloudfunctions.net/qfProxy"
 const val WBW_AUDIO_BASE = "https://audio.qurancdn.com/"
 
 class WordByWordRepository(private val context: Context) {
     private val dir = File(context.filesDir, "qwbw").apply { mkdirs() }
 
+    /** Calls our qfProxy Cloud Function (holds the Quran.Foundation credentials server-side). */
     private fun get(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 12_000; c.readTimeout = 20_000
+        c.connectTimeout = 12_000; c.readTimeout = 30_000
         c.setRequestProperty("User-Agent", "NoorPro/1.0 (Android; Quran reader)")
         c.setRequestProperty("Accept", "application/json")
+        runCatching { com.google.android.gms.tasks.Tasks.await(com.google.firebase.appcheck.FirebaseAppCheck.getInstance().getAppCheckToken(false)).token }
+            .getOrNull()?.takeIf { it.isNotBlank() }?.let { c.setRequestProperty("X-Firebase-AppCheck", it) }
+        runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.let { com.google.android.gms.tasks.Tasks.await(it.getIdToken(false)).token } }
+            .getOrNull()?.takeIf { it.isNotBlank() }?.let { c.setRequestProperty("Authorization", "Bearer $it") }
         try {
             if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
             return c.inputStream.bufferedReader().use { it.readText() }
@@ -47,19 +53,17 @@ class WordByWordRepository(private val context: Context) {
         val f = File(dir, name)
         if (f.exists() && f.length() > 50) return@withContext f.readText()
         val body = get(url)
-        f.writeText(body)
+        if (body.length > 50) f.writeText(body)
         body
     }
 
     suspend fun verses(chapter: Int): List<QVerse> {
-        val raw = cached("w_$chapter.json",
-            "https://api.quran.com/api/v4/verses/by_chapter/$chapter?words=true&word_fields=text_uthmani&per_page=300&language=en")
+        val raw = cached("qf_w_$chapter.json", "$QF_PROXY?kind=words&chapter=$chapter")
         return parseVerses(raw)
     }
 
     suspend fun chapterAudio(chapter: Int, reciter: Int): QChapterAudio {
-        val raw = cached("a_${reciter}_$chapter.json",
-            "https://api.qurancdn.com/api/qdc/audio/reciters/$reciter/audio_files?chapter=$chapter&segments=true")
+        val raw = cached("qf_a_${reciter}_$chapter.json", "$QF_PROXY?kind=timings&chapter=$chapter&reciter=$reciter")
         return parseAudio(raw)
     }
 

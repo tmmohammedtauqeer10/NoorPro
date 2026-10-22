@@ -23,6 +23,9 @@ const GROQ_MODELS = (process.env.NOOR_AI_GROQ_MODELS || "openai/gpt-oss-120b,qwe
 // Resend API key is stored in Google Secret Manager, never in source or the app.
 // Set it once with:  firebase functions:secrets:set RESEND_API_KEY
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
+// 1.0.77: Quran.Foundation Content API (client-credentials). Values live in Secret Manager only.
+const QF_CLIENT_ID = defineSecret("QF_CLIENT_ID");
+const QF_CLIENT_SECRET = defineSecret("QF_CLIENT_SECRET");
 // AWS credentials for presigned S3 reel uploads (served via CloudFront). Stored in
 // Google Secret Manager, never in source or the app. Set once with:
 //   firebase functions:secrets:set AWS_ACCESS_KEY_ID
@@ -893,6 +896,123 @@ exports.publishUmmahSubmissionNow = onRequest(
     } catch (error) {
       console.error("publishUmmahSubmissionNow failed", error);
       return res.status(500).json({error: "Unable to publish this reel."});
+    }
+  }
+);
+
+
+// ---------------------------------------------------------------------------------------------
+// 1.0.77 qfProxy: the app never sees the Quran.Foundation client secret. Whitelisted read-only
+// content calls (word-by-word verses, chapter recitation timings, translations) are proxied with
+// a cached client-credentials token, guarded by App Check or a Firebase ID token, and cached.
+// QF_ENV=production switches hosts once production access is approved (default prelive).
+// ---------------------------------------------------------------------------------------------
+const QF_HOSTS = {
+  prelive: {auth: "https://prelive-oauth2.quran.foundation", api: "https://apis-prelive.quran.foundation"},
+  production: {auth: "https://oauth2.quran.foundation", api: "https://apis.quran.foundation"}
+};
+let qfToken = {value: "", exp: 0, env: ""};
+const qfCache = new Map(); // key -> {at, body}
+const QF_CACHE_MS = 12 * 60 * 60 * 1000;
+
+function qfEnv() {
+  return (process.env.QF_ENV || "prelive").toLowerCase() === "production" ? "production" : "prelive";
+}
+
+async function qfAccessToken(force = false) {
+  const env = qfEnv();
+  if (!force && qfToken.value && qfToken.env === env && Date.now() < qfToken.exp - 60_000) return qfToken.value;
+  const basic = Buffer.from(`${QF_CLIENT_ID.value().trim()}:${QF_CLIENT_SECRET.value().trim()}`).toString("base64");
+  const r = await fetch(`${QF_HOSTS[env].auth}/oauth2/token`, {
+    method: "POST",
+    headers: {"Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded"},
+    body: "grant_type=client_credentials&scope=content"
+  });
+  if (!r.ok) {
+    const e = new Error(`QF token ${r.status}`);
+    e.code = 502;
+    throw e;
+  }
+  const j = await r.json();
+  qfToken = {value: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000, env};
+  return qfToken.value;
+}
+
+async function qfGet(path) {
+  const env = qfEnv();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const token = await qfAccessToken(attempt > 0);
+    const r = await fetch(`${QF_HOSTS[env].api}/content/api/v4${path}`, {
+      headers: {"x-auth-token": token, "x-client-id": QF_CLIENT_ID.value().trim(), "Accept": "application/json"}
+    });
+    if (r.status === 401 && attempt === 0) continue;
+    if (!r.ok) {
+      const e = new Error(`QF ${r.status}`);
+      e.code = r.status === 404 ? 404 : 502;
+      throw e;
+    }
+    return r.json();
+  }
+  throw Object.assign(new Error("QF auth failed"), {code: 502});
+}
+
+async function qfWords(chapter) {
+  const verses = [];
+  for (let page = 1; page <= 10; page++) {
+    const j = await qfGet(`/verses/by_chapter/${chapter}?words=true&word_fields=text_uthmani&language=en&per_page=50&page=${page}`);
+    verses.push(...(j.verses || []));
+    const next = j.pagination && j.pagination.next_page;
+    if (!next) break;
+  }
+  return {verses};
+}
+
+async function qfTimings(chapter, reciter) {
+  const j = await qfGet(`/chapter_recitations/${reciter}/${chapter}?segments=true`);
+  const a = j.audio_file || {};
+  // Same shape the app already parses: audio_files[0].verse_timings[].segments.
+  return {audio_files: [{audio_url: a.audio_url, verse_timings: a.timestamps || a.verse_timings || []}]};
+}
+
+exports.qfProxy = onRequest(
+  {region: REGION, cors: false, timeoutSeconds: 60, memory: "256MiB", maxInstances: 10,
+    secrets: [QF_CLIENT_ID, QF_CLIENT_SECRET]},
+  async (req, res) => {
+    cors(res);
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "GET") return res.status(405).json({error: "Use GET."});
+    try {
+      await requireAppCheck(req);
+    } catch (error) {
+      return res.status(401).json({error: "Unauthorized."});
+    }
+    const kind = cleanString(req.query.kind, "");
+    const chapter = Number(req.query.chapter);
+    const reciter = Number(req.query.reciter || 7);
+    const translation = Number(req.query.translation || 0);
+    if (!Number.isInteger(chapter) || chapter < 1 || chapter > 114) return res.status(400).json({error: "Bad chapter."});
+    if (!["words", "timings", "translation"].includes(kind)) return res.status(400).json({error: "Bad kind."});
+    if (kind === "timings" && ![6, 7, 9, 12].includes(reciter)) return res.status(400).json({error: "Bad reciter."});
+    if (kind === "translation" && !(Number.isInteger(translation) && translation > 0 && translation < 10000)) {
+      return res.status(400).json({error: "Bad translation."});
+    }
+    const key = `${qfEnv()}|${kind}|${chapter}|${reciter}|${translation}`;
+    const hit = qfCache.get(key);
+    if (hit && Date.now() - hit.at < QF_CACHE_MS) {
+      res.set("Cache-Control", "private, max-age=86400");
+      return res.json(hit.body);
+    }
+    try {
+      const body = kind === "words" ? await qfWords(chapter) :
+        kind === "timings" ? await qfTimings(chapter, reciter) :
+          await qfGet(`/quran/translations/${translation}?chapter_number=${chapter}`);
+      if (qfCache.size > 400) qfCache.clear();
+      qfCache.set(key, {at: Date.now(), body});
+      res.set("Cache-Control", "private, max-age=86400");
+      return res.json(body);
+    } catch (error) {
+      console.warn("qfProxy failed", kind, chapter, error.message);
+      return res.status(error.code === 404 ? 404 : 502).json({error: "Quran data unavailable."});
     }
   }
 );
