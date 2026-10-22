@@ -2283,6 +2283,21 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // 1.0.80: sleep timer — pauses playback after the chosen number of minutes.
+    private val _sleepTimerEndsAt = MutableStateFlow<Long?>(null)
+    val sleepTimerEndsAt = _sleepTimerEndsAt.asStateFlow()
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        if (minutes == null || minutes <= 0) { _sleepTimerEndsAt.value = null; return }
+        _sleepTimerEndsAt.value = System.currentTimeMillis() + minutes * 60_000L
+        sleepTimerJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(minutes * 60_000L)
+            if (_isAudioPlaying.value) toggleAudioPlayback()
+            _sleepTimerEndsAt.value = null
+        }
+    }
+
     fun toggleRepeatMode() {
         _isRepeatEnabled.value = !_isRepeatEnabled.value
     }

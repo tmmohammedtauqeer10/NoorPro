@@ -1,5 +1,11 @@
 package com.noorpro.app.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+
 import com.noorpro.app.ui.components.stitchLine
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -88,173 +94,168 @@ private data class AudioPlaylist(
  * them up automatically (no duplicate player is drawn here). The bottom navigation + mini-player
  * are provided by the app scaffold in MainActivity.
  */
+/** Local-only liked surahs + recently played (SharedPreferences). */
+internal object AudioLibraryStore {
+    private fun p(ctx: android.content.Context) = ctx.getSharedPreferences("noor_audio_lib", android.content.Context.MODE_PRIVATE)
+    fun liked(ctx: android.content.Context): Set<Int> = p(ctx).getString("liked", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toSet()
+    fun toggleLike(ctx: android.content.Context, id: Int): Set<Int> {
+        val cur = liked(ctx).toMutableSet(); if (!cur.add(id)) cur.remove(id)
+        p(ctx).edit().putString("liked", cur.joinToString(",")).apply(); return cur
+    }
+    fun recent(ctx: android.content.Context): List<Int> = p(ctx).getString("recent", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+    fun addRecent(ctx: android.content.Context, id: Int): List<Int> {
+        val list = (listOf(id) + recent(ctx).filter { it != id }).take(12)
+        p(ctx).edit().putString("recent", list.joinToString(",")).apply(); return list
+    }
+}
+
 @Composable
-fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String = "Recitations") {
+fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String = "All") {
     val context = LocalContext.current
-    val light = isStitchLight()
     val surahs by viewModel.surahs.collectAsState()
     val selectedReciter by viewModel.selectedReciter.collectAsState()
+    val playingSurah by viewModel.playingSurah.collectAsState()
+    val isPlaying by viewModel.isAudioPlaying.collectAsState()
+    val shuffle by viewModel.isShuffleEnabled.collectAsState()
+    val t = rememberAudioTheme()
 
-    // Featured recitation: Surah Ar-Rahman if present, else the first available surah.
-    val featured = remember(surahs) {
-        surahs.firstOrNull { it.id == 55 } ?: surahs.firstOrNull()
-    }
-
-    var selectedCategory by remember { mutableStateOf(initialCategory) }
-    val categories = listOf("Recitations", "Nasheeds", "Podcasts", "Dua Audio", "Tarjuma", "Tafsir")
+    var filter by remember { mutableStateOf(initialCategory) }
+    var page by remember { mutableStateOf("home") }
+    var openReciter by remember { mutableStateOf<Reciter?>(null) }
+    var query by remember { mutableStateOf("") }
+    var liked by remember { mutableStateOf(AudioLibraryStore.liked(context)) }
+    var recent by remember { mutableStateOf(AudioLibraryStore.recent(context)) }
 
     val reciters = IslamicData.reciters
-    // Portrait art for the first few reciters; the rest fall back to gradient initials.
-    val portraits = listOf(
-        R.drawable.audio_lib_reciter_1,
-        R.drawable.audio_lib_reciter_2,
-        R.drawable.audio_lib_reciter_3,
-        R.drawable.audio_lib_reciter_4
-    )
+    val portraits = listOf(R.drawable.audio_lib_reciter_1, R.drawable.audio_lib_reciter_2, R.drawable.audio_lib_reciter_3, R.drawable.audio_lib_reciter_4)
+    val byId = remember(surahs) { surahs.associateBy { it.id } }
 
-    fun openFullPlayer() {
-        featured?.let { viewModel.selectSurahForPlayback(it) }
-        viewModel.navigateTo(DeenScreen.NOW_PLAYING)
+    fun play(s: Surah) {
+        if (playingSurah?.id == s.id) viewModel.toggleAudioPlayback() else viewModel.selectSurahForPlayback(s)
+        recent = AudioLibraryStore.addRecent(context, s.id)
     }
+    fun like(s: Surah) { liked = AudioLibraryStore.toggleLike(context, s.id) }
 
     val playlists = listOf(
-        // Each card opens a Spotify-style playlist detail screen with a full, tappable track list.
-        AudioPlaylist("Morning Adhkar", "Ayatul Kursi · 3 Quls · 5 tracks", 5, R.drawable.audio_lib_playlist_adhkar) {
-            viewModel.openAudioPlaylist("morning")
-        },
-        AudioPlaylist("Sleep Supplications", "Al-Mulk · Ayatul Kursi · 6 tracks", 6, R.drawable.audio_lib_playlist_sleep) {
-            viewModel.openAudioPlaylist("sleep")
-        },
-        AudioPlaylist("Jumu'ah Favorites", "Al-Kahf · Ya-Sin · 4 tracks", 4, R.drawable.audio_lib_playlist_jumuah) {
-            viewModel.openAudioPlaylist("jumuah")
-        }
+        AudioPlaylistUi("Morning Adhkar", "Ayatul Kursi · 3 Quls", 5, R.drawable.audio_lib_playlist_adhkar) { viewModel.openAudioPlaylist("morning") },
+        AudioPlaylistUi("Sleep Supplications", "Al-Mulk · Ayatul Kursi", 6, R.drawable.audio_lib_playlist_sleep) { viewModel.openAudioPlaylist("sleep") },
+        AudioPlaylistUi("Jumu'ah Favorites", "Al-Kahf · Ya-Sin", 4, R.drawable.audio_lib_playlist_jumuah) { viewModel.openAudioPlaylist("jumuah") },
     )
 
-    StitchScreen(pattern = selectedCategory == "Recitations") {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            // Generous bottom inset so the app's floating nav + mini-player never cover content.
-            contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 210.dp),
-            verticalArrangement = Arrangement.spacedBy(30.dp)
-        ) {
-            item {
-                AudioTopBar(
-                    photoUrl = viewModel.userPhotoUrl,
-                    onMenu = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
-                    onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }
-                )
-            }
+    BackHandler(enabled = page != "home" || filter != "All") {
+        when { page != "home" -> page = "home"; else -> filter = "All" }
+    }
 
-            // Featured Today
-            item {
-                Column {
-                    AudioSectionTitle("Featured Today")
-                    Spacer(Modifier.height(14.dp))
-                    AudioFeaturedCard(
-                        title = featured?.nameEnglish ?: "Surah Ar-Rahman",
-                        reciter = selectedReciter.name,
-                        onPlay = { featured?.let { viewModel.selectSurahForPlayback(it) } },
-                        onBookmark = {
-                            Toast.makeText(context, "Saved to your library", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+    AnimatedContent(page, transitionSpec = {
+        (androidx.compose.animation.slideInHorizontally(spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) { if (targetState == "home") -it / 4 else it } + androidx.compose.animation.fadeIn()) togetherWith
+            (androidx.compose.animation.slideOutHorizontally { if (targetState == "home") it else -it / 4 } + androidx.compose.animation.fadeOut())
+    }, label = "audioPage") { pg ->
+        when (pg) {
+            "search" -> {
+                val results = remember(query, surahs) {
+                    val q = query.trim()
+                    if (q.isBlank()) emptyList() else surahs.filter { it.nameEnglish.contains(q, true) || it.englishTranslation.contains(q, true) || it.id.toString() == q }
+                }
+                AudioSearchPage(t, query, { query = it }, results, { page = "home" }, ::play, { filter = it; page = "home" }, liked, ::like)
+            }
+            "reciter" -> {
+                val r = openReciter ?: selectedReciter
+                val idx = reciters.indexOf(r)
+                val tint = rememberCoverColor(portraits.getOrNull(idx), coverColor(r.id + 40))
+                val first = surahs.firstOrNull()
+                CollapsingDetailPage(
+                    t, r.name, r.description.ifBlank { "Complete Qur'an recitation" } + " · ${surahs.size} surahs", tint,
+                    art = { size -> ReciterAvatarArt(r, portraits.getOrNull(idx), size) },
+                    playing = isPlaying && selectedReciter.id == r.id, shuffle = shuffle,
+                    onBack = { page = "home" },
+                    onPlay = {
+                        if (selectedReciter.id != r.id) viewModel.selectReciter(r)
+                        if (isPlaying && selectedReciter.id == r.id) viewModel.toggleAudioPlayback()
+                        else (if (shuffle) surahs.randomOrNull() else first)?.let(::play)
+                    },
+                    onShuffle = { viewModel.toggleShuffleMode() },
+                ) {
+                    items(surahs, key = { it.id }) { s ->
+                        AudioTrackRow(t, s, "${r.name} · ${s.versesCount} ayahs", playingSurah?.id == s.id && selectedReciter.id == r.id, s.id in liked,
+                            { if (selectedReciter.id != r.id) viewModel.selectReciter(r); play(s) }, { like(s) })
+                    }
                 }
             }
-
-            // Category chips
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(categories) { cat ->
-                        AudioCategoryChip(
-                            label = cat,
-                            selected = cat == selectedCategory,
-                            onClick = {
-                                selectedCategory = cat
-
+            else -> Box(Modifier.fillMaxSize().background(t.bg)) {
+                val tint = when (filter) {
+                    "All", "Library" -> coverColor(playingSurah?.id ?: 55)
+                    else -> AUDIO_BROWSE.firstOrNull { it.label == filter }?.color ?: StitchEmerald
+                }
+                val animTint by androidx.compose.animation.animateColorAsState(tint, tween(600), label = "tint")
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 210.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+                    item(key = "hdr") {
+                        Box(if (filter == "Recitations") Modifier.recitationPattern(StitchGold.copy(alpha = if (t.light) 0.10f else 0.07f)) else Modifier) {
+                            AudioHomeHeader(t, animTint, viewModel.userDisplayName.take(1).ifBlank { "N" }.uppercase(),
+                                onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
+                                onSearch = { page = "search" }, onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) },
+                                filter = filter, onFilter = { filter = it })
+                        }
+                    }
+                    when (filter) {
+                        "All" -> {
+                            val quickIds = (recent + listOf(55, 18, 36, 67, 1, 112)).distinct().take(6)
+                            val quick = quickIds.mapNotNull { byId[it] }.map { s -> AudioQuickItem(s.nameEnglish, s) { play(s) } }
+                            if (quick.isNotEmpty()) item(key = "quick") { AudioQuickGrid(t, quick, playingSurah?.nameEnglish?.takeIf { isPlaying }) }
+                            val featured = byId[55] ?: surahs.firstOrNull()
+                            if (featured != null) item(key = "featured") {
+                                FeaturedHero(t, featured, selectedReciter.name, isPlaying && playingSurah?.id == featured.id, { play(featured) }, featured.id in liked) { like(featured) }
                             }
-                        )
-                    }
-                }
-            }
-
-            // 1.0.68: free, licensed Dua / Tarjuma / Tafsir audio (streaming only).
-            if (selectedCategory == "Dua Audio" || selectedCategory == "Tarjuma" || selectedCategory == "Tafsir") {
-                item(key = "free-audio-$selectedCategory") { FreeAudioSection(selectedCategory) }
-            }
-            // 1.0.69: public podcast RSS feeds, loaded live and streamed from the publisher.
-            if (selectedCategory == "Podcasts") {
-                item(key = "podcasts") { PodcastSection() }
-            }
-            // 1.0.71: nasheeds / naats from artists' own official podcast feeds (streamed).
-            if (selectedCategory == "Nasheeds") {
-                item(key = "nasheeds") { PodcastSection(kind = "nasheed") }
-            }
-
-            // Top Reciters
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AudioSectionTitle("Top Reciters", modifier = Modifier.weight(1f))
-                        Text(
-                            "SEE ALL",
-                            color = StitchGold,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.clickable { openFullPlayer() }
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                        items(reciters) { reciter ->
-                            val idx = reciters.indexOf(reciter)
-                            AudioReciterAvatar(
-                                reciter = reciter,
-                                portrait = portraits.getOrNull(idx),
-                                selected = reciter.id == selectedReciter.id,
-                                onClick = {
-                                    viewModel.selectReciter(reciter)
-                                    Toast.makeText(
-                                        context,
-                                        "Reciter set to ${reciter.name}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
+                            item(key = "popular") {
+                                Column { AudioSectionHeader(t, "Popular surahs", "Show all") { filter = "Recitations" }; Spacer(Modifier.height(12.dp))
+                                    SurahCarousel(t, listOf(1, 36, 55, 56, 67, 18, 2, 112, 114, 113).mapNotNull { byId[it] }, surahs.isEmpty(), ::play) }
+                            }
+                            item(key = "reciters") {
+                                Column { AudioSectionHeader(t, "Top reciters"); Spacer(Modifier.height(12.dp))
+                                    ReciterCarousel(t, reciters, portraits, selectedReciter.id) { openReciter = it; page = "reciter" } }
+                            }
+                            item(key = "playlists") {
+                                Column { AudioSectionHeader(t, "Playlists for you"); Spacer(Modifier.height(12.dp)); PlaylistCarousel(t, playlists) }
+                            }
+                            item(key = "browse") { Column { AudioSectionHeader(t, "Browse all"); Spacer(Modifier.height(12.dp)); BrowseTiles(t) { filter = it } } }
+                            item(key = "credits") { AudioCredits(t) }
                         }
-                        item {
-                            AudioExploreMoreAvatar(onClick = { openFullPlayer() })
+                        "Library" -> {
+                            val likedList = surahs.filter { it.id in liked }
+                            val recentList = recent.mapNotNull { byId[it] }
+                            item { AudioSectionHeader(t, "Liked surahs · ${likedList.size}") }
+                            if (likedList.isEmpty()) item { Text("Tap ♡ on any surah to save it here.", color = t.muted, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(likedList, key = { "l${it.id}" }) { s -> AudioTrackRow(t, s, selectedReciter.name, playingSurah?.id == s.id, true, { play(s) }, { like(s) }) }
+                            item { AudioSectionHeader(t, "Recently played") }
+                            if (recentList.isEmpty()) item { Text("Nothing played yet.", color = t.muted, modifier = Modifier.padding(horizontal = 16.dp)) }
+                            items(recentList, key = { "r${it.id}" }) { s -> AudioTrackRow(t, s, selectedReciter.name, playingSurah?.id == s.id, s.id in liked, { play(s) }, { like(s) }) }
+                            item { Text("Downloads: Qur'an recitations can be saved offline from the Now Playing screen; nasheeds and podcasts stream only, as their publishers' licences require.",
+                                color = t.muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         }
+                        "Recitations" -> {
+                            item(key = "rec-reciters") { Column { AudioSectionHeader(t, "Reciters"); Spacer(Modifier.height(12.dp))
+                                ReciterCarousel(t, reciters, portraits, selectedReciter.id) { openReciter = it; page = "reciter" } } }
+                            item(key = "rec-title") { AudioSectionHeader(t, "All surahs · ${selectedReciter.name}") }
+                            if (surahs.isEmpty()) items(6) { Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(52.dp).clip(RoundedCornerShape(8.dp)).background(shimmerBrush(t))) }
+                            items(surahs, key = { "s${it.id}" }) { s ->
+                                AudioTrackRow(t, s, "${s.englishTranslation} · ${s.versesCount} ayahs", playingSurah?.id == s.id, s.id in liked, { play(s) }, { like(s) })
+                            }
+                        }
+                        "Dua Audio", "Tarjuma", "Tafsir" -> item(key = "free-$filter") { Box(Modifier.padding(horizontal = 16.dp)) { FreeAudioSection(filter) } }
+                        "Podcasts" -> item(key = "podcasts") { Box(Modifier.padding(horizontal = 16.dp)) { PodcastSection() } }
+                        "Nasheeds" -> item(key = "nasheeds") { Box(Modifier.padding(horizontal = 16.dp)) { PodcastSection(kind = "nasheed") } }
                     }
-                }
-            }
-
-            // Recent Playlists
-            item {
-                AudioSectionTitle("Recent Playlists")
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    AudioPlaylistCard(playlists[0], Modifier.weight(1f))
-                    AudioPlaylistCard(playlists[1], Modifier.weight(1f))
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    AudioPlaylistCard(playlists[2], Modifier.weight(1f))
-                    AudioCreatePlaylistCard(
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            Toast.makeText(context, "Create playlist coming soon", Toast.LENGTH_SHORT).show()
-                        }
-                    )
                 }
             }
         }
     }
+}
+
+@Composable
+internal fun AudioCredits(t: AudioTheme) {
+    Text(
+        "Credits: Qur'an recitations stream from EveryAyah.com; nasheeds and podcasts come from their publishers' official feeds; dua, tarjuma and tafsir audio is used under its free licences. Each section lists its source.",
+        color = t.muted, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 16.dp)
+    )
 }
 
 @Composable

@@ -1,5 +1,12 @@
 package com.noorpro.app
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.noorpro.app.ui.screens.pressScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.togetherWith
 import android.os.Bundle
@@ -400,6 +407,9 @@ fun MainLayout() {
             val miniTitleColor = if (appIsLightTheme) StitchInk else Color(0xFFFAF4E8)
             val miniSubColor = if (appIsLightTheme) StitchMuted else StitchDarkMuted
 
+            val miniDrag = remember { androidx.compose.animation.core.Animatable(0f) }
+            val miniScope = rememberCoroutineScope()
+            val miniProgress by viewModel.audioProgress.collectAsState()
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = miniContainer),
@@ -410,12 +420,34 @@ fun MainLayout() {
                     .padding(bottom = 88.dp, start = 18.dp, end = 18.dp)
                     .fillMaxWidth()
                     .height(62.dp)
-                    .clickable { viewModel.openNowPlaying() }
+                    .graphicsLayer { translationX = miniDrag.value; alpha = 1f - (kotlin.math.abs(miniDrag.value) / 900f).coerceIn(0f, 0.5f) }
+                    .pointerInput(currentAudioTrack == null) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                val d = miniDrag.value
+                                if (currentAudioTrack == null && d < -140f) viewModel.playNextSurah()
+                                else if (currentAudioTrack == null && d > 140f) viewModel.playPreviousSurah()
+                                miniScope.launch { miniDrag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.55f)) }
+                            },
+                            onHorizontalDrag = { _, dx -> miniScope.launch { miniDrag.snapTo(miniDrag.value + dx) } }
+                        )
+                    }
+                    .pressScale { viewModel.openNowPlaying() }
+                    .drawWithContent {
+                        drawContent()
+                        val h = 2.5.dp.toPx()
+                        drawRect(miniBorder, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
+                        drawRect(MatteGold, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width * miniProgress.coerceIn(0f, 1f), h))
+                    }
             ) {
                 Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (currentAudioTrack == null) playingSurah?.let { s ->
+                        com.noorpro.app.ui.screens.SurahCover(s, 44.dp, 8.dp, showArabic = false)
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
                     // Quick Play/Pause Button
                     Box(
                         modifier = Modifier
