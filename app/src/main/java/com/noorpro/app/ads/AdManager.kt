@@ -1,6 +1,11 @@
 package com.noorpro.app.ads
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,5 +123,79 @@ fun SponsoredAdMedia(
                 factory = { adView }
             )
         }
+    }
+}
+
+/**
+ * Non-intrusive inline ad card for scrolling lists: theme-aware card, clearly labelled "Ad", and it
+ * stays fully collapsed (zero height, no card) until an ad actually loads - so offline / no-fill /
+ * no-consent never leaves an empty gap. Banner units are used (no native unit is configured).
+ * Keep placements away from buttons and out of Quran pages, prayer/adhan, Qibla, Noor AI and reels.
+ */
+@Composable
+fun InlineAdCard(modifier: Modifier = Modifier, adUnitId: String = AdIds.FEED_BANNER) {
+    val preview = InlineAdPreview.content
+    if (preview != null) { InlineAdChrome(modifier) { preview() }; return }
+    if (adUnitId.isBlank() || !ConsentManager.canRequestAds.value) return
+    val scheme = androidx.compose.material3.MaterialTheme.colorScheme
+    var loaded by androidx.compose.runtime.saveable.rememberSaveable(adUnitId) { androidx.compose.runtime.mutableStateOf(false) }
+    // The caller's modifier (e.g. top spacing) only applies once an ad is showing, so nothing leaves a gap.
+    BoxWithConstraints((if (loaded) modifier else Modifier).fillMaxWidth()) {
+        if (maxWidth < 300.dp) return@BoxWithConstraints
+        val context = LocalContext.current
+        val cardPadding = 12.dp
+        val adWidth = (maxWidth - cardPadding * 2).value.toInt().coerceAtLeast(300)
+        val adaptiveSize = remember(context, adWidth) { AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, adWidth) }
+        val adView = remember(context, adUnitId, adaptiveSize) {
+            AdView(context).apply {
+                setAdSize(adaptiveSize)
+                this.adUnitId = adUnitId
+                adListener = object : com.google.android.gms.ads.AdListener() {
+                    override fun onAdLoaded() { loaded = true }
+                    override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) { loaded = false }
+                }
+            }
+        }
+        DisposableEffect(adView) {
+            adView.loadAd(AdRequest.Builder().build())
+            onDispose { adView.destroy() }
+        }
+        val shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+        Column(
+            if (loaded) Modifier.fillMaxWidth()
+                .clip(shape)
+                .background(scheme.surface)
+                .border(1.dp, scheme.outlineVariant, shape)
+                .padding(cardPadding)
+            else Modifier.fillMaxWidth()
+        ) {
+            if (loaded) Text(
+                "Ad", color = scheme.onSurfaceVariant, fontSize = 11.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().height(if (loaded) adaptiveSize.height.dp else 0.dp),
+                factory = { adView }
+            )
+        }
+    }
+}
+
+
+/** Test-only hook: JVM screenshot tests render a mock "Test Ad" here (no network in Robolectric). */
+object InlineAdPreview { var content: (@Composable () -> Unit)? = null }
+
+@Composable
+private fun InlineAdChrome(modifier: Modifier, body: @Composable () -> Unit) {
+    val scheme = androidx.compose.material3.MaterialTheme.colorScheme
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+    Column(
+        modifier.fillMaxWidth().clip(shape).background(scheme.surface)
+            .border(1.dp, scheme.outlineVariant, shape).padding(12.dp)
+    ) {
+        Text("Ad", color = scheme.onSurfaceVariant, fontSize = 11.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+        body()
     }
 }

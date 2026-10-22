@@ -242,6 +242,7 @@ import com.noorpro.app.data.UmmahMessage
 import com.noorpro.app.data.UmmahPost
 import com.noorpro.app.data.UmmahRepository
 import com.noorpro.app.data.UmmahSavedCollection
+import com.noorpro.app.ui.components.stitchOnPrimaryAccent
 import com.noorpro.app.ui.components.StitchCard
 import com.noorpro.app.ui.components.StitchCream
 import com.noorpro.app.ui.components.StitchEmerald
@@ -364,10 +365,12 @@ fun StitchHomeScreen(viewModel: DeenViewModel) {
                 )
             }
             item {
-                StitchAudioHubEntryCard(onOpen = { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) })
-            }
-            item {
-                StitchHomeSponsoredAdCard()
+                // Sponsor + inline ad live in the Audio item so a hidden sponsor / unfilled ad adds no gap.
+                Column {
+                    com.noorpro.app.sponsor.SponsorCardSlot("home", Modifier.padding(bottom = 26.dp))
+                    StitchAudioHubEntryCard(onOpen = { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) })
+                    StitchHomeSponsoredAdCard(Modifier.padding(top = 26.dp))
+                }
             }
             item {
                 StitchDevotionCard(
@@ -569,7 +572,7 @@ private fun StitchSacredToolsCard(onTool: (DeenScreen) -> Unit, onSeeAll: () -> 
                     modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(stitchPrimary()),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = StitchGold, modifier = Modifier.size(24.dp))
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = stitchOnPrimaryAccent(), modifier = Modifier.size(24.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -665,7 +668,7 @@ private fun StitchUmmahSpotlightCard(quote: Pair<String, String>, onJoin: () -> 
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "   ${quote.first}   ",
+                "“${quote.first}”",
                 color = Color.White.copy(alpha = 0.95f),
                 fontSize = 18.sp,
                 lineHeight = 26.sp,
@@ -673,7 +676,7 @@ private fun StitchUmmahSpotlightCard(quote: Pair<String, String>, onJoin: () -> 
             )
             if (quote.second.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("    ${quote.second}", color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("— ${quote.second}", color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(18.dp))
             Row(
@@ -703,7 +706,7 @@ private fun StitchDailyAyahCard(quote: Pair<String, String>) {
             Box(Modifier.width(70.dp).height(1.dp).background(StitchGold.copy(alpha = 0.5f)))
             Spacer(Modifier.height(22.dp))
             Text(
-                "   ${quote.first}   ",
+                "“${quote.first}”",
                 color = stitchPrimary(),
                 fontSize = 24.sp,
                 lineHeight = 33.sp,
@@ -713,7 +716,7 @@ private fun StitchDailyAyahCard(quote: Pair<String, String>) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "    ${quote.second.uppercase()}",
+                "— ${quote.second.uppercase()}",
                 color = StitchGold,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
@@ -1183,7 +1186,7 @@ private fun StitchContinueReadingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text("${surah.englishTranslation}     Ayah $ayah", color = stitchMutedText(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${surah.englishTranslation} · Ayah $ayah", color = stitchMutedText(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.height(13.dp))
                 Box(
                     modifier = Modifier
@@ -1307,7 +1310,7 @@ private fun StitchReflectionCard(quote: Pair<String, String>) {
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Text(
-                        text = "   $body   ",
+                        text = "“$body”",
                         color = stitchText(),
                         fontSize = 20.sp,
                         lineHeight = 30.sp,
@@ -1318,7 +1321,7 @@ private fun StitchReflectionCard(quote: Pair<String, String>) {
                 if (reference != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "    Quran $reference",
+                        text = "— Quran $reference",
                         color = stitchMutedText(),
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.End)
@@ -3401,7 +3404,7 @@ private fun shareStitchUmmahPost(
         }
         // Share a clean Noor Pro web link (never a raw cloud/storage URL). The page plays the
         // reel/post in the browser and offers the app download.
-        append("    Watch on Noor Pro: https://noor-pro-d87e3.web.app/reel?id=")
+        append("\n▶ Watch on Noor Pro: https://noor-pro-d87e3.web.app/reel?id=")
         append(post.id)
         append("\n\n")
         append("Get the Noor Pro app: https://noor-pro-d87e3.web.app")
@@ -4462,7 +4465,7 @@ internal fun StitchLiveReelPage(
         val p = player ?: return
         val target = (p.currentPosition + deltaMs).coerceIn(0L, if (p.duration > 0) p.duration else Long.MAX_VALUE)
         p.seekTo(target)
-        seekFeedback = if (deltaMs >= 0) "+10s" else "   10s"
+        seekFeedback = if (deltaMs >= 0) "+10s" else "−10s"
     }
     LaunchedEffect(seekFeedback) {
         if (seekFeedback != null) { delay(650); seekFeedback = null }
@@ -7195,7 +7198,7 @@ private fun StitchPostTool(icon: ImageVector, label: String) {
 private fun StitchReflectionPostCard() {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            StitchPostHeader("Amina Y.", "2 hours ago    London, UK")
+            StitchPostHeader("Amina Y.", "2 hours ago · London, UK")
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 "Reflection",
@@ -7256,7 +7259,7 @@ private fun StitchEventPostCard() {
 private fun StitchQuestionPostCard() {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            StitchPostHeader("Ibrahim H.", "5 hours ago    Q&A")
+            StitchPostHeader("Ibrahim H.", "5 hours ago · Q&A")
             Spacer(modifier = Modifier.height(12.dp))
             Text("Best resources for learning Tajweed?", color = stitchText(), fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
             Spacer(modifier = Modifier.height(8.dp))
@@ -7279,17 +7282,13 @@ private fun StitchQuestionPostCard() {
 /** A compact advertisement that scrolls with community content. */
 @Composable
 private fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
-    StitchCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-        com.noorpro.app.ads.SponsoredFeedCard(Modifier.fillMaxWidth().padding(10.dp))
-    }
+    com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth())
 }
 
 /** A quiet, scroll-away Home ad directly below Noor Audio, as requested. */
 @Composable
 private fun StitchHomeSponsoredAdCard(modifier: Modifier = Modifier) {
-    StitchCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-        com.noorpro.app.ads.SponsoredHomeCard(Modifier.fillMaxWidth().padding(10.dp))
-    }
+    com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth(), com.noorpro.app.ads.AdIds.BOTTOM_BANNER)
 }
 
 @Composable
@@ -7529,7 +7528,7 @@ private fun StitchCommentSheet(
                             OutlinedTextField(
                                 value = draft,
                                 onValueChange = { draft = it.take(500) },
-                                placeholder = { Text("Add a comment   ") },
+                                placeholder = { Text("Add a comment…") },
                                 modifier = Modifier.weight(1f),
                                 maxLines = 4,
                                 shape = RoundedCornerShape(18.dp)
@@ -8527,7 +8526,7 @@ fun StitchFollowingScreen(viewModel: DeenViewModel) {
     val users = rememberStitchFollowingUsers(viewModel.isLoggedIn, targetUid)
     StitchFollowListScreen(
         viewModel = viewModel,
-        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }}     Following" else "Following",
+        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }} · Following" else "Following",
         users = users,
         emptyTitle = "Not following anyone yet",
         emptyMessage = if (isOther) "This member isn't following anyone yet." else "When you follow creators, they appear here."
@@ -8542,7 +8541,7 @@ fun StitchFollowersScreen(viewModel: DeenViewModel) {
     val users = rememberStitchFollowers(viewModel.isLoggedIn, targetUid)
     StitchFollowListScreen(
         viewModel = viewModel,
-        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }}     Followers" else "Followers",
+        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }} · Followers" else "Followers",
         users = users,
         emptyTitle = "No followers yet",
         emptyMessage = if (isOther) "This member has no followers yet." else "Share great reels and your followers will appear here."
@@ -8752,7 +8751,7 @@ fun StitchDiscoverLibraryScreen(viewModel: DeenViewModel) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search books, authors, or topics   ", color = stitchMutedText()) },
+                    placeholder = { Text("Search books, authors, or topics…", color = stitchMutedText()) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = stitchMutedText()) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -9097,7 +9096,7 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (umrahUnlocked) Icons.Default.CheckCircle else Icons.Default.Fingerprint, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(7.dp))
-                            Text(if (umrahUnlocked) "Unlocked     claim in profile" else "Requires 25,000 Points", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(if (umrahUnlocked) "Unlocked — claim in profile" else "Requires 25,000 Points", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -9504,7 +9503,7 @@ fun StitchUmmahProfileEditScreen(viewModel: DeenViewModel) {
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        if (uploadingPhoto) "Uploading photo   " else "Tap to change profile photo",
+                        if (uploadingPhoto) "Uploading photo…" else "Tap to change profile photo",
                         color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -10173,7 +10172,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 selectedTab == "Chats" && chats.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = "No conversations yet",
-                        message = "Find someone in People     everyone you follow and your followers are there.",
+                        message = "Find someone in People — everyone you follow and your followers are there.",
                         action = "Find people",
                         onAction = { selectedTab = "People" }
                     )
@@ -10266,7 +10265,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         item {
                             StitchUmmahEmptyCard(
                                 title = "No people yet",
-                                message = "Follow creators from posts and reels     everyone you follow (and your followers) appears here, ready to message.",
+                                message = "Follow creators from posts and reels — everyone you follow (and your followers) appears here, ready to message.",
                                 action = "Search Ummah",
                                 onAction = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) }
                             )
@@ -11506,7 +11505,7 @@ private fun StitchGroupInfoSheet(
                                         contentPadding = PaddingValues(vertical = 14.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(if (saving) "Adding   " else "Add ${selectedNew.size} member(s)", fontWeight = FontWeight.Bold)
+                                        Text(if (saving) "Adding…" else "Add ${selectedNew.size} member(s)", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -11558,10 +11557,10 @@ private fun StitchGroupInfoSheet(
 
     if (false && showGroupQr) {
         StitchQrDialog(
-            title = "Group QR     ${group.name}",
+            title = "Group QR — ${group.name}",
             subtitle = "Share this so friends can ask to join. The group admin adds members from People.",
-            content = "Join my Noor Pro group \"${group.name}\"     get the app: https://noor-pro-d87e3.web.app (Group: ${group.name})",
-            shareText = "Join my group \"${group.name}\" on Noor Pro!\n\nGet the app: https://noor-pro-d87e3.web.app\nThen follow me and I'll add you from Messages     People.\nHelp & contact: noorpro.official@gmail.com",
+            content = "Join my Noor Pro group \"${group.name}\" — get the app: https://noor-pro-d87e3.web.app (Group: ${group.name})",
+            shareText = "Join my group \"${group.name}\" on Noor Pro!\n\nGet the app: https://noor-pro-d87e3.web.app\nThen follow me and I'll add you from Messages › People.\nHelp & contact: noorpro.official@gmail.com",
             onDismiss = { showGroupQr = false }
         )
     }
@@ -11619,7 +11618,7 @@ private fun StitchConstitutionContent() {
         )
         StitchConstitutionRule(
             "Sharing & reposting",
-            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact     do not edit verses or narrations out of context."
+            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact — do not edit verses or narrations out of context."
         )
         StitchConstitutionRule(
             "Moderation",
@@ -11631,7 +11630,7 @@ private fun StitchConstitutionContent() {
         )
         StitchConstitutionRule(
             "Privacy and security",
-            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful     never share someone's private messages without their consent."
+            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful — never share someone's private messages without their consent."
         )
         StitchConstitutionRule(
             "Religious care",
@@ -12065,7 +12064,7 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it.take(2000) },
-                        placeholder = { Text("Message   ") },
+                        placeholder = { Text("Message…") },
                         modifier = Modifier.weight(1f),
                         maxLines = 4,
                         shape = RoundedCornerShape(22.dp)

@@ -91,12 +91,13 @@ fun QuranLearningMenu(
                     MenuTile(p, "Self-test", "Recite, then reveal", Icons.Default.CheckCircle, Modifier.weight(1f), onSelfTest)
                 }
             }
-            item {
+            item { Column {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     MenuTile(p, "Tajweed chart", "Rule colours", Icons.Default.Palette, Modifier.weight(1f), onChart)
                     MenuTile(p, "Juz Amma", "Read with Husary", Icons.AutoMirrored.Filled.MenuBook, Modifier.weight(1f), onJuzAmma)
                 }
-            }
+                com.noorpro.app.ads.InlineAdCard(Modifier.padding(top = 18.dp))
+            } }
             item {
                 Text("Surah Learning · word by word", color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
                 Text("All 114 surahs with transliteration, translation and Husary audio (needs internet).", color = p.muted, fontSize = 12.sp)

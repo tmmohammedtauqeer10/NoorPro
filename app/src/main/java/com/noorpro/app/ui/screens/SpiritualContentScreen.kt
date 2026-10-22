@@ -219,6 +219,7 @@ private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, onOp
             }
         }
         item {
+          Column {
             StitchCard(Modifier.fillMaxWidth()) {
                 Column {
                     StitchListRow("Favourites", "$favCount saved", Icons.Default.Favorite) { onOpen(FAV_CATEGORY) }
@@ -228,7 +229,10 @@ private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, onOp
                     }
                 }
             }
+            com.noorpro.app.ads.InlineAdCard(Modifier.padding(top = 20.dp))
+          }
         }
+
     }
 }
 

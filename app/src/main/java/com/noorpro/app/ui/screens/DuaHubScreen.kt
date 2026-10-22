@@ -262,7 +262,16 @@ fun DuaHubScreen(
                         .weight(1f)
                         .testTag("dua_categories_grid")
                 ) {
-                    items(filteredCategories, key = { it.id }) { category: DuaCategory ->
+                    items(filteredCategories.take(4), key = { it.id }) { category: DuaCategory ->
+                        DuaCategoryCard(
+                            category = category,
+                            onClick = { viewModel.selectDuaCategory(category) }
+                        )
+                    }
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }, key = "inline_ad") {
+                        com.noorpro.app.ads.InlineAdCard()
+                    }
+                    items(filteredCategories.drop(4), key = { it.id }) { category: DuaCategory ->
                         DuaCategoryCard(
                             category = category,
                             onClick = { viewModel.selectDuaCategory(category) }

@@ -152,6 +152,7 @@ fun OnlineBooksSection(viewModel: DeenViewModel) {
                     }
                 }
             }
+            item { com.noorpro.app.ads.InlineAdCard() }
         }
         }
     }
