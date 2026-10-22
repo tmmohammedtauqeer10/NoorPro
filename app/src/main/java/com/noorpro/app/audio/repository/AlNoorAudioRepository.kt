@@ -62,8 +62,9 @@ class BundledAlNoorAudioRepository(
             synchronized(this@BundledAlNoorAudioRepository) {
                 if (loaded.get()) return@withContext
                 val path = resolveCatalogAssetPath()
-                val raw = context.assets.open(path).bufferedReader().use { it.readText() }
-                parseCatalog(raw)
+                // No catalog is bundled while FeatureFlags.AL_NOOR_AUDIO is off: load an empty catalog.
+                val raw = runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrNull()
+                if (raw != null) parseCatalog(raw)
                 loaded.set(true)
             }
         }

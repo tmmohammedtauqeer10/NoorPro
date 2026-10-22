@@ -87,7 +87,6 @@ fun AlNoorAudioHomeScreen(
 ) {
     val shelves by vm.shelves.collectAsState()
     val playlists by vm.playlists.collectAsState()
-    val notice by vm.demoNotice.collectAsState()
     val loading by vm.loading.collectAsState()
     val queue by vm.queue.collectAsState()
     val playback by vm.playback.collectAsState()
@@ -130,22 +129,6 @@ fun AlNoorAudioHomeScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            notice?.let { msg ->
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = AlNoorAccent.copy(alpha = 0.12f)),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Text(
-                            text = msg,
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp,
-                        )
-                    }
-                }
-            }
-
             if (playlists.isNotEmpty()) {
                 item {
                     Text("Curated playlists", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
@@ -201,7 +184,14 @@ fun AlNoorAudioHomeScreen(
 
             if (shelves.isEmpty() && playlists.isEmpty()) {
                 item {
-                    Text("No catalog loaded. Check assets/al_noor_audio/catalog.json")
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(Icons.Default.MusicNote, null, tint = AlNoorAccent, modifier = Modifier.size(48.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Nasheeds and naats coming soon, in sha Allah", fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
                 }
             }
         }
