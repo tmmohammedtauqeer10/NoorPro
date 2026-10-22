@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.material3.MaterialTheme
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -257,7 +258,7 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White)
+                            .background(MaterialTheme.colorScheme.surface)
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -344,7 +345,7 @@ private fun AccountSwitcherRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .border(
                 1.dp,
                 if (isCurrent) stitchPrimary().copy(alpha = 0.45f) else StitchLine.copy(alpha = 0.65f),

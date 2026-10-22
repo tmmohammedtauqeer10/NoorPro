@@ -2437,7 +2437,7 @@ private fun StitchGuestSignInProfileCard(
                 spotColor = stitchPrimary().copy(alpha = 0.10f)
             )
             .clip(RoundedCornerShape(32.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 34.dp, vertical = 58.dp)
     ) {
         Box(
@@ -10410,7 +10410,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .shadow(22.dp, RoundedCornerShape(22.dp), clip = false)
             .padding(horizontal = 28.dp, vertical = 46.dp),
         contentAlignment = Alignment.Center
@@ -12769,7 +12769,7 @@ private fun StitchGenericFilePreview(
         modifier = Modifier
             .padding(24.dp)
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

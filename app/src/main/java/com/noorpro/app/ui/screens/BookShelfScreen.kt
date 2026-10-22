@@ -30,9 +30,12 @@ import com.noorpro.app.data.LibraryCategory
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
-val DeepBlue = Color(0xFF0B132B)
-val GoldAccent = Color(0xFFD4AF37)
-val SlateCard = Color(0xFF152243)
+val DeepBlue: Color
+    @androidx.compose.runtime.Composable get() = androidx.compose.material3.MaterialTheme.colorScheme.background
+val GoldAccent: Color
+    @androidx.compose.runtime.Composable get() = com.noorpro.app.ui.theme.AppGold
+val SlateCard: Color
+    @androidx.compose.runtime.Composable get() = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
 val GreenRead = Color(0xFF2E7D32)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,7 +105,7 @@ fun OnlineBooksSection(viewModel: DeenViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { viewModel.loadLibraryCatalog() },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = if (com.noorpro.app.ui.theme.isAppDark) Color.Black else Color.White)
                 ) {
                     Text("Retry")
                 }
@@ -113,11 +116,11 @@ fun OnlineBooksSection(viewModel: DeenViewModel) {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("No books found in the catalog.", color = Color.LightGray, textAlign = TextAlign.Center)
+                Text("No books found in the catalog.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { viewModel.loadLibraryCatalog() },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = if (com.noorpro.app.ui.theme.isAppDark) Color.Black else Color.White)
                 ) {
                     Text("Load Catalog")
                 }
@@ -179,7 +182,7 @@ fun OnlineBookCard(book: com.noorpro.app.data.BookItem, onClick: () -> Unit) {
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = book.title,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
@@ -188,7 +191,7 @@ fun OnlineBookCard(book: com.noorpro.app.data.BookItem, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = book.author,
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     maxLines = 1
                 )
@@ -205,7 +208,7 @@ fun OnlineBookCard(book: com.noorpro.app.data.BookItem, onClick: () -> Unit) {
                 Button(
                     onClick = onClick,
                     modifier = Modifier.fillMaxWidth().height(36.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = if (com.noorpro.app.ui.theme.isAppDark) Color.Black else Color.White),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(0.dp)
                 ) {
@@ -245,8 +248,9 @@ private fun GeneratedBookCover(book: BookItem) {
             .background(Brush.verticalGradient(listOf(accent, DeepBlue))),
         contentAlignment = Alignment.Center
     ) {
+        val ornamentColor = GoldAccent.copy(alpha = 0.18f)
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val ornament = GoldAccent.copy(alpha = 0.18f)
+            val ornament = ornamentColor
             val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.42f)
             drawCircle(
                 color = ornament,
@@ -299,7 +303,7 @@ private fun GeneratedBookCover(book: BookItem) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     shortTitle,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     lineHeight = 17.sp,

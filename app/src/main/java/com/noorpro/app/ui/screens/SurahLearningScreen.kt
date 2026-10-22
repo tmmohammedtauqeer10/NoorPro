@@ -44,7 +44,7 @@ fun SurahLearningScreen(viewModel: DeenViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(surah?.nameEnglish ?: "Surah", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text(surah?.nameEnglish ?: "Surah", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = LearningGoldAccent)
@@ -122,7 +122,7 @@ fun QuranAyahCard(
             },
         colors = CardDefaults.cardColors(containerColor = LearningDarkSlateBlue),
         shape = RoundedCornerShape(12.dp),
-        border = if (isBookmarked) androidx.compose.foundation.BorderStroke(2.dp, LearningGoldAccent) else null
+        border = androidx.compose.foundation.BorderStroke(if (isBookmarked) 2.dp else 1.dp, if (isBookmarked) LearningGoldAccent else MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier
@@ -146,7 +146,7 @@ fun QuranAyahCard(
                 Text(
                     text = com.noorpro.app.ui.components.quranDisplayText(displayArabicText),
                     fontSize = 26.sp,
-                    color = Color.White,
+                    color = com.noorpro.app.ui.theme.QuranInk,
                     fontWeight = FontWeight.Normal,
                     fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                     softWrap = true,
@@ -176,7 +176,7 @@ fun QuranAyahCard(
             Text(
                 text = ayah.englishTranslation,
                 fontSize = 14.sp,
-                color = Color.LightGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -264,7 +264,7 @@ fun QuranAyahLearnMode(ayah: QuranLearningAyah) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp)
-            .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
             .padding(16.dp)
     ) {
         Row(
@@ -272,7 +272,7 @@ fun QuranAyahLearnMode(ayah: QuranLearningAyah) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Word-by-Word Learning", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Word-by-Word Learning", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             TextButton(
                 onClick = {
                     activeWordIndex = -1
@@ -307,7 +307,7 @@ fun QuranAyahLearnMode(ayah: QuranLearningAyah) {
                             Text(
                                 text = com.noorpro.app.ui.components.quranDisplayText(word),
                                 fontSize = 24.sp,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontFamily = com.noorpro.app.ui.components.QuranArabicFont
                             )
                             Spacer(modifier = Modifier.height(4.dp))

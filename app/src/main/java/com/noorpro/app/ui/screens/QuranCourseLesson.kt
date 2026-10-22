@@ -54,13 +54,13 @@ fun CourseLessonView(
     Column(Modifier.fillMaxSize().background(p.bg)) {
         CourseTopBar(lesson.title, "$levelTitle · ${position + 1}/$total", onBack)
         Column(Modifier.weight(1f).verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Section(p, "Goal") { Text(lesson.goal, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium) }
-            Text(lesson.en, color = p.text, fontSize = 15.sp, lineHeight = 23.sp)
+            Section(p, "Goal") { Text(com.noorpro.app.ui.theme.isolateArabic(lesson.goal), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium) }
+            Text(com.noorpro.app.ui.theme.isolateArabic(lesson.en), color = p.text, fontSize = 15.sp, lineHeight = 23.sp)
             if (lesson.ur.isNotBlank()) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 Text(lesson.ur, color = p.muted, fontSize = 16.sp, lineHeight = 28.sp, fontFamily = QuranArabicFont, modifier = Modifier.fillMaxWidth())
             }
             if (lesson.points.isNotEmpty()) Section(p, "Key points") {
-                lesson.points.forEach { Row(Modifier.padding(vertical = 2.dp)) { Text("•", color = CourseGold, modifier = Modifier.width(14.dp)); Text(it, color = p.text, fontSize = 14.sp, lineHeight = 21.sp) } }
+                lesson.points.forEach { Row(Modifier.padding(vertical = 2.dp)) { Text("•", color = CourseGold, modifier = Modifier.width(14.dp)); Text(com.noorpro.app.ui.theme.isolateArabic(it), color = p.text, fontSize = 14.sp, lineHeight = 21.sp) } }
             }
             if (lesson.letters.isNotEmpty()) LettersGrid(p, lesson)
             if (lesson.examples.isNotEmpty()) {
@@ -141,8 +141,8 @@ internal fun ExampleCard(p: CoursePalette, e: CourseExample) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            ArabicText(e.ar, if (e.ar.length > 40) 24 else 32, if (e.rule != null) c else p.text, Modifier.fillMaxWidth())
-            if (e.label.isNotBlank()) Text(e.label, color = p.text, fontSize = 13.sp)
+            ArabicText(e.ar, if (e.ar.length > 40) 24 else 32, if (e.rule != null) c else com.noorpro.app.ui.theme.QuranInk, Modifier.fillMaxWidth())
+            if (e.label.isNotBlank()) Text(com.noorpro.app.ui.theme.isolateArabic(e.label), color = p.text, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (e.rule != null) Text(ruleName(e.rule) + "  ", color = c, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text(e.ref ?: "Practice text · no audio", color = p.muted, fontSize = 11.sp)
@@ -165,7 +165,7 @@ private fun QuizBlock(p: CoursePalette, lessonId: String, quiz: List<CourseQuiz>
     LaunchedEffect(finished) { if (finished) onScore(score) }
     Section(p, "Quick quiz") {
         quiz.forEachIndexed { qi, q ->
-            Text("${qi + 1}. ${q.question}", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+            Text(com.noorpro.app.ui.theme.isolateArabic("${qi + 1}. ${q.question}"), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
             if (q.ar != null) ArabicText(q.ar, 34, CourseGreen, Modifier.fillMaxWidth())
             Spacer(Modifier.height(4.dp))
             q.options.forEachIndexed { oi, o ->
@@ -181,7 +181,7 @@ private fun QuizBlock(p: CoursePalette, lessonId: String, quiz: List<CourseQuiz>
                     Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(10.dp)).background(bg)
                         .clickable(enabled = chosen == null) { answers[qi] = oi }.padding(horizontal = 12.dp, vertical = 10.dp),
                 ) {
-                    if (isAr) Text(o, fontFamily = QuranArabicFont, fontSize = 22.sp, color = p.text) else Text(o, color = p.text, fontSize = 14.sp)
+                    if (isAr) Text(o, fontFamily = QuranArabicFont, fontSize = 22.sp, color = p.text) else Text(com.noorpro.app.ui.theme.isolateArabic(o), color = p.text, fontSize = 14.sp)
                 }
             }
         }
@@ -252,7 +252,7 @@ fun CoursePractice(lesson: CourseLesson, onOpenWordByWord: (Int) -> Unit) {
                 Text("Recite from memory, then reveal.", color = p.muted, fontSize = 13.sp)
                 TextButton(onClick = { revealed[i] = true }) { Text("Reveal") }
             } else {
-                ArabicText(a.arabic, 26, p.text, Modifier.fillMaxWidth())
+                ArabicText(a.arabic, 26, com.noorpro.app.ui.theme.QuranInk, Modifier.fillMaxWidth())
                 if (lesson.kind == "read") Text(a.english, color = p.muted, fontSize = 13.sp, lineHeight = 19.sp)
                 if (lesson.kind == "selftest") Row {
                     TextButton(onClick = { marks[i] = true }) { Text(if (marks[i] == true) "✓ Correct" else "I was right") }

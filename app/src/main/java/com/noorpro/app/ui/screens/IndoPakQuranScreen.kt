@@ -131,7 +131,8 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
     var loadFailed by remember { mutableStateOf(false) }
     var surah by remember { mutableStateOf(prefs.getInt("last_surah", 1).coerceIn(1, 114)) }
     var fontSize by remember { mutableStateOf(prefs.getInt("font_size", 25).coerceIn(21, 31)) }
-    var night by remember { mutableStateOf(prefs.getBoolean("night", false)) }
+    val appDark = com.noorpro.app.ui.theme.isAppDark
+    var night by remember(appDark) { mutableStateOf(if (prefs.contains("night")) prefs.getBoolean("night", appDark) else appDark) }
     var picker by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     var controls by remember { mutableStateOf(true) }

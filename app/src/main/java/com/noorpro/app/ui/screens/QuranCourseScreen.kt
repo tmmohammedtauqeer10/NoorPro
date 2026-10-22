@@ -37,40 +37,27 @@ import com.noorpro.app.data.QuranLearningSurah
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
-internal val CourseGreen = Color(0xFF1F7A5A)
-internal val CourseGold = Color(0xFFC9A227)
+internal val CourseGreen: Color
+    @Composable get() = if (com.noorpro.app.ui.theme.isAppDark) Color(0xFF2E9A72) else Color(0xFF1F6B50)
+internal val CourseGold: Color
+    @Composable get() = com.noorpro.app.ui.theme.AppGold
 
-internal class CoursePalette(val dark: Boolean) {
-    val bg = if (dark) Color(0xFF0B1512) else Color(0xFFFBF8F1)
-    val card = if (dark) Color(0xFF13211C) else Color.White
-    val text = if (dark) Color(0xFFE9EFEA) else Color(0xFF1C2622)
-    val muted = if (dark) Color(0xFF93A39B) else Color(0xFF6B7770)
-    val line = if (dark) Color(0xFF223630) else Color(0xFFE7E1D3)
-    val chip = if (dark) Color(0xFF1A2A24) else Color(0xFFF1EEE4)
-}
+/** Deep link into the course from the Quran Learning menu: "lesson:<id>" or "chart". */
+object QuranCourseLaunch { @Volatile var pending: String? = null }
+
+internal class CoursePalette(
+    val bg: Color, val card: Color, val text: Color, val muted: Color, val line: Color, val chip: Color,
+)
 
 @Composable
 internal fun coursePalette(): CoursePalette {
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return remember(dark) { CoursePalette(dark) }
+    val c = MaterialTheme.colorScheme
+    return CoursePalette(c.background, c.surface, c.onSurface, c.onSurfaceVariant, c.outlineVariant, c.surfaceVariant)
 }
 
-/** Tajweed colour per rule (word-level highlight). */
-internal fun ruleColor(rule: String?): Color = when (rule) {
-    "ghunna" -> Color(0xFFE07B00)
-    "ikhfa" -> Color(0xFF8E44AD)
-    "idgham" -> Color(0xFF2E8B57)
-    "iqlab" -> Color(0xFF1E6FD9)
-    "izhar" -> Color(0xFF00897B)
-    "qalqala" -> Color(0xFFD32F2F)
-    "madd" -> Color(0xFFC2185B)
-    "tafkheem" -> Color(0xFF283593)
-    "tarqeeq" -> Color(0xFF4FA3E0)
-    "waqf" -> Color(0xFF6D6D6D)
-    "hamzawasl" -> Color(0xFF8D8D8D)
-    "special" -> Color(0xFFB8860B)
-    else -> Color.Unspecified
-}
+/** Tajweed colour per rule (word-level highlight), light/dark aware. */
+@Composable
+internal fun ruleColor(rule: String?): Color = com.noorpro.app.ui.theme.tajweedColor(rule, com.noorpro.app.ui.theme.isAppDark)
 
 internal fun ruleName(rule: String?): String = when (rule) {
     "ghunna" -> "Ghunna"; "ikhfa" -> "Ikhfa"; "idgham" -> "Idgham"; "iqlab" -> "Iqlab"; "izhar" -> "Izhar"
@@ -109,6 +96,7 @@ private sealed class CourseNav {
     object Home : CourseNav()
     data class Level(val index: Int) : CourseNav()
     data class Lesson(val id: String) : CourseNav()
+    object Chart : CourseNav()
 }
 
 @Composable
@@ -117,14 +105,21 @@ fun QuranCourseScreen(viewModel: DeenViewModel) {
     val course = remember { runCatching { QuranCourseRepository.load(ctx) }.getOrNull() }
     val progress = remember { QuranCourseProgress(ctx) }
     var done by remember { mutableStateOf(progress.completed()) }
-    var nav by remember { mutableStateOf<CourseNav>(CourseNav.Home) }
+    var nav by remember {
+        val p = QuranCourseLaunch.pending; QuranCourseLaunch.pending = null
+        mutableStateOf<CourseNav>(when {
+            p == "chart" -> CourseNav.Chart
+            p != null && p.startsWith("lesson:") -> CourseNav.Lesson(p.removePrefix("lesson:"))
+            else -> CourseNav.Home
+        })
+    }
     DisposableEffect(Unit) { onDispose { CourseAudio.stop() } }
 
     fun back() {
         CourseAudio.stop()
         nav = when (val n = nav) {
             CourseNav.Home -> { viewModel.navigateTo(DeenScreen.EDUCATION); CourseNav.Home }
-            is CourseNav.Level -> CourseNav.Home
+            is CourseNav.Level, CourseNav.Chart -> CourseNav.Home
             is CourseNav.Lesson -> course?.levels?.indexOfFirst { lv -> lv.lessons.any { it.id == n.id } }?.let { CourseNav.Level(it) } ?: CourseNav.Home
         }
     }
@@ -140,7 +135,9 @@ fun QuranCourseScreen(viewModel: DeenViewModel) {
             onLevel = { nav = CourseNav.Level(it) },
             onResume = { id -> nav = CourseNav.Lesson(id) },
             onSurahLearning = { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) },
+            onChart = { nav = CourseNav.Chart },
         )
+        CourseNav.Chart -> CourseTajweedChart(course, onBack = { back() })
         is CourseNav.Level -> CourseLevelList(course, n.index, done, onBack = { back() }, onLesson = { nav = CourseNav.Lesson(it) })
         is CourseNav.Lesson -> {
             val all = course.allLessons
@@ -179,6 +176,7 @@ internal fun CourseTopBar(title: String, subtitle: String?, onBack: () -> Unit) 
 fun CourseHome(
     course: QuranCourse, done: Set<String>, lastLesson: String?,
     onBack: () -> Unit, onLevel: (Int) -> Unit, onResume: (String) -> Unit, onSurahLearning: () -> Unit,
+    onChart: () -> Unit = {},
 ) {
     val p = coursePalette()
     val total = course.allLessons.size
@@ -195,7 +193,7 @@ fun CourseHome(
                     LinearProgressIndicator(progress = { if (total == 0) 0f else done.size / total.toFloat() }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = CourseGold, trackColor = Color.White.copy(alpha = 0.25f))
                     if (resume != null) {
                         Spacer(Modifier.height(14.dp))
-                        Button(onClick = { onResume(resume.id) }, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = CourseGreen)) {
+                        Button(onClick = { onResume(resume.id) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = CourseGreen)) {
                             Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp))
                             Text(if (lastLesson != null) "Continue: ${resume.title}" else "Start: ${resume.title}", maxLines = 1)
                         }
@@ -233,6 +231,16 @@ fun CourseHome(
                     Column { Text("Surah Learning (word by word)", color = p.text, fontWeight = FontWeight.SemiBold); Text("All 114 surahs with Husary audio", color = p.muted, fontSize = 12.sp) }
                 }
             }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.chip).clickable(onClick = onChart).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(22.dp).clip(CircleShape).background(ruleColor("ikhfa")))
+                    Spacer(Modifier.width(12.dp))
+                    Column { Text("Tajweed colour chart", color = p.text, fontWeight = FontWeight.SemiBold); Text("Every rule colour with an example", color = p.muted, fontSize = 12.sp) }
+                }
+            }
             item { Text("Rules follow Hafs 'an 'Asim as taught in: " + course.sources.joinToString("; ") + ".", color = p.muted, fontSize = 11.sp) }
         }
     }
@@ -259,6 +267,48 @@ fun CourseLevelList(course: QuranCourse, index: Int, done: Set<String>, onBack: 
                         Text(l.title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Text(l.goal, color = p.muted, fontSize = 12.sp, maxLines = 2)
                     }
+                }
+            }
+        }
+    }
+}
+
+private val CHART_RULES = listOf(
+    "izhar" to "Noon/tanween read clearly before throat letters.",
+    "idgham" to "Noon/tanween merged into the next letter.",
+    "iqlab" to "Noon/tanween turned into a hidden meem before ب.",
+    "ikhfa" to "Noon/tanween (or meem before ب) hidden with ghunna.",
+    "ghunna" to "Nasal sound of 2 counts on نّ and مّ.",
+    "qalqala" to "Echo on ق ط ب ج د with sukoon.",
+    "madd" to "Stretching a madd letter: 2, 4–5 or 6 counts.",
+    "tafkheem" to "Heavy (full-mouth) pronunciation.",
+    "tarqeeq" to "Light (thin) pronunciation.",
+    "waqf" to "How the word changes when you stop.",
+    "hamzawasl" to "Joining hamza: read only when starting.",
+    "special" to "Rare Hafs pronunciations (ishmam, imala, tas-hil).",
+)
+
+@Composable
+fun CourseTajweedChart(course: QuranCourse, onBack: () -> Unit) {
+    val p = coursePalette()
+    val examples = remember(course) { course.allLessons.flatMap { it.examples }.filter { it.rule != null }.groupBy { it.rule } }
+    Column(Modifier.fillMaxSize().background(p.bg)) {
+        CourseTopBar("Tajweed colour chart", "Colours used in the course examples", onBack)
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.navigationBarsPadding()) {
+            items(CHART_RULES) { (rule, desc) ->
+                val ex = examples[rule]?.firstOrNull()
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.card).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(14.dp).clip(CircleShape).background(ruleColor(rule)))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(ruleName(rule), color = ruleColor(rule), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(com.noorpro.app.ui.theme.isolateArabic(desc), color = p.muted, fontSize = 12.sp)
+                        if (ex?.ref != null) Text(ex.ref, color = p.muted, fontSize = 11.sp)
+                    }
+                    if (ex != null) ArabicText(ex.ar, 24, ruleColor(rule))
                 }
             }
         }

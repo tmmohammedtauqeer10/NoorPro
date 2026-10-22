@@ -61,14 +61,15 @@ fun LoginScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
-    val spiritualSurface = Color(0xFFF4FAFD)
+    val loginDark = com.noorpro.app.ui.theme.isAppDark
+    val spiritualSurface = MaterialTheme.colorScheme.background
     val sacredGreen = Color(0xFF0F4D32)
     val sacredGreenDark = Color(0xFF0B3E28)
     val sacredGold = Color(0xFFFED65B)
     val sacredGoldDim = Color(0xFFE9C349)
-    val sacredText = Color(0xFF161D1F)
-    val sacredMuted = Color(0xFF707972)
-    val sacredLine = Color(0xFFC0C9C0)
+    val sacredText = MaterialTheme.colorScheme.onBackground
+    val sacredMuted = MaterialTheme.colorScheme.onSurfaceVariant
+    val sacredLine = MaterialTheme.colorScheme.outlineVariant
 
     fun finishGoogleSignIn(idToken: String?, fallbackEmail: String?, fallbackName: String?) {
         if (idToken.isNullOrBlank()) {

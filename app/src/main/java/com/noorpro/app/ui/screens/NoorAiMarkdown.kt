@@ -202,7 +202,7 @@ private fun MdLine(text: String, colors: NoorAiMdColors, modifier: Modifier = Mo
         return
     }
     Text(
-        NoorAiMarkdown.inline(text, colors.accent, colors.muted, colors.codeBg),
+        NoorAiMarkdown.inline(com.noorpro.app.ui.theme.isolateArabic(text), colors.accent, colors.muted, colors.codeBg),
         color = colors.text, fontSize = 15.sp, lineHeight = 23.sp, modifier = modifier
     )
 }
