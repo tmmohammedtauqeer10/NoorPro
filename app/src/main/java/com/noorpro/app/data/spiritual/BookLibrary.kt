@@ -7,9 +7,9 @@ import java.util.zip.GZIPInputStream
 
 /** Full texts of the classic Tasawwuf books, bundled as gzip JSON (one asset per book edition). */
 data class BookEdition(val lang: String, val file: String, val sections: Int, val completeness: String)
-data class LibraryBook(val id: String, val title: String, val editions: List<BookEdition>)
+data class LibraryBook(val id: String, val title: String, val editions: List<BookEdition>, val author: String = "")
 data class BookSection(val title: String, val level: Int, val paras: List<String>)
-data class BookText(val id: String, val lang: String, val title: String, val rtl: Boolean, val sections: List<BookSection>)
+data class BookText(val id: String, val lang: String, val title: String, val rtl: Boolean, val sections: List<BookSection>, val author: String = "")
 
 object BookLibrary {
     private const val DIR = "content/books"
@@ -29,7 +29,7 @@ object BookLibrary {
             LibraryBook(b.getString("id"), b.getString("title"), (0 until e.length()).map { j ->
                 val x = e.getJSONObject(j)
                 BookEdition(x.getString("lang"), x.getString("file"), x.optInt("sections"), x.optString("completeness"))
-            })
+            }, b.optString("author"))
         }
         index = list
         return list
@@ -49,7 +49,7 @@ object BookLibrary {
                 val s = secs.getJSONObject(i)
                 val p = s.getJSONArray("p")
                 BookSection(s.optString("t"), s.optInt("l", 1), (0 until p.length()).map { p.getString(it) })
-            })
+            }, o.optString("author"))
         cached = text
         return text
     }
@@ -68,6 +68,9 @@ object BookPrefs {
     fun setLastRead(c: Context, key: String, section: Int, para: Int) {
         prefs(c).edit().putString("last.$key", "$section:$para").apply()
     }
+
+    fun fontSize(c: Context): Float = prefs(c).getFloat("font", 18f)
+    fun setFontSize(c: Context, v: Float) { prefs(c).edit().putFloat("font", v).apply() }
 
     fun bookmarks(c: Context, key: String): List<BookMark> =
         prefs(c).getStringSet("bm.$key", emptySet()).orEmpty().mapNotNull { s ->

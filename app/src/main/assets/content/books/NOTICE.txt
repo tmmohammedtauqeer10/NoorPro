@@ -1,15 +1,15 @@
 NoorPro - Tasawwuf library: sources and licences
 
-All texts below are public domain (published before 1929) and are reproduced verbatim from the scans listed (only whitespace and line-break hyphenation were normalised; unreadable OCR fragments were dropped).
+All texts below are public domain (published before 1929) and are reproduced from the scans listed. The OCR text was cleaned: page numbers, running headers, footnotes and garbled page references were removed, words broken across lines were rejoined, obvious OCR misreadings were corrected and transliteration was simplified to plain letters with ' for ayn/hamza. The wording of the translations is otherwise unchanged.
 
 al-Luma' fi'l-Tasawwuf [en]
-  Source/licence: R.A. Nicholson (ed.), The Kitab al-Luma' fi'l-Tasawwuf, E.J.W. Gibb Memorial Series XXII, London 1914 - English Preface and Abstract of Contents only; public domain (published 1914). Internet Archive scan kitaballuma00sarruoft, OCR text.
-  Completeness: Arabic text not available as machine-readable public text (the scan OCR contains no Arabic). Only Nicholson's English preface, abstract of contents and glossary are included. OCR paragraphs that were unreadable were omitted.
+  Source/licence: R.A. Nicholson (ed.), The Kitab al-Luma' fi'l-Tasawwuf, E.J.W. Gibb Memorial Series XXII, London 1914 - English Introduction and Abstract of Contents only; public domain (published 1914). Internet Archive scan kitaballuma00sarruoft, OCR text.
+  Completeness: Nicholson's English Introduction and full Abstract of Contents (all books and chapters, 1914), cleaned from OCR. The Arabic text, indices and glossary are not included.
 
 Kashf al-Mahjub [en]
   Source/licence: The Kashf al-Mahjub, translated by Reynold A. Nicholson, E.J.W. Gibb Memorial Series XVII, Leiden/London 1911; public domain (published 1911). Internet Archive scan 32882019066896-thekashfalmahju, OCR text.
-  Completeness: Complete English translation (OCR; footnotes and unreadable fragments may be mixed in or omitted). Persian original not available from an open source.
+  Completeness: Complete English translation by R.A. Nicholson (1911), cleaned from OCR: page numbers, running headers and footnotes removed; transliteration simplified (no diacritics). Persian original not included.
 
 Kimiya-e-Sa'adat [en]
   Source/licence: The Alchemy of Happiness, by al-Ghazzali, translated from the Hindustani by Claud Field, Wisdom of the East series, John Murray, London 1910; public domain (published 1910). Internet Archive scan alchemyofhappine00algh, OCR text.
-  Completeness: An abridgement (8 chapters), not the complete Kimiya.
+  Completeness: Claud Field's English abridgement (The Alchemy of Happiness, 1910), 8 chapters; not the complete Kimiya. Cleaned from OCR.
