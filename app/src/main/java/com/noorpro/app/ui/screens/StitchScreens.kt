@@ -1,5 +1,6 @@
 ﻿package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -359,10 +360,13 @@ fun StitchHomeScreen(viewModel: DeenViewModel) {
                 )
             }
             item {
-                StitchSacredToolsCard(
-                    onTool = { viewModel.navigateTo(it) },
-                    onSeeAll = { viewModel.navigateTo(DeenScreen.EXPLORE) }
-                )
+                Column {
+                    PermissionNudgeBanner(viewModel, Modifier.padding(bottom = 26.dp))
+                    StitchSacredToolsCard(
+                        onTool = { viewModel.navigateTo(it) },
+                        onSeeAll = { viewModel.navigateTo(DeenScreen.EXPLORE) }
+                    )
+                }
             }
             item {
                 // Sponsor + inline ad live in the Audio item so a hidden sponsor / unfilled ad adds no gap.
@@ -743,7 +747,7 @@ private fun StitchHomeHeader(
                 .size(48.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .background(StitchEmerald)
-                .border(1.dp, StitchLine, RoundedCornerShape(15.dp))
+                .border(1.dp, stitchLine(), RoundedCornerShape(15.dp))
                 .clickable(onClick = onProfile),
             contentAlignment = Alignment.Center
         ) {
@@ -769,7 +773,7 @@ private fun StitchHomeHeader(
                 .size(46.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
                 .clickable(onClick = onNotifications),
             contentAlignment = Alignment.Center
         ) {
@@ -1023,7 +1027,7 @@ private fun StitchScheduleItem(
             .background(if (active) StitchEmerald else stitchSoftSurface())
             .border(
                 width = if (active) 2.dp else 1.dp,
-                color = if (active) StitchGold else StitchLine.copy(alpha = 0.6f),
+                color = if (active) StitchGold else stitchLine().copy(alpha = 0.6f),
                 shape = RoundedCornerShape(16.dp)
             )
     ) {
@@ -1124,7 +1128,7 @@ private fun StitchGoalTile(
                 .size(58.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape),
+                .border(1.dp, stitchLine(), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(goal.icon, contentDescription = goal.label, tint = stitchPrimary(), modifier = Modifier.size(25.dp))
@@ -1661,7 +1665,7 @@ private fun StitchQuranOption(
             .heightIn(min = 78.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.72f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.72f), RoundedCornerShape(16.dp))
             .clickable(enabled = !loading, onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1686,7 +1690,7 @@ private fun StitchSurahJuzTabs(selected: String, onSelect: (String) -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.72f), RoundedCornerShape(22.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.72f), RoundedCornerShape(22.dp))
             .padding(5.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -2784,7 +2788,7 @@ private fun StitchStatDivider() {
         modifier = Modifier
             .height(42.dp)
             .width(1.dp)
-            .background(StitchLine.copy(alpha = 0.75f))
+            .background(stitchLine().copy(alpha = 0.75f))
     )
 }
 
@@ -2862,7 +2866,7 @@ private fun StitchMoreProfileTab(label: String, selected: Boolean, onClick: () -
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) stitchPrimary() else stitchSurface())
-            .border(1.dp, if (selected) stitchPrimary() else StitchLine, RoundedCornerShape(999.dp))
+            .border(1.dp, if (selected) stitchPrimary() else stitchLine(), RoundedCornerShape(999.dp))
             .clickable { onClick() }
             .padding(horizontal = 28.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
@@ -3179,7 +3183,7 @@ private fun StitchDivider() {
             .fillMaxWidth()
             .height(1.dp)
             .padding(start = 82.dp)
-            .background(StitchLine.copy(alpha = 0.65f))
+            .background(stitchLine().copy(alpha = 0.65f))
     )
 }
 
@@ -5610,7 +5614,7 @@ private fun StitchUmmahTopBar(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
         ) {
             Icon(Icons.Default.Search, contentDescription = "Search Ummah", tint = stitchPrimary())
         }
@@ -5621,7 +5625,7 @@ private fun StitchUmmahTopBar(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
         ) {
             Icon(Icons.Default.Edit, contentDescription = "Create post", tint = stitchPrimary())
         }
@@ -6516,7 +6520,7 @@ private fun StitchSavedStatCard(title: String, value: String, modifier: Modifier
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.7f), RoundedCornerShape(16.dp))
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -6534,7 +6538,7 @@ private fun StitchSavedFilterChip(label: String, selected: Boolean, onClick: () 
             .height(40.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) stitchPrimary() else stitchSurface())
-            .border(1.dp, if (selected) stitchPrimary() else StitchLine, RoundedCornerShape(999.dp))
+            .border(1.dp, if (selected) stitchPrimary() else stitchLine(), RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
@@ -6615,7 +6619,7 @@ private fun StitchUmmahTabs(selected: String, onSelect: (String) -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -6997,7 +7001,7 @@ private fun StitchYouTubePostCard(
                         Spacer(Modifier.width(6.dp))
                         Text(compactCount(post.likeCount + if (isLiked) 1L else 0L), color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Box(Modifier.width(1.dp).height(20.dp).background(StitchLine))
+                    Box(Modifier.width(1.dp).height(20.dp).background(stitchLine()))
                     Box(
                         modifier = Modifier.clickable { }.padding(horizontal = 12.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
@@ -7159,7 +7163,7 @@ internal fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
                         .weight(1f)
                         .clip(RoundedCornerShape(999.dp))
                         .background(stitchSoftSurface())
-                        .border(1.dp, StitchLine.copy(alpha = 0.6f), RoundedCornerShape(999.dp))
+                        .border(1.dp, stitchLine().copy(alpha = 0.6f), RoundedCornerShape(999.dp))
                         .clickable(onClick = onOpen)
                         .padding(horizontal = 18.dp, vertical = 13.dp)
                 ) {
@@ -7370,7 +7374,7 @@ private fun StitchPostActions(
         }
     }
     Spacer(modifier = Modifier.height(10.dp))
-    Box(Modifier.fillMaxWidth().height(1.dp).background(StitchLine.copy(alpha = 0.6f)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(stitchLine().copy(alpha = 0.6f)))
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
         StitchPostActionButton(Icons.Default.Favorite, "Like", if (isLiked) Color(0xFFE8505B) else muted, Modifier.weight(1f), onLike)
         StitchPostActionButton(Icons.Default.ChatBubble, "Comment", muted, Modifier.weight(1f), onComment)
@@ -7763,7 +7767,7 @@ private fun StitchSignInRequiredCard(
                     .size(82.dp)
                     .clip(CircleShape)
                     .background(stitchSoftSurface())
-                    .border(1.dp, StitchLine.copy(alpha = 0.75f), CircleShape),
+                    .border(1.dp, stitchLine().copy(alpha = 0.75f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -8273,7 +8277,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                                 containerColor = if (isFollowingCreator) stitchSurface() else stitchPrimary(),
                                 contentColor = if (isFollowingCreator) stitchText() else Color.White
                             ),
-                            border = if (isFollowingCreator) BorderStroke(1.dp, StitchLine) else null,
+                            border = if (isFollowingCreator) BorderStroke(1.dp, stitchLine()) else null,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
@@ -8285,7 +8289,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                                 else viewModel.openCreatorChat(profileUid, displayName)
                             },
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, StitchLine),
+                            border = BorderStroke(1.dp, stitchLine()),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = stitchText()),
                             modifier = Modifier.weight(1f)
                         ) { Text("Message") }
@@ -8295,7 +8299,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                         Button(
                             onClick = { viewModel.navigateTo(if (viewModel.isLoggedIn) DeenScreen.UMMAH_PROFILE_EDIT else DeenScreen.LOGIN) },
                             colors = ButtonDefaults.buttonColors(containerColor = stitchSoftSurface(), contentColor = stitchText()),
-                            border = BorderStroke(1.dp, StitchLine),
+                            border = BorderStroke(1.dp, stitchLine()),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(vertical = 12.dp),
                             modifier = Modifier.weight(1f)
@@ -8988,7 +8992,7 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                     LinearProgressIndicator(
                         progress = { levelProgress },
                         color = stitchPrimary(),
-                        trackColor = StitchLine,
+                        trackColor = stitchLine(),
                         modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(999.dp))
                     )
                 }
@@ -9140,7 +9144,7 @@ private fun StitchMilestoneCard(icon: ImageVector, title: String, subtitle: Stri
                     LinearProgressIndicator(
                         progress = { progress },
                         color = StitchGold,
-                        trackColor = StitchLine,
+                        trackColor = stitchLine(),
                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp))
                     )
                 }
@@ -9642,7 +9646,7 @@ private fun StitchProfileIconAction(
             .size(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -9746,7 +9750,7 @@ private fun StitchProfileMediaTile(
             .height(if (post.isReelLike()) 178.dp else 126.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.9f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
     ) {
         when {
@@ -9796,7 +9800,7 @@ private fun StitchProfileContentTabs(selected: String, onSelect: (String) -> Uni
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -10140,7 +10144,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFE2E9EC))
+                        .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFE2E9EC))
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -10420,7 +10424,7 @@ private fun StitchMessagesHubTopBar(
             modifier = Modifier
                 .size(52.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFE2E9EC)),
+                .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFE2E9EC)),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -10478,7 +10482,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
                 modifier = Modifier
                     .size(96.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEEF5F7)),
+                    .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFEEF5F7)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Groups, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(50.dp))
@@ -10503,7 +10507,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
             Spacer(Modifier.height(36.dp))
             Button(
                 onClick = onSignIn,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF745C00)),
+                colors = if (!com.noorpro.app.ui.components.isStitchLight()) ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = stitchOnPrimaryAccent()) else ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF745C00)),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
@@ -10540,14 +10544,14 @@ private fun StitchMessageTab(label: String, selected: Boolean, modifier: Modifie
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color.White else Color.Transparent)
+            .background(if (selected) (if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.surface else Color.White) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (selected) stitchPrimary() else Color(0xFF404943),
+            color = if (selected) stitchPrimary() else if (!com.noorpro.app.ui.components.isStitchLight()) stitchMutedText() else Color(0xFF404943),
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
@@ -11035,7 +11039,7 @@ private fun StitchGroupChatHeader(
             .statusBarsPadding()
             .fillMaxWidth()
             .background(stitchSurface())
-            .border(BorderStroke(1.dp, StitchLine.copy(alpha = 0.75f)))
+            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.75f)))
             .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
     ) {
         IconButton(onClick = onBack) {
@@ -11128,7 +11132,7 @@ private fun StitchGroupConstitutionNotice() {
         Card(
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = stitchSurface()),
-            border = BorderStroke(1.dp, StitchLine.copy(alpha = 0.80f)),
+            border = BorderStroke(1.dp, stitchLine().copy(alpha = 0.80f)),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -11162,7 +11166,7 @@ private fun StitchGroupAttachmentPanel(
         modifier = Modifier
             .fillMaxWidth()
             .background(stitchSurface())
-            .border(BorderStroke(1.dp, StitchLine.copy(alpha = 0.75f)))
+            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.75f)))
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -12115,7 +12119,7 @@ private fun StitchReplyComposerPreview(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.75f), RoundedCornerShape(16.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -12200,7 +12204,7 @@ private fun StitchPendingMediaPreview(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.65f), RoundedCornerShape(18.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -12271,7 +12275,7 @@ private fun StitchChatDateChip() {
             letterSpacing = 0.4.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xFFDDE3E6).copy(alpha = 0.72f))
+                .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFDDE3E6).copy(alpha = 0.72f))
                 .padding(horizontal = 14.dp, vertical = 6.dp)
         )
     }
@@ -13217,7 +13221,7 @@ private fun SpiritualPrayerRow(
             Box(
                 modifier = Modifier.size(30.dp).clip(CircleShape)
                     .background(if (fardDone) StitchEmerald else Color.Transparent)
-                    .border(if (fardDone) 0.dp else 2.dp, if (fardDone) StitchEmerald else StitchLine, CircleShape)
+                    .border(if (fardDone) 0.dp else 2.dp, if (fardDone) StitchEmerald else stitchLine(), CircleShape)
                     .clickable(onClick = onFard),
                 contentAlignment = Alignment.Center
             ) {

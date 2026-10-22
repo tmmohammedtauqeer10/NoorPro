@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -271,7 +272,7 @@ private fun AudioTopBar(photoUrl: String, onMenu: () -> Unit, onProfile: () -> U
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(stitchSoftSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
                 .clickable(onClick = onProfile),
             contentAlignment = Alignment.Center
         ) {
@@ -426,7 +427,7 @@ private fun AudioReciterAvatar(
         val ringBrush = if (selected) {
             Brush.linearGradient(listOf(StitchGold, StitchEmerald))
         } else {
-            Brush.linearGradient(listOf(StitchLine, StitchLine))
+            Brush.linearGradient(listOf(stitchLine(), stitchLine()))
         }
         Box(
             modifier = Modifier
@@ -485,7 +486,7 @@ private fun AudioExploreMoreAvatar(onClick: () -> Unit) {
                 .size(70.dp)
                 .clip(CircleShape)
                 .background(stitchSoftSurface())
-                .border(1.dp, StitchLine, CircleShape),
+                .border(1.dp, stitchLine(), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Search, contentDescription = "Explore more", tint = stitchMutedText())
@@ -604,12 +605,15 @@ fun StitchAudioHubEntryCard(onOpen: () -> Unit) {
             .clickable(onClick = onOpen)
             .padding(22.dp)
     ) {
-        Icon(
-            Icons.Default.QueueMusic,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.07f),
-            modifier = Modifier.size(140.dp).align(Alignment.CenterEnd)
-        )
+        // Decorative watermark sized to the card (no longer drives the card height / gets clipped).
+        Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+            Icon(
+                Icons.Default.QueueMusic,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.08f),
+                modifier = Modifier.size(76.dp)
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier.size(46.dp).clip(CircleShape).background(StitchGold),

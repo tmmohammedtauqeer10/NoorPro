@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -154,7 +155,77 @@ object ExactAlarmAsk {
 
 /* ---------------------------------------------------------------- onboarding */
 
-data class EntrancePermState(val location: Boolean, val notifications: Boolean, val exactAlarm: Boolean, val exactNeeded: Boolean)
+data class EntrancePermState(
+    val location: Boolean, val notifications: Boolean, val exactAlarm: Boolean, val exactNeeded: Boolean,
+    val locationDenied: Boolean = false, val manualCity: String? = null,
+    /** null = battery card hidden. */
+    val batteryOk: Boolean? = null,
+) { val alarms: Boolean get() = notifications && (exactAlarm || !exactNeeded) }
+
+/** Cities offered when location is denied (lat, lng). */
+val ManualCities = listOf(
+    Triple("Bengaluru, IN", 12.9716, 77.5946), Triple("Hyderabad, IN", 17.3850, 78.4867), Triple("Mumbai, IN", 19.0760, 72.8777),
+    Triple("Delhi, IN", 28.6139, 77.2090), Triple("Chennai, IN", 13.0827, 80.2707), Triple("Kolkata, IN", 22.5726, 88.3639),
+    Triple("Lucknow, IN", 26.8467, 80.9462), Triple("Srinagar, IN", 34.0837, 74.7973), Triple("Karachi, PK", 24.8607, 67.0011),
+    Triple("Lahore, PK", 31.5204, 74.3587), Triple("Dhaka, BD", 23.8103, 90.4125), Triple("Dubai, AE", 25.2048, 55.2708),
+    Triple("Riyadh, SA", 24.7136, 46.6753), Triple("Makkah, SA", 21.4225, 39.8262), Triple("London, UK", 51.5072, -0.1276),
+    Triple("New York, US", 40.7128, -74.0060), Triple("Jakarta, ID", -6.2088, 106.8456), Triple("Istanbul, TR", 41.0082, 28.9784),
+)
+
+/** Shared permission actions (onboarding page + Home nudge banner). */
+class PermissionActions(val state: EntrancePermState, val onLocation: () -> Unit, val onAlarms: () -> Unit, val onBattery: () -> Unit, val onCity: (Triple<String, Double, Double>) -> Unit)
+
+@Composable
+fun rememberPermissionActions(viewModel: DeenViewModel): PermissionActions {
+    val ctx = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var locDenied by rememberSaveable { mutableStateOf(false) }
+    var city by rememberSaveable { mutableStateOf<String?>(null) }
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val o = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) tick++ }
+        owner.lifecycle.addObserver(o); onDispose { owner.lifecycle.removeObserver(o) }
+    }
+    val exactNeeded = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    fun openExactIfNeeded() {
+        if (exactNeeded && !PrayerScheduler.canScheduleExact(ctx)) { ExactAlarmAsk.markAsked(ctx); PrayerPermissions.openExactAlarmSettings(ctx) }
+    }
+    val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
+        if (r.values.any { it }) { locDenied = false; viewModel.checkLocationAndRefresh { } } else locDenied = true
+        tick++
+    }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        tick++
+        if (ok) openExactIfNeeded()
+    }
+    @Suppress("UNUSED_EXPRESSION") tick
+    val pm = ctx.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+    val state = EntrancePermState(
+        location = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED,
+        notifications = PrayerPermissions.notificationsGranted(ctx),
+        exactAlarm = PrayerScheduler.canScheduleExact(ctx),
+        exactNeeded = exactNeeded,
+        locationDenied = locDenied, manualCity = city,
+        batteryOk = pm?.isIgnoringBatteryOptimizations(ctx.packageName),
+    )
+    return PermissionActions(
+        state,
+        onLocation = { locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
+        onAlarms = {
+            when {
+                !state.notifications && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
+                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                !state.notifications -> PrayerPermissions.openAppNotificationSettings(ctx)
+                else -> openExactIfNeeded()
+            }
+        },
+        onBattery = {
+            runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        },
+        onCity = { (n, la, ln) -> city = n; viewModel.setManualCity(n, la, ln) },
+    )
+}
 
 /** Stateful onboarding: wires view-model settings and Android permission requests. */
 @Composable
@@ -164,39 +235,18 @@ fun EntranceOnboarding(viewModel: DeenViewModel, onFinished: () -> Unit) {
     val method by viewModel.prayerSettingsController.selectedMethod.collectAsState()
     val madhab by viewModel.prayerSettingsController.selectedMadhab.collectAsState()
     val lang by viewModel.appLanguage.collectAsState()
-    var tick by remember { mutableIntStateOf(0) }
-    val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner) {
-        val o = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) tick++ }
-        owner.lifecycle.addObserver(o); onDispose { owner.lifecycle.removeObserver(o) }
-    }
-    val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
-        if (r.values.any { it }) viewModel.checkLocationAndRefresh { }
-        tick++
-    }
-    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
-    @Suppress("UNUSED_EXPRESSION") tick
-    val perms = EntrancePermState(
-        location = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED,
-        notifications = PrayerPermissions.notificationsGranted(ctx),
-        exactAlarm = PrayerScheduler.canScheduleExact(ctx),
-        exactNeeded = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-    )
+    val actions = rememberPermissionActions(viewModel)
     OnboardingPager(
         theme = theme, onTheme = viewModel::updateThemeMode,
         method = method, onMethod = viewModel.prayerSettingsController::updateCalculationMethod,
         madhab = madhab, onMadhab = viewModel.prayerSettingsController::updateMadhab,
         language = lang, onLanguage = viewModel::updateLanguage,
-        perms = perms,
-        onAllowLocation = { locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
-        onAllowNotifications = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            else PrayerPermissions.openAppNotificationSettings(ctx)
+        perms = actions.state, actions = actions,
+        onFinish = {
+            ExactAlarmAsk.markAsked(ctx)
+            PermissionNudge.setSkipped(ctx, !(actions.state.location || actions.state.manualCity != null) || !actions.state.alarms)
+            onFinished()
         },
-        onAllowExact = { ExactAlarmAsk.markAsked(ctx); PrayerPermissions.openExactAlarmSettings(ctx) },
-        onFinish = { ExactAlarmAsk.markAsked(ctx); onFinished() },
     )
 }
 
@@ -208,7 +258,7 @@ fun OnboardingPager(
     madhab: Madhab, onMadhab: (Madhab) -> Unit,
     language: AppLanguage, onLanguage: (AppLanguage) -> Unit,
     perms: EntrancePermState,
-    onAllowLocation: () -> Unit, onAllowNotifications: () -> Unit, onAllowExact: () -> Unit,
+    actions: PermissionActions? = null,
     onFinish: () -> Unit,
     initialPage: Int = 0,
 ) {
@@ -240,7 +290,7 @@ fun OnboardingPager(
                             0 -> WelcomePage()
                             1 -> FeaturesPage()
                             2 -> PersonalisePage(theme, onTheme, method, onMethod, madhab, onMadhab, language, onLanguage)
-                            else -> PermissionsPage(perms, onAllowLocation, onAllowNotifications, onAllowExact)
+                            else -> PermissionsPage(perms, actions)
                         }
                     }
                 }
@@ -266,6 +316,9 @@ fun OnboardingPager(
                     )
                     Spacer(Modifier.width(8.dp))
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
+                }
+                if (last) TextButton(onClick = onFinish, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Skip for now", color = scheme.onSurfaceVariant)
                 }
             }
         }
@@ -439,15 +492,25 @@ private fun PersonalisePage(
 }
 
 @Composable
-private fun PermissionsPage(perms: EntrancePermState, onLocation: () -> Unit, onNotif: () -> Unit, onExact: () -> Unit) {
-    PageTitle("Stay on time", "Helpful permissions", "Each one is optional. Allow what you need — you can always continue.")
-    PermissionCard(Icons.Default.LocationOn, "Location", "Accurate prayer times and Qibla for where you are.", perms.location, onLocation)
-    PermissionCard(Icons.Default.NotificationsActive, "Notifications", "Adhan alerts and gentle daily reminders.", perms.notifications, onNotif)
+private fun PermissionsPage(perms: EntrancePermState, actions: PermissionActions?) {
+    PageTitle("Stay on time", "Set up prayer essentials", "Both are optional — tap Continue or Skip any time.")
+    val locOk = perms.location || perms.manualCity != null
     PermissionCard(
-        Icons.Default.Alarm, "Exact alarms",
-        if (perms.exactNeeded) "Sounds the adhan at the exact minute. Opens Android settings — switch on \"Alarms & reminders\"." else "Not needed on this Android version.",
-        perms.exactAlarm || !perms.exactNeeded, onExact
+        Icons.Default.LocationOn, "Enable location",
+        when { perms.manualCity != null && !perms.location -> "Using ${perms.manualCity} for prayer times and Qibla."
+               perms.locationDenied -> "Location was denied — choose your city instead."
+               else -> "For accurate prayer times and Qibla direction." },
+        locOk, "Enable", { actions?.onLocation?.invoke() },
+        extra = if (perms.locationDenied && !perms.location) ({ CityPicker(perms.manualCity) { actions?.onCity?.invoke(it) } }) else null,
     )
+    PermissionCard(
+        Icons.Default.Alarm, "Allow adhan alarms",
+        if (perms.exactNeeded) "Notifications + exact alarms so the adhan sounds on the minute." else "Notifications so the adhan reaches you on time.",
+        perms.alarms, "Allow", { actions?.onAlarms?.invoke() },
+    )
+    perms.batteryOk?.let { ok ->
+        PermissionCard(Icons.Default.BatteryChargingFull, "Battery saver (optional)", "Helps alarms ring reliably on some phones.", ok, "Open", { actions?.onBattery?.invoke() })
+    }
     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
@@ -456,13 +519,27 @@ private fun PermissionsPage(perms: EntrancePermState, onLocation: () -> Unit, on
 }
 
 @Composable
-private fun PermissionCard(icon: ImageVector, title: String, body: String, granted: Boolean, onAllow: () -> Unit) {
+private fun CityPicker(current: String?, onPick: (Triple<String, Double, Double>) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { open = true }, shape = RoundedCornerShape(12.dp)) {
+            Icon(Icons.Default.LocationCity, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+            Text(current ?: "Choose city")
+        }
+        DropdownMenu(open, { open = false }) {
+            ManualCities.forEach { c -> DropdownMenuItem(text = { Text(c.first) }, onClick = { open = false; onPick(c) }) }
+        }
+    }
+}
+
+@Composable
+private fun PermissionCard(icon: ImageVector, title: String, body: String, granted: Boolean, action: String, onAllow: () -> Unit, extra: (@Composable () -> Unit)? = null) {
     val scheme = MaterialTheme.colorScheme
-    Row(
+    Column(
         Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(22.dp)).background(scheme.surface)
-            .border(1.dp, if (granted) scheme.primary.copy(alpha = 0.5f) else scheme.outlineVariant, RoundedCornerShape(22.dp)).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(1.dp, if (granted) scheme.primary.copy(alpha = 0.5f) else scheme.outlineVariant, RoundedCornerShape(22.dp)).padding(16.dp)
     ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(scheme.primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = scheme.primary)
         }
@@ -474,12 +551,59 @@ private fun PermissionCard(icon: ImageVector, title: String, body: String, grant
         Spacer(Modifier.width(10.dp))
         AnimatedContent(granted, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "perm") { ok ->
             if (ok) Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CheckCircle, "Allowed", tint = Color(0xFF2E9A72), modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.CheckCircle, "Enabled", tint = Color(0xFF2E9A72), modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Allowed", color = Color(0xFF2E9A72), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Enabled", color = Color(0xFF2E9A72), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             } else FilledTonalButton(onClick = onAllow, shape = RoundedCornerShape(14.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
-                Text("Allow", fontWeight = FontWeight.Bold)
+                Text(action, fontWeight = FontWeight.Bold)
             }
         }
+    }
+    if (extra != null) { Spacer(Modifier.height(10.dp)); Row(Modifier.padding(start = 60.dp)) { extra() } }
+    }
+}
+
+
+object PermissionNudge {
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
+    fun setSkipped(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean("perm_skipped", v).apply()
+    fun show(ctx: Context) = prefs(ctx).getBoolean("perm_skipped", false) && !prefs(ctx).getBoolean("perm_nudge_dismissed", false)
+    fun dismiss(ctx: Context) = prefs(ctx).edit().putBoolean("perm_nudge_dismissed", true).apply()
+}
+
+/** Small dismissible Home banner shown only if onboarding permissions were skipped. */
+@Composable
+fun PermissionNudgeBanner(viewModel: DeenViewModel, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    var visible by remember { mutableStateOf(PermissionNudge.show(ctx)) }
+    if (!visible) return
+    val a = rememberPermissionActions(viewModel)
+    val st = a.state
+    val needLoc = !st.location && st.manualCity == null
+    val needAlarm = !st.alarms
+    if (!needLoc && !needAlarm) return
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(scheme.primaryContainer.copy(alpha = 0.55f))
+            .border(1.dp, scheme.outlineVariant, RoundedCornerShape(18.dp)).padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.NotificationsActive, null, tint = scheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Finish setup for on-time prayers", color = scheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            IconButton(onClick = { PermissionNudge.dismiss(ctx); visible = false }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Close, "Dismiss", tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
+        }
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+            if (needAlarm) FilledTonalButton(onClick = a.onAlarms, shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.Alarm, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Turn on adhan alarms", fontSize = 13.sp)
+            }
+            if (needLoc) OutlinedButton(onClick = a.onLocation, shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.LocationOn, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Enable location", fontSize = 13.sp)
+            }
+        }
+        if (st.locationDenied && needLoc) Row(Modifier.padding(top = 6.dp)) { CityPicker(null) { a.onCity(it) } }
     }
 }

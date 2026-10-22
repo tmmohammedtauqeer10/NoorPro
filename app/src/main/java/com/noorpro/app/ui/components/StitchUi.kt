@@ -327,3 +327,7 @@ fun StitchPill(
 /** Accent drawn ON a stitchPrimary() fill: gold on emerald (light), deep ink on gold (dark). */
 @Composable
 fun stitchOnPrimaryAccent(): Color = if (isStitchLight()) StitchGold else Color(0xFF0B1512)
+
+/** Theme-aware hairline / divider colour (light: StitchLine, dark: StitchDarkLine). */
+@Composable
+fun stitchLine(): Color = if (isStitchLight()) StitchLine else StitchDarkLine

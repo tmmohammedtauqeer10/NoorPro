@@ -41,8 +41,8 @@ class EntranceScreenshotTest {
     private fun page(i: Int) = shots(listOf("onboarding_welcome", "onboarding_features", "onboarding_personalise", "onboarding_permissions")[i]) {
         OnboardingPager(
             ThemeMode.SYSTEM, {}, CalculationMethod.KARACHI, {}, Madhab.HANAFI, {}, AppLanguage.EN, {},
-            EntrancePermState(location = true, notifications = false, exactAlarm = false, exactNeeded = true),
-            {}, {}, {}, {}, initialPage = i,
+            EntrancePermState(location = false, notifications = true, exactAlarm = true, exactNeeded = true, locationDenied = true, batteryOk = false),
+            null, {}, initialPage = i,
         )
     }
 

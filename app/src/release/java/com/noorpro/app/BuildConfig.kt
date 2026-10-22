@@ -11,5 +11,4 @@ object BuildConfig {
     const val ADMOB_BOTTOM_BANNER: String = "ca-app-pub-9239932537224257/6312829655"
     const val ADMOB_FEED_BANNER: String = "ca-app-pub-9239932537224257/1833519437"
     const val GOOGLE_WEB_CLIENT_ID: String = "684547719535-njganphl6n5jg7r4ebo88v3472hiqfl9.apps.googleusercontent.com"
-    const val YOUTUBE_API_KEY: String = "AIzaSyAQy7RrAmrneAVYwcc7ATVJoRXEqpMzn90"
 }

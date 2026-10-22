@@ -1542,6 +1542,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Manual city fallback when location permission is denied (same storage path as GPS). */
+    fun setManualCity(name: String, lat: Double, lng: Double) {
+        viewModelScope.launch {
+            userPreferencesRepo.updateLocation(lat, lng)
+            _hasCurrentLocation.value = true
+            _currentLocationName.value = name
+            prefs.edit().putString("manual_city_name", name).apply()
+            recalculatePrayers()
+        }
+    }
+
     private fun processLocation(location: android.location.Location, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val currentLat = location.latitude
