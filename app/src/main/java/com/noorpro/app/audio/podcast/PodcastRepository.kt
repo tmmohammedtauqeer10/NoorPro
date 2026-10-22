@@ -56,6 +56,7 @@ object PodcastRepository {
         Podcast("q30", "Qur'an 30 for 30", "Yaqeen Institute", "English", "Quran", "https://rss.buzzsprout.com/2449265.rss", "https://yaqeeninstitute.org"),
         Podcast("menk", "Mufti Menk Podcast", "Mufti Ismail Menk", "English", "Reminders", "https://feeds.acast.com/public/shows/669f8f9582b4e4eb3d88ad2e", "https://muftimenk.com"),
         Podcast("nak", "Nouman Ali Khan: Bayyinah Podcast", "Bayyinah Institute", "English", "Quran", "https://app.fusebox.fm/data/show/VNDXqyNW4X/feed", "https://bayyinah.com"),
+        Podcast("hammad-qadri", "Shaykh Hammad Mustafa al-Madani al-Qadri", "Minhaj-ul-Quran (official)", "English", "Spirituality", "https://anchor.fm/s/d9c69d08/podcast/rss", "https://podcasters.spotify.com/pod/show/shaykh-hammad"),
         Podcast("mc-omar", "Omar Suleiman (Muslim Central)", "Muslim Central", "English", "Reminders", "https://rss.muslimcentral.com/omar-suleiman.rss", "https://muslimcentral.com"),
         Podcast("mc-yq", "Yasir Qadhi (Muslim Central)", "Muslim Central", "English", "Lectures", "https://rss.muslimcentral.com/yasir-qadhi.rss", "https://muslimcentral.com"),
         Podcast("mc-baajour", "Mohamad Baajour (Muslim Central)", "Muslim Central", "English", "Reminders", "https://rss.muslimcentral.com/mohamad-baajour.rss", "https://muslimcentral.com"),
