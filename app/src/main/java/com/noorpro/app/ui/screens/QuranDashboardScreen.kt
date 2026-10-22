@@ -67,7 +67,7 @@ fun QuranDashboardScreen(viewModel: DeenViewModel) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.EDUCATION) }) {
+                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.QAIDA_TUTOR) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = LearningGoldAccent)
                     }
                 },

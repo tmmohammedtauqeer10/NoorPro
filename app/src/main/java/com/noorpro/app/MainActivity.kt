@@ -298,7 +298,7 @@ fun MainLayout() {
                 DeenScreen.PROFILE_DASHBOARD -> StitchProfileSettingsScreen(viewModel = viewModel)
                 DeenScreen.QURAN_LEARNING_DASHBOARD -> com.noorpro.app.ui.screens.QuranDashboardScreen(viewModel = viewModel)
                 DeenScreen.QURAN_LEARNING_READER -> com.noorpro.app.ui.screens.SurahLearningScreen(viewModel = viewModel)
-                DeenScreen.QAIDA_TUTOR -> com.noorpro.app.ui.screens.QaidaScreen(viewModel = viewModel)
+                DeenScreen.QAIDA_TUTOR -> com.noorpro.app.ui.screens.QuranCourseScreen(viewModel = viewModel)
                 DeenScreen.UMMAH -> StitchUmmahHubScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FULL -> StitchUmmahHubScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_CREATE_POST -> StitchUmmahCreateScreen(viewModel = viewModel, reelMode = false)
