@@ -64,7 +64,9 @@ internal fun playFree(ctx: android.content.Context, track: Track, queue: List<Tr
     runCatching {
         AlNoorAudioSession.init(ctx)
         AlNoorSessionRouter.select(ctx, AlNoorSessionRouter.Source.AL_NOOR)
-        AlNoorAudioSession.player.playTrack(track, queue)
+        // 1.0.90: every track gets real or generated cover art (same image in-app, notification, lock screen).
+        val q = queue.map { com.noorpro.app.audio.art.CoverArt.withCover(ctx, it) }
+        AlNoorAudioSession.player.playTrack(q.firstOrNull { it.id == track.id } ?: com.noorpro.app.audio.art.CoverArt.withCover(ctx, track), q)
     }
 }
 

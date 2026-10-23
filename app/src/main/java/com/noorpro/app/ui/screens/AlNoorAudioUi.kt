@@ -323,6 +323,7 @@ internal fun ReciterAvatarArt(r: Reciter, portrait: Int?, size: Dp) {
     else {
         val c = coverColor(r.id + 40)
         Box(Modifier.size(size).clip(CircleShape).background(Brush.linearGradient(listOf(lerp(c, Color.White, 0.2f), lerp(c, Color.Black, 0.35f)))), contentAlignment = Alignment.Center) {
+            SpPattern(Modifier.fillMaxSize())
             Text(r.name.split(" ").filter { it.isNotBlank() && it.first().isUpperCase() }.take(2).joinToString("") { it.take(1) }.ifBlank { r.name.take(1) },
                 color = Color.White, fontSize = (size.value / 3.2f).sp, fontWeight = FontWeight.Bold)
         }

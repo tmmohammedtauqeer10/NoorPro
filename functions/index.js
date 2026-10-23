@@ -1132,7 +1132,18 @@ async function ytFromChannelPage(channelId) {
       const md = (l.metadata || {}).lockupMetadataViewModel || {};
       const rows = (((md.metadata || {}).contentMetadataViewModel || {}).metadataRows || []);
       const parts = rows.flatMap((row) => (row.metadataParts || []).map((p) => ((p.text || {}).content || "")));
-      videos.push({id: l.contentId, title: ((md.title || {}).content || ""), published: "",
+      let durationSec = 0;
+      const findDur = (x) => {
+        if (durationSec || !x || typeof x !== "object") return;
+        for (const val of Object.values(x)) {
+          if (typeof val === "string" && /^\d{1,2}(:\d{2}){1,2}$/.test(val)) {
+            durationSec = val.split(":").reduce((a, n) => a * 60 + Number(n), 0); return;
+          }
+          findDur(val);
+        }
+      };
+      findDur(l.contentImage);
+      videos.push({id: l.contentId, title: ((md.title || {}).content || ""), published: "", durationSec,
         ago: parts.find((p) => / ago$/.test(p)) || "", thumb: `https://i.ytimg.com/vi/${l.contentId}/hqdefault.jpg`});
     }
     Object.values(o).forEach(walk);
@@ -1161,9 +1172,78 @@ async function ytAudioMap() {
   }
   return ytAudio.map;
 }
+// 1.0.90: owner audio that is not (yet) on YouTube. Shown in the app as audio-only "New" tracks until a
+// channel video appears whose title fuzzy-matches or whose duration is within 3 s; then it is linked
+// automatically (nasheed_audio/{videoId}). Ambiguous matches are only logged / reported, never guessed.
+// Extra entries can be added as Firestore docs nasheed_pending/{key} {title, titleEn, url, durationSec}.
+const MAF_MEDIA = "https://noorpro-media.web.app/maf";
+const NASHEED_PENDING = [
+  {key: "abhi-umeed-baqi-hai", title: "ابھی اُمید باقی ہے", titleEn: "Abhi Umeed Baqi Hai",
+    url: `${MAF_MEDIA}/abhi-umeed-baqi-hai.mp3`, durationSec: 367.6},
+  {key: "safar-mein-tera-sahara", title: "سفر میں تیرا سہارا", titleEn: "Safar Mein Tera Sahara",
+    url: `${MAF_MEDIA}/safar-mein-tera-sahara.mp3`, durationSec: 308.8},
+];
+const ytNormArabic = (s) => String(s || "").replace(/[\u064B-\u065F\u0670\u06EA-\u06ED\u200C\u200D]/g, "")
+  .replace(/[^\u0600-\u06FF]/g, "");
+const ytNormLatin = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  .replace(/[^a-z]/g, "").replace(/(ee|ea|ie)/g, "i").replace(/(oo|ou)/g, "u").replace(/(.)\1+/g, "$1");
+const ytTitleMatch = (video, p) => {
+  const va = ytNormArabic(video.title); const pa = ytNormArabic(p.title);
+  if (pa.length >= 6 && va.includes(pa)) return true;
+  const vl = ytNormLatin(video.title); const pl = ytNormLatin(p.titleEn);
+  return pl.length >= 8 && vl.includes(pl);
+};
+let ytPending = {at: 0, list: NASHEED_PENDING};
+async function ytPendingList() {
+  if (Date.now() - ytPending.at < 10 * 60 * 1000) return ytPending.list;
+  const list = [...NASHEED_PENDING];
+  try {
+    const snap = await admin.firestore().collection("nasheed_pending").limit(100).get();
+    snap.forEach((d) => {
+      const x = d.data() || {};
+      if (/^https:\/\//.test(String(x.url || "")) && !list.some((p) => p.key === d.id)) {
+        list.push({key: d.id, title: String(x.title || ""), titleEn: String(x.titleEn || ""), url: String(x.url),
+          durationSec: Number(x.durationSec) || 0});
+      }
+    });
+  } catch (error) {
+    console.warn("ytPendingList", error.message);
+  }
+  ytPending = {at: Date.now(), list};
+  return list;
+}
+async function ytAutoLink(videos, map) {
+  const pending = await ytPendingList();
+  const linkedUrls = new Set(Object.values(map));
+  const audioOnly = []; const ambiguous = [];
+  for (const p of pending) {
+    if (linkedUrls.has(p.url)) continue;
+    const cands = videos.filter((v) => !map[v.id] && (ytTitleMatch(v, p) ||
+      (p.durationSec > 0 && v.durationSec > 0 && Math.abs(v.durationSec - p.durationSec) <= 3)));
+    const strong = cands.filter((v) => ytTitleMatch(v, p));
+    const pick = strong.length === 1 ? strong[0] : (cands.length === 1 ? cands[0] : null);
+    if (pick) {
+      try {
+        await admin.firestore().collection("nasheed_audio").doc(pick.id).set({url: p.url, title: p.title,
+          pendingKey: p.key, linkedBy: "youtubeChannelFeed", linkedAt: new Date().toISOString()}, {merge: true});
+        map[pick.id] = p.url; ytAudio.at = 0;
+        console.log("ytAutoLink", p.key, "->", pick.id);
+        continue;
+      } catch (error) {
+        console.warn("ytAutoLink write", error.message);
+      }
+    }
+    if (cands.length > 1) ambiguous.push({key: p.key, candidates: cands.map((v) => ({id: v.id, title: v.title, durationSec: v.durationSec || 0}))});
+    audioOnly.push({key: p.key, title: p.title, titleEn: p.titleEn, audioUrl: p.url, durationSec: p.durationSec, isNew: true});
+  }
+  if (ambiguous.length) console.warn("ytAutoLink ambiguous", JSON.stringify(ambiguous));
+  return {audioOnly, ambiguous};
+}
 const withAudio = async (body) => {
-  const map = await ytAudioMap();
-  return {...body, videos: body.videos.map((v) => ({...v, audioUrl: map[v.id] || ""}))};
+  const map = {...await ytAudioMap()};
+  const {audioOnly, ambiguous} = await ytAutoLink(body.videos, map);
+  return {...body, audioOnly, audioAmbiguous: ambiguous,
+    videos: body.videos.map((v) => ({...v, audioUrl: map[v.id] || ""}))};
 };
 
 exports.youtubeChannelFeed = onRequest(

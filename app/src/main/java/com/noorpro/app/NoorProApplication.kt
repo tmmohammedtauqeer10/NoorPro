@@ -25,7 +25,15 @@ class NoorProApplication : Application(), ImageLoaderFactory {
     // App-wide Coil loader that can decode a video's first frame, so reels/post videos show their
     // real visual (like Instagram) instead of a black box when they have no separate thumbnail.
     override fun newImageLoader(): ImageLoader {
+        // 1.0.90: some podcast hosts' CDNs (e.g. Buzzsprout via Cloudflare) answer 403 to OkHttp's
+        // default "okhttp/x" User-Agent, which left cover art blank. Send an app User-Agent instead.
+        val http = okhttp3.OkHttpClient.Builder()
+            .addNetworkInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().header("User-Agent", "NoorPro/1.0 (Android; podcast RSS reader)").build())
+            }
+            .build()
         return ImageLoader.Builder(this)
+            .okHttpClient(http)
             .components {
                 add(com.noorpro.app.data.media.RemoteVideoFrameFetcher.Factory())
                 add(VideoFrameDecoder.Factory())

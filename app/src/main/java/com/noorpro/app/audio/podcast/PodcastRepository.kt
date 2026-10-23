@@ -90,6 +90,10 @@ object PodcastRepository {
     private const val TTL_MS = 6 * 60 * 60 * 1000L
     private val mem = HashMap<String, Pair<Long, FeedResult>>()
 
+    /** Episodes already cached (memory/disk) — used by unified search; never hits the network. */
+    fun cachedEpisodes(ctx: Context, p: Podcast): List<Episode> =
+        previewFeeds?.get(p.id)?.episodes ?: mem[p.id]?.second?.episodes ?: readCache(ctx, p)?.episodes.orEmpty()
+
     fun cachedArtwork(ctx: Context, p: Podcast): String? =
         previewFeeds?.get(p.id)?.artwork ?: mem[p.id]?.second?.artwork ?: readCache(ctx, p)?.artwork
 
@@ -112,7 +116,7 @@ object PodcastRepository {
 
     fun toTrack(p: Podcast, e: Episode, artwork: String?) = Track(
         id = "pod-${p.id}-${e.guid.hashCode()}", title = e.title, artistId = "podcast-${p.id}", artistName = p.name,
-        audioUrl = e.audioUrl, durationMs = e.durationMs, coverUrl = e.imageUrl ?: artwork,
+        audioUrl = e.audioUrl, durationMs = e.durationMs, coverUrl = e.imageUrl?.takeIf { it.isNotBlank() } ?: artwork?.takeIf { it.isNotBlank() },
         license = LicenseType.PUBLISHER_RSS, attributionText = "${p.name} · via RSS · ${p.publisher}",
         sourceUrl = p.website.ifBlank { p.feedUrl }, licenseUrl = p.feedUrl, tags = listOf("podcast", p.category), language = p.language,
     )
@@ -147,7 +151,14 @@ object PodcastRepository {
             if (ev == XmlPullParser.START_TAG) {
                 when (xp.name) {
                     "item" -> { inItem = true; title = ""; guid = ""; audio = ""; date = 0L; dur = 0L; img = null }
-                    "itunes:image" -> { val h = xp.getAttributeValue(null, "href"); if (inItem) img = h else if (artwork == null) artwork = h }
+                    "itunes:image", "googleplay:image" -> { val h = xp.getAttributeValue(null, "href")?.trim()?.ifBlank { null }
+                        if (h != null) { if (inItem) { if (img == null) img = h } else if (artwork == null) artwork = h } }
+                    // 1.0.90: also media:thumbnail / media:content images (channel and episode level).
+                    "media:thumbnail" -> { val h = xp.getAttributeValue(null, "url")?.trim()?.ifBlank { null }
+                        if (h != null) { if (inItem) { if (img == null) img = h } else if (artwork == null) artwork = h } }
+                    "media:content" -> { val h = xp.getAttributeValue(null, "url")?.trim()?.ifBlank { null }
+                        val isImg = xp.getAttributeValue(null, "medium") == "image" || xp.getAttributeValue(null, "type").orEmpty().startsWith("image")
+                        if (h != null && isImg) { if (inItem) { if (img == null) img = h } else if (artwork == null) artwork = h } }
                     "url" -> if (!inItem && artwork == null) artwork = xp.nextText().trim().ifBlank { null }
                     "enclosure" -> if (inItem) {
                         val type = xp.getAttributeValue(null, "type").orEmpty()

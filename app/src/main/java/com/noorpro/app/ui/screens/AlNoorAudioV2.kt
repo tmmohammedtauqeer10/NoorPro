@@ -50,6 +50,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -152,11 +153,34 @@ internal fun SpArt(modifier: Modifier, surah: Surah? = null, res: Int? = null, u
                 Text("${surah.id}", color = Color.White.copy(alpha = 0.9f), fontSize = (w.value / 9f).coerceAtLeast(9f).sp, fontWeight = FontWeight.Black,
                     modifier = Modifier.align(Alignment.BottomStart).padding(w / 14))
             }
-            label.isNotBlank() -> Text(label, color = Color.White, fontWeight = FontWeight.Black, fontSize = (w.value / 7f).coerceAtLeast(10f).sp, lineHeight = (w.value / 6.2f).coerceAtLeast(12f).sp,
+            else -> SpPattern(Modifier.fillMaxSize())
+        }
+        if (res == null && surah == null && label.isNotBlank()) {
+            if (w >= 56.dp && !circle) Text("AL-NOOR", color = Color(0xFFE9C46A), fontSize = (w.value / 16f).coerceAtLeast(8f).sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp,
+                modifier = Modifier.align(Alignment.TopStart).padding(w / 12))
+            Text(label, color = Color.White, fontWeight = FontWeight.Black, fontSize = (w.value / 7f).coerceAtLeast(10f).sp, lineHeight = (w.value / 6.2f).coerceAtLeast(12f).sp,
                 modifier = Modifier.align(Alignment.BottomStart).padding(w / 12), maxLines = 3)
         }
         if (!url.isNullOrBlank()) AsyncImage(model = url, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
+}
+
+/** 1.0.90: subtle eight-point-star lattice so generated covers are never a blank gradient. */
+@Composable
+internal fun SpPattern(modifier: Modifier) = androidx.compose.foundation.Canvas(modifier) {
+    val step = size.minDimension / 3.2f
+    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = (size.minDimension / 200f).coerceAtLeast(1f))
+    var y = 0f
+    while (y <= size.height + step) {
+        var x = 0f
+        while (x <= size.width + step) {
+            val p = com.noorpro.app.audio.art.CoverArt.star(x, y, step * 0.42f)
+            drawPath(p.asComposePath(), Color.White.copy(alpha = 0.16f), style = stroke)
+            x += step
+        }
+        y += step
+    }
+    drawCircle(Color.White.copy(alpha = 0.07f), radius = size.minDimension * 0.34f, center = androidx.compose.ui.geometry.Offset(size.width * 0.84f, size.height * 0.16f))
 }
 
 @Composable
@@ -444,60 +468,6 @@ internal val SP_BROWSE = listOf(
     SpBrowse("Made for you", Color(0xFF8C2F5B), Icons.Default.AutoAwesome, "tab:library"),
     SpBrowse("Downloads", Color(0xFF00796B), Icons.Default.DownloadForOffline, "downloads"),
 )
-
-@Composable
-internal fun SpSearchTab(t: SpTheme, query: String, onQuery: (String) -> Unit, surahs: List<Surah>, reciters: List<Reciter>, pods: List<Podcast>,
-                         artFor: (Podcast) -> String?, open: (String) -> Unit, playSurah: (Surah) -> Unit) {
-    val q = query.trim()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 190.dp)) {
-        item {
-            Column(Modifier.statusBarsPadding().padding(16.dp)) {
-                Text("Search", color = t.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(if (t.light) Color(0xFFEDEDED) else Color.White).padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Search, null, tint = Color(0xFF121212))
-                    Spacer(Modifier.width(10.dp))
-                    Box(Modifier.weight(1f)) {
-                        if (query.isEmpty()) Text("What do you want to listen to?", color = Color(0xFF535353), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        BasicTextField(query, onQuery, singleLine = true, textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF121212), fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                            cursorBrush = SolidColor(Color(0xFF121212)), modifier = Modifier.fillMaxWidth())
-                    }
-                    if (query.isNotEmpty()) Icon(Icons.Default.Close, "Clear", tint = Color(0xFF121212), modifier = Modifier.clip(CircleShape).clickable { onQuery("") }.padding(4.dp))
-                }
-            }
-        }
-        if (q.isEmpty()) {
-            item { Text("Browse all", color = t.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
-            items(SP_BROWSE.chunked(2)) { row ->
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { b ->
-                        Box(Modifier.weight(1f).height(96.dp).clip(RoundedCornerShape(8.dp)).background(b.color).pressScale { open(b.route) }) {
-                            Text(b.label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(12.dp))
-                            Icon(b.icon, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomEnd).offset(x = 14.dp, y = 6.dp).size(64.dp).rotate(24f))
-                        }
-                    }
-                }
-            }
-        } else {
-            val sr = surahs.filter { it.nameEnglish.contains(q, true) || it.englishTranslation.contains(q, true) || it.id.toString() == q || it.nameArabic.contains(q) }.take(20)
-            val rr = reciters.filter { it.name.contains(q, true) }
-            val pr = pods.filter { it.name.contains(q, true) || it.publisher.contains(q, true) || it.category.contains(q, true) }
-            val mr = SP_MIXES.filter { it.title.contains(q, true) || it.subtitle.contains(q, true) }
-            if (sr.isEmpty() && rr.isEmpty() && pr.isEmpty() && mr.isEmpty()) item {
-                Column(Modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Couldn't find \"$q\"", color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Try a surah name, number, reciter or podcast.", color = t.muted, fontSize = 13.sp)
-                }
-            }
-            items(rr, key = { "sr${it.id}" }) { r -> SpTrackRow(t, null, r.name, "Reciter", false, { open("reciter:${r.id}") }, art = { _ -> ReciterAvatarArt(r, SP_REC_PORTRAITS.getOrNull(IslamicData.reciters.indexOf(r)), 48.dp) }) }
-            items(mr, key = { "sm${it.key}" }) { m -> SpTrackRow(t, null, m.title, "Playlist · Noor Pro", false, { open("mix:${m.key}") }, art = { mod -> SpArt(mod, res = m.cover, tint = m.tint) }) }
-            items(pr, key = { "sp${it.id}" }) { p -> SpTrackRow(t, null, p.name, (if (p.kind == "nasheed") "Nasheeds · " else "Podcast · ") + p.publisher, false, { open("podcast:${p.id}") },
-                art = { mod -> SpArt(mod, url = artFor(p), tint = coverColor(p.id.hashCode()), corner = 4.dp) }) }
-            items(sr, key = { "ss${it.id}" }) { s -> SpTrackRow(t, null, s.nameEnglish, "Surah · ${s.englishTranslation}", false, { playSurah(s) }, art = { m -> SpArt(m, surah = s, corner = 4.dp) }) }
-        }
-    }
-}
 
 /* ---------------- Library ---------------- */
 
@@ -915,7 +885,7 @@ internal fun SpPodcastPage(t: SpTheme, p: Podcast, followed: Boolean, onBack: ()
                 itemsIndexed(r.episodes, key = { i, e -> "${i}_${e.guid}" }) { i, e ->
                     val meta = listOfNotNull(e.pubDateMs.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) }, e.durationMs.takeIf { it > 0 }?.let { fmt(it) }).joinToString(" · ")
                     SpTrackRow(t, i + 1, e.title, meta.ifBlank { p.publisher }, tracks[i].id == curId && fpb.isPlaying, { if (tracks[i].id == curId) AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, tracks[i], tracks) },
-                        art = { m -> SpArt(m, url = e.imageUrl ?: art, tint = coverColor((p.id + e.guid).hashCode()), label = p.name, corner = 4.dp) }, menu = listOf(
+                        art = { m -> SpArt(m, url = e.imageUrl?.takeIf { it.isNotBlank() } ?: art, tint = coverColor((p.id + e.guid).hashCode()), label = p.name, corner = 4.dp) }, menu = listOf(
                         "Play" to { playFree(ctx, tracks[i], tracks) },
                         "Share" to { runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "${e.title} — ${p.name}\n${p.website.ifBlank { p.feedUrl }}"), "Share")) } },
                     ))
