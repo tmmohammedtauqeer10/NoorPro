@@ -168,8 +168,16 @@ class AlNoorPlayer(context: Context) {
     }
 
     fun seekTo(positionMs: Long) {
-        exo.seekTo(positionMs.coerceAtLeast(0L))
-        _playback.update { it.copy(positionMs = positionMs.coerceAtLeast(0L)) }
+        val duration = exo.duration.takeIf { it > 0 } ?: _playback.value.durationMs
+        val target = positionMs.coerceAtLeast(0L).let { if (duration > 0) it.coerceAtMost(duration) else it }
+        exo.seekTo(target)
+        _playback.update { it.copy(positionMs = target) }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val value = speed.coerceIn(0.5f, 2f)
+        exo.setPlaybackSpeed(value)
+        _playback.update { it.copy(speed = value) }
     }
 
     fun skipNext() {

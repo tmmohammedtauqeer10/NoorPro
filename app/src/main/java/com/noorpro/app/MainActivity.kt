@@ -361,10 +361,13 @@ fun MainLayout() {
             }
         }
 
-        // Keep Quran audio controls available after leaving Home/Quran. The
-        // MediaPlayer is owned by the shared ViewModel, so this overlay should
-        // follow active playback across the app instead of disappearing.
-        val showMiniPlayer = (playingSurah != null || currentAudioTrack != null) &&
+        // Keep controls available for every audio source after leaving its page. Quran audio lives
+        // in the shared ViewModel while podcasts, nasheeds, naats, duas and tafsir use Al-Noor's
+        // ExoPlayer queue, so both sources must participate in mini-player visibility.
+        com.noorpro.app.audio.AlNoorAudioSession.init(context)
+        val alNoorQueue by com.noorpro.app.audio.AlNoorAudioSession.player.queue.collectAsState()
+        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.anyAudible.collectAsState()
+        val showMiniPlayer = (playingSurah != null || currentAudioTrack != null || alNoorQueue.currentTrack != null) &&
             currentScreen != DeenScreen.NOW_PLAYING &&
             currentScreen != DeenScreen.LOGIN &&
             !((currentScreen == DeenScreen.UMMAH_FULL || currentScreen == DeenScreen.REELS) && isUmmahReelsImmersive)
@@ -397,13 +400,10 @@ fun MainLayout() {
         }
         
         // Beautiful glassmorphic floating bottom navigation bar - hidden when actively reading a Surah page or Tafsir screen
-        // Al Noor Audio mini-player (nasheed/naat) — separate from Quran mini player above.
-        com.noorpro.app.audio.AlNoorAudioSession.init(context)
         // Android 13+: the media notification needs POST_NOTIFICATIONS; ask the first time audio plays.
         val mediaNotifLauncher = rememberLauncherForActivityResult(
             androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
         ) { }
-        val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.anyAudible.collectAsState()
         LaunchedEffect(alNoorAudible) {
             if (alNoorAudible &&
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&

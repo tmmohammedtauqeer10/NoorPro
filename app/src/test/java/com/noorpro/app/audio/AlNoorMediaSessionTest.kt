@@ -46,8 +46,11 @@ class AlNoorMediaSessionTest {
     }
 
     @Test
-    fun mediaItem_blankCoverHasNoArtwork() {
-        assertEquals(null, AlNoorMediaItems.fromTrack(track(1, cover = " ")).mediaMetadata.artworkUri)
+    fun mediaItem_blankCoverUsesBundledArtwork() {
+        assertEquals(
+            AlNoorMediaItems.FALLBACK_ART,
+            AlNoorMediaItems.fromTrack(track(1, cover = " ")).mediaMetadata.artworkUri.toString(),
+        )
     }
 
     @Test
@@ -89,6 +92,9 @@ class AlNoorMediaSessionTest {
             assertEquals(Player.REPEAT_MODE_ALL, exo.repeatMode)
             player.toggleShuffle()
             assertTrue(exo.shuffleModeEnabled)
+            player.setPlaybackSpeed(1.5f)
+            assertEquals(1.5f, exo.playbackParameters.speed)
+            assertEquals(1.5f, player.playback.value.speed)
         } finally {
             player.release()
         }

@@ -686,7 +686,21 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
     val pods = PodcastRepository.podcasts
     val nasheeds = remember { pods.filter { it.kind == "nasheed" } }
     val podcasts = remember { pods.filter { it.kind != "nasheed" } }
-    val artFor: (Podcast) -> String? = { p -> PodcastRepository.cachedArtwork(ctx, p) }
+    var podcastArtwork by remember {
+        mutableStateOf(pods.associate { it.id to PodcastRepository.cachedArtwork(ctx, it) })
+    }
+    LaunchedEffect(Unit) {
+        // Feed artwork is the publisher's real podcast/channel image. Load it progressively so
+        // cards replace generated colour tiles with relevant art without blocking the screen.
+        pods.forEach { p ->
+            if (podcastArtwork[p.id].isNullOrBlank()) {
+                PodcastRepository.load(ctx, p).artwork?.takeIf { it.isNotBlank() }?.let { art ->
+                    podcastArtwork = podcastArtwork + (p.id to art)
+                }
+            }
+        }
+    }
+    val artFor: (Podcast) -> String? = { p -> podcastArtwork[p.id] ?: PodcastRepository.cachedArtwork(ctx, p) }
     val initial = viewModel.userDisplayName.take(1).ifBlank { "N" }.uppercase()
 
     fun open(r: String) {
@@ -900,7 +914,8 @@ internal fun SpPodcastPage(t: SpTheme, p: Podcast, followed: Boolean, onBack: ()
                 if (r.fromCache && r.error != null) item { Text("Offline — showing saved episode list", color = t.gold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(r.episodes, key = { i, e -> "${i}_${e.guid}" }) { i, e ->
                     val meta = listOfNotNull(e.pubDateMs.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) }, e.durationMs.takeIf { it > 0 }?.let { fmt(it) }).joinToString(" · ")
-                    SpTrackRow(t, i + 1, e.title, meta.ifBlank { p.publisher }, tracks[i].id == curId && fpb.isPlaying, { if (tracks[i].id == curId) AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, tracks[i], tracks) }, menu = listOf(
+                    SpTrackRow(t, i + 1, e.title, meta.ifBlank { p.publisher }, tracks[i].id == curId && fpb.isPlaying, { if (tracks[i].id == curId) AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, tracks[i], tracks) },
+                        art = { m -> SpArt(m, url = e.imageUrl ?: art, tint = coverColor((p.id + e.guid).hashCode()), label = p.name, corner = 4.dp) }, menu = listOf(
                         "Play" to { playFree(ctx, tracks[i], tracks) },
                         "Share" to { runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "${e.title} — ${p.name}\n${p.website.ifBlank { p.feedUrl }}"), "Share")) } },
                     ))

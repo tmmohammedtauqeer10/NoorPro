@@ -67,6 +67,7 @@ class NpActions(
     val toggle: () -> Unit = {}, val next: () -> Unit = {}, val prev: () -> Unit = {}, val seek: (Float) -> Unit = {},
     val shuffle: () -> Unit = {}, val repeat: () -> Unit = {}, val like: () -> Unit = {}, val share: () -> Unit = {},
     val queue: () -> Unit = {}, val sleep: (Int?) -> Unit = {}, val speed: (Float) -> Unit = {}, val close: () -> Unit = {},
+    val seekBack: () -> Unit = {}, val seekForward: () -> Unit = {},
 )
 
 private fun msFmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "${s / 60}:${(s % 60).toString().padStart(2, '0')}" }
@@ -105,10 +106,11 @@ internal fun rememberNpState(vm: DeenViewModel): Pair<NpState?, NpActions> {
         val st = NpState(ft.title, ft.artistName, null, ft.coverUrl, coverColor(ft.title.hashCode()), fp.isPlaying,
             if (fp.durationMs > 0) fp.positionMs.toFloat() / fp.durationMs else 0f, msFmt(fp.positionMs), msFmt(fp.durationMs),
             fq.shuffle, fq.repeatMode != RepeatMode.OFF, emptyList(), -1,
-            if (ft.id.startsWith("pod-")) "PODCAST" else "AL-NOOR AUDIO", true, ft.attributionText.ifBlank { null })
+            if (ft.id.startsWith("pod-")) "PODCAST" else "AL-NOOR AUDIO", true, ft.attributionText.ifBlank { null }, speed = fp.speed)
         return st to NpActions(toggle = { p.togglePlayPause() }, next = { p.skipNext() }, prev = { p.skipPrevious() },
             seek = { f -> p.seekTo((f * fp.durationMs).toLong()) }, shuffle = { p.toggleShuffle() }, repeat = { p.cycleRepeatMode() },
-            share = { share(ft.title + " — " + ft.artistName + "\n" + ft.sourceUrl) }, close = { if (fp.isPlaying) p.togglePlayPause() })
+            share = { share(ft.title + " — " + ft.artistName + "\n" + ft.sourceUrl) }, speed = { p.setPlaybackSpeed(it) },
+            close = { p.clearQueue() }, seekBack = { p.seekTo(fp.positionMs - 10_000L) }, seekForward = { p.seekTo(fp.positionMs + 10_000L) })
     }
     if (surah == null && track == null) return null to NpActions()
     val s = surah
@@ -175,8 +177,8 @@ internal fun NpFull(t: SpTheme, s: NpState, a: NpActions, artModifier: Modifier,
                     if (!s.isFree) {
                         listOf(15, 30, 45, 60).forEach { m -> DropdownMenuItem({ Text("Sleep timer: $m min") }, { a.sleep(m); menu = false }, leadingIcon = { Icon(Icons.Default.Bedtime, null) }) }
                         if (s.sleepOn) DropdownMenuItem({ Text("Turn off sleep timer") }, { a.sleep(null); menu = false })
-                        listOf(0.75f, 1f, 1.25f, 1.5f).forEach { v -> DropdownMenuItem({ Text("Speed ${v}x" + if (v == s.speed) "  ✓" else "") }, { a.speed(v); menu = false }, leadingIcon = { Icon(Icons.Default.Speed, null) }) }
                     }
+                    listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v -> DropdownMenuItem({ Text("Speed ${v}x" + if (v == s.speed) "  ✓" else "") }, { a.speed(v); menu = false }, leadingIcon = { Icon(Icons.Default.Speed, null) }) }
                     DropdownMenuItem({ Text("Share") }, { a.share(); menu = false }, leadingIcon = { Icon(Icons.Default.Share, null) })
                 }
             }
@@ -196,12 +198,27 @@ internal fun NpFull(t: SpTheme, s: NpState, a: NpActions, artModifier: Modifier,
         Slider(s.progress.coerceIn(0f, 1f), a.seek, colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.25f)))
         Row { Text(s.pos, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp); Spacer(Modifier.weight(1f)); Text(s.dur, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp) }
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = a.shuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = if (s.shuffle) t.accent else Color.White) }
-            IconButton(onClick = a.prev, Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White, modifier = Modifier.size(40.dp)) }
+            if (s.isFree) {
+                IconButton(onClick = a.prev) { Icon(Icons.Default.SkipPrevious, "Previous track", tint = Color.White, modifier = Modifier.size(30.dp)) }
+                IconButton(onClick = a.seekBack) { Icon(Icons.Default.Replay10, "Back 10 seconds", tint = Color.White, modifier = Modifier.size(32.dp)) }
+            } else {
+                IconButton(onClick = a.shuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = if (s.shuffle) t.accent else Color.White) }
+                IconButton(onClick = a.prev, Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White, modifier = Modifier.size(40.dp)) }
+            }
             Box(Modifier.size(72.dp).clip(CircleShape).background(Color.White).clickable(onClick = a.toggle), contentAlignment = Alignment.Center) {
                 AnimatedContent(s.playing, label = "pp") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause", tint = Color.Black, modifier = Modifier.size(40.dp)) }
             }
-            IconButton(onClick = a.next, Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(40.dp)) }
+            if (s.isFree) {
+                IconButton(onClick = a.seekForward) { Icon(Icons.Default.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(32.dp)) }
+                IconButton(onClick = a.next) { Icon(Icons.Default.SkipNext, "Next track", tint = Color.White, modifier = Modifier.size(30.dp)) }
+            } else {
+                IconButton(onClick = a.next, Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(40.dp)) }
+                IconButton(onClick = a.repeat) { Icon(Icons.Default.Repeat, "Repeat", tint = if (s.repeat) t.accent else Color.White) }
+            }
+        }
+        if (s.isFree) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = a.shuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = if (s.shuffle) t.accent else Color.White) }
+            Text("Playback controls", color = Color.White.copy(alpha = 0.62f), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
             IconButton(onClick = a.repeat) { Icon(Icons.Default.Repeat, "Repeat", tint = if (s.repeat) t.accent else Color.White) }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -300,7 +317,7 @@ fun AlNoorPlayerHost(vm: DeenViewModel, visible: Boolean, bottomPadding: android
     var queue by remember { mutableStateOf(false) }
     if (s == null || (!visible && !expanded)) { return }
     BackHandler(expanded) { expanded = false }
-    val acts = NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close)
+    val acts = NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close, a.seekBack, a.seekForward)
     SharedTransitionLayout(modifier.fillMaxSize()) {
         AnimatedContent(expanded, transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) }, label = "np-host") { ex ->
             val art = Modifier.sharedElement(rememberSharedContentState("np-art"), this@AnimatedContent)
@@ -321,6 +338,6 @@ fun AlNoorNowPlayingScreen(vm: DeenViewModel) {
     val back = { vm.goBack(); Unit }
     BackHandler { back() }
     if (s == null) { Box(Modifier.fillMaxSize().background(t.bg), contentAlignment = Alignment.Center) { Text("Nothing playing", color = t.muted) }; return }
-    NpFull(t, s, NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close), Modifier, back)
+    NpFull(t, s, NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close, a.seekBack, a.seekForward), Modifier, back)
     if (queue) NpQueueSheet(t, vm, s.isFree) { queue = false }
 }

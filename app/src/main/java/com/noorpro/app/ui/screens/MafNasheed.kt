@@ -18,9 +18,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -246,13 +254,36 @@ internal fun YtPlayerDialog(t: SpTheme, v: YtVideo, all: List<YtVideo>, previewA
             androidx.compose.animation.AnimatedContent(audio, transitionSpec = {
                 (androidx.compose.animation.fadeIn(tween(260)) + androidx.compose.animation.scaleIn(tween(260), initialScale = 0.96f)) togetherWith androidx.compose.animation.fadeOut(tween(160))
             }, label = "av") { a ->
-                if (a) Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).padding(horizontal = 14.dp).clip(RoundedCornerShape(10.dp)).background(t.high), contentAlignment = Alignment.Center) {
-                    AsyncImage(v.thumb, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                    SpPlayButton(t, isCur && pb.isPlaying, 64.dp) {
-                        if (isCur) com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() else if (track != null) playFree(ctx, track, queue.ifEmpty { listOf(track) })
+                if (a) Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(t.high), contentAlignment = Alignment.Center) {
+                        AsyncImage(v.thumb, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
+                        SpPlayButton(t, isCur && pb.isPlaying, 64.dp) {
+                            if (isCur) com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() else if (track != null) playFree(ctx, track, queue.ifEmpty { listOf(track) })
+                        }
+                        Text("Audio · keeps playing in the background", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp))
                     }
-                    Text("Audio · keeps playing in the background", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp))
+                    if (live && track != null) {
+                        Slider(
+                            value = if (isCur && pb.durationMs > 0) (pb.positionMs.toFloat() / pb.durationMs).coerceIn(0f, 1f) else 0f,
+                            onValueChange = { f -> if (isCur && pb.durationMs > 0) com.noorpro.app.audio.AlNoorAudioSession.player.seekTo((pb.durationMs * f).toLong()) },
+                            colors = SliderDefaults.colors(thumbColor = t.accent, activeTrackColor = t.accent),
+                        )
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (isCur) fmt(pb.positionMs) else "0:00", color = t.muted, fontSize = 11.sp)
+                            Spacer(Modifier.weight(1f))
+                            Text(if (isCur) fmt(pb.durationMs) else "0:00", color = t.muted, fontSize = 11.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { com.noorpro.app.audio.AlNoorAudioSession.player.skipPrevious() }) { Icon(Icons.Default.SkipPrevious, "Previous", tint = t.text) }
+                            IconButton(onClick = { com.noorpro.app.audio.AlNoorAudioSession.player.seekTo(pb.positionMs - 10_000L) }) { Icon(Icons.Default.Replay10, "Back 10 seconds", tint = t.text) }
+                            IconButton(onClick = {
+                                if (isCur) com.noorpro.app.audio.AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, track, queue.ifEmpty { listOf(track) })
+                            }) { Icon(if (isCur && pb.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play or pause", tint = t.text, modifier = Modifier.size(34.dp)) }
+                            IconButton(onClick = { com.noorpro.app.audio.AlNoorAudioSession.player.seekTo(pb.positionMs + 10_000L) }) { Icon(Icons.Default.Forward10, "Forward 10 seconds", tint = t.text) }
+                            IconButton(onClick = { com.noorpro.app.audio.AlNoorAudioSession.player.skipNext() }) { Icon(Icons.Default.SkipNext, "Next", tint = t.text) }
+                        }
+                    }
                 } else {
                     val html = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
                         <style>html,body{margin:0;background:#000;height:100%}iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}</style></head>
