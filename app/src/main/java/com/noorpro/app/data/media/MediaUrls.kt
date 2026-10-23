@@ -55,6 +55,11 @@ object MediaUrls {
     fun looksLikeVideo(type: String, url: String): Boolean {
         val t = type.lowercase()
         if (t == "reel" || t == "video" || t == "short") return true
+        return isLikelyVideoUrl(url)
+    }
+
+    /** True when the URL itself identifies video media, without relying on a post type. */
+    fun isLikelyVideoUrl(url: String): Boolean {
         val path = url.substringBefore('?').lowercase()
         return path.endsWith(".mp4") || path.endsWith(".m3u8") || path.endsWith(".mov") ||
             path.endsWith(".webm") || path.contains("/videos/") || path.contains("%2fvideos%2f")

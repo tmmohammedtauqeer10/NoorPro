@@ -3769,12 +3769,26 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         // so the number is never inflated.
         val watchedId = activePost.id
         if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
+            if (com.noorpro.app.data.media.ReelViewLedger.hasViewed(context, currentUid, watchedId)) {
+                viewedReelIds = viewedReelIds + watchedId
+                return@LaunchedEffect
+            }
             kotlinx.coroutines.delay(REEL_VIEW_THRESHOLD_MS)
-            viewedReelIds = viewedReelIds + watchedId
-            com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
             val base = activePost.viewCount
-            followRepository.recordUniqueView(watchedId, REEL_VIEW_THRESHOLD_MS) { counted ->
-                if (counted) optimisticViewCounts = optimisticViewCounts + (watchedId to maxOf(optimisticViewCounts[watchedId] ?: 0L, base + 1L))
+            followRepository.recordUniqueView(watchedId, REEL_VIEW_THRESHOLD_MS) { result ->
+                when (result) {
+                    com.noorpro.app.data.ReelViewResult.COUNTED -> {
+                        viewedReelIds = viewedReelIds + watchedId
+                        com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+                        optimisticViewCounts = optimisticViewCounts +
+                            (watchedId to maxOf(optimisticViewCounts[watchedId] ?: 0L, base + 1L))
+                    }
+                    com.noorpro.app.data.ReelViewResult.ALREADY_COUNTED -> {
+                        viewedReelIds = viewedReelIds + watchedId
+                        com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+                    }
+                    com.noorpro.app.data.ReelViewResult.FAILED -> Unit // retry after the user returns to this reel
+                }
             }
         }
     }

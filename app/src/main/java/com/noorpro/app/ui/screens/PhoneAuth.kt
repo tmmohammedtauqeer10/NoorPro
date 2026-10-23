@@ -122,10 +122,28 @@ fun friendlyPhoneError(e: Exception?): String {
             (m.contains("app", true) && m.contains("not authorized", true)) ->
             "Couldn't verify this copy of the app with Google Play. Update Noor Pro from the Play Store, or continue with Google or email."
         m.contains("region", true) -> "SMS to this country isn't available yet. Continue with Google or email."
-        code == "ERROR_NETWORK_REQUEST_FAILED" || e is com.google.firebase.FirebaseNetworkException -> "No internet connection. Check your network and try again."
+        isTransientPhoneNetworkError(e) ->
+            "Couldn't reach the SMS verification service. Check your internet, turn off VPN or Private DNS, then tap Resend code."
         e is FirebaseAuthInvalidCredentialsException -> "Enter a valid mobile number."
-        else -> m.ifBlank { "Unable to verify the number. Try again." }
+        else -> "Unable to send or verify the code right now. Please try again, or continue with Google or email."
     }
+}
+
+internal fun isTransientPhoneNetworkError(e: Exception?): Boolean {
+    val code = (e as? FirebaseAuthException)?.errorCode.orEmpty()
+    val message = e?.localizedMessage.orEmpty()
+    return code == "ERROR_NETWORK_REQUEST_FAILED" ||
+        e is com.google.firebase.FirebaseNetworkException ||
+        listOf(
+            "software caused connection abort",
+            "connection reset",
+            "failed to connect",
+            "socket",
+            "network",
+            "timed out",
+            "timeout",
+            "unable to resolve host"
+        ).any { message.contains(it, ignoreCase = true) }
 }
 
 /** What the new-account step collected (name, @username, optional photo). */
@@ -220,6 +238,7 @@ fun PhoneAuthFlow(
             }
             override fun onVerificationFailed(e: FirebaseException) {
                 busy = false; error = friendlyPhoneError(e)
+                if (isTransientPhoneNetworkError(e)) resendIn = 0
                 android.util.Log.w("NoorPhoneAuth", "verification failed: ${(e as? FirebaseAuthException)?.errorCode} ${e.message}")
             }
             override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
@@ -231,7 +250,10 @@ fun PhoneAuthFlow(
 
     fun send(resend: Boolean = false) {
         val auth = auth ?: return
-        val activity = context.findActivity() ?: return
+        val activity = context.findActivity() ?: run {
+            error = "Unable to open phone verification. Close this screen and try again."
+            return
+        }
         val target = e164 ?: run { error = "That doesn't look like a valid mobile number. Check the country code and number."; return }
         if (!accepted) { error = "Please accept the Terms and Privacy Policy to continue."; return }
         busy = true; error = null
@@ -243,7 +265,14 @@ fun PhoneAuthFlow(
             .setCallbacks(callbacks)
         if (resend) resendToken?.let { builder.setForceResendingToken(it) }
         // Play Integrity first; Firebase falls back to a reCAPTCHA page automatically if needed.
-        PhoneAuthProvider.verifyPhoneNumber(builder.build())
+        try {
+            PhoneAuthProvider.verifyPhoneNumber(builder.build())
+        } catch (e: Exception) {
+            busy = false
+            error = friendlyPhoneError(e)
+            if (isTransientPhoneNetworkError(e)) resendIn = 0
+            android.util.Log.w("NoorPhoneAuth", "verification start failed", e)
+        }
     }
 
     if (previewStep == "otp" && resendIn == 0 && previewCode.length < 6) resendIn = 24

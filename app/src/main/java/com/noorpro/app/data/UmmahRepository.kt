@@ -41,6 +41,10 @@ data class UmmahPost(
     val mediaUrls: List<String> = emptyList()
 )
 
+/** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
+ * the UI stop retrying a valid receipt while still retrying transient network/rules failures. */
+enum class ReelViewResult { COUNTED, ALREADY_COUNTED, FAILED }
+
 /** A member shown in a followers / following list (Instagram-style). */
 data class UmmahFollowUser(
     val uid: String,
@@ -478,14 +482,45 @@ class UmmahRepository {
     /**
      * 1.0.83: real, de-duplicated view. In one transaction: if this user has no receipt at
      * ummah_posts/{id}/views/{uid}, create it (create-once rule) and +1 viewCount. A second view
-     * by the same user — on any device/reinstall — is a no-op. Result: true when counted.
+     * by the same user — on any device/reinstall — is a no-op. The result distinguishes a new
+     * count, an existing receipt, and a retryable failure.
      */
-    fun recordUniqueView(postId: String, watchedMs: Long, onResult: (Boolean) -> Unit = {}) {
+    fun recordUniqueView(postId: String, watchedMs: Long, onResult: (ReelViewResult) -> Unit = {}) {
         val cleanPostId = postId.trim()
         val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (cleanPostId.isBlank() || uid == null) return onResult(false)
+        if (cleanPostId.isBlank() || uid == null) return onResult(ReelViewResult.FAILED)
         val post = firestore.collection("ummah_posts").document(cleanPostId)
         val receipt = post.collection("views").document(uid)
+
+        fun fallbackAfterFailedReceipt(transactionError: Exception?) {
+            if ((transactionError as? com.google.firebase.firestore.FirebaseFirestoreException)?.code ==
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+            ) {
+                // Compatibility with a backend that has the safe counter rule deployed but not the
+                // newer receipt subcollection yet.
+                incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                }
+                return
+            }
+            // Older production rules did not yet allow the /views receipt. Check whether the
+            // transaction actually committed before using the compatible +1 counter update.
+            receipt.get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        onResult(ReelViewResult.ALREADY_COUNTED)
+                    } else {
+                        incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                            onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    // A network failure should remain retryable when the viewer returns to the reel.
+                    onResult(ReelViewResult.FAILED)
+                }
+        }
+
         firestore.runTransaction { tx ->
             if (tx.get(receipt).exists()) return@runTransaction false
             if (!tx.get(post).exists()) return@runTransaction null
@@ -494,9 +529,12 @@ class UmmahRepository {
             true
         }.addOnCompleteListener { t ->
             when {
-                !t.isSuccessful -> onResult(false)
-                t.result == null -> { incrementPublishedCounter(cleanPostId, "viewCount"); onResult(true) } // legacy submission-only post
-                else -> onResult(t.result == true)
+                !t.isSuccessful -> fallbackAfterFailedReceipt(t.exception)
+                t.result == null -> incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                } // newly uploaded reel still present only in ummah_submissions
+                t.result == true -> onResult(ReelViewResult.COUNTED)
+                else -> onResult(ReelViewResult.ALREADY_COUNTED)
             }
         }
     }
@@ -1378,7 +1416,11 @@ class UmmahRepository {
         val isReel = post.type == "reel" || post.type == "video"
         val kind = if (isReel) "reel" else "post"
         val preview = if (isReel) "Sent a reel" else "Sent a post"
-        val thumb = post.thumbnailUrl.ifBlank { post.mediaUrls.firstOrNull().orEmpty().ifBlank { if (post.type == "image") post.mediaUrl else "" } }
+        // Keep a real visual on the chat card. Older reels often have no generated thumbnail, so
+        // carry the MP4 URL and let the receiver extract/cache a frame from it.
+        val thumb = post.thumbnailUrl.ifBlank {
+            post.mediaUrls.firstOrNull().orEmpty().ifBlank { post.mediaUrl }
+        }
             .takeIf { it.startsWith("https://") }.orEmpty().take(2000)
         var done = 0; var ok = 0; var firstError: String? = null
         targets.forEach { (uid, name) ->

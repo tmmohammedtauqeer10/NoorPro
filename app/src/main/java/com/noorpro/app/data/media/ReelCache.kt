@@ -93,17 +93,26 @@ object ReelCache {
 
 /** One view per member per reel, remembered across launches (not just per session). */
 object ReelViewLedger {
-    private const val PREFS = "reel_views_by_user"
+    // v2 ignores receipts written by older builds before the Firestore write had succeeded.
+    private const val PREFS = "reel_views_by_user_v2"
     private const val MAX = 5_000
+
+    fun hasViewed(context: Context, uid: String, postId: String): Boolean {
+        if (postId.isBlank()) return false
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return postId in prefs.getStringSet(key(uid), emptySet()).orEmpty()
+    }
 
     fun markViewed(context: Context, uid: String, postId: String): Boolean {
         if (postId.isBlank()) return false
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val key = "v_" + uid.ifBlank { "guest" }
+        val key = key(uid)
         val seen = prefs.getStringSet(key, emptySet()).orEmpty()
         if (postId in seen) return false
         val next = (seen + postId).let { if (it.size > MAX) it.drop(it.size - MAX).toSet() else it }
         prefs.edit().putStringSet(key, next).apply()
         return true
     }
+
+    private fun key(uid: String) = "v_" + uid.ifBlank { "guest" }
 }

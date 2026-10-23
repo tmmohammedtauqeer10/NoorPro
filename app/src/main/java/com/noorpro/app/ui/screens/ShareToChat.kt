@@ -111,7 +111,10 @@ internal fun ShareSheetContent(
             if (picking) Column(Modifier.fillMaxWidth().padding(16.dp, 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(40.dp, 52.dp).clip(RoundedCornerShape(6.dp)).background(stitchSoftSurface())) {
-                        if (post.thumbnailUrl.startsWith("https://")) AsyncImage(post.thumbnailUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        val preview = if (com.noorpro.app.data.media.MediaUrls.looksLikeVideo(post.type, post.mediaUrl)) {
+                            com.noorpro.app.data.media.videoPreviewModel(post.thumbnailUrl, post.mediaUrl)
+                        } else post.thumbnailUrl.ifBlank { post.mediaUrl }
+                        if (preview != null) AsyncImage(preview, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     }
                     Spacer(Modifier.width(10.dp))
                     Box(Modifier.weight(1f)) {
@@ -235,7 +238,12 @@ internal fun SharedPostCard(message: UmmahMessage, blocked: Set<String>, onOpen:
         repo.fetchPublishedPost(message.sharedPostId) { p -> SharedPostCache.put(message.sharedPostId, p); post = p; state = if (p != null) 1 else 2 }
     }
     val creatorBlocked = message.sharedCreatorUid in blocked || (post?.creatorUid?.let { it in blocked } == true)
-    SharedPostCardContent(message, unavailable = state == 2 || creatorBlocked, onClick = { post?.takeIf { state == 1 && !creatorBlocked }?.let(onOpen) })
+    SharedPostCardContent(
+        message = message,
+        unavailable = state == 2 || creatorBlocked,
+        resolvedPost = post,
+        onClick = { post?.takeIf { state == 1 && !creatorBlocked }?.let(onOpen) }
+    )
 }
 
 internal object SharedPostCache {
@@ -246,7 +254,12 @@ internal object SharedPostCache {
 }
 
 @Composable
-internal fun SharedPostCardContent(message: UmmahMessage, unavailable: Boolean, onClick: () -> Unit) {
+internal fun SharedPostCardContent(
+    message: UmmahMessage,
+    unavailable: Boolean,
+    resolvedPost: UmmahPost? = null,
+    onClick: () -> Unit
+) {
     val reel = message.sharedPostKind != "post"
     Column(Modifier.width(220.dp).clip(RoundedCornerShape(14.dp)).background(stitchSoftSurface()).clickable(enabled = !unavailable, onClick = onClick)) {
         if (unavailable) {
@@ -263,13 +276,26 @@ internal fun SharedPostCardContent(message: UmmahMessage, unavailable: Boolean, 
             Spacer(Modifier.width(8.dp))
             Text(message.sharedCreatorName.ifBlank { "Noor Pro creator" }, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        // 1.0.83: use the thumbnail's real aspect (clamped) and a sharp decode instead of a fixed crop.
-        var ar by androidx.compose.runtime.remember(message.sharedThumb) { androidx.compose.runtime.mutableFloatStateOf(ChatMediaAspect.get(message.sharedThumb) ?: if (reel) 9f / 14f else 1f) }
+        // Use the live post when available so old messages with an empty sharedThumb are repaired.
+        // New messages may carry an MP4 in sharedThumb; RemoteVideoFrame extracts and caches a real
+        // cover instead of showing the generic green/blue placeholder.
+        val storedPreviewIsVideo = reel && com.noorpro.app.data.media.MediaUrls.isLikelyVideoUrl(message.sharedThumb)
+        val previewThumbnail = resolvedPost?.thumbnailUrl.orEmpty().ifBlank {
+            message.sharedThumb.takeUnless { storedPreviewIsVideo }.orEmpty()
+        }
+        val previewVideo = resolvedPost?.mediaUrl.orEmpty().ifBlank {
+            message.sharedThumb.takeIf { storedPreviewIsVideo }.orEmpty()
+        }
+        val previewModel: Any? = if (reel) {
+            com.noorpro.app.data.media.videoPreviewModel(previewThumbnail, previewVideo)
+        } else previewThumbnail.ifBlank { resolvedPost?.mediaUrl.orEmpty() }.takeIf { it.isNotBlank() }
+        val previewKey = "$previewThumbnail|$previewVideo"
+        var ar by androidx.compose.runtime.remember(previewKey) { androidx.compose.runtime.mutableFloatStateOf(ChatMediaAspect.get(previewKey) ?: if (reel) 9f / 14f else 1f) }
         Box(Modifier.fillMaxWidth().aspectRatio(ar.coerceIn(0.56f, 1.6f)).background(Color(0xFF1B2A2A))) {
-            if (message.sharedThumb.startsWith("https://")) AsyncImage(
-                coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(message.sharedThumb).size(1080).crossfade(true).build(), null,
+            if (previewModel != null) AsyncImage(
+                coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(previewModel).size(1080).crossfade(true).build(), null,
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                onSuccess = { st -> val z = st.painter.intrinsicSize; if (z.width > 0f && z.height > 0f) { ChatMediaAspect.put(message.sharedThumb, z.width / z.height); ar = z.width / z.height } })
+                onSuccess = { st -> val z = st.painter.intrinsicSize; if (z.width > 0f && z.height > 0f) { ChatMediaAspect.put(previewKey, z.width / z.height); ar = z.width / z.height } })
             else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0F766E), Color(0xFF14213D)))))
             if (reel) {
                 Icon(Icons.Default.PlayArrow, "Play", tint = Color.White, modifier = Modifier.align(Alignment.Center).size(54.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)).padding(8.dp))

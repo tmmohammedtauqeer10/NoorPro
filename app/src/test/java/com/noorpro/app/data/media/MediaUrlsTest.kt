@@ -48,6 +48,8 @@ class MediaUrlsTest {
         assertTrue(MediaUrls.looksLikeVideo("image", "https://f/o/ummah_submissions%2Fu%2Fvideos%2F1?alt=media"))
         assertTrue(MediaUrls.looksLikeVideo("post", "https://c/hls/x/index.m3u8"))
         assertFalse(MediaUrls.looksLikeVideo("image", "https://f/o/images%2Fa.jpg?alt=media"))
+        assertTrue(MediaUrls.isLikelyVideoUrl("https://cdn.example/reels/clip.mp4?token=secret"))
+        assertFalse(MediaUrls.isLikelyVideoUrl("https://cdn.example/reels/cover.jpg"))
     }
 
     @Test fun videoPreviewPrefersThumbnailThenFrame() {

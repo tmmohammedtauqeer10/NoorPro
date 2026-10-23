@@ -122,6 +122,53 @@ service cloud.firestore {
     }
 
     match /ummah_submissions/{submissionId} {
+      function ownerEngagementCounterUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.auth != null
+          && resource.data.creatorUid == request.auth.uid
+          && request.resource.data.creatorUid == resource.data.creatorUid
+          && changed.hasOnly(["likeCount", "commentCount", "shareCount", "viewCount", "saveCount"])
+          && (!changed.hasAny(["likeCount"])
+            || (request.resource.data.likeCount is int
+              && request.resource.data.likeCount >= 0
+              && ((resource.data.likeCount is int
+                  && (request.resource.data.likeCount == resource.data.likeCount + 1
+                    || request.resource.data.likeCount == resource.data.likeCount - 1))
+                || (!(resource.data.likeCount is int)
+                  && (request.resource.data.likeCount == 0
+                    || request.resource.data.likeCount == 1)))))
+          && (!changed.hasAny(["commentCount"])
+            || (request.resource.data.commentCount is int
+              && request.resource.data.commentCount >= 0
+              && ((resource.data.commentCount is int
+                  && request.resource.data.commentCount == resource.data.commentCount + 1)
+                || (!(resource.data.commentCount is int)
+                  && request.resource.data.commentCount == 1))))
+          && (!changed.hasAny(["shareCount"])
+            || (request.resource.data.shareCount is int
+              && request.resource.data.shareCount >= 0
+              && ((resource.data.shareCount is int
+                  && request.resource.data.shareCount == resource.data.shareCount + 1)
+                || (!(resource.data.shareCount is int)
+                  && request.resource.data.shareCount == 1))))
+          && (!changed.hasAny(["saveCount"])
+            || (request.resource.data.saveCount is int
+              && request.resource.data.saveCount >= 0
+              && ((resource.data.saveCount is int
+                  && (request.resource.data.saveCount == resource.data.saveCount + 1
+                    || request.resource.data.saveCount == resource.data.saveCount - 1))
+                || (!(resource.data.saveCount is int)
+                  && (request.resource.data.saveCount == 0
+                    || request.resource.data.saveCount == 1)))))
+          && (!changed.hasAny(["viewCount"])
+            || (request.resource.data.viewCount is int
+              && request.resource.data.viewCount >= 0
+              && ((resource.data.viewCount is int
+                  && request.resource.data.viewCount == resource.data.viewCount + 1)
+                || (!(resource.data.viewCount is int)
+                  && request.resource.data.viewCount == 1))));
+      }
+
       allow create: if request.auth != null
         && request.resource.data.creatorUid == request.auth.uid
         && request.resource.data.status == "pending"
@@ -143,7 +190,10 @@ service cloud.firestore {
       // Creators can see their own pending submissions; nobody else (admins use Admin SDK).
       allow read: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
-      allow update, delete: if false;
+      // A creator sees their own upload while trusted publication is pending. Permit only the same
+      // bounded engagement deltas as the published document, so its counts do not stay at zero.
+      allow update: if ownerEngagementCounterUpdate();
+      allow delete: if false;
     }
 
     match /ummah_users/{userId}/{interaction}/{postId} {
