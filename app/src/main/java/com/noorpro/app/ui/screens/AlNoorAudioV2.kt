@@ -814,6 +814,8 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                     val col = if (kind == "Nasheeds") Color(0xFF8D3FD1) else Color(0xFF1E5AA8)
                     SpDetailPage(t, SpDetailHeader(if (kind == "Nasheeds") "Nasheeds & Naats" else "Islamic Podcasts", "From publishers' official public RSS feeds", "${list.size} channels", col) { m -> SpArt(m, tint = col, label = kind) },
                         false, false, null, null, back, null, {}, {}, {}) {
+                        // 1.0.86: featured MAF Nasheed YouTube channel at the top of Nasheeds.
+                        if (kind == "Nasheeds") item(key = "maf") { Spacer(Modifier.height(8.dp)); MafNasheedShelf(t); Spacer(Modifier.height(18.dp)) }
                         items(list, key = { "b${it.id}" }) { p -> SpTrackRow(t, null, p.name, "${p.publisher} · ${p.language} · ${p.category}", false, { open("podcast:${p.id}") },
                             art = { m -> SpArt(m, url = artFor(p), tint = coverColor(p.id.hashCode()), corner = 4.dp) }, liked = "p${p.id}" in follows) }
                         item { Spacer(Modifier.height(16.dp)); SpCredits(t) }

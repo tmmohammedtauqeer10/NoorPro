@@ -1091,3 +1091,114 @@ exports.decrementCommentCountOnDelete = onDocumentDeleted(
       }
     },
 );
+
+// 1.0.86: featured YouTube channel shelf (MAF Nasheed). Returns public video metadata only
+// (id, title, date, thumbnail) — playback stays in YouTube's official embedded player in-app.
+// Allow-listed channel IDs so this cannot be used as an open proxy. Cached in memory for 3 h.
+const YT_CHANNELS = {"UCDPznGiG1OrrNsRgmSCcAgg": "MAF Nasheed Channel"};
+const ytCache = new Map();
+const YT_CACHE_MS = 3 * 60 * 60 * 1000;
+const xmlText = (s) => String(s || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+  .replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
+
+async function ytFromRss(channelId) {
+  const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+  if (!r.ok) throw new Error(`rss ${r.status}`);
+  const xml = await r.text();
+  const videos = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => {
+    const e = m[1];
+    const id = (e.match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1];
+    return id && {id, title: xmlText((e.match(/<title>([\s\S]*?)<\/title>/) || [])[1]),
+      published: (e.match(/<published>([^<]+)<\/published>/) || [])[1] || "", ago: "",
+      thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`};
+  }).filter(Boolean);
+  if (!videos.length) throw new Error("rss empty");
+  return {videos, avatar: "", source: "rss"};
+}
+
+async function ytFromChannelPage(channelId) {
+  const r = await fetch(`https://www.youtube.com/channel/${channelId}/videos`,
+    {headers: {"User-Agent": "Mozilla/5.0", "Accept-Language": "en"}});
+  if (!r.ok) throw new Error(`page ${r.status}`);
+  const html = await r.text();
+  const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
+  if (!m) throw new Error("no data");
+  const videos = [];
+  const walk = (o) => {
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (!o || typeof o !== "object") return;
+    const l = o.lockupViewModel;
+    if (l && /^[\w-]{11}$/.test(l.contentId || "")) {
+      const md = (l.metadata || {}).lockupMetadataViewModel || {};
+      const rows = (((md.metadata || {}).contentMetadataViewModel || {}).metadataRows || []);
+      const parts = rows.flatMap((row) => (row.metadataParts || []).map((p) => ((p.text || {}).content || "")));
+      videos.push({id: l.contentId, title: ((md.title || {}).content || ""), published: "",
+        ago: parts.find((p) => / ago$/.test(p)) || "", thumb: `https://i.ytimg.com/vi/${l.contentId}/hqdefault.jpg`});
+    }
+    Object.values(o).forEach(walk);
+  };
+  walk(JSON.parse(m[1]));
+  if (!videos.length) throw new Error("page empty");
+  const avatar = (html.match(/<meta property="og:image" content="([^"]+)"/) || [])[1] || "";
+  return {videos, avatar, source: "page"};
+}
+
+// Owner-uploaded audio for Audio mode: Firestore docs nasheed_audio/{videoId} {url: "https://..."}.
+// Read with the Admin SDK (no client rules needed). Only https URLs are passed through. Never YouTube audio.
+let ytAudio = {at: 0, map: {}};
+async function ytAudioMap() {
+  if (Date.now() - ytAudio.at < 10 * 60 * 1000) return ytAudio.map;
+  try {
+    const snap = await admin.firestore().collection("nasheed_audio").limit(500).get();
+    const map = {};
+    snap.forEach((d) => {
+      const url = String((d.data() || {}).url || "").trim();
+      if (/^[\w-]{11}$/.test(d.id) && /^https:\/\//.test(url) && !/youtube\.com|youtu\.be|googlevideo\.com/.test(url)) map[d.id] = url;
+    });
+    ytAudio = {at: Date.now(), map};
+  } catch (error) {
+    console.warn("ytAudioMap", error.message);
+  }
+  return ytAudio.map;
+}
+const withAudio = async (body) => {
+  const map = await ytAudioMap();
+  return {...body, videos: body.videos.map((v) => ({...v, audioUrl: map[v.id] || ""}))};
+};
+
+exports.youtubeChannelFeed = onRequest(
+  {region: REGION, cors: false, timeoutSeconds: 30, memory: "256MiB", maxInstances: 5},
+  async (req, res) => {
+    cors(res);
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "GET") return res.status(405).json({error: "Use GET."});
+    const channelId = cleanString(req.query.channel, "UCDPznGiG1OrrNsRgmSCcAgg");
+    if (!YT_CHANNELS[channelId]) return res.status(400).json({error: "Unknown channel."});
+    const hit = ytCache.get(channelId);
+    if (hit && Date.now() - hit.at < YT_CACHE_MS) {
+      res.set("Cache-Control", "public, max-age=600");
+      return res.json(await withAudio(hit.body));
+    }
+    // RSS has exact dates (latest 15); the public channel page lists more. Merge both by video id.
+    const [rss, page] = await Promise.allSettled([ytFromRss(channelId), ytFromChannelPage(channelId)]);
+    if (rss.status === "rejected") console.warn("youtubeChannelFeed rss", rss.reason && rss.reason.message);
+    if (page.status === "rejected") console.warn("youtubeChannelFeed page", page.reason && page.reason.message);
+    const r1 = rss.status === "fulfilled" ? rss.value.videos : [];
+    const p1 = page.status === "fulfilled" ? page.value : null;
+    if (!r1.length && !p1) {
+      if (hit) return res.json(await withAudio(hit.body));
+      return res.status(502).json({error: "Channel feed unavailable."});
+    }
+    const byId = new Map(r1.map((v) => [v.id, v]));
+    const merged = p1 ? p1.videos.map((v) => byId.has(v.id) ? {...byId.get(v.id), ago: v.ago} : v) : r1;
+    r1.forEach((v) => {
+      if (!merged.some((x) => x.id === v.id)) merged.push(v);
+    });
+    const data = {videos: merged, avatar: p1 ? p1.avatar : "", source: [r1.length && "rss", p1 && "page"].filter(Boolean).join("+")};
+    const body = {channelId, title: YT_CHANNELS[channelId], url: `https://www.youtube.com/channel/${channelId}`,
+      avatar: data.avatar, source: data.source, updatedAt: new Date().toISOString(), videos: data.videos.slice(0, 50)};
+    ytCache.set(channelId, {at: Date.now(), body});
+    res.set("Cache-Control", "public, max-age=600");
+    return res.json(await withAudio(body));
+  }
+);
