@@ -207,9 +207,22 @@ fun ShareToChatHost(viewModel: DeenViewModel) {
             },
             onCopyLink = { copyStitchReelLink(context, post.id) },
             onShareOut = { shareStitchUmmahPost(context, post, repo); close() },
-            onAddStory = {
+            onAddStory = addStory@{
+                // 1.0.92: reels go to the story as real video (first 60 s), no re-upload.
+                if (post.type == "reel" && post.mediaUrl.startsWith("https://") && me.isNotBlank()) {
+                    val mine = profiles[me]
+                    Toast.makeText(context, "Adding reel to your story…", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        val len = withContext(Dispatchers.IO) { com.noorpro.app.data.StoryVideo.probeDurationMs(post.mediaUrl) }
+                        StoryRepository().createReelStory(post.id, post.mediaUrl, post.thumbnailUrl,
+                            if (len > 0) len else 30_000L, "▶ Reel by ${post.creatorName}".take(300),
+                            mine?.name ?: "Member", mine?.handle.orEmpty(), mine?.photoUrl.orEmpty()) { _, msg ->
+                            Toast.makeText(context, msg ?: "Done", Toast.LENGTH_SHORT).show() }
+                    }
+                    close(); return@addStory
+                }
                 val thumb = post.thumbnailUrl.ifBlank { post.mediaUrls.firstOrNull().orEmpty() }
-                if (me.isBlank() || !thumb.startsWith("https://")) { Toast.makeText(context, "This post can't be added to a story", Toast.LENGTH_SHORT).show(); return@ShareSheetContent }
+                if (me.isBlank() || !thumb.startsWith("https://")) { Toast.makeText(context, "This post can't be added to a story", Toast.LENGTH_SHORT).show(); return@addStory }
                 val mine = profiles[me]
                 Toast.makeText(context, "Adding to your story…", Toast.LENGTH_SHORT).show()
                 scope.launch {

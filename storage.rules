@@ -55,6 +55,11 @@ service firebase.storage {
         && request.auth.uid == userId
         && request.resource.size < 8 * 1024 * 1024
         && request.resource.contentType.matches("image/.*");
+      // 1.0.92 (additive): compressed <=60 s video stories (H.264 mp4, 720p) — image rule unchanged.
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 40 * 1024 * 1024
+        && request.resource.contentType == "video/mp4";
       allow update: if false;
       allow delete: if request.auth != null && request.auth.uid == userId;
     }

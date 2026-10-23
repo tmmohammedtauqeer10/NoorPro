@@ -108,7 +108,11 @@ data class UmmahMessage(
     val sharedCreatorUid: String = "",
     val sharedCreatorName: String = "",
     val sharedCreatorPhoto: String = "",
-    val sharedCaption: String = ""
+    val sharedCaption: String = "",
+    /** 1.0.92: voice notes — length + 0..100 amplitude bars; forwarded flag. */
+    val durationMs: Long = 0,
+    val waveform: List<Int> = emptyList(),
+    val forwarded: Boolean = false
 )
 
 data class UmmahComment(
@@ -636,6 +640,22 @@ class UmmahRepository {
                 }
                 onResult(profiles)
             }
+    }
+
+    /** 1.0.92: server-indexed people lookup (searchKeys prefix array written by indexPeopleSearch). */
+    fun searchProfiles(key: String, onResult: (List<UmmahProfile>) -> Unit) {
+        if (key.isBlank()) return onResult(emptyList())
+        firestore.collection("ummah_profiles").whereArrayContains("searchKeys", key.take(15)).limit(30).get()
+            .addOnSuccessListener { snap ->
+                onResult(snap.documents.map { doc ->
+                    UmmahProfile(
+                        uid = doc.id, name = doc.getString("name").orEmpty(), handle = doc.getString("handle").orEmpty(),
+                        photoUrl = doc.getString("photoUrl").orEmpty(), bio = doc.getString("bio").orEmpty(),
+                        isPrivate = doc.getBoolean("isPrivate") ?: false, hideCounts = doc.getBoolean("hideCounts") ?: false
+                    )
+                })
+            }
+            .addOnFailureListener { onResult(emptyList()) }
     }
 
     /** Publish/refresh the signed-in member's public profile card. Fire-and-forget. */
@@ -1399,7 +1419,10 @@ class UmmahRepository {
                         sharedCreatorUid = document.getString("sharedCreatorUid").orEmpty(),
                         sharedCreatorName = document.getString("sharedCreatorName").orEmpty(),
                         sharedCreatorPhoto = document.getString("sharedCreatorPhoto").orEmpty(),
-                        sharedCaption = document.getString("sharedCaption").orEmpty()
+                        sharedCaption = document.getString("sharedCaption").orEmpty(),
+                        durationMs = document.getLong("durationMs") ?: 0L,
+                        waveform = (document.get("waveform") as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty(),
+                        forwarded = document.getBoolean("forwarded") ?: false
                     )
                 }
                 onResult(messages, null)
@@ -1651,6 +1674,7 @@ class UmmahRepository {
         replyToName: String = "",
         replyToText: String = "",
         replyToType: String = "",
+        extra: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to chat.")
@@ -1707,7 +1731,7 @@ class UmmahRepository {
                         "replyToText" to replyToText.trim().take(220),
                         "replyToType" to replyToType.trim().take(24),
                         "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                    )
+                    ) + extra.filterKeys { it in setOf("durationMs", "waveform", "forwarded") }
                 )
             }.addOnCompleteListener { task ->
                 onResult(task.isSuccessful, task.exception?.localizedMessage)

@@ -24,6 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
@@ -53,6 +56,7 @@ import com.noorpro.app.data.UmmahStoryGroup
 import com.noorpro.app.data.groupStories
 import com.noorpro.app.ui.components.*
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 private val SeenRing = Brush.linearGradient(listOf(Color(0xFF9AA5A1), Color(0xFF9AA5A1)))
 
@@ -72,7 +76,7 @@ internal fun StoriesRow(
         item(key = "you") {
             StoryBubble(
                 label = "Your story",
-                avatarUrl = if (mine >= 0) groups[mine].stories.last().mediaUrl else myAvatarUrl,
+                avatarUrl = if (mine >= 0) groups[mine].stories.last().coverUrl.ifBlank { myAvatarUrl } else myAvatarUrl,
                 initial = "Y",
                 ring = if (mine >= 0) NoorRingBrush else null,
                 showAdd = true,
@@ -142,19 +146,58 @@ internal fun StoriesSection(
     }
     val myUid = repo?.currentUid()
     val groups = remember(stories, blocked, myUid) { groupStories(stories.filter { it.authorUid !in blocked }, myUid) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null && repo != null) {
-            uploading = 0f
-            repo.createImageStory(context, uri, "", myName, myHandle, myAvatarUrl, onProgress = { uploading = it }) { ok, msg ->
-                uploading = null
-                Toast.makeText(context, msg ?: if (ok) "Story shared" else "Couldn't share story", Toast.LENGTH_SHORT).show()
-            }
+    fun upload(uri: Uri) {
+        val r = repo ?: return
+        val done: (Boolean, String?) -> Unit = { ok, msg ->
+            uploading = null
+            Toast.makeText(context, msg ?: if (ok) "Story shared" else "Couldn't share story", Toast.LENGTH_SHORT).show()
         }
+        uploading = 0f
+        val mime = context.contentResolver.getType(uri).orEmpty()
+        if (mime.startsWith("video/") || uri.toString().endsWith(".mp4")) {
+            val len = runCatching {
+                val m = android.media.MediaMetadataRetriever(); m.setDataSource(context, uri)
+                (m.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L).also { m.release() }
+            }.getOrDefault(0L)
+            if (len > 61_000) Toast.makeText(context, "Stories are up to 60 s — using the first minute.", Toast.LENGTH_SHORT).show()
+            r.createVideoStory(context, uri, "", myName, myHandle, myAvatarUrl, onProgress = { uploading = it }, onResult = done)
+        } else r.createImageStory(context, uri, "", myName, myHandle, myAvatarUrl, onProgress = { uploading = it }, onResult = done)
     }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? -> if (uri != null) upload(uri) }
+    // 1.0.92: record a <=60 s video with the camera app.
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    val recordVideo = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        val u = captureUri
+        if (res.resultCode == android.app.Activity.RESULT_OK) (res.data?.data ?: u)?.let { upload(it) }
+    }
+    fun launchRecord() {
+        val f = java.io.File(context.cacheDir, "story_rec_${System.currentTimeMillis()}.mp4")
+        val u = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+        captureUri = u
+        val intent = android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)
+            .putExtra(android.provider.MediaStore.EXTRA_DURATION_LIMIT, 60)
+            .putExtra(android.provider.MediaStore.EXTRA_VIDEO_QUALITY, 1)
+            .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, u)
+            .addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        runCatching { recordVideo.launch(intent) }.onFailure { Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show() }
+    }
+    val camPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) launchRecord() else Toast.makeText(context, "Camera permission is needed to record", Toast.LENGTH_SHORT).show()
+    }
+    var chooser by remember { mutableStateOf(false) }
     val add = {
         if (!isLoggedIn) Toast.makeText(context, "Sign in to add a story", Toast.LENGTH_SHORT).show()
-        else picker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        else chooser = true
     }
+    if (chooser) StoryAddSheet(
+        onDismiss = { chooser = false },
+        onGallery = { chooser = false; picker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+        onRecord = {
+            chooser = false
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) launchRecord()
+            else camPerm.launch(android.Manifest.permission.CAMERA)
+        }
+    )
     if (!isLoggedIn && groups.isEmpty()) return
     key(seenTick) {
         StoriesRow(groups, myUid, myAvatarUrl, isSeen = { g -> g.stories.all { seenStore.isSeen(it.id) } }, uploading = uploading, onAddStory = add, onOpen = { openIndex = it })
@@ -231,16 +274,44 @@ internal fun StoryGroupPage(
     var replying by remember { mutableStateOf(false) }
     var reply by remember { mutableStateOf("") }
     val progress = remember(story.id) { Animatable(if (frozen) 0.45f else 0f) }
+    val progressScope = rememberCoroutineScope()
     val isMine = story.authorUid == myUid
     var views by remember(story.id) { mutableStateOf(-1) }
     LaunchedEffect(story.id, active) { if (active) { onSeen(story); if (isMine) viewerCount(story) { views = it } } }
     LaunchedEffect(story.id, active, paused, replying) {
-        if (!active || paused || replying || frozen) return@LaunchedEffect
+        if (!active || paused || replying || frozen || story.isVideo) return@LaunchedEffect
         progress.animateTo(1f, tween(((1f - progress.value) * STORY_MS).toInt(), easing = LinearEasing))
         if (index < group.stories.lastIndex) index++ else onNextGroup()
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        AsyncImage(story.mediaUrl, story.caption.ifBlank { "Story" }, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()
+        val tapModifier = Modifier.fillMaxSize()
+            .pointerInput(story.id) {
+                detectTapGestures(
+                    onPress = { paused = true; tryAwaitRelease(); paused = false },
+                    onTap = { o ->
+                        if (o.x < size.width / 3f) { if (index > 0) index-- else onPrevGroup() }
+                        else { if (index < group.stories.lastIndex) index++ else onNextGroup() }
+                    }
+                )
+            }
+        if (story.isVideo) {
+            // 1.0.92: video story — progress follows the real playback position/duration.
+            val art = StoryPreviewArt.frames[story.id]
+            if (frozen && art != null) androidx.compose.foundation.Image(art, null, contentScale = ContentScale.Fit, modifier = tapModifier)
+            else if (frozen) AsyncImage(story.thumbUrl, null, contentScale = ContentScale.Fit, modifier = tapModifier)
+            else StoryVideoPlayer(
+                url = story.mediaUrl, playing = active && !paused && !replying, modifier = tapModifier,
+                onProgress = { f -> progressScope.launch { progress.snapTo(f.coerceIn(0f, 1f)) } },
+                onEnded = { if (index < group.stories.lastIndex) index++ else onNextGroup() }
+            )
+            if (frozen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (paused) Icon(Icons.Default.Pause, null, tint = Color.White, modifier = Modifier.size(64.dp))
+            }
+            Text(
+                "▶ ${((story.durationMs + 999) / 1000).coerceAtLeast(1)}s", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 64.dp, end = 12.dp).clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        } else AsyncImage(story.mediaUrl, story.caption.ifBlank { "Story" }, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()
             .pointerInput(story.id) {
                 detectTapGestures(
                     onPress = { paused = true; tryAwaitRelease(); paused = false },
@@ -328,5 +399,68 @@ internal fun PhotoCarousel(urls: List<String>, contentDescription: String, onDou
                 Box(Modifier.height(6.dp).width(w).clip(CircleShape).background(Color.White.copy(alpha = if (sel) 1f else 0.55f)))
             }
         }
+    }
+}
+
+/** Preview hooks (Robolectric can't decode video). */
+internal object StoryPreviewArt { var frames: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap() }
+
+/** ExoPlayer story video: plays while [playing], caps at 60 s, reports progress and end. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+internal fun StoryVideoPlayer(url: String, playing: Boolean, modifier: Modifier, onProgress: (Float) -> Unit, onEnded: () -> Unit) {
+    val context = LocalContext.current
+    val ended by rememberUpdatedState(onEnded)
+    val player = remember(url) {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(url)); prepare(); repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+        }
+    }
+    DisposableEffect(player) {
+        val l = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) { if (state == androidx.media3.common.Player.STATE_ENDED) ended() }
+        }
+        player.addListener(l)
+        onDispose { player.removeListener(l); player.release() }
+    }
+    LaunchedEffect(player, playing) { player.playWhenReady = playing }
+    LaunchedEffect(player) {
+        while (true) {
+            val d = player.duration.takeIf { it > 0 }?.coerceAtMost(com.noorpro.app.data.StoryVideo.MAX_MS) ?: 0L
+            if (d > 0) {
+                onProgress(player.currentPosition.toFloat() / d)
+                if (player.currentPosition >= d && d >= com.noorpro.app.data.StoryVideo.MAX_MS) { player.pause(); ended(); break }
+            }
+            kotlinx.coroutines.delay(50)
+        }
+    }
+    Box(modifier.background(Color.Black)) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { c -> androidx.media3.ui.PlayerView(c).apply { useController = false; this.player = player; resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT } },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StoryAddSheet(onDismiss: () -> Unit, onGallery: () -> Unit, onRecord: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = stitchSurface()) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 18.dp, vertical = 6.dp)) {
+            Text("Add to your story", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Spacer(Modifier.height(10.dp))
+            StoryAddRow(Icons.Default.PhotoLibrary, "Photo or video", "From your gallery · videos up to 60 s", onGallery)
+            StoryAddRow(Icons.Default.Videocam, "Record video", "Camera · 60 s max", onRecord)
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun StoryAddRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(stitchSoftSurface()), contentAlignment = Alignment.Center) { Icon(icon, null, tint = stitchPrimary()) }
+        Spacer(Modifier.width(14.dp))
+        Column { Text(title, color = stitchText(), fontWeight = FontWeight.SemiBold); Text(sub, color = stitchMutedText(), fontSize = 12.sp) }
     }
 }

@@ -49,13 +49,46 @@ object ReelSearchRanker {
             .sortedWith(compareByDescending<Pair<Tag, Int>> { it.second }.thenByDescending { it.first.count }).map { it.first }
     }
 
-    /** Trending = tag use in the last 14 days counts triple. */
+    /** Trending = tag use in the last 14 days; falls back to all-time tags, then to categories. */
     fun trending(posts: List<UmmahPost>, now: Long = System.currentTimeMillis(), limit: Int = 12): List<Tag> {
         val recent = now - 14L * 86_400_000L
         val w = HashMap<String, Int>()
         posts.forEach { p -> postHashtags(p).forEach { w[it] = (w[it] ?: 0) + if (p.publishedAt >= recent) 3 else 1 } }
+        if (w.isEmpty()) {
+            // No hashtags at all: surface categories / frequent caption words so Explore never looks empty.
+            val words = posts.flatMap { p -> listOf(p.category) + ReelSearchKeys.tokens(p.caption).filter { it.length >= 4 } }
+                .filter { it.isNotBlank() && it.lowercase() !in STOP }.groupingBy { it.lowercase() }.eachCount()
+            return words.entries.sortedByDescending { it.value }.take(limit).map { Tag(it.key, it.value) }
+        }
         val counts = tagCounts(posts).associate { it.tag to it.count }
         return w.entries.sortedByDescending { it.value }.take(limit).map { Tag(it.key, counts[it.key] ?: 0) }
+    }
+
+    private val STOP = setOf("this", "that", "with", "from", "have", "your", "what", "when", "they", "will", "about", "general", "reel", "video")
+
+    /**
+     * Related reels for a set of matches: same hashtags (weighted by overlap) or same creator,
+     * excluding the matches themselves.
+     */
+    fun related(matches: List<UmmahPost>, pool: List<UmmahPost>, limit: Int = 30): List<UmmahPost> {
+        if (matches.isEmpty()) return emptyList()
+        val ids = matches.map { it.id }.toSet()
+        val tags = matches.take(10).flatMap { postHashtags(it) }.groupingBy { it }.eachCount()
+        val creators = matches.take(10).map { it.creatorUid }.filter { it.isNotBlank() }.toSet()
+        return pool.asSequence().filter { it.id !in ids }.map { p ->
+            val overlap = postHashtags(p).sumOf { tags[it] ?: 0 }
+            p to (overlap * 2 + if (p.creatorUid in creators) 3 else 0)
+        }.filter { it.second > 0 }.sortedWith(compareByDescending<Pair<UmmahPost, Int>> { it.second }.thenByDescending { pop(it.first) })
+            .take(limit).map { it.first }.toList()
+    }
+
+    /** "Related searches" chips: co-occurring hashtags + matched creators' handles. */
+    fun relatedSearches(query: String, matches: List<UmmahPost>, limit: Int = 8): List<String> {
+        val q = query.trim().trimStart('#', '@').lowercase()
+        val tags = matches.take(20).flatMap { postHashtags(it) }.filter { it != q }.groupingBy { it }.eachCount()
+            .entries.sortedByDescending { it.value }.map { "#" + it.key }
+        val handles = matches.take(10).map { it.creatorHandle.removePrefix("@") }.filter { it.isNotBlank() && it.lowercase() != q }.distinct().map { "@$it" }
+        return (tags.take(limit - 2) + handles.take(2) + tags.drop(limit - 2)).distinct().take(limit)
     }
 
     /** Explore order: popularity with a recency boost. */

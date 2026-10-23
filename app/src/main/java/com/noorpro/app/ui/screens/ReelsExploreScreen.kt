@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noorpro.app.data.UmmahPost
 import com.noorpro.app.data.UmmahRepository
+import com.noorpro.app.data.search.PeopleRanker
 import com.noorpro.app.data.search.ReelSearchKeys
 import com.noorpro.app.data.search.ReelSearchRanker
 import com.noorpro.app.ui.components.*
@@ -60,6 +61,9 @@ internal object ReelsExplorePreview {
     var query: String = ""
     var tab: Int = 0
     var tag: String = ""
+    var profiles: Map<String, com.noorpro.app.data.UmmahProfile> = emptyMap()
+    var following: Set<String> = emptySet()
+    var followers: Set<String> = emptySet()
 }
 
 private class ReelRecentSearches(context: Context) {
@@ -77,16 +81,18 @@ private val TABS = listOf("Top", "Reels", "Accounts", "Hashtags")
 fun ReelsExploreScreen(viewModel: DeenViewModel) = ReelsExploreContent(
     onBack = { viewModel.goBack() },
     onOpenReel = { p, list -> viewModel.openReelFromResults(p, list) },
-    onOpenProfile = { a -> viewModel.openCreatorProfile(a.uid, a.name, a.handle) }
+    onOpenProfile = { a -> viewModel.openCreatorProfile(a.uid, a.name, a.handle) },
+    onMessage = { uid, name -> viewModel.openCreatorChat(uid, name) }
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ReelsExploreContent(onBack: () -> Unit, onOpenReel: (UmmahPost, List<UmmahPost>) -> Unit, onOpenProfile: (ReelSearchRanker.Account) -> Unit) {
+internal fun ReelsExploreContent(onBack: () -> Unit, onOpenReel: (UmmahPost, List<UmmahPost>) -> Unit, onOpenProfile: (ReelSearchRanker.Account) -> Unit, onMessage: (String, String) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val preview = ReelsExplorePreview.posts
     val feed = if (preview == null) rememberStitchUmmahFeed() else StitchUmmahFeedState(preview, null, false)
-    val profiles = if (preview == null) rememberStitchProfiles() else emptyMap()
+    val profiles = if (preview == null) rememberStitchProfiles() else ReelsExplorePreview.profiles
+    val graph = if (preview == null) rememberPeopleGraph(true) else ReelsExplorePreview.following to ReelsExplorePreview.followers
     val blocked = if (preview == null) rememberBlockedUids() else emptySet()
     val repo = remember { if (preview == null) runCatching { UmmahRepository() }.getOrNull() else null }
     val uid = remember { repo?.currentUserUid().orEmpty() }
@@ -127,16 +133,28 @@ internal fun ReelsExploreContent(onBack: () -> Unit, onOpenReel: (UmmahPost, Lis
     val explore = remember(pool) { ReelSearchRanker.explore(pool) }
     val trending = remember(pool) { ReelSearchRanker.trending(pool) }
     val reelResults = remember(pool, debounced) { ReelSearchRanker.reels(debounced, pool) }
-    val accounts = remember(pool, profiles, debounced) {
-        val byUid = LinkedHashMap<String, ReelSearchRanker.Account>()
-        val reelCount = pool.groupingBy { it.creatorUid }.eachCount()
-        profiles.values.filter { it.uid.isNotBlank() && it.uid !in blocked }.forEach { byUid[it.uid] = ReelSearchRanker.Account(it.uid, it.name, it.handle, it.photoUrl, reelCount[it.uid] ?: 0) }
-        pool.forEach { p -> if (p.creatorUid.isNotBlank() && p.creatorUid !in byUid) byUid[p.creatorUid] = ReelSearchRanker.Account(p.creatorUid, p.creatorName, p.creatorHandle, p.creatorPhotoUrl, reelCount[p.creatorUid] ?: 0) }
-        ReelSearchRanker.accounts(debounced, byUid.values.toList())
-    }
     val tags = remember(pool, debounced) { ReelSearchRanker.hashtags(debounced, pool) }
-
     fun commit(q: String) { if (q.isNotBlank()) recent = recentStore.add(q.trim()) }
+    val allProfiles = rememberProfilesWithHits(profiles, debounced, preview == null)
+    val everyone = remember(allProfiles, pool, graph, blocked) { buildPeople(allProfiles, pool, graph.first, graph.second, blocked) }
+    val people = remember(everyone, debounced) { PeopleRanker.search(debounced, everyone, uid) }
+    val suggested = remember(everyone) { PeopleRanker.suggested(everyone, uid) }
+    val related = remember(reelResults, pool) { ReelSearchRanker.related(reelResults, pool) }
+    val relatedSearches = remember(reelResults, debounced) { ReelSearchRanker.relatedSearches(debounced, reelResults) }
+    // Explore never looks empty: top reels first, then recent photo/text posts with media as filler.
+    val exploreFilled = remember(explore, feed.posts, blocked) {
+        if (explore.size >= 18) explore else explore + feed.posts.asSequence()
+            .filter { !it.opensInVideoViewer() && it.creatorUid !in blocked && (it.mediaUrl.isNotBlank() || it.thumbnailUrl.isNotBlank()) }
+            .filter { p -> explore.none { it.id == p.id } }
+            .sortedByDescending { it.likeCount * 3 + it.viewCount + it.publishedAt / 86_400_000L }
+            .take(30 - explore.size).toList()
+    }
+    var viewPost by remember { mutableStateOf<UmmahPost?>(null) }
+    viewPost?.let { vp -> SharedPostViewer(vp) { viewPost = null } }
+    fun openAny(p: UmmahPost, list: List<UmmahPost>) { if (p.opensInVideoViewer()) { commit(debounced); onOpenReel(p, list.filter { it.opensInVideoViewer() }) } else viewPost = p }
+    fun msg(p: PeopleRanker.Person) { commit(debounced); onMessage(p.uid, p.name) }
+    fun prof(p: PeopleRanker.Person) { commit(debounced); onOpenProfile(ReelSearchRanker.Account(p.uid, p.name, p.handle, p.photoUrl, p.reels)) }
+
     fun play(post: UmmahPost, list: List<UmmahPost>) { commit(debounced); onOpenReel(post, list) }
 
     BackHandler(enabled = openTag.isNotBlank() || query.isNotEmpty()) {
@@ -187,23 +205,29 @@ internal fun ReelsExploreContent(onBack: () -> Unit, onOpenReel: (UmmahPost, Lis
                 }
             }
             when {
-                feed.loading && explore.isEmpty() -> ShimmerGrid()
-                explore.isEmpty() -> EmptyState("No reels yet", "Published reels will appear here.")
-                else -> ReelGrid(explore, Modifier.padding(top = 8.dp)) { play(it, explore) }
+                feed.loading && exploreFilled.isEmpty() -> ShimmerGrid()
+                exploreFilled.isEmpty() && suggested.isEmpty() -> EmptyState("Nothing here yet", "Reels and posts from the Ummah will appear here.")
+                else -> LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Fixed(3), contentPadding = PaddingValues(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalItemSpacing = 2.dp, modifier = Modifier.fillMaxSize().padding(top = 4.dp)
+                ) {
+                    if (suggested.isNotEmpty()) item(span = StaggeredGridItemSpan.FullLine) { SuggestedPeopleRow(suggested, ::prof, ::msg) }
+                    itemsIndexed(exploreFilled, key = { _, p -> p.id }) { i, p -> ReelTile(p, i) { openAny(p, exploreFilled) } }
+                }
             }
             return@Column
         }
         TabRow(selectedTabIndex = tab, containerColor = stitchBackground(), contentColor = stitchPrimary()) {
             TABS.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal) }) }
         }
-        val nothing = reelResults.isEmpty() && accounts.isEmpty() && tags.isEmpty()
+        val nothing = reelResults.isEmpty() && people.isEmpty() && tags.isEmpty()
         when {
             searching && nothing -> ShimmerGrid()
-            tab == 0 && nothing || tab == 1 && reelResults.isEmpty() || tab == 2 && accounts.isEmpty() || tab == 3 && tags.isEmpty() ->
+            tab == 0 && nothing || tab == 1 && reelResults.isEmpty() || tab == 2 && people.isEmpty() || tab == 3 && tags.isEmpty() ->
                 EmptyState("No results for \"$debounced\"", "Try another spelling, a #hashtag or an @username.")
-            tab == 1 -> ReelGrid(reelResults) { play(it, reelResults) }
+            tab == 1 -> ReelGrid(reelResults + related) { play(it, reelResults + related) }
             tab == 2 -> LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(accounts, key = { it.uid }) { a -> AccountRow(a) { commit(debounced); onOpenProfile(a) } }
+                items(people, key = { it.uid }) { p -> PersonRow(p, onOpen = { prof(p) }, onMessage = { msg(p) }) }
             }
             tab == 3 -> LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(tags, key = { it.tag }) { t -> TagRow(t) { commit(debounced); openTag = t.tag } }
@@ -212,15 +236,27 @@ internal fun ReelsExploreContent(onBack: () -> Unit, onOpenReel: (UmmahPost, Lis
                 columns = StaggeredGridCells.Fixed(3), contentPadding = PaddingValues(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp), verticalItemSpacing = 2.dp, modifier = Modifier.fillMaxSize()
             ) {
-                if (accounts.isNotEmpty()) {
-                    item(span = StaggeredGridItemSpan.FullLine) { Text("Accounts", color = stitchText(), fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp)) }
-                    accounts.take(3).forEach { a -> item(span = StaggeredGridItemSpan.FullLine) { Box(Modifier.padding(horizontal = 10.dp, vertical = 3.dp)) { AccountRow(a) { commit(debounced); onOpenProfile(a) } } } }
+                if (people.isNotEmpty()) {
+                    item(span = StaggeredGridItemSpan.FullLine) { Text("People", color = stitchText(), fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp)) }
+                    people.take(3).forEach { p -> item(span = StaggeredGridItemSpan.FullLine, key = "pp_" + p.uid) { Box(Modifier.padding(horizontal = 6.dp)) { PersonRow(p, onOpen = { prof(p) }, onMessage = { msg(p) }) } } }
                 }
                 if (tags.isNotEmpty()) item(span = StaggeredGridItemSpan.FullLine) {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(8.dp)) { tags.take(8).forEach { t -> ExploreChip("#${t.tag} · ${t.count}", Icons.Default.Tag, onClick = { commit(debounced); openTag = t.tag }) } }
                 }
                 if (reelResults.isNotEmpty()) item(span = StaggeredGridItemSpan.FullLine) { Text("Reels", color = stitchText(), fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp)) }
                 itemsIndexed(reelResults, key = { _, p -> p.id }) { i, p -> ReelTile(p, i) { play(p, reelResults) } }
+                if (relatedSearches.isNotEmpty()) item(span = StaggeredGridItemSpan.FullLine) {
+                    Column(Modifier.padding(top = 10.dp)) {
+                        Text("Related searches", color = stitchText(), fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 4.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
+                            relatedSearches.forEach { q -> ExploreChip(q, Icons.Default.Search, onClick = { commit(debounced); query = q; debounced = q }) }
+                        }
+                    }
+                }
+                if (related.isNotEmpty()) {
+                    item(span = StaggeredGridItemSpan.FullLine) { Text("Related reels", color = stitchText(), fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp)) }
+                    itemsIndexed(related, key = { _, p -> "rel_" + p.id }) { i, p -> ReelTile(p, i + 1) { play(p, reelResults + related) } }
+                }
             }
         }
     }

@@ -64,8 +64,16 @@ class CallSession(
     private var surfaceHelper: SurfaceTextureHelper? = null
     private var audioTrack: AudioTrack? = null
     private var localVideo: VideoTrack? = null
+    // 1.0.92: all PeerConnection callbacks + Firestore listeners touch these; guard with [lock].
+    private val lock = Any()
     private var remoteSet = false
+    private var answerApplied = false
     private val pendingRemote = mutableListOf<IceCandidate>()
+    // 1.0.92: the caller's candidates arrive before the call doc exists; the candidate rule does
+    // get(callDoc), so writing them early was silently DENIED (lost candidates => failed calls on
+    // mobile networks). Buffer until the call doc write succeeds.
+    private var docReady = !isCaller
+    private val pendingLocal = mutableListOf<IceCandidate>()
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     @Volatile var closed = false
         private set
@@ -83,8 +91,8 @@ class CallSession(
         }
         pc = f.createPeerConnection(rtc, object : PeerConnection.Observer {
             override fun onIceCandidate(c: IceCandidate) {
-                callRef.collection(if (isCaller) "callerCandidates" else "calleeCandidates")
-                    .add(mapOf("sdpMid" to c.sdpMid, "sdpMLineIndex" to c.sdpMLineIndex, "candidate" to c.sdp))
+                val send = synchronized(lock) { if (docReady) true else { pendingLocal += c; false } }
+                if (send) writeCandidate(c)
             }
             override fun onIceConnectionChange(s: PeerConnection.IceConnectionState) {
                 when (s) {
@@ -111,8 +119,7 @@ class CallSession(
         audioTrack = f.createAudioTrack("noor-audio", aSrc).also { pc?.addTrack(it, listOf("noor")) }
         if (video) startCamera(f)
         audio.mode = AudioManager.MODE_IN_COMMUNICATION
-        @Suppress("DEPRECATION")
-        audio.isSpeakerphoneOn = video
+        setSpeaker(video)
     }
 
     private fun startCamera(f: PeerConnectionFactory) {
@@ -137,8 +144,20 @@ class CallSession(
         override fun onSetFailure(e: String?) { listener.onState("failed") }
     }
 
+    private fun writeCandidate(c: IceCandidate) {
+        if (closed) return
+        callRef.collection(if (isCaller) "callerCandidates" else "calleeCandidates")
+            .add(mapOf("sdpMid" to c.sdpMid, "sdpMLineIndex" to c.sdpMLineIndex, "candidate" to c.sdp))
+    }
+
+    private fun flushLocal() {
+        val batch = synchronized(lock) { docReady = true; pendingLocal.toList().also { pendingLocal.clear() } }
+        batch.forEach { writeCandidate(it) }
+    }
+
     private fun addRemoteCandidate(c: IceCandidate) {
-        if (remoteSet) pc?.addIceCandidate(c) else pendingRemote += c
+        val now = synchronized(lock) { if (remoteSet) true else { pendingRemote += c; false } }
+        if (now) pc?.addIceCandidate(c)
     }
 
     private fun listenCandidates(side: String) {
@@ -153,9 +172,8 @@ class CallSession(
     private fun applyRemote(desc: SessionDescription, then: () -> Unit = {}) {
         pc?.setRemoteDescription(object : Sdp() {
             override fun onSetSuccess() {
-                remoteSet = true
-                pendingRemote.forEach { pc?.addIceCandidate(it) }
-                pendingRemote.clear()
+                val batch = synchronized(lock) { remoteSet = true; pendingRemote.toList().also { pendingRemote.clear() } }
+                batch.forEach { pc?.addIceCandidate(it) }
                 then()
             }
         }, desc)
@@ -188,12 +206,14 @@ class CallSession(
                 ).addOnCompleteListener { t ->
                     if (!t.isSuccessful) { onCreated(false, t.exception?.localizedMessage); return@addOnCompleteListener }
                     onCreated(true, null)
+                    flushLocal()
                     listenCandidates("calleeCandidates")
                     listeners += callRef.addSnapshotListener { snap, _ ->
                         val status = snap?.getString("status").orEmpty()
                         @Suppress("UNCHECKED_CAST")
                         val answer = snap?.get("answer") as? Map<String, Any?>
-                        if (answer != null && !remoteSet) {
+                        val apply = answer != null && synchronized(lock) { if (answerApplied) false else { answerApplied = true; true } }
+                        if (apply && answer != null) {
                             applyRemote(SessionDescription(SessionDescription.Type.ANSWER, answer["sdp"] as? String ?: ""))
                         }
                         if (status.isNotBlank()) listener.onState(status)
@@ -232,8 +252,20 @@ class CallSession(
     fun setMuted(muted: Boolean) { audioTrack?.setEnabled(!muted) }
     fun setCameraOff(off: Boolean) { localVideo?.setEnabled(!off) }
     fun switchCamera() { capturer?.switchCamera(null) }
-    @Suppress("DEPRECATION")
-    fun setSpeaker(on: Boolean) { audio.isSpeakerphoneOn = on }
+    /** 1.0.92: API 31+ routes via setCommunicationDevice (isSpeakerphoneOn is ignored on many new devices). */
+    fun setSpeaker(on: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            runCatching {
+                if (on) {
+                    audio.availableCommunicationDevices.firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                        ?.let { audio.setCommunicationDevice(it) }
+                } else audio.clearCommunicationDevice()
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audio.isSpeakerphoneOn = on
+        }
+    }
 
     fun hangUp(status: String = "ended") {
         if (closed) return
@@ -252,9 +284,8 @@ class CallSession(
         runCatching { surfaceHelper?.dispose() }
         runCatching { pc?.dispose() }
         runCatching { factory?.dispose() }
+        setSpeaker(false)
         audio.mode = AudioManager.MODE_NORMAL
-        @Suppress("DEPRECATION")
-        audio.isSpeakerphoneOn = false
     }
 }
 

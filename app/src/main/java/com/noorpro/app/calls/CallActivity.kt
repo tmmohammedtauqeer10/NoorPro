@@ -210,6 +210,16 @@ internal fun CallScreen(
     LaunchedEffect(connectedAt) {
         while (connectedAt > 0) { elapsed = (System.currentTimeMillis() - connectedAt) / 1000; delay(1000) }
     }
+    // 1.0.92: audible ringing. Incoming = device ringtone + vibration (the notification is cancelled
+    // when this screen opens, so it no longer rings); outgoing = classic ringback tone.
+    if (previewState == null) DisposableEffect(state == "incoming", state == "ringing") {
+        val stop = when (state) {
+            "incoming" -> CallRinger.startIncoming(context)
+            "ringing" -> CallRinger.startRingback()
+            else -> ({})
+        }
+        onDispose { stop() }
+    }
 
     Box(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF06231C), Color(0xFF0B3D31), Color(0xFF041611))))
@@ -325,5 +335,37 @@ private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onCl
             contentAlignment = Alignment.Center
         ) { Icon(icon, contentDescription = label, tint = if (active) Color(0xFF0B3D31) else Color.White) }
         Text(label, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+    }
+}
+
+/** 1.0.92: ringtone / vibration / ringback helpers; every call returns a stop() lambda. */
+internal object CallRinger {
+    fun startIncoming(context: android.content.Context): () -> Unit {
+        val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        val ring = if (audio.ringerMode == android.media.AudioManager.RINGER_MODE_NORMAL) runCatching {
+            android.media.RingtoneManager.getRingtone(context, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE))?.apply {
+                if (android.os.Build.VERSION.SDK_INT >= 28) isLooping = true
+                audioAttributes = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                play()
+            }
+        }.getOrNull() else null
+        val vib = if (audio.ringerMode != android.media.AudioManager.RINGER_MODE_SILENT) runCatching {
+            val v = if (android.os.Build.VERSION.SDK_INT >= 31)
+                (context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+            else @Suppress("DEPRECATION") (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator)
+            v.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 800, 1000), 0)); v
+        }.getOrNull() else null
+        return { runCatching { ring?.stop() }; runCatching { vib?.cancel() } }
+    }
+
+    fun startRingback(): () -> Unit {
+        val tone = runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 60) }.getOrNull()
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        val loop = object : Runnable {
+            override fun run() { runCatching { tone?.startTone(android.media.ToneGenerator.TONE_SUP_RINGTONE, 1800) }; h.postDelayed(this, 4000) }
+        }
+        h.post(loop)
+        return { h.removeCallbacks(loop); runCatching { tone?.stopTone(); tone?.release() } }
     }
 }

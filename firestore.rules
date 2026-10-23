@@ -260,6 +260,44 @@ service cloud.firestore {
         && request.resource.data.expiresAt is timestamp
         && request.resource.data.expiresAt > request.time
         && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm');
+      // 1.0.92 (additive): video stories, max ~60 s. Either an uploaded clip under the author's
+      // own Storage folder, or a re-share of an existing Ummah reel (no upload; the URL must be
+      // the reel's own mediaUrl). The image rule above is unchanged.
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["authorUid", "authorName", "authorHandle", "avatarUrl", "mediaUrl", "mediaPath", "type", "caption", "createdAt", "expiresAt", "durationMs", "thumbUrl", "thumbPath", "sharedPostId"])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type == "video"
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.mediaUrl.matches("https://.*")
+        && request.resource.data.mediaUrl.size() <= 2000
+        && request.resource.data.mediaPath is string
+        && request.resource.data.durationMs is int
+        && request.resource.data.durationMs > 0
+        && request.resource.data.durationMs <= 61000
+        && request.resource.data.thumbUrl is string
+        && request.resource.data.thumbUrl.size() <= 2000
+        && (request.resource.data.thumbUrl == "" || request.resource.data.thumbUrl.matches("https://.*"))
+        && request.resource.data.thumbPath is string
+        && (request.resource.data.thumbPath == "" || request.resource.data.thumbPath.matches("ummah_stories/" + request.auth.uid + "/.*"))
+        && request.resource.data.sharedPostId is string
+        && request.resource.data.sharedPostId.size() <= 128
+        && ((request.resource.data.sharedPostId == ""
+              && request.resource.data.mediaPath.matches("ummah_stories/" + request.auth.uid + "/.*"))
+          || (request.resource.data.sharedPostId != ""
+              && request.resource.data.mediaPath == ""
+              && exists(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId))
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("approved", true) != false
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("status", "") == "published"
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("mediaUrl", "") == request.resource.data.mediaUrl))
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 300
+        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 60
+        && request.resource.data.authorHandle is string && request.resource.data.authorHandle.size() <= 40
+        && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm');
       allow update: if false;
       allow delete: if request.auth != null && resource.data.authorUid == request.auth.uid;
 

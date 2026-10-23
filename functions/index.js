@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
 const {onRequest} = require("firebase-functions/v2/https");
-const {onDocumentCreated, onDocumentDeleted} = require("firebase-functions/v2/firestore");
+const {onDocumentCreated, onDocumentDeleted, onDocumentWritten} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {defineSecret} = require("firebase-functions/params");
 const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
@@ -887,9 +887,10 @@ exports.cleanupExpiredStories = onSchedule(
     const snap = await db.collection("ummah_stories")
       .where("expiresAt", "<=", admin.firestore.Timestamp.now()).limit(400).get();
     for (const doc of snap.docs) {
-      const path = cleanString(doc.get("mediaPath"), "");
-      if (path.startsWith("ummah_stories/")) {
-        await bucket.file(path).delete().catch(() => {});
+      // 1.0.92: video stories also carry a poster frame at thumbPath; shared-reel stories have no file.
+      for (const field of ["mediaPath", "thumbPath"]) {
+        const path = cleanString(doc.get(field), "");
+        if (path.startsWith("ummah_stories/")) await bucket.file(path).delete().catch(() => {});
       }
       await db.recursiveDelete(doc.ref).catch((e) => console.warn("story delete failed", doc.id, e));
     }
@@ -1347,6 +1348,47 @@ exports.backfillReelSearch = onRequest(
     for (const doc of snap.docs) {
       if (await indexReelDoc(doc.ref, doc.data()).catch(() => false)) updated++;
     }
+    const last = snap.docs.length ? snap.docs[snap.docs.length - 1].id : "";
+    return res.json({scanned: snap.size, updated, last, done: snap.size < 400});
+  }
+);
+
+// 1.0.92: people search index on ummah_profiles — `searchKeys` = prefixes (2..15) of the normalized
+// @username and each name word, plus `nameLower`. Derived fields only; skipped when unchanged so the
+// write trigger never loops.
+function peopleSearchFields(d) {
+  const handle = reelSearchKey(String(d.handle || "").replace(/^@/, ""));
+  const keys = new Set();
+  for (const t of [handle, ...reelSearchTokens(d.name), reelSearchKey(d.name)]) {
+    for (let i = 1; i <= Math.min(t.length, 15); i++) keys.add(t.slice(0, i));
+  }
+  return {searchKeys: [...keys].slice(0, 120), nameLower: String(d.name || "").toLowerCase().slice(0, 60),
+    peopleSrc: `1|${d.name || ""}|${d.handle || ""}`.slice(0, 200)};
+}
+async function indexPersonDoc(ref, data) {
+  const f = peopleSearchFields(data || {});
+  if ((data || {}).peopleSrc === f.peopleSrc && Array.isArray((data || {}).searchKeys)) return false;
+  await ref.set(f, {merge: true});
+  return true;
+}
+exports.indexPeopleSearch = onDocumentWritten(
+  {document: "ummah_profiles/{uid}", region: REGION, timeoutSeconds: 30, memory: "256MiB"},
+  async (event) => {
+    const after = event.data && event.data.after;
+    if (!after || !after.exists) return;
+    await indexPersonDoc(after.ref, after.data()).catch((e) => console.warn("indexPeopleSearch", event.params.uid, e.message));
+  }
+);
+exports.backfillPeopleSearch = onRequest(
+  {region: REGION, timeoutSeconds: 120, memory: "256MiB", maxInstances: 1},
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({error: "Use POST."});
+    let q = admin.firestore().collection("ummah_profiles").orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+    const after = cleanString(req.query.after, "");
+    if (after) q = q.startAfter(after);
+    const snap = await q.get();
+    let updated = 0;
+    for (const doc of snap.docs) if (await indexPersonDoc(doc.ref, doc.data()).catch(() => false)) updated++;
     const last = snap.docs.length ? snap.docs[snap.docs.length - 1].id : "";
     return res.json({scanned: snap.size, updated, last, done: snap.size < 400});
   }

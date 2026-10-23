@@ -5789,21 +5789,16 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
     }
     val videoResults = remember(results) { results.filter { it.isReelLike() || it.isVideoMedia() } }
     val postResults = remember(results) { results.filter { !it.isReelLike() && !it.isVideoMedia() } }
-    // People search: live profiles + post creators, matched by name / @handle. Uses live profile
-    // photos, so results auto-update the moment someone changes their picture.
-    val users = remember(feedState.posts, profiles, cleanQuery) {
-        if (cleanQuery.isBlank()) emptyList() else {
-            val needle = q.removePrefix("@")
-            val map = LinkedHashMap<String, StitchSearchUser>()
-            profiles.values.forEach { p -> if (p.uid.isNotBlank()) map[p.uid] = StitchSearchUser(p.uid, p.name, p.handle, p.photoUrl) }
-            feedState.posts.forEach { post ->
-                if (post.creatorUid.isNotBlank() && !map.containsKey(post.creatorUid)) {
-                    map[post.creatorUid] = StitchSearchUser(post.creatorUid, post.creatorName, post.creatorHandle, post.creatorPhotoUrl)
-                }
-            }
-            map.values.filter { u -> u.name.lowercase().contains(needle) || u.handle.lowercase().removePrefix("@").contains(needle) }.take(12)
-        }
-    }
+    // 1.0.92: Instagram-style people search (prefix + fuzzy on name/@username, mutuals & following first).
+    val blockedUids = rememberBlockedUids()
+    val graph = rememberPeopleGraph(true)
+    val myUid = remember { runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid }.getOrNull().orEmpty() }
+    val allProfiles = rememberProfilesWithHits(profiles, cleanQuery)
+    val everyone = remember(allProfiles, feedState.posts, graph, blockedUids) { buildPeople(allProfiles, feedState.posts, graph.first, graph.second, blockedUids) }
+    val users = remember(everyone, cleanQuery) { com.noorpro.app.data.search.PeopleRanker.search(cleanQuery, everyone, myUid).take(20) }
+    val suggestedPeople = remember(everyone) { com.noorpro.app.data.search.PeopleRanker.suggested(everyone, myUid) }
+    val relatedPosts = remember(results, feedState.posts) { com.noorpro.app.data.search.ReelSearchRanker.related(results, feedState.posts, 12) }
+    val relatedSearches = remember(results, cleanQuery) { com.noorpro.app.data.search.ReelSearchRanker.relatedSearches(cleanQuery, results) }
     val hasResults = users.isNotEmpty() || videoResults.isNotEmpty() || postResults.isNotEmpty()
 
     StitchScreen {
@@ -5835,6 +5830,9 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                 )
             }
             when {
+                cleanQuery.isBlank() && suggestedPeople.isNotEmpty() -> item {
+                    SuggestedPeopleRow(suggestedPeople, onOpen = { viewModel.openCreatorProfile(it.uid, it.name, it.handle) }, onMessage = { viewModel.openCreatorChat(it.uid, it.name) })
+                }
                 cleanQuery.isBlank() -> item {
                     StitchUmmahEmptyCard(
                         title = "Find beneficial content",
@@ -5860,7 +5858,7 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                     if (users.isNotEmpty()) {
                         item { StitchSearchSectionLabel("People") }
                         items(users, key = { "u_" + it.uid }) { u ->
-                            StitchSearchUserRow(u) { viewModel.openCreatorProfile(u.uid, u.name, u.handle) }
+                            PersonRow(u, onOpen = { viewModel.openCreatorProfile(u.uid, u.name, u.handle) }, onMessage = { viewModel.openCreatorChat(u.uid, u.name) })
                         }
                     }
                     if (videoResults.isNotEmpty()) {
@@ -5885,6 +5883,28 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                                 },
                                 onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) }
                             )
+                        }
+                    }
+                    if (relatedSearches.isNotEmpty()) {
+                        item { StitchSearchSectionLabel("Related searches") }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(relatedSearches) { rs ->
+                                    Text(rs, color = stitchText(), fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(stitchSurface()).clickable { query = rs }.padding(horizontal = 12.dp, vertical = 7.dp))
+                                }
+                            }
+                        }
+                    }
+                    if (relatedPosts.isNotEmpty()) {
+                        item { StitchSearchSectionLabel("Related") }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(relatedPosts, key = { "rel_" + it.id }) { post ->
+                                    StitchMiniLiveReelCard(post = post, onClick = {
+                                        if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH)
+                                    })
+                                }
+                            }
                         }
                     }
                 }
@@ -11931,9 +11951,6 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
     var pendingMedia by remember(otherUid) { mutableStateOf<Uri?>(null) }
     var pendingType by remember(otherUid) { mutableStateOf("text") }
     var cameraCaptureUri by remember(otherUid) { mutableStateOf<Uri?>(null) }
-    var recorder by remember(otherUid) { mutableStateOf<MediaRecorder?>(null) }
-    var recordingFile by remember(otherUid) { mutableStateOf<File?>(null) }
-    var isRecording by remember(otherUid) { mutableStateOf(false) }
     var showAttachments by remember(otherUid) { mutableStateOf(false) }
     var replyTarget by remember(otherUid) { mutableStateOf<UmmahMessage?>(null) }
     val chatId = remember(otherUid, currentUid) {
@@ -11951,7 +11968,8 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         text: String = draft.trim(),
         type: String = pendingType,
         mediaUri: Uri? = pendingMedia,
-        sharedMediaUrl: String = ""
+        sharedMediaUrl: String = "",
+        extra: Map<String, Any> = emptyMap()
     ) {
         if (sending) return
         if (!termsGate.check()) return
@@ -11972,7 +11990,8 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
             replyToMessageId = reply?.id.orEmpty(),
             replyToName = reply?.senderName.orEmpty(),
             replyToText = reply?.let { noorMessageReplyText(it) }.orEmpty(),
-            replyToType = reply?.type.orEmpty()
+            replyToType = reply?.type.orEmpty(),
+            extra = extra
         ) { ok, err ->
             sending = false
             if (ok) {
@@ -12037,52 +12056,22 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         if (granted) captureCameraPhoto() else Toast.makeText(context, "Camera permission denied.", Toast.LENGTH_SHORT).show()
     }
 
-    fun startVoiceRecording() {
-        try {
-            val file = createNoorChatCacheFile(context, "m4a")
-            @Suppress("DEPRECATION")
-            val newRecorder = MediaRecorder()
-            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            newRecorder.setOutputFile(file.absolutePath)
-            newRecorder.prepare()
-            newRecorder.start()
-            recorder = newRecorder
-            recordingFile = file
-            isRecording = true
-            Toast.makeText(context, "Recording voice message...", Toast.LENGTH_SHORT).show()
-        } catch (error: Exception) {
-            recorder?.release()
-            recorder = null
-            recordingFile = null
-            isRecording = false
-            Toast.makeText(context, error.localizedMessage ?: "Unable to record audio.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun stopVoiceRecordingAndSend() {
-        val activeRecorder = recorder ?: return
-        val file = recordingFile
-        val stopped = runCatching { activeRecorder.stop() }.isSuccess
-        runCatching { activeRecorder.release() }
-        recorder = null
-        recordingFile = null
-        isRecording = false
-        if (!stopped || file == null || !file.exists()) {
-            Toast.makeText(context, "Recording was too short.", Toast.LENGTH_SHORT).show()
-            return
-        }
+    // 1.0.92: hold-to-record voice notes (slide left = cancel, slide up = lock).
+    val voiceRec = remember(otherUid) { VoiceRecorderController(context) }
+    fun sendVoice(clip: VoiceRecorderController.Clip) {
         sendChatPayload(
-            text = draft.trim().ifBlank { "Voice message" },
-            type = "audio",
-            mediaUri = Uri.fromFile(file)
+            text = "Voice message", type = "audio", mediaUri = Uri.fromFile(clip.file),
+            extra = mapOf("durationMs" to clip.durationMs, "waveform" to clip.waveform)
         )
     }
-
     val audioPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startVoiceRecording() else Toast.makeText(context, "Microphone permission denied.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, if (granted) "Hold the mic to record" else "Microphone permission denied.", Toast.LENGTH_SHORT).show()
     }
+    fun ensureMic(): Boolean {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return true
+        audioPermission.launch(Manifest.permission.RECORD_AUDIO); return false
+    }
+    val isRecording = voiceRec.recording
 
     fun sendCurrentLocation() {
         if (sending) return
@@ -12146,14 +12135,10 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         com.noorpro.app.calls.CallActivity.startOutgoing(context, otherUid, otherName, video)
     }
 
-    DisposableEffect(otherUid) {
-        onDispose {
-            runCatching {
-                if (isRecording) recorder?.stop()
-                recorder?.release()
-            }
-        }
-    }
+    DisposableEffect(otherUid) { onDispose { runCatching { voiceRec.cancel() } } }
+    var wallpaper by remember { mutableStateOf(ChatWallpaper.load(context)) }
+    var forwardMsg by remember { mutableStateOf<UmmahMessage?>(null) }
+    forwardMsg?.let { fm -> ForwardMessageDialog(fm, currentUid, onDismiss = { forwardMsg = null }) }
 
     val chatListState = rememberLazyListState()
     val chatScope = rememberCoroutineScope()
@@ -12175,68 +12160,33 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         }
     }
 
+    // Unread divider: remember my read mark from when the chat opened.
+    var openReadAt by remember(chatId) { mutableStateOf(-1L) }
+    LaunchedEffect(chatMeta) { if (openReadAt < 0 && chatMeta.readAt.isNotEmpty()) openReadAt = chatMeta.readAt[currentUid] ?: 0L }
+    val unreadCount = remember(displayedChatMessages, openReadAt) {
+        if (openReadAt <= 0) 0 else displayedChatMessages.takeWhile { it.senderUid != currentUid && it.createdAt > openReadAt }.size
+    }
+    // Scroll-to-bottom FAB with a count of messages that arrived while scrolled up.
+    val atBottom by remember { androidx.compose.runtime.derivedStateOf { chatListState.firstVisibleItemIndex <= 1 } }
+    var anchorId by remember(chatId) { mutableStateOf("") }
+    LaunchedEffect(atBottom, displayedChatMessages.firstOrNull()?.id) { if (atBottom) anchorId = displayedChatMessages.firstOrNull()?.id.orEmpty() }
+    val unseen = if (atBottom) 0 else displayedChatMessages.indexOfFirst { it.id == anchorId }.coerceAtLeast(0)
+    val otherTyping = chatMeta.isTyping(otherUid, chatNow)
+    val cc = chatColors()
+
     StitchScreen {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)
-            ) {
-                IconButton(onClick = { viewModel.goBack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
-                }
-                // WhatsApp-style: tap the person's name/photo to open their profile.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = otherUid.isNotBlank()) {
-                            viewModel.openCreatorProfile(otherUid, otherName, "")
-                        }
-                        .padding(vertical = 4.dp)
-                ) {
-                    val otherPhoto = rememberStitchProfiles()[otherUid]?.photoUrl.orEmpty()
-                    Box(
-                        modifier = Modifier.size(38.dp).clip(CircleShape).background(StitchEmerald),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (otherPhoto.isNotBlank()) {
-                            AsyncImage(
-                                model = otherPhoto,
-                                contentDescription = "$otherName photo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape)
-                            )
-                        } else {
-                            Text(otherName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(otherName, color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon, maxLines = 1)
-                        // 1.0.78: typing… / online / last seen (WhatsApp-style).
-                        val status = com.noorpro.app.data.ChatRealtime.lastSeenLabel(otherPresence, chatNow)
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = if (chatMeta.isTyping(otherUid, chatNow)) "typing" else status,
-                            label = "chatStatus"
-                        ) { st ->
-                            when {
-                                st == "typing" -> NoorTypingDots()
-                                st == "online" -> Text("online", color = NoorOnlineGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                st.isNotBlank() -> Text(st, color = stitchMutedText(), fontSize = 11.sp, maxLines = 1)
-                                else -> Text("Tap for profile", color = stitchMutedText(), fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-                if (viewModel.isLoggedIn && otherUid.isNotBlank()) {
-                    IconButton(onClick = { startCall(video = true) }) {
-                        Icon(Icons.Default.Videocam, contentDescription = "Video call", tint = stitchText())
-                    }
-                    IconButton(onClick = { startCall(video = false) }) {
-                        Icon(Icons.Default.Call, contentDescription = "Voice call", tint = stitchText())
-                    }
-                }
-            }
+        Column(modifier = Modifier.fillMaxSize().chatWallpaper(wallpaper)) {
+            NoorChatHeader(
+                name = otherName,
+                photoUrl = rememberStitchProfiles()[otherUid]?.photoUrl.orEmpty(),
+                status = if (otherTyping) "typing…" else com.noorpro.app.data.ChatRealtime.lastSeenLabel(otherPresence, chatNow),
+                canCall = viewModel.isLoggedIn && otherUid.isNotBlank(),
+                wallpaper = wallpaper,
+                onWallpaper = { wallpaper = it; ChatWallpaper.save(context, it) },
+                onBack = { viewModel.goBack() },
+                onProfile = { if (otherUid.isNotBlank()) viewModel.openCreatorProfile(otherUid, otherName, "") },
+                onCall = { startCall(it) }
+            )
 
             if (!viewModel.isLoggedIn) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -12245,50 +12195,66 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                 return@Column
             }
 
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = chatListState,
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
                 reverseLayout = true,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(displayedChatMessages, key = { it.id }) { m ->
+                if (otherTyping) item(key = "typing") { Box(Modifier.animateItem()) { NoorTypingBubble() } }
+                itemsIndexed(displayedChatMessages, key = { _, m -> m.id }) { index, m ->
                     val mine = m.senderUid == currentUid
-                    if (m.type == "call") {
-                        NoorCallLogBubble(
-                            text = m.text,
-                            mine = mine,
-                            time = if (m.createdAt > 0) android.text.format.DateFormat.format("h:mm a", m.createdAt).toString() else "",
-                            onCallBack = { startCall(video = m.text.contains("video", ignoreCase = true)) }
-                        )
-                        return@items
-                    }
-                    NoorSwipeToReply(onReply = { replyTarget = m }) {
-                    StitchChatMessageBubble(
-                        message = m,
-                        mine = mine,
-                        canDelete = mine,
-                        currentUid = currentUid,
-                        highlighted = highlightedChatMessageId == m.id,
-                        onReport = {
-                            messageReport = ReportTarget("chat_message", "${chatId.orEmpty()}/${m.id}", m.senderUid, m.senderName, m.text)
-                        },
-                        onReply = { replyTarget = it },
-                        onOpenReplyTarget = ::openChatReplyTarget,
-                        onReact = { emoji ->
-                            val current = m.reactions[currentUid]
-                            repository.reactToChatMessage(chatId.orEmpty(), m.id, if (emoji == current) "" else emoji)
-                        },
-                        onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) },
-                        tick = if (mine) chatMeta.tickFor(otherUid, m.createdAt) else -1,
-                        onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) },
-                        blockedUids = blockedUids,
-                        onOpenShared = { p -> if (p.type == "reel" || p.type == "video") viewModel.openSharedReel(p) else sharedViewerPost = p }
-                    )
+                    val older = displayedChatMessages.getOrNull(index + 1)
+                    val newer = displayedChatMessages.getOrNull(index - 1)
+                    val newDay = older == null || !sameChatDay(older.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis(), m.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis())
+                    val firstOfGroup = newDay || older?.senderUid != m.senderUid || older.type == "call"
+                    val lastOfGroup = newer == null || newer.senderUid != m.senderUid
+                    Column(Modifier.animateItem()) {
+                        if (newDay) NoorDateChip(chatDayLabel(m.createdAt))
+                        if (unreadCount > 0 && index == unreadCount - 1) NoorUnreadDivider(unreadCount)
+                        Box(Modifier.padding(top = if (firstOfGroup) 6.dp else 1.5.dp, bottom = if (lastOfGroup) 2.dp else 0.dp)) {
+                            if (m.type == "call") {
+                                NoorCallLogBubble(
+                                    text = m.text,
+                                    mine = mine,
+                                    time = if (m.createdAt > 0) android.text.format.DateFormat.format("h:mm a", m.createdAt).toString() else "",
+                                    onCallBack = { startCall(video = m.text.contains("video", ignoreCase = true)) }
+                                )
+                            } else NoorSwipeToReply(onReply = { replyTarget = m }) {
+                                StitchChatMessageBubble(
+                                    message = m,
+                                    mine = mine,
+                                    canDelete = mine,
+                                    currentUid = currentUid,
+                                    highlighted = highlightedChatMessageId == m.id,
+                                    onReport = {
+                                        messageReport = ReportTarget("chat_message", "${chatId.orEmpty()}/${m.id}", m.senderUid, m.senderName, m.text)
+                                    },
+                                    onReply = { replyTarget = it },
+                                    onOpenReplyTarget = ::openChatReplyTarget,
+                                    onReact = { emoji ->
+                                        val current = m.reactions[currentUid]
+                                        repository.reactToChatMessage(chatId.orEmpty(), m.id, if (emoji == current) "" else emoji)
+                                    },
+                                    onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) },
+                                    tick = if (mine) chatMeta.tickFor(otherUid, m.createdAt) else -1,
+                                    onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) },
+                                    blockedUids = blockedUids,
+                                    onOpenShared = { p -> if (p.type == "reel" || p.type == "video") viewModel.openSharedReel(p) else sharedViewerPost = p },
+                                    modern = true,
+                                    tail = firstOfGroup,
+                                    onForward = if (m.type == "post_share") null else ({ forwardMsg = m })
+                                )
+                            }
+                        }
                     }
                 }
-                item {
-                    StitchChatDateChip()
-                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !atBottom, enter = androidx.compose.animation.scaleIn() + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut(),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp)
+            ) { NoorScrollFab(unseen) { chatScope.launch { chatListState.animateScrollToItem(0) } } }
             }
             error?.let {
                 Text(it, color = Color(0xFFE5484D), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -12298,61 +12264,35 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                replyTarget?.let { target ->
-                    StitchReplyComposerPreview(
-                        target = target,
-                        onCancel = { replyTarget = null }
-                    )
+                androidx.compose.animation.AnimatedVisibility(replyTarget != null) {
+                    replyTarget?.let { target ->
+                        Box(Modifier.padding(horizontal = 8.dp)) { StitchReplyComposerPreview(target = target, onCancel = { replyTarget = null }) }
+                    }
                 }
-                if (pendingMedia != null || isRecording) {
-                    StitchPendingMediaPreview(
-                        pendingType = pendingType,
-                        pendingMedia = pendingMedia,
-                        isRecording = isRecording,
-                        onRemove = {
-                            pendingMedia = null
-                            pendingType = "text"
-                        }
-                    )
+                if (pendingMedia != null) {
+                    Box(Modifier.padding(horizontal = 8.dp)) {
+                        StitchPendingMediaPreview(
+                            pendingType = pendingType,
+                            pendingMedia = pendingMedia,
+                            isRecording = false,
+                            onRemove = {
+                                pendingMedia = null
+                                pendingType = "text"
+                            }
+                        )
+                    }
                 }
-                if (showAttachments || pendingMedia != null || isRecording) {
+                androidx.compose.animation.AnimatedVisibility(showAttachments) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        item {
-                            StitchMessageTool(Icons.Default.PhotoCamera, "Camera") {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                    captureCameraPhoto()
-                                } else {
-                                    cameraPermission.launch(Manifest.permission.CAMERA)
-                                }
-                            }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.Image, "Image") { imagePicker.launch("image/*") }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.Videocam, "Video") { videoPicker.launch("video/*") }
-                        }
-                        item {
-                            StitchMessageTool(
-                                icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                label = if (isRecording) "Send voice" else "Record",
-                                active = isRecording
-                            ) {
-                                if (isRecording) {
-                                    stopVoiceRecordingAndSend()
-                                } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                    startVoiceRecording()
-                                } else {
-                                    audioPermission.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                        }
+                        item { StitchMessageTool(Icons.Default.Image, "Gallery") { imagePicker.launch("image/*") } }
+                        item { StitchMessageTool(Icons.Default.Videocam, "Video") { videoPicker.launch("video/*") } }
                         item {
                             StitchMessageTool(Icons.Default.LocationOn, "Location") {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -12362,49 +12302,28 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                                 }
                             }
                         }
-                        item {
-                            StitchMessageTool(Icons.Default.Article, "Files") { filePicker.launch("*/*") }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.LocalLibrary, "PDF") { pdfPicker.launch("application/pdf") }
-                        }
+                        item { StitchMessageTool(Icons.Default.Article, "Document") { filePicker.launch("*/*") } }
+                        item { StitchMessageTool(Icons.Default.LocalLibrary, "PDF") { pdfPicker.launch("application/pdf") } }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showAttachments = !showAttachments }) {
-                        Icon(
-                            if (showAttachments) Icons.Default.Close else Icons.Default.Add,
-                            contentDescription = if (showAttachments) "Close attachments" else "Add attachment",
-                            tint = if (showAttachments) stitchPrimary() else stitchMutedText()
-                        )
-                    }
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = {
-                            draft = it.take(2000)
-                            chatId?.let { id -> com.noorpro.app.data.ChatRealtime.setTyping(id, draft.isNotBlank()) }
-                        },
-                        placeholder = { Text("Message…") },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 4,
-                        shape = RoundedCornerShape(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        enabled = !sending && (draft.trim().isNotBlank() || pendingMedia != null),
-                        onClick = { sendChatPayload() },
-                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                        shape = RoundedCornerShape(999.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier.height(52.dp)
-                    ) {
-                        if (sending) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Send", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                }
+                NoorChatComposer(
+                    draft = draft,
+                    onDraft = {
+                        draft = it.take(2000)
+                        chatId?.let { id -> com.noorpro.app.data.ChatRealtime.setTyping(id, draft.isNotBlank()) }
+                    },
+                    sending = sending,
+                    canSendWithoutText = pendingMedia != null,
+                    recorder = voiceRec,
+                    onSend = { sendChatPayload() },
+                    onAttach = { showAttachments = !showAttachments },
+                    onCamera = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) captureCameraPhoto()
+                        else cameraPermission.launch(Manifest.permission.CAMERA)
+                    },
+                    ensureMic = ::ensureMic,
+                    onVoice = ::sendVoice
+                )
             }
         }
     }
@@ -12732,18 +12651,23 @@ internal fun StitchChatMessageBubble(
     tick: Int = -1,
     onDeleteForMe: (() -> Unit)? = null,
     blockedUids: Set<String> = emptySet(),
-    onOpenShared: ((UmmahPost) -> Unit)? = null
+    onOpenShared: ((UmmahPost) -> Unit)? = null,
+    /** 1.0.92: WhatsApp-style 1:1 look (tails, grouping, no avatars, voice-note bubble). */
+    modern: Boolean = false,
+    tail: Boolean = true,
+    onForward: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val bubbleColor = if (mine) stitchPrimary() else stitchSurface()
-    val textColor = if (mine) Color.White else stitchText()
+    val cc = chatColors()
+    val bubbleColor = if (modern) (if (mine) cc.mine else cc.other) else if (mine) stitchPrimary() else stitchSurface()
+    val textColor = if (modern) (if (mine) cc.onMine else cc.onOther) else if (mine) Color.White else stitchText()
     val isArabic = message.text.any { it in '\u0600'..'\u06FF' }
     var menuOpen by remember(message.id) { mutableStateOf(false) }
     var previewOpen by remember(message.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val isHttpMedia = message.mediaUrl.startsWith("http")
     val hasMedia = message.mediaUrl.isNotBlank()
-    val bubbleShape = RoundedCornerShape(
+    val bubbleShape: androidx.compose.ui.graphics.Shape = if (modern) ChatBubbleShape(mine, tail) else RoundedCornerShape(
         topStart = if (!mine) 2.dp else 12.dp,
         topEnd = if (mine) 2.dp else 12.dp,
         bottomStart = 12.dp,
@@ -12786,15 +12710,15 @@ internal fun StitchChatMessageBubble(
     }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        if (!mine) {
+        if (!mine && !modern) {
             StitchChatAvatar(name = message.senderName, mine = false)
             Spacer(Modifier.width(8.dp))
         }
         Column(
             horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(max = 292.dp)
+            modifier = Modifier.widthIn(max = if (modern) 318.dp else 292.dp)
         ) {
-            if (!mine && message.senderName.isNotBlank()) {
+            if (!mine && !modern && message.senderName.isNotBlank()) {
                 Text(
                     message.senderName,
                     color = stitchMutedText(),
@@ -12813,9 +12737,20 @@ internal fun StitchChatMessageBubble(
                         onClick = { if (hasMedia) openMedia() },
                         onLongClick = { menuOpen = true }
                     )
-                    .padding(if (hasMedia && message.type in listOf("image", "video", "reel")) 5.dp else 12.dp)
+                    .then(
+                        if (modern) {
+                            val base = if (hasMedia && message.type in listOf("image", "video", "reel")) 4.dp else 9.dp
+                            Modifier.padding(start = base + if (mine) 0.dp else CHAT_TAIL, end = base + if (mine) CHAT_TAIL else 0.dp, top = if (base == 9.dp) 6.dp else 4.dp, bottom = 4.dp)
+                        } else Modifier.padding(if (hasMedia && message.type in listOf("image", "video", "reel")) 5.dp else 12.dp)
+                    )
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(if (modern) 3.dp else 6.dp)) {
+                    if (message.forwarded) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = textColor.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
+                            Text(" Forwarded", color = textColor.copy(alpha = 0.6f), fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                        }
+                    }
                     if (message.replyToText.isNotBlank() || message.replyToType.isNotBlank()) {
                         StitchReplyQuote(
                             replyName = message.replyToName,
@@ -12830,7 +12765,7 @@ internal fun StitchChatMessageBubble(
                         message.type == "video" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "post_share" -> SharedPostCard(message, blockedUids) { p -> onOpenShared?.invoke(p) }
                         message.type == "reel" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
-                        message.type == "audio" && hasMedia -> StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
+                        message.type == "audio" && hasMedia -> if (modern) VoiceNoteBubble(message, mine, textColor) else StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
                         message.type == "location" && hasMedia -> StitchMessageMediaRow(Icons.Default.LocationOn, "Open shared location", textColor, hasMenu = false, onClick = ::openMedia)
                         message.type == "pdf" && hasMedia -> StitchMessageMediaRow(Icons.Default.Article, "Open PDF", textColor, hasMenu = true, onClick = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "file" && hasMedia -> StitchMessageMediaRow(Icons.Default.CloudQueue, "Open file", textColor, hasMenu = true, onClick = ::openMedia, onMenu = { menuOpen = true })
@@ -12839,7 +12774,7 @@ internal fun StitchChatMessageBubble(
                         Text(
                             message.text,
                             color = textColor,
-                            fontSize = 14.sp,
+                            fontSize = if (modern) 15.sp else 14.sp,
                             textAlign = if (isArabic) TextAlign.End else TextAlign.Start
                         )
                     }
@@ -12850,10 +12785,10 @@ internal fun StitchChatMessageBubble(
                     val stamp = if (message.createdAt > 0) android.text.format.DateFormat.format("h:mm a", message.createdAt).toString() else ""
                     if (stamp.isNotBlank() || tick >= 0) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.End)) {
-                            Text(stamp, color = textColor.copy(alpha = 0.7f), fontSize = 10.sp)
+                            Text(stamp, color = if (modern) (if (mine) textColor.copy(alpha = 0.6f) else cc.meta) else textColor.copy(alpha = 0.7f), fontSize = if (modern) 11.sp else 10.sp)
                             if (tick >= 0) {
                                 Spacer(Modifier.width(3.dp))
-                                NoorReadTicks(tick, if (tick == 3) NoorReadBlue else textColor.copy(alpha = 0.75f))
+                                NoorReadTicks(tick, if (tick == 3) NoorReadBlue else if (modern) cc.meta else textColor.copy(alpha = 0.75f))
                             }
                         }
                     }
@@ -12907,6 +12842,9 @@ internal fun StitchChatMessageBubble(
                 if (message.text.isNotBlank()) {
                     androidx.compose.material3.DropdownMenuItem(text = { Text("Copy") }, onClick = { menuOpen = false; copyText() })
                 }
+                if (onForward != null && message.type != "call") {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Forward") }, onClick = { menuOpen = false; onForward() })
+                }
                 if (!mine && onReport != null) {
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Report or block", color = Color(0xFFBA1A1A)) },
@@ -12927,7 +12865,7 @@ internal fun StitchChatMessageBubble(
                 }
             }
         }
-        if (mine) {
+        if (mine && !modern) {
             Spacer(Modifier.width(8.dp))
             StitchChatAvatar(name = message.senderName, mine = true)
         }
