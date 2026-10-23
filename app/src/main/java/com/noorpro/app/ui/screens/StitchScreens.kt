@@ -3629,6 +3629,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     var optimisticSaveCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticCommentCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticShareCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    // 1.0.84: server count at the moment of each optimistic change ("like:id", "save:id", "comment:id").
+    var optimisticBase by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticViewCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var playbackErrorReelId by remember { mutableStateOf<String?>(null) }
     var playbackRetryToken by remember { mutableStateOf(0) }
@@ -3987,12 +3989,14 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     val displayedLikeCount = displayedEngagementCount(
                         post.likeCount,
                         effectiveLiked,
-                        optimisticLikeCounts[post.id]
+                        optimisticLikeCounts[post.id],
+                        optimisticBase["like:${post.id}"]
                     )
                     val displayedSaveCount = displayedEngagementCount(
                         post.saveCount,
                         effectiveSaved,
-                        optimisticSaveCounts[post.id]
+                        optimisticSaveCounts[post.id],
+                        optimisticBase["save:${post.id}"]
                     )
                         StitchLiveReelPage(
                             post = post,
@@ -4004,7 +4008,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             isLiked = effectiveLiked,
                             isSaved = effectiveSaved,
                             displayLikeCount = displayedLikeCount,
-                            displayCommentCount = maxOf(post.commentCount, optimisticCommentCounts[post.id] ?: 0L),
+                            displayCommentCount = displayedEngagementCount(post.commentCount, false, optimisticCommentCounts[post.id], optimisticBase["comment:${post.id}"]),
                             displaySaveCount = displayedSaveCount,
                             displayShareCount = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L),
                             displayViewCount = maxOf(post.viewCount, optimisticViewCounts[post.id] ?: 0L),
@@ -4069,6 +4073,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val next = !current
                                     optimisticLikes = optimisticLikes + (post.id to next)
                                     val previousCount = displayedLikeCount
+                                    optimisticBase = optimisticBase + ("like:${post.id}" to post.likeCount)
                                     optimisticLikeCounts = optimisticLikeCounts + (
                                         post.id to nextEngagementCount(previousCount, next)
                                     )
@@ -4098,6 +4103,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val next = !current
                                     optimisticSaves = optimisticSaves + (post.id to next)
                                     val previousCount = displayedSaveCount
+                                    optimisticBase = optimisticBase + ("save:${post.id}" to post.saveCount)
                                     optimisticSaveCounts = optimisticSaveCounts + (
                                         post.id to nextEngagementCount(previousCount, next)
                                     )
@@ -4125,6 +4131,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 } else if (!(optimisticLikes[post.id] ?: (post.id in interactions.liked))) {
                                     optimisticLikes = optimisticLikes + (post.id to true)
                                     val previousCount = displayedLikeCount
+                                    optimisticBase = optimisticBase + ("like:${post.id}" to post.likeCount)
                                     optimisticLikeCounts = optimisticLikeCounts + (
                                         post.id to nextEngagementCount(previousCount, true)
                                     )
@@ -4236,8 +4243,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     viewModel.openCreatorProfile(uid, name, handle)
                 },
                 onCommentAdded = {
-                    val next = maxOf(target.commentCount, optimisticCommentCounts[target.id] ?: 0L) + 1L
-                    optimisticCommentCounts = optimisticCommentCounts + (target.id to next)
+                    // Base on the live post (not the stale sheet target) so the server can take over.
+                    val live = reels.firstOrNull { it.id == target.id } ?: target
+                    val shown = displayedEngagementCount(live.commentCount, false, optimisticCommentCounts[target.id], optimisticBase["comment:${target.id}"])
+                    optimisticBase = optimisticBase + ("comment:${target.id}" to live.commentCount)
+                    optimisticCommentCounts = optimisticCommentCounts + (target.id to shown + 1L)
                 },
                 onDismiss = { commentPost = null }
             )

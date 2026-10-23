@@ -106,9 +106,16 @@ internal fun reelOrderWithFocus(
 internal fun displayedEngagementCount(
     remoteCount: Long,
     activeForCurrentUser: Boolean,
-    optimisticCount: Long?
-): Long = optimisticCount
-    ?: maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+    optimisticCount: Long?,
+    /** 1.0.84: server value when the optimistic change was made. Once the live snapshot moves
+     *  away from it (our write landed, or someone else liked/commented) the server wins, so the
+     *  count never goes stale. null = legacy behaviour. */
+    remoteAtChange: Long? = null,
+): Long = when {
+    optimisticCount == null -> maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+    remoteAtChange != null && remoteCount != remoteAtChange -> maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+    else -> optimisticCount
+}
 
 internal fun nextEngagementCount(currentCount: Long, activating: Boolean): Long =
     (currentCount + if (activating) 1L else -1L).coerceAtLeast(0L)

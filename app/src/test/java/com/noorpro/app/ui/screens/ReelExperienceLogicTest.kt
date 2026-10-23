@@ -181,4 +181,16 @@ class ReelExperienceLogicTest {
         publishedAt = 0L,
         category = category
     )
+
+    @org.junit.Test
+    fun optimisticCountYieldsToLiveServerValue() {
+        // optimistic like on a post at 10 -> shows 11 until the snapshot moves
+        org.junit.Assert.assertEquals(11L, displayedEngagementCount(10L, true, 11L, 10L))
+        // our write landed
+        org.junit.Assert.assertEquals(11L, displayedEngagementCount(11L, true, 11L, 10L))
+        // others liked too -> live total, not stale 11
+        org.junit.Assert.assertEquals(15L, displayedEngagementCount(15L, true, 11L, 10L))
+        // comment deleted server-side -> count goes down
+        org.junit.Assert.assertEquals(4L, displayedEngagementCount(4L, false, 6L, 5L))
+    }
 }

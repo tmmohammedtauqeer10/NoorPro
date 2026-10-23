@@ -1,6 +1,6 @@
 const admin = require("firebase-admin");
 const {onRequest} = require("firebase-functions/v2/https");
-const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onDocumentCreated, onDocumentDeleted} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {defineSecret} = require("firebase-functions/params");
 const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
@@ -1066,3 +1066,28 @@ exports.notifyIncomingCall = onDocumentCreated(
         return null;
       }));
     });
+
+
+// 1.0.84: keep commentCount accurate when a comment is deleted (author delete or account
+// deletion). Clients may only ever +1 commentCount (rules), so the trusted -1 lives here.
+// Transaction clamps at 0; falls back to a pending ummah_submissions doc like the client does.
+exports.decrementCommentCountOnDelete = onDocumentDeleted(
+    {document: "ummah_comments/{commentId}", region: REGION},
+    async (event) => {
+      const c = event.data && event.data.data();
+      const postId = c && typeof c.postId === "string" ? c.postId.trim() : "";
+      if (!postId || postId.includes("/")) return;
+      const db = admin.firestore();
+      for (const col of ["ummah_posts", "ummah_submissions"]) {
+        const ref = db.collection(col).doc(postId);
+        const done = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return false;
+          const cur = Number(snap.get("commentCount")) || 0;
+          tx.update(ref, {commentCount: Math.max(0, cur - 1)});
+          return true;
+        });
+        if (done) return;
+      }
+    },
+);
