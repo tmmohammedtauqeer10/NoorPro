@@ -35,6 +35,7 @@ enum class DeenScreen {
     DASHBOARD,
     QURAN,
     REELS,
+    REELS_EXPLORE,
     NOW_PLAYING,
     PRAYER_TIMES,
     QIBLA_MORE,
@@ -482,6 +483,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     var reelFocusPost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
 
     fun openSharedReel(post: com.noorpro.app.data.UmmahPost) {
+        reelFocusPost = post
+        openReel(post.id)
+    }
+
+    /** 1.0.91: Explore/search results to swipe through in the Reels player (empty = normal feed). */
+    var reelQueue by mutableStateOf<List<com.noorpro.app.data.UmmahPost>>(emptyList())
+
+    fun openReelFromResults(post: com.noorpro.app.data.UmmahPost, results: List<com.noorpro.app.data.UmmahPost>) {
+        reelQueue = results.ifEmpty { listOf(post) }
         reelFocusPost = post
         openReel(post.id)
     }

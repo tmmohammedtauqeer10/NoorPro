@@ -284,6 +284,7 @@ fun MainLayout() {
                 DeenScreen.DASHBOARD -> StitchHomeScreen(viewModel = viewModel)
                 DeenScreen.QURAN -> StitchQuranScreen(viewModel = viewModel)
                 DeenScreen.REELS -> StitchReelsScreen(viewModel = viewModel)
+                DeenScreen.REELS_EXPLORE -> com.noorpro.app.ui.screens.ReelsExploreScreen(viewModel = viewModel)
                 DeenScreen.NOW_PLAYING -> com.noorpro.app.ui.screens.AlNoorNowPlayingScreen(viewModel)
                 DeenScreen.PRAYER_TIMES -> PrayerTimesScreen(viewModel = viewModel)
                 DeenScreen.QIBLA_MORE -> StitchQiblaScreen(viewModel = viewModel)

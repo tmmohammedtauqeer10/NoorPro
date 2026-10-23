@@ -352,6 +352,22 @@ class UmmahRepository {
     private fun DocumentSnapshot.rawMediaUrl(): String =
         com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_MEDIA_FIELDS) { getString(it) }
 
+    /**
+     * 1.0.91 Reels search: one-shot array-contains query over the server-maintained search arrays
+     * ("hashtags" or "searchKeywords"), limited to published posts. Client ranks + filters blocks.
+     */
+    fun searchPublishedPosts(field: String, value: String, limit: Long = 80, onResult: (List<UmmahPost>) -> Unit) {
+        if (value.isBlank() || field !in setOf("hashtags", "searchKeywords")) { onResult(emptyList()); return }
+        firestore.collection("ummah_posts")
+            .whereEqualTo("approved", true)
+            .whereEqualTo("status", "published")
+            .whereArrayContains(field, value)
+            .limit(limit)
+            .get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.toUmmahPost() }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
     private fun DocumentSnapshot.toUmmahPost(fallbackTimestamp: Long = 0L): UmmahPost = UmmahPost(
         id = id,
         type = getString("type")?.lowercase() ?: "image",

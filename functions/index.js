@@ -815,6 +815,7 @@ async function promoteUmmahSubmission(submission, submissionId) {
     ...carouselField(type, mediaUrl, data.mediaUrls),
     publishedAt: admin.firestore.FieldValue.serverTimestamp()
   };
+  Object.assign(publishedPost, reelSearchFields({...publishedPost, soundTitle: data.soundTitle || data.audioTitle || ""}));
 
   await admin.firestore().runTransaction(async (transaction) => {
     const existing = await transaction.get(postRef);
@@ -827,6 +828,44 @@ async function promoteUmmahSubmission(submission, submissionId) {
     });
   });
   return {published: true, status: "published", postId: postRef.id};
+}
+
+// 1.0.91 Reels search: Firestore has no full-text search, so every published post carries derived
+// arrays for array-contains queries (client ranks the results). Keys must match the app's
+// ReelSearchKeys.kt. Derived fields only; nothing user-controlled beyond the post's own text.
+const TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
+function reelSearchKey(token) {
+  let x = String(token || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(TASHKEEL, "")
+    .replace(/[\u0622\u0623\u0625\u0671]/g, "\u0627").replace(/\u0649/g, "\u064A").replace(/\u06CC/g, "\u064A")
+    .replace(/\u0629/g, "\u0647").replace(/\u06C1/g, "\u0647").replace(/\u06BE/g, "\u0647");
+  x = x.replace(/[^\p{L}\p{N}_]/gu, "");
+  return x.replace(/(ee|ea|ie)/g, "i").replace(/(oo|ou)/g, "u").replace(/([a-z])\1+/g, "$1");
+}
+const reelSearchTokens = (t) => String(t || "").split(/[^\p{L}\p{N}_\u064B-\u065F\u0670]+/u).map(reelSearchKey).filter(Boolean);
+const reelHashtags = (t) => [...new Set([...String(t || "").matchAll(/(?<![\p{L}\p{N}_])#([\p{L}\p{N}_]{1,40})/gu)].map((m) => m[1].toLowerCase()))].slice(0, 30);
+const REEL_SEARCH_VERSION = 1;
+function reelSearchFields(d) {
+  const caption = `${d.caption || ""} ${d.arabicText || ""}`;
+  const hashtags = reelHashtags(caption);
+  const handle = String(d.creatorHandle || "").replace(/^@/, "");
+  const prefixes = (tokens, set, cap) => {
+    for (const t of tokens) for (let i = 2; i <= Math.min(t.length, 15); i++) { if (set.size >= cap) return; set.add(t.slice(0, i)); }
+  };
+  const cap = new Set(); prefixes(reelSearchTokens(caption).slice(0, 60), cap, 220);
+  hashtags.forEach((h) => { const k = reelSearchKey(h); if (k.length >= 2) cap.add(k.slice(0, 15)); });
+  const user = new Set(); prefixes([reelSearchKey(handle), ...reelSearchTokens(d.creatorName)], user, 60);
+  const sound = new Set(); prefixes(reelSearchTokens(d.soundTitle || d.audioTitle || ""), sound, 40);
+  const all = new Set([...cap, ...user, ...sound]);
+  return {hashtags, captionKeywords: [...cap], usernameLower: [...user], searchKeywords: [...all].slice(0, 320),
+    searchSrc: `${REEL_SEARCH_VERSION}|${caption}|${handle}|${d.creatorName || ""}|${d.soundTitle || d.audioTitle || ""}`.slice(0, 1500),
+    searchVersion: REEL_SEARCH_VERSION};
+}
+
+async function indexReelDoc(ref, data) {
+  const f = reelSearchFields(data || {});
+  if ((data || {}).searchSrc === f.searchSrc && Array.isArray((data || {}).searchKeywords)) return false;
+  await ref.update(f);
+  return true;
 }
 
 // 1.0.75: optional multi-photo carousel. Only for image posts; 2..10 https strings and the first
@@ -1280,5 +1319,35 @@ exports.youtubeChannelFeed = onRequest(
     ytCache.set(channelId, {at: Date.now(), body});
     res.set("Cache-Control", "public, max-age=600");
     return res.json(await withAudio(body));
+  }
+);
+
+// 1.0.91: index any post written to ummah_posts by another path (admin tools, legacy code).
+exports.indexReelSearchOnCreate = onDocumentCreated(
+  {document: "ummah_posts/{postId}", region: REGION, timeoutSeconds: 30, memory: "256MiB"},
+  async (event) => {
+    if (!event.data) return;
+    await indexReelDoc(event.data.ref, event.data.data()).catch((e) => console.warn("indexReelSearch", event.params.postId, e.message));
+  }
+);
+
+// 1.0.91: one-off / repeatable backfill of the search arrays on existing published posts.
+// Idempotent (skips docs already indexed with the same source text), bounded to 400 docs per call,
+// writes only derived fields. Call repeatedly with ?after=<lastId> until done=true.
+exports.backfillReelSearch = onRequest(
+  {region: REGION, timeoutSeconds: 120, memory: "256MiB", maxInstances: 1},
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({error: "Use POST."});
+    const db = admin.firestore();
+    let q = db.collection("ummah_posts").orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+    const after = cleanString(req.query.after, "");
+    if (after) q = q.startAfter(after);
+    const snap = await q.get();
+    let updated = 0;
+    for (const doc of snap.docs) {
+      if (await indexReelDoc(doc.ref, doc.data()).catch(() => false)) updated++;
+    }
+    const last = snap.docs.length ? snap.docs[snap.docs.length - 1].id : "";
+    return res.json({scanned: snap.size, updated, last, done: snap.size < 400});
   }
 );

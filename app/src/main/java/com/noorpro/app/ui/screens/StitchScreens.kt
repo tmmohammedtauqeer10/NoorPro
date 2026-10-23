@@ -3222,7 +3222,7 @@ private fun StitchDivider() {
     )
 }
 
-private data class StitchUmmahFeedState(
+internal data class StitchUmmahFeedState(
     val posts: List<UmmahPost>,
     val error: String?,
     val loading: Boolean
@@ -3244,7 +3244,7 @@ private data class StitchUserCommentState(
 )
 
 @Composable
-private fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
+internal fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
     val repository = remember(refreshKey) { UmmahRepository() }
     var posts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
     var profiles by remember { mutableStateOf<Map<String, com.noorpro.app.data.UmmahProfile>>(emptyMap()) }
@@ -3335,7 +3335,7 @@ private fun rankUmmahPosts(
 /** Live uid     public profile map, so avatars/names update everywhere the moment a profile
  *  is edited (photo, name, @username). */
 @Composable
-private fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahProfile> {
+internal fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahProfile> {
     val repository = remember { UmmahRepository() }
     var profiles by remember { mutableStateOf<Map<String, com.noorpro.app.data.UmmahProfile>>(emptyMap()) }
     DisposableEffect(repository) {
@@ -3502,12 +3502,12 @@ internal fun isTransientReelError(errorCode: Int, httpCode: Int?): Boolean = whe
         errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
 }
 
-private fun UmmahPost.isReelLike(): Boolean {
+internal fun UmmahPost.isReelLike(): Boolean {
     val cleanType = type.lowercase()
     return cleanType == "reel" || cleanType == "short"
 }
 
-private fun UmmahPost.isVideoMedia(): Boolean {
+internal fun UmmahPost.isVideoMedia(): Boolean {
     val cleanType = type.lowercase()
     val cleanUrl = mediaUrl.lowercase()
     return cleanType == "reel" ||
@@ -3518,7 +3518,7 @@ private fun UmmahPost.isVideoMedia(): Boolean {
         cleanUrl.contains("video")
 }
 
-private fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
+internal fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
 
 /** Image model for a post preview: thumbnail, else (for videos) a streamed first frame. */
 private fun UmmahPost.previewModel(): Any? =
@@ -3560,7 +3560,7 @@ private fun ExoPlayer.applyStitchCaptions(enabled: Boolean) {
     )
 }
 
-private fun compactCount(value: Long): String = abbreviateCount(value)
+internal fun compactCount(value: Long): String = abbreviateCount(value)
 
 /** X-style abbreviated counts: 999, 1.2K, 12K, 1.5M, 2.1B. */
 internal fun abbreviateCount(value: Long): String {
@@ -3637,9 +3637,12 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // Reels already counted as a view this session (dedupe so one watch = one view).
     var viewedReelIds by remember { mutableStateOf(emptySet<String>()) }
     val requestedReelId = viewModel.reelFocusId.trim()
+    val exploreQueue = viewModel.reelQueue
     val rankedReels = remember(
-        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter, viewModel.reelFocusPost
+        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter, viewModel.reelFocusPost, exploreQueue
     ) {
+        // 1.0.91: opened from Reels Explore / search — play exactly those results, in that order.
+        if (exploreQueue.isNotEmpty()) return@remember exploreQueue.filter { it.opensInVideoViewer() }.filterNot { it.id in reelFeedback.hiddenReelIds }
         (feedState.posts + listOfNotNull(viewModel.reelFocusPost).filter { f -> feedState.posts.none { it.id == f.id } })
             .filter { it.opensInVideoViewer() }
             .filter { topTab != "Following" || it.creatorUid in following }
@@ -4197,13 +4200,32 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                 onSelected = { topTab = it },
                 onProfile = { viewModel.openMyProfile() },
                 onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
-                onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
+                onSearch = { viewModel.navigateTo(DeenScreen.REELS_EXPLORE) },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .padding(top = 18.dp, start = 22.dp, end = 22.dp)
             )
         }
+        if (exploreQueue.isNotEmpty() && !landscapeViewer) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 74.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { viewModel.reelQueue = emptyList() }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Explore results · ${exploreQueue.size}", color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.Close, contentDescription = "Back to For You", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
+        DisposableEffect(Unit) { onDispose { viewModel.reelQueue = emptyList() } }
+        LaunchedEffect(topTab) { if (topTab != "For You") viewModel.reelQueue = emptyList() }
         if (hashtagFilter.isNotBlank() && !landscapeViewer) {
             Row(
                 modifier = Modifier
@@ -5871,7 +5893,7 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
     }
 }
 
-private data class StitchSearchUser(val uid: String, val name: String, val handle: String, val photoUrl: String)
+internal data class StitchSearchUser(val uid: String, val name: String, val handle: String, val photoUrl: String)
 
 @Composable
 private fun StitchSearchSectionLabel(text: String) {
@@ -5880,7 +5902,7 @@ private fun StitchSearchSectionLabel(text: String) {
 
 /** A "People" search result     live avatar + name + @handle, tap to open the creator's profile. */
 @Composable
-private fun StitchSearchUserRow(user: StitchSearchUser, onClick: () -> Unit) {
+internal fun StitchSearchUserRow(user: StitchSearchUser, onClick: () -> Unit) {
     StitchCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(16.dp)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -9975,7 +9997,7 @@ private fun StitchProfileMediaGrid(
 /** Profile grid image: thumbnail, then the post's own media / a streamed video frame, with Coil
  *  memory+disk caching. A failed thumbnail falls through to the next candidate instead of grey. */
 @Composable
-private fun StitchProfileTileImage(post: UmmahPost) {
+internal fun StitchProfileTileImage(post: UmmahPost) {
     val context = LocalContext.current
     val candidates = remember(post.id, post.thumbnailUrl, post.mediaUrl) {
         buildList<Any> {
