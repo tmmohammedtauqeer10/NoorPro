@@ -32,8 +32,8 @@ android {
     targetSdk = 36
     // Unit-test manifest merging does not receive placeholders from the Secrets plugin.
     manifestPlaceholders["MAPS_API_KEY"] = noorLocalProperties.getProperty("MAPS_API_KEY", "NO_KEY_CONFIGURED")
-    versionCode = 89
-    versionName = "1.0.87"
+    versionCode = 90
+    versionName = "1.0.88"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

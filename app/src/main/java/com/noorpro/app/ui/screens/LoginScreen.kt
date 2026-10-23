@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -214,29 +213,7 @@ fun LoginScreen(viewModel: DeenViewModel) {
                     }
     }
 
-    var showPhone by remember { mutableStateOf(false) }
-    if (showPhone) {
-        androidx.activity.compose.BackHandler { showPhone = false }
-        var pendingSignup by remember { mutableStateOf<PhoneSignup?>(null) }
-        PhoneAuthFlow(
-            linkMode = false, onBack = { showPhone = false },
-            onTerms = { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) }, onPrivacy = { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) },
-            onSignedUp = { _, p -> pendingSignup = p },
-        ) { user ->
-            showPhone = false
-            val p = pendingSignup
-            viewModel.handleFirebaseUser(user, "", p?.name ?: user.displayName.orEmpty().ifBlank { "Member " + user.phoneNumber.orEmpty().takeLast(4) })
-            // 1.0.85: new phone accounts get the name/@username/photo chosen in the sign-up step.
-            if (p != null) {
-                viewModel.updateUmmahProfile(p.name, p.username) { _, _ -> }
-                p.photo?.let { uri -> viewModel.updateProfilePhoto(context, uri) { _, _ -> } }
-            }
-            viewModel.navigateTo(DeenScreen.DASHBOARD)
-        }
-        return
-    }
     AuthContent(
-        onPhone = { showPhone = true },
         isRegistering = isRegistering, name = name, email = email, password = password,
         passwordVisible = passwordVisible, acceptedTerms = acceptedTerms, isLoading = isLoading,
         errorMessage = errorMessage, googleErrorMessage = googleErrorMessage,
@@ -300,7 +277,6 @@ fun AuthContent(
     onTogglePassword: () -> Unit, onAcceptTerms: (Boolean) -> Unit,
     onSubmit: () -> Unit, onForgot: () -> Unit, onGoogle: () -> Unit,
     onToggleMode: () -> Unit, onGuest: () -> Unit, onTerms: () -> Unit, onPrivacy: () -> Unit,
-    onPhone: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
@@ -345,19 +321,9 @@ fun AuthContent(
                     Text("Continue with Google", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 googleErrorMessage?.let { InlineMessage(it, isError = true) }
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = onPhone, enabled = !isLoading, shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Phone, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Continue with phone", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-
                 Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                     HorizontalDivider(Modifier.weight(1f), color = scheme.outlineVariant)
-                    Text("or use email", color = scheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                    Text("or continue with email", color = scheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp))
                     HorizontalDivider(Modifier.weight(1f), color = scheme.outlineVariant)
                 }
 
