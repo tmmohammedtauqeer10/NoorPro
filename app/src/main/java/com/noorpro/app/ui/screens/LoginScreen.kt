@@ -217,9 +217,20 @@ fun LoginScreen(viewModel: DeenViewModel) {
     var showPhone by remember { mutableStateOf(false) }
     if (showPhone) {
         androidx.activity.compose.BackHandler { showPhone = false }
-        PhoneAuthFlow(linkMode = false, onBack = { showPhone = false }) { user ->
+        var pendingSignup by remember { mutableStateOf<PhoneSignup?>(null) }
+        PhoneAuthFlow(
+            linkMode = false, onBack = { showPhone = false },
+            onTerms = { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) }, onPrivacy = { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) },
+            onSignedUp = { _, p -> pendingSignup = p },
+        ) { user ->
             showPhone = false
-            viewModel.handleFirebaseUser(user, "", user.displayName.orEmpty().ifBlank { "Member " + user.phoneNumber.orEmpty().takeLast(4) })
+            val p = pendingSignup
+            viewModel.handleFirebaseUser(user, "", p?.name ?: user.displayName.orEmpty().ifBlank { "Member " + user.phoneNumber.orEmpty().takeLast(4) })
+            // 1.0.85: new phone accounts get the name/@username/photo chosen in the sign-up step.
+            if (p != null) {
+                viewModel.updateUmmahProfile(p.name, p.username) { _, _ -> }
+                p.photo?.let { uri -> viewModel.updateProfilePhoto(context, uri) { _, _ -> } }
+            }
             viewModel.navigateTo(DeenScreen.DASHBOARD)
         }
         return
