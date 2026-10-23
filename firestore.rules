@@ -105,6 +105,20 @@ service cloud.firestore {
       allow update: if engagementCounterUpdate();
       allow delete: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
+
+      // 1.0.83 (additive): one view receipt per user per post. Create-once (no update/delete), so a
+      // user can only ever be counted once; the client writes it in the same transaction as the
+      // +1 viewCount increment.
+      match /views/{viewerUid} {
+        allow read: if request.auth != null && request.auth.uid == viewerUid;
+        allow create: if request.auth != null
+          && request.auth.uid == viewerUid
+          && request.resource.data.keys().hasOnly(["uid", "createdAt", "watchedMs"])
+          && request.resource.data.uid == viewerUid
+          && request.resource.data.createdAt == request.time
+          && (!("watchedMs" in request.resource.data) || request.resource.data.watchedMs is int)
+          && exists(/databases/$(database)/documents/ummah_posts/$(postId));
+      }
     }
 
     match /ummah_submissions/{submissionId} {

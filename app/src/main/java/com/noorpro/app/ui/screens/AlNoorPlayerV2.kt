@@ -86,7 +86,14 @@ internal fun rememberNpState(vm: DeenViewModel): Pair<NpState?, NpActions> {
     val fp by (if (init) AlNoorAudioSession.player.playback else remember { kotlinx.coroutines.flow.MutableStateFlow(PlaybackState()) }).collectAsState()
     var likedSet by remember { mutableStateOf(AudioLibraryStore.liked(ctx)) }
     val ft = fq.currentTrack
-    val useFree = ft != null && (fp.isPlaying || (surah == null && track == null))
+    val activeSrc by com.noorpro.app.audio.session.AlNoorSessionRouter.active.collectAsState()
+    // 1.0.83: follow whichever source last took the media session (fixes podcasts/nasheeds showing
+    // "not playing" or flipping to a paused surah); fall back to the old heuristic before any choice.
+    val useFree = ft != null && when (activeSrc) {
+        com.noorpro.app.audio.session.AlNoorSessionRouter.Source.AL_NOOR -> true
+        com.noorpro.app.audio.session.AlNoorSessionRouter.Source.QURAN -> !(playing || surah != null || track != null)
+        null -> fp.isPlaying || (surah == null && track == null)
+    }
     val share: (String) -> Unit = { text ->
         runCatching {
             ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).apply {

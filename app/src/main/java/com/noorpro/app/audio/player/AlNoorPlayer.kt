@@ -51,13 +51,15 @@ class AlNoorPlayer(context: Context) {
         .build().also { player ->
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _playback.update { it.copy(isPlaying = isPlaying) }
-                if (isPlaying) startPositionUpdates() else stopPositionUpdates()
-                updateAudible()
+                syncPlayingFromExo()
+                if (isPlaying) startPositionUpdates()
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                updateAudible()
+                // 1.0.83: notification / Bluetooth / audio-focus pause+resume and buffering all
+                // land here, so the UI always mirrors ExoPlayer (not just our own play() calls).
+                syncPlayingFromExo()
+                if (playWhenReady) startPositionUpdates() else stopPositionUpdates()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -82,7 +84,7 @@ class AlNoorPlayer(context: Context) {
                 if (duration > 0) {
                     _playback.update { it.copy(durationMs = duration) }
                 }
-                updateAudible()
+                syncPlayingFromExo()
             }
         })
     }
@@ -91,6 +93,16 @@ class AlNoorPlayer(context: Context) {
 
     /** True while Al Noor audio is playing or about to play (buffering). Reels observe this to pause. */
     val audible: StateFlow<Boolean> = _audible.asStateFlow()
+
+    /** "Playing" for the UI = user intends to play and the player isn't idle/ended (buffering counts). */
+    private fun effectivePlaying(): Boolean = exo.playWhenReady &&
+        exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
+
+    private fun syncPlayingFromExo() {
+        val p = effectivePlaying()
+        _playback.update { it.copy(isPlaying = p) }
+        updateAudible()
+    }
 
     private fun updateAudible() {
         _audible.value = exo.playWhenReady &&
@@ -310,7 +322,7 @@ class AlNoorPlayer(context: Context) {
                 val buf = exo.bufferedPosition.coerceAtLeast(0L)
                 val dur = exo.duration.takeIf { it > 0 } ?: _playback.value.durationMs
                 _playback.update {
-                    it.copy(positionMs = pos, bufferedMs = buf, durationMs = dur, isPlaying = exo.isPlaying)
+                    it.copy(positionMs = pos, bufferedMs = buf, durationMs = dur, isPlaying = effectivePlaying())
                 }
                 delay(500L)
             }

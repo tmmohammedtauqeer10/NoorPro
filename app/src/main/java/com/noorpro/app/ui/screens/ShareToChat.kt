@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import coil.compose.AsyncImage
 import com.noorpro.app.data.StoryRepository
 import com.noorpro.app.data.UmmahMessage
@@ -261,8 +263,13 @@ internal fun SharedPostCardContent(message: UmmahMessage, unavailable: Boolean, 
             Spacer(Modifier.width(8.dp))
             Text(message.sharedCreatorName.ifBlank { "Noor Pro creator" }, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(Modifier.fillMaxWidth().aspectRatio(if (reel) 9f / 14f else 1f).background(Color(0xFF1B2A2A))) {
-            if (message.sharedThumb.startsWith("https://")) AsyncImage(message.sharedThumb, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        // 1.0.83: use the thumbnail's real aspect (clamped) and a sharp decode instead of a fixed crop.
+        var ar by androidx.compose.runtime.remember(message.sharedThumb) { androidx.compose.runtime.mutableFloatStateOf(ChatMediaAspect.get(message.sharedThumb) ?: if (reel) 9f / 14f else 1f) }
+        Box(Modifier.fillMaxWidth().aspectRatio(ar.coerceIn(0.56f, 1.6f)).background(Color(0xFF1B2A2A))) {
+            if (message.sharedThumb.startsWith("https://")) AsyncImage(
+                coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(message.sharedThumb).size(1080).crossfade(true).build(), null,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                onSuccess = { st -> val z = st.painter.intrinsicSize; if (z.width > 0f && z.height > 0f) { ChatMediaAspect.put(message.sharedThumb, z.width / z.height); ar = z.width / z.height } })
             else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0F766E), Color(0xFF14213D)))))
             if (reel) {
                 Icon(Icons.Default.PlayArrow, "Play", tint = Color.White, modifier = Modifier.align(Alignment.Center).size(54.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)).padding(8.dp))
@@ -286,7 +293,7 @@ internal fun SharedPostViewer(post: UmmahPost, onDismiss: () -> Unit) {
                 Column { Text(post.creatorName, color = stitchText(), fontWeight = FontWeight.Bold); Text(post.creatorHandle, color = stitchMutedText(), fontSize = 12.sp) }
             }
             val img = post.mediaUrls.firstOrNull() ?: post.mediaUrl.ifBlank { post.thumbnailUrl }
-            if (img.startsWith("https://")) AsyncImage(img, null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 520.dp))
+            if (img.startsWith("https://")) ZoomableChatImage(img, null, modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 520.dp))
             Text(post.caption.ifBlank { post.arabicText }, color = stitchText(), fontSize = 15.sp, modifier = Modifier.padding(16.dp))
         }
     }

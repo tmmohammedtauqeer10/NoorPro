@@ -22,6 +22,10 @@ object AlNoorSessionRouter {
 
     private var session: MediaSession? = null
 
+    /** 1.0.83: observable "who owns playback" so the mini/full player shows the right source. */
+    private val _active = kotlinx.coroutines.flow.MutableStateFlow<Source?>(null)
+    val active: kotlinx.coroutines.flow.StateFlow<Source?> = _active
+
     fun playerFor(context: Context, src: Source = source): Player = when (src) {
         Source.QURAN -> QuranSessionBridge.sessionPlayer()
         Source.AL_NOOR -> {
@@ -42,6 +46,7 @@ object AlNoorSessionRouter {
             Source.AL_NOOR -> QuranSessionBridge.pauseForOtherSource()
         }
         source = src
+        _active.value = src
         session?.let { s ->
             val target = playerFor(app, src)
             if (s.player !== target) runCatching { s.player = target }

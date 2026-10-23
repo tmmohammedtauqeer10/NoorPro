@@ -3761,16 +3761,20 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         if (landscapeViewer) updateReelLandscape(false)
         // Count one real view per reel per session (deduped). The Firestore increment flows back
         // through the live feed listener, so the count updates in search, profile & Creator Studio.
-        val watchedId = activePost.id
-        if (watchedId.isNotBlank() && watchedId !in viewedReelIds &&
-            com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
-        ) {
-            viewedReelIds = viewedReelIds + watchedId
-            val currentViews = optimisticViewCounts[watchedId] ?: activePost.viewCount
-            optimisticViewCounts = optimisticViewCounts + (watchedId to currentViews + 1L)
-            followRepository.incrementViews(watchedId)
-        }
         userPaused = false
+        // 1.0.83: a view only counts after ~2.5 s actually on screen, once per user per reel
+        // (server-side receipt + transaction). The +1 is shown only after the server accepts it,
+        // so the number is never inflated.
+        val watchedId = activePost.id
+        if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
+            kotlinx.coroutines.delay(REEL_VIEW_THRESHOLD_MS)
+            viewedReelIds = viewedReelIds + watchedId
+            com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+            val base = activePost.viewCount
+            followRepository.recordUniqueView(watchedId, REEL_VIEW_THRESHOLD_MS) { counted ->
+                if (counted) optimisticViewCounts = optimisticViewCounts + (watchedId to maxOf(optimisticViewCounts[watchedId] ?: 0L, base + 1L))
+            }
+        }
     }
 
     // Reels without stored geometry: read the MP4 header (no decode) so portrait sources are
@@ -12575,6 +12579,8 @@ private fun StitchChatAvatar(name: String, mine: Boolean) {
     }
 }
 
+private const val REEL_VIEW_THRESHOLD_MS = 2_500L
+
 @Composable
 private fun StitchSharedMediaCard(
     message: UmmahMessage,
@@ -12584,21 +12590,15 @@ private fun StitchSharedMediaCard(
 ) {
     val isVideo = message.type == "video" || message.type == "reel"
     val cardBg = if (mine) stitchPrimary().copy(alpha = 0.92f) else Color(0xFFE3E9EB)
-    Box(
-        modifier = Modifier
-            .width(232.dp)
-            .height(150.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(cardBg)
-            .clickable(onClick = onOpen),
-        contentAlignment = Alignment.Center
+    // 1.0.83: full aspect ratio + sharp decode (was a fixed 232x150 centre-crop).
+    ChatMediaThumb(
+        url = message.mediaUrl,
+        isVideo = isVideo,
+        contentDescription = message.text.ifBlank { noorMessageTypeLabel(message.type) },
+        width = 250.dp,
+        background = cardBg,
+        modifier = Modifier.clickable(onClick = onOpen),
     ) {
-        AsyncImage(
-            model = message.mediaUrl,
-            contentDescription = message.text.ifBlank { noorMessageTypeLabel(message.type) },
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
         if (isVideo) {
             Box(
                 modifier = Modifier
@@ -13009,10 +13009,9 @@ private fun StitchMessageMediaPreviewDialog(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 when (message.type) {
                     "image" -> {
-                        AsyncImage(
-                            model = message.mediaUrl,
+                        ZoomableChatImage(
+                            url = message.mediaUrl,
                             contentDescription = message.text.ifBlank { "Photo message" },
-                            contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

@@ -475,6 +475,32 @@ class UmmahRepository {
         incrementPublishedCounter(cleanPostId, "viewCount")
     }
 
+    /**
+     * 1.0.83: real, de-duplicated view. In one transaction: if this user has no receipt at
+     * ummah_posts/{id}/views/{uid}, create it (create-once rule) and +1 viewCount. A second view
+     * by the same user — on any device/reinstall — is a no-op. Result: true when counted.
+     */
+    fun recordUniqueView(postId: String, watchedMs: Long, onResult: (Boolean) -> Unit = {}) {
+        val cleanPostId = postId.trim()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (cleanPostId.isBlank() || uid == null) return onResult(false)
+        val post = firestore.collection("ummah_posts").document(cleanPostId)
+        val receipt = post.collection("views").document(uid)
+        firestore.runTransaction { tx ->
+            if (tx.get(receipt).exists()) return@runTransaction false
+            if (!tx.get(post).exists()) return@runTransaction null
+            tx.set(receipt, mapOf("uid" to uid, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(), "watchedMs" to watchedMs))
+            tx.update(post, "viewCount", com.google.firebase.firestore.FieldValue.increment(1L))
+            true
+        }.addOnCompleteListener { t ->
+            when {
+                !t.isSuccessful -> onResult(false)
+                t.result == null -> { incrementPublishedCounter(cleanPostId, "viewCount"); onResult(true) } // legacy submission-only post
+                else -> onResult(t.result == true)
+            }
+        }
+    }
+
     fun observeSavedCollections(onResult: (List<UmmahSavedCollection>) -> Unit) {
         val user = FirebaseAuth.getInstance().currentUser ?: run {
             onResult(emptyList())
@@ -781,7 +807,7 @@ class UmmahRepository {
             return
         }
 
-        val mediaUri = if (type == "image") ImageCompressor.compress(context, mediaUri) else mediaUri
+        val mediaUri = if (type == "image") ImageCompressor.compress(context, mediaUri, maxSide = 2048, quality = 90) else mediaUri  // 1.0.83: sharper chat photos
         val contentType = if (type == "image") "image/jpeg" else normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
         val mediaSize = contentLength(context, mediaUri)
         if (mediaSize >= MAX_UMMAH_MEDIA_BYTES) {

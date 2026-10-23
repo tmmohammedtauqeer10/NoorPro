@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.noorpro.app.R
+import com.noorpro.app.audio.AlNoorAudioSession
 import com.noorpro.app.audio.podcast.FeedResult
 import com.noorpro.app.audio.podcast.Podcast
 import com.noorpro.app.audio.podcast.PodcastRepository
@@ -874,9 +875,16 @@ internal fun SpPodcastPage(t: SpTheme, p: Podcast, followed: Boolean, onBack: ()
     val r = result
     val art = r?.artwork ?: PodcastRepository.cachedArtwork(ctx, p)
     val tracks = remember(r) { r?.episodes?.map { PodcastRepository.toTrack(p, it, r.artwork) }.orEmpty() }
+    // 1.0.83: reflect the real free-player state (was hard-coded "not playing").
+    val fq by (if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.queue else remember { kotlinx.coroutines.flow.MutableStateFlow(com.noorpro.app.audio.models.QueueState()) }).collectAsState()
+    val fpb by (if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.playback else remember { kotlinx.coroutines.flow.MutableStateFlow(com.noorpro.app.audio.models.PlaybackState()) }).collectAsState()
+    val curId = fq.currentTrack?.id
+    val here = curId != null && tracks.any { it.id == curId }
+    val pagePlaying = here && fpb.isPlaying
     SpDetailPage(t, SpDetailHeader(p.name, p.publisher, "${if (p.kind == "nasheed") "Nasheeds" else "Podcast"} · ${p.language} · ${p.category}", coverColor(p.id.hashCode())) { m ->
         SpArt(m, url = art, tint = coverColor(p.id.hashCode()), label = p.name)
-    }, false, false, followed, null, onBack, if (tracks.isEmpty()) null else ({ playFree(ctx, tracks[0], tracks) }), {}, onFollow, {}) {
+    }, pagePlaying, fq.shuffle && here, followed, null, onBack, if (tracks.isEmpty()) null else ({ if (here) AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, tracks[0], tracks) }),
+        { if (tracks.isNotEmpty()) { val i = tracks.indices.random(); playFree(ctx, tracks[i], tracks) } }, onFollow, {}) {
         when {
             r == null -> items(6) { Row(Modifier.padding(16.dp, 8.dp)) { SpShimmer(t, Modifier.size(48.dp).clip(RoundedCornerShape(4.dp))); Spacer(Modifier.width(12.dp)); SpShimmer(t, Modifier.weight(1f).height(18.dp).clip(RoundedCornerShape(4.dp))) } }
             r.episodes.isEmpty() -> item {
@@ -890,7 +898,7 @@ internal fun SpPodcastPage(t: SpTheme, p: Podcast, followed: Boolean, onBack: ()
                 if (r.fromCache && r.error != null) item { Text("Offline — showing saved episode list", color = t.gold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 itemsIndexed(r.episodes, key = { i, e -> "${i}_${e.guid}" }) { i, e ->
                     val meta = listOfNotNull(e.pubDateMs.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) }, e.durationMs.takeIf { it > 0 }?.let { fmt(it) }).joinToString(" · ")
-                    SpTrackRow(t, i + 1, e.title, meta.ifBlank { p.publisher }, false, { playFree(ctx, tracks[i], tracks) }, menu = listOf(
+                    SpTrackRow(t, i + 1, e.title, meta.ifBlank { p.publisher }, tracks[i].id == curId && fpb.isPlaying, { if (tracks[i].id == curId) AlNoorAudioSession.player.togglePlayPause() else playFree(ctx, tracks[i], tracks) }, menu = listOf(
                         "Play" to { playFree(ctx, tracks[i], tracks) },
                         "Share" to { runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "${e.title} — ${p.name}\n${p.website.ifBlank { p.feedUrl }}"), "Share")) } },
                     ))
