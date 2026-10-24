@@ -1,0 +1,321 @@
+{
+  "api_version": "2.0",
+  "last_updated": "2026-06-03",
+  "app_name": "DeenFlow",
+  "total_categories": 12,
+  "cdn": "Google Drive",
+  "categories": [
+    {
+      "category_id": "cat_quran",
+      "category_name": "Al-Quran (The Holy Text)",
+      "icon": "quran",
+      "color": "#1a6b3c",
+      "books": [
+        {
+          "id": "bk_quran_indopak_15line",
+          "title": "Quran Majeed — 15 Lines (Pakistani Print)",
+          "author": "Qudratullah Press",
+          "language": "Arabic",
+          "pages": 604,
+          "badge": "15 Lines • Indo-Pak Script",
+          "cover_color": "#c9a66b",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789694792781-L.jpg",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Quran_cover.jpg/400px-Quran_cover.jpg",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1njkS_VAS4QOVY8uQXoJIPUXmsv8HB39I"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_tafsir",
+      "category_name": "Tafsir (Quranic Commentary)",
+      "icon": "book_open",
+      "color": "#8b4513",
+      "books": [
+        {
+          "id": "bk_tafsir_ibnkathir",
+          "title": "Tafsir Ibn Kathir — Volume 1",
+          "author": "Imam Ismail Ibn Kathir",
+          "language": "English",
+          "pages": 640,
+          "badge": "Classical",
+          "cover_color": "#8b4513",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789960892269-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/TafseerIbnKathirall10VolumesEng",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1MFWs_HeYoOIVpvwNB1NWre8Ien1_S_Zo"
+        },
+        {
+          "id": "bk_quran_science",
+          "title": "The Bible, The Qur'an and Science",
+          "author": "Dr. Maurice Bucaille",
+          "language": "English",
+          "pages": 252,
+          "badge": "Science & Faith",
+          "cover_color": "#2c5282",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/0892591714-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/TheBibleTheQuranAndScience",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1kOgkdMU0e7pkvl16PNYd_pb3Z6NaNomM"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_tajweed",
+      "category_name": "Tajweed & Qira'at",
+      "icon": "microphone",
+      "color": "#6b46c1",
+      "books": [
+        {
+          "id": "bk_tajweed_rules",
+          "title": "Tajweed Rules of the Qur'an",
+          "author": "Kareema Carol Czerepinski",
+          "language": "English",
+          "pages": 98,
+          "badge": "Beginner Friendly",
+          "cover_color": "#553c9a",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789960717128-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/TajweedRulesPart1",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1WPKTigb0-wGSwt4b_Od_834puYNHQoj1"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_hadith",
+      "category_name": "Hadith (Prophetic Traditions)",
+      "icon": "scroll",
+      "color": "#c05621",
+      "books": [
+        {
+          "id": "bk_forty_nawawi",
+          "title": "40 Hadith of Imam An-Nawawi",
+          "author": "Imam Yahya bin Sharaf an-Nawawi",
+          "language": "English & Arabic",
+          "pages": 120,
+          "badge": "Essential Reading",
+          "cover_color": "#c05621",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789960717258-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/FortyHadithAnNawawi",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1Yft1nVMVgVHu-EsJC-pHlHwtdHyKmrYV"
+        },
+        {
+          "id": "bk_riyadh_salihin",
+          "title": "Riyadh as-Salihin (Meadows of the Righteous)",
+          "author": "Imam An-Nawawi",
+          "language": "English",
+          "pages": 448,
+          "badge": "Classic Collection",
+          "cover_color": "#9c4221",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9960740218-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/RiyadhAsSalihin_201801",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1_VAeyTFuX-9gT-8pukOoYjZ4d8ljDHH3"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_seerah",
+      "category_name": "Seerah (Prophetic Biography)",
+      "icon": "star",
+      "color": "#b7791f",
+      "books": [
+        {
+          "id": "bk_sealed_nectar",
+          "title": "Ar-Raheeq Al-Makhtum (The Sealed Nectar)",
+          "author": "Safiur Rahman Mubarakpuri",
+          "language": "English",
+          "pages": 588,
+          "badge": "Award Winning",
+          "cover_color": "#744210",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9960899551-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/sealed-nectar-pdf",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1yldlKGBlWaUObcSVy_OZkCnhou0k5SV-"
+        },
+        {
+          "id": "bk_prophet_life",
+          "title": "Muhammad: His Life Based on the Earliest Sources",
+          "author": "Martin Lings",
+          "language": "English",
+          "pages": 383,
+          "badge": "Scholarly",
+          "cover_color": "#5f370e",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/0946621330-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/muhammad_20201111",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1LtJ1xxNqAq6ikuCZhFUCH4nzrq2gGWRL"
+        },
+        {
+          "id": "bk_companions",
+          "title": "Companions of the Prophet",
+          "author": "Abdul Wahid Hamid",
+          "language": "English",
+          "pages": 220,
+          "badge": "Inspiring Stories",
+          "cover_color": "#7b341e",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9781842000984-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/companions-of-the-prophet",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1aVBFWGYTt-VW4MPJgKSt_V66xrDC_nVS"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_fiqh",
+      "category_name": "Fiqh (Jurisprudence & Law)",
+      "icon": "scale",
+      "color": "#276749",
+      "books": [
+        {
+          "id": "bk_quduri",
+          "title": "The Mukhtasar Al-Quduri",
+          "author": "Imam Abu'l-Husayn al-Quduri",
+          "language": "English & Arabic",
+          "pages": 450,
+          "badge": "Hanafi Fiqh",
+          "cover_color": "#22543d",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9780954750213-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/mukhtasar-al-quduri",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1zjY3jKzRTexUKDk-3orEqo5V8rPHkYUy"
+        },
+        {
+          "id": "bk_wudu_salah",
+          "title": "Make Wudu & Salah Like the Prophet",
+          "author": "Muhammad S. Adly",
+          "language": "English",
+          "pages": 64,
+          "badge": "Step-by-Step Guide",
+          "cover_color": "#1c4532",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789775813732-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/wudu-salah-guide",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1_38nFe-smNxZ4QYz2IMsbBOMmOwUzxeL"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_aqeedah",
+      "category_name": "Aqeedah (Theology & Creed)",
+      "icon": "moon",
+      "color": "#2b4c7e",
+      "books": [
+        {
+          "id": "bk_tahawiyyah",
+          "title": "Al-Aqeedah At-Tahawiyyah",
+          "author": "Imam Abu Ja'far At-Tahawi",
+          "language": "English & Arabic",
+          "pages": 85,
+          "badge": "Classical Creed",
+          "cover_color": "#1a365d",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/0911119884-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/TheCreedOfAtTahawi",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1yok4flRojkQSAtFLDO2M8GJONGHg-h0w"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_adhkar",
+      "category_name": "Du'a & Adhkar (Supplications)",
+      "icon": "hands",
+      "color": "#2c7a7b",
+      "books": [
+        {
+          "id": "bk_fortress_muslim",
+          "title": "Fortress of the Muslim — Hisn al-Muslim",
+          "author": "Sa'id ibn Wahf al-Qahtani",
+          "language": "English & Arabic",
+          "pages": 240,
+          "badge": "Daily Essential",
+          "cover_color": "#234e52",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/1590080378-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/fortress-of-the-muslim-hisn-al-muslim",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=13Tk1sRbV6TkPuKs_k8V7uzXzwvLZLPSP"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_tazkiyah",
+      "category_name": "Tazkiyah & Akhlaq (Soul Purification)",
+      "icon": "heart",
+      "color": "#702459",
+      "books": [
+        {
+          "id": "bk_purification_soul",
+          "title": "Purification of the Soul",
+          "author": "Imam Ibn Al-Qayyim Al-Jawziyyah",
+          "language": "English",
+          "pages": 140,
+          "badge": "Spiritual Growth",
+          "cover_color": "#521b41",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789960717432-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/ThePurificationOfTheSoul",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1wr75AM630E7hPkWJ_IuoVvo2QytXTB6F"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_history",
+      "category_name": "Islamic History & Heritage",
+      "icon": "landmark",
+      "color": "#744210",
+      "books": [
+        {
+          "id": "bk_history_islam",
+          "title": "History of Islam",
+          "author": "Akbar Shah Najeebabadi",
+          "language": "English",
+          "pages": 520,
+          "badge": "Comprehensive",
+          "cover_color": "#5f370e",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9781590077221-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/HistoryOfIslamVolume1",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1weFhPbqyyO1jalLz2tJ3lfQ9fEOwA-ez"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_finance",
+      "category_name": "Islamic Finance & Business",
+      "icon": "coins",
+      "color": "#2d6a4f",
+      "books": [
+        {
+          "id": "bk_musharakah",
+          "title": "Musharakah & Mudarabah",
+          "author": "Mufti Muhammad Taqi Usmani",
+          "language": "English",
+          "pages": 80,
+          "badge": "Halal Business",
+          "cover_color": "#1b4332",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789693514551-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/musharakah-mudarabah",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1WSkElJ6zwj6WzpAdk0d8nZXfyIZnQfFR"
+        },
+        {
+          "id": "bk_islamic_finance",
+          "title": "An Introduction to Islamic Finance",
+          "author": "Mufti Muhammad Taqi Usmani",
+          "language": "English",
+          "pages": 169,
+          "badge": "Comprehensive Guide",
+          "cover_color": "#081c15",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9789693514520-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/AnIntroductionToIslamicFinanceByMuftiTaqiUsmani",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1F0cLn0lE6DU3HRhWumEzYjIjkWEOsYtZ"
+        }
+      ]
+    },
+    {
+      "category_id": "cat_family",
+      "category_name": "Family Life & Youth",
+      "icon": "users",
+      "color": "#c53030",
+      "books": [
+        {
+          "id": "bk_ideal_muslimah",
+          "title": "The Ideal Muslimah",
+          "author": "Dr. Muhammad Ali Al-Hashimi",
+          "language": "English",
+          "pages": 320,
+          "badge": "Muslim Women",
+          "cover_color": "#9b2c2c",
+          "cover_url": "https://covers.openlibrary.org/b/isbn/9960672336-L.jpg",
+          "cover_fallback": "https://archive.org/services/img/TheIdealMuslimah",
+          "pdf_url": "https://drive.google.com/uc?export=download&id=1qOGlvJB76iyDvXApc2xd7D4pu5ZZnFeO"
+        }
+      ]
+    }
+  ]
+}

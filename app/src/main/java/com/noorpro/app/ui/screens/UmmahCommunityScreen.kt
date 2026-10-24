@@ -119,12 +119,7 @@ private fun UmmahComingSoonScreen(viewModel: DeenViewModel) {
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.app_logo),
-                        contentDescription = "Noor Pro logo",
-                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    NoorBrandMark(58.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("NOOR PRO", color = MatteGold, fontSize = 11.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Black)
@@ -223,6 +218,7 @@ private fun ComingSoonRow(icon: androidx.compose.ui.graphics.vector.ImageVector,
 @Composable
 fun UmmahCommunityScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
+    val likeHaptic = com.noorpro.app.ui.components.rememberHaptic()
     val repository = remember { UmmahRepository() }
     var posts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -382,6 +378,7 @@ fun UmmahCommunityScreen(viewModel: DeenViewModel) {
             },
             onFollowCreator = { post -> followPostCreator(post) },
             onLike = { post ->
+                likeHaptic()
                 repository.toggleInteraction(post.id, "likes", post.id !in likedIds) { success ->
                     if (!success) Toast.makeText(context, "Sign in to like reels.", Toast.LENGTH_SHORT).show()
                 }
@@ -465,6 +462,7 @@ fun UmmahCommunityScreen(viewModel: DeenViewModel) {
                     showMembership = true
                 },
                 onLike = { post ->
+                likeHaptic()
                     repository.toggleInteraction(post.id, "likes", post.id !in likedIds) { success ->
                         if (!success) Toast.makeText(context, "Sign in to like posts.", Toast.LENGTH_SHORT).show()
                     }
@@ -2149,7 +2147,7 @@ private fun UmmahReelsStrip(
                     ) {
                         if (reel.thumbnailUrl.isNotBlank() || reel.mediaUrl.isNotBlank()) {
                             AsyncImage(
-                                model = reel.thumbnailUrl.ifBlank { reel.mediaUrl },
+                                model = com.noorpro.app.data.media.videoPreviewModel(reel.thumbnailUrl, reel.mediaUrl),
                                 contentDescription = reel.caption,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
@@ -2290,8 +2288,10 @@ private fun UmmahReelsViewer(
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
     var userPaused by remember { mutableStateOf(false) }
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.anyAudible.collectAsState()
+    LaunchedEffect(alNoorAudible) { if (alNoorAudible) player.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { player.pause() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused) player.play() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) player.play() }
 
     // Load + play only the reel the pager has settled on. settledPage (not currentPage)
     // avoids swapping the video mid-drag while the user is still flinging.
@@ -2302,7 +2302,7 @@ private fun UmmahReelsViewer(
         player.setMediaItem(MediaItem.fromUri(Uri.parse(post.mediaUrl)))
         player.prepare()
         player.seekTo(0)
-        player.play()
+        if (!alNoorAudible) player.play()
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -2466,6 +2466,8 @@ private fun shareUmmahPost(context: android.content.Context, post: UmmahPost) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, shareText)
     }, "Share Ummah post"))
+    // Count the share atomically (FieldValue.increment) so the live listener shows the new total.
+    runCatching { com.noorpro.app.data.UmmahRepository().incrementShare(post.id) }
 }
 
 @Composable

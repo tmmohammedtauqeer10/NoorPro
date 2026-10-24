@@ -35,6 +35,7 @@ enum class DeenScreen {
     DASHBOARD,
     QURAN,
     REELS,
+    REELS_EXPLORE,
     NOW_PLAYING,
     PRAYER_TIMES,
     QIBLA_MORE,
@@ -43,6 +44,9 @@ enum class DeenScreen {
     ACCOUNT_SWITCHER,
     AZKAR,
     TASBIH,
+    DAROOD_SHARIF,
+    RUHANI,
+    TASAWWUF,
     EXPLORE,
     EDUCATION,
     TAFSIR,
@@ -97,10 +101,7 @@ enum class DeenScreen {
     AUDIO_LIBRARY,
     AUDIO_PLAYLIST,
     DISCOVER_GROUPS,
-    AL_NOOR_AUDIO,
-    AL_NOOR_SEARCH,
-    AL_NOOR_PLAYLIST,
-    AL_NOOR_NOW_PLAYING
+
 }
 
 /** One track in a curated audio playlist queue — a full surah, or a single ayah (ayah != null). */
@@ -115,11 +116,16 @@ enum class ThemeMode {
 class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     val userPreferencesRepo = com.noorpro.app.data.UserPreferencesRepository(application)
-    private val repository = QuranRepository(application)
-    private val httpClient = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+    private val repository = QuranRepository(application).also { repo ->
+        repo.arabicCleaner = { text, surah, ayah -> cleanAyaArabicText(text, surah, ayah) }
+        repo.htmlUnescaper = { text -> unescapeHtml(text) }
+    }
+    private val httpClient = com.noorpro.app.data.OfflineHttpCache.install(
+        application,
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+    ).build()
 
     var currentPdfUrl: String = ""
     var currentPdfTitle: String = ""
@@ -131,6 +137,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     init {
+        // Pre-seed the bundled offline Quran into Room in the background.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { repository.ensureBundledQuranSeeded() }
         viewModelScope.launch {
             application.dataStore.data
                 .map { preferences ->
@@ -467,6 +475,26 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     // starting at the top of the feed. Tapping a saved/liked/profile reel sets it so the actual
     // reel opens and plays — no static thumbnail or intermediate page. Cleared once focused.
     var reelFocusId by mutableStateOf("")
+
+    /** 1.0.82: post being shared via the Instagram-style in-app share sheet (null = closed). */
+    var sharePost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
+    var shareSentCount by mutableStateOf(0)
+    /** A reel opened from a chat card; merged into the Reels feed so it plays even if not ranked. */
+    var reelFocusPost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
+
+    fun openSharedReel(post: com.noorpro.app.data.UmmahPost) {
+        reelFocusPost = post
+        openReel(post.id)
+    }
+
+    /** 1.0.91: Explore/search results to swipe through in the Reels player (empty = normal feed). */
+    var reelQueue by mutableStateOf<List<com.noorpro.app.data.UmmahPost>>(emptyList())
+
+    fun openReelFromResults(post: com.noorpro.app.data.UmmahPost, results: List<com.noorpro.app.data.UmmahPost>) {
+        reelQueue = results.ifEmpty { listOf(post) }
+        reelFocusPost = post
+        openReel(post.id)
+    }
 
     /** Open the Reels screen focused on a specific reel and play it. */
     fun openReel(postId: String) {
@@ -941,6 +969,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     fun fetchHijriCalendar(month: Int, year: Int) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _isLoadingCalendar.value = true
+            // Offline first: Umm al-Qura conversion on-device. Network is only a fallback.
+            val local = runCatching { com.noorpro.app.data.LocalHijri.gregorianMonth(month, year, _hijriAdjustment.value) }
+                .onFailure { CrashReporter.report(it) }
+                .getOrNull()
+            if (!local.isNullOrEmpty()) {
+                _hijriCalendarDays.value = local
+                _isLoadingCalendar.value = false
+                return@launch
+            }
             try {
                 val url = "https://api.aladhan.com/v1/gToHCalendar/$month/$year"
                 val request = okhttp3.Request.Builder().url(url).build()
@@ -1105,6 +1142,23 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     )
     val recentQuranReads: StateFlow<List<Pair<Surah, Int>>> = _recentQuranReads.asStateFlow()
 
+    // 1.0.98: last-read position survives restarts (and feeds the Continue Quran widget).
+    init {
+        runCatching {
+            com.noorpro.app.data.QuranLastRead.load(getApplication())?.let { saved ->
+                if (saved.surahId > 0) {
+                    IslamicData.surahs.firstOrNull { it.id == saved.surahId }?.let { surah ->
+                        _lastReadSurah.value = surah
+                        _lastReadAyah.value = saved.ayah
+                        val clean = surah.copy(verses = emptyList())
+                        _recentQuranReads.value = (listOf(clean to saved.ayah) +
+                            _recentQuranReads.value.filterNot { it.first.id == clean.id }).take(3)
+                    }
+                }
+            }
+        }
+    }
+
     private val _prayers = MutableStateFlow(IslamicData.defaultPrayers)
     val prayers: StateFlow<List<PrayerTime>> = _prayers.asStateFlow()
 
@@ -1148,7 +1202,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val isDailyHadithLoading: StateFlow<Boolean> = _isDailyHadithLoading.asStateFlow()
 
     // Quran Audio Playback State Simulation
-    private val _selectedReciter = MutableStateFlow(IslamicData.reciters[0])
+    private fun defaultReciter(): Reciter =
+        IslamicData.reciters.firstOrNull { it.id == IslamicData.DEFAULT_RECITER_ID } ?: IslamicData.reciters.first()
+    private val _selectedReciter = MutableStateFlow(defaultReciter())
     val selectedReciter = _selectedReciter.asStateFlow()
 
     private val _isAudioPlaying = MutableStateFlow(false)
@@ -1180,6 +1236,87 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     private val _playingSampleReciterId = MutableStateFlow<Int?>(null)
     val playingSampleReciterId = _playingSampleReciterId.asStateFlow()
 
+    // ---- Quran recitation <-> shared Media3 session (notification, lock screen, QS, headset) ----
+    private val quranSessionCommands = object : com.noorpro.app.audio.session.QuranSessionBridge.Commands {
+        override fun play() { if (!_isAudioPlaying.value) toggleAudioPlayback() }
+        override fun pause() { if (_isAudioPlaying.value) toggleAudioPlayback() }
+        override fun next() = playNextSurah()
+        override fun previous() = playPreviousSurah()
+        override fun seekTo(positionMs: Long) {
+            runCatching { mediaPlayer?.seekTo(positionMs.toInt()) }.onFailure { CrashReporter.report(it) }
+        }
+        override fun stop() = dismissMiniAudioPlayer()
+        override fun positionMs(): Long = runCatching { mediaPlayer?.currentPosition?.toLong() }.getOrNull() ?: 0L
+    }
+
+    init {
+        com.noorpro.app.audio.session.QuranSessionBridge.commands = quranSessionCommands
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                _isAudioPlaying, _playingSurah, _currentAudioTrack, _playingAyahIndex, _selectedReciter
+            ) { playing, surah, track, ayahIndex, reciter ->
+                quranNowPlaying(playing, surah, track, ayahIndex, reciter)
+            }.collect { com.noorpro.app.audio.session.QuranSessionBridge.update(getApplication(), it) }
+        }
+    }
+
+    private fun quranNowPlaying(
+        playing: Boolean,
+        surah: Surah?,
+        track: com.noorpro.app.data.AudioItem?,
+        ayahIndex: Int,
+        reciter: com.noorpro.app.data.Reciter,
+    ): com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying? {
+        if (track != null) {
+            val duration = runCatching { mediaPlayer?.duration?.takeIf { it > 0 }?.toLong() }.getOrNull()
+            return com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying(
+                id = "track:${track.id}",
+                title = track.title,
+                artist = track.artist,
+                isPlaying = playing,
+                durationMs = duration ?: androidx.media3.common.C.TIME_UNSET,
+            )
+        }
+        if (surah == null) return null
+        val ayahCount = surah.verses.size.takeIf { it > 0 } ?: surah.versesCount
+        return com.noorpro.app.audio.session.QuranSessionBridge.NowPlaying(
+            id = "surah:${surah.id}",
+            title = "${surah.nameEnglish} \u00b7 ${surah.nameArabic}",
+            artist = reciter.name,
+            subtitle = if (ayahCount > 1) "Ayah ${ayahIndex + 1} of $ayahCount \u00b7 ${reciter.name}" else reciter.name,
+            isPlaying = playing,
+        )
+    }
+
+    /**
+     * Bumped whenever a NEW item (surah / playlist track / audio track) is started. Callbacks from an
+     * older MediaPlayer are ignored, and the old player is stopped immediately instead of after the
+     * new surah finishes loading - otherwise its completion could fire during the load and advance
+     * the playlist (Play all started at track 2).
+     */
+    private val playbackGeneration = PlaybackGeneration()
+
+    private fun stopCurrentForNewItem(): Long {
+        val gen = playbackGeneration.bump()
+        releaseQuietly(mediaPlayer)
+        mediaPlayer = null
+        return gen
+    }
+
+    /** Releases a MediaPlayer without the "went away with unhandled events" log noise. */
+    private fun releaseQuietly(player: MediaPlayer?) {
+        player ?: return
+        player.setOnPreparedListener(null)
+        player.setOnCompletionListener(null)
+        player.setOnErrorListener(null)
+        runCatching { player.reset() }
+        runCatching { player.release() }
+    }
+
+    private fun logPlayerError(url: String, what: Int, extra: Int) {
+        android.util.Log.w("QuranAudio", "MediaPlayer error what=$what extra=$extra url=$url")
+    }
+
     // Azkar counting progress
     private val _azkarCounts = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val azkarCounts = _azkarCounts.asStateFlow()
@@ -1202,29 +1339,83 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     val sensorAzimuth = _sensorAzimuth.asStateFlow()
 
     private val sensorManager = application.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
+    // Prefer fused rotation vector; fall back to geomagnetic rotation vector, then accelerometer + magnetometer.
     private val rotationVectorSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR)
-    
+        ?: sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+    private val accelSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+    private val magSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_MAGNETIC_FIELD)
+    private val gravity = FloatArray(3); private val geomag = FloatArray(3)
+    private var hasGravity = false; private var hasGeomag = false
+    private var smoothedHeading = Float.NaN
+    private var declinationDeg = 0f
+    private var lastQiblaLat = Double.NaN; private var lastQiblaLng = Double.NaN
+
+    /** Compass accuracy (SensorManager.SENSOR_STATUS_*); low/unreliable shows a figure-8 calibration hint. */
+    private val _compassAccuracy = MutableStateFlow(android.hardware.SensorManager.SENSOR_STATUS_ACCURACY_HIGH)
+    val compassAccuracy = _compassAccuracy.asStateFlow()
+    private val _compassAvailable = MutableStateFlow(true)
+    val compassAvailable = _compassAvailable.asStateFlow()
+
+    private fun updateDeclination(lat: Double, lng: Double) {
+        lastQiblaLat = lat; lastQiblaLng = lng
+        declinationDeg = runCatching {
+            android.hardware.GeomagneticField(lat.toFloat(), lng.toFloat(), 0f, System.currentTimeMillis()).declination
+        }.getOrDefault(0f)
+    }
+
+    private fun displayRotation(): Int = runCatching {
+        val app = getApplication<Application>()
+        val dm = app.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+        dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)?.rotation ?: android.view.Surface.ROTATION_0
+    }.getOrDefault(android.view.Surface.ROTATION_0)
+
+    private fun publishHeading(rotationMatrix: FloatArray) {
+        // Remap for the current screen rotation so "heading" is where the top of the screen points.
+        val remapped = FloatArray(9)
+        val (ax, ay) = when (displayRotation()) {
+            android.view.Surface.ROTATION_90 -> android.hardware.SensorManager.AXIS_Y to android.hardware.SensorManager.AXIS_MINUS_X
+            android.view.Surface.ROTATION_180 -> android.hardware.SensorManager.AXIS_MINUS_X to android.hardware.SensorManager.AXIS_MINUS_Y
+            android.view.Surface.ROTATION_270 -> android.hardware.SensorManager.AXIS_MINUS_Y to android.hardware.SensorManager.AXIS_X
+            else -> android.hardware.SensorManager.AXIS_X to android.hardware.SensorManager.AXIS_Y
+        }
+        android.hardware.SensorManager.remapCoordinateSystem(rotationMatrix, ax, ay, remapped)
+        val orientation = FloatArray(3)
+        android.hardware.SensorManager.getOrientation(remapped, orientation)
+        val magnetic = Math.toDegrees(orientation[0].toDouble()).toFloat()
+        if (magnetic.isNaN()) return
+        // Magnetic -> true north (Qibla bearing is relative to true north).
+        val trueHeading = com.noorpro.app.qibla.QiblaMath.normalize(magnetic + declinationDeg)
+        smoothedHeading = if (smoothedHeading.isNaN()) trueHeading else com.noorpro.app.qibla.QiblaMath.smooth(smoothedHeading, trueHeading, 0.2f)
+        _sensorAzimuth.value = smoothedHeading
+    }
+
     private val sensorEventListener = object : android.hardware.SensorEventListener {
         override fun onSensorChanged(event: android.hardware.SensorEvent?) {
             try {
                 if (event == null) return
-                if (event.sensor.type == android.hardware.Sensor.TYPE_ROTATION_VECTOR) {
-                    val rotationMatrix = FloatArray(9)
-                    android.hardware.SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                    val orientation = FloatArray(3)
-                    android.hardware.SensorManager.getOrientation(rotationMatrix, orientation)
-                    // Convert azimuth to degrees
-                    var azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                    if (!azimuth.isNaN()) {
-                        azimuth = (azimuth + 360f) % 360f
-                        _sensorAzimuth.value = azimuth
+                when (event.sensor.type) {
+                    android.hardware.Sensor.TYPE_ROTATION_VECTOR, android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> {
+                        val rotationMatrix = FloatArray(9)
+                        android.hardware.SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                        publishHeading(rotationMatrix)
+                    }
+                    android.hardware.Sensor.TYPE_ACCELEROMETER -> { System.arraycopy(event.values, 0, gravity, 0, 3); hasGravity = true }
+                    android.hardware.Sensor.TYPE_MAGNETIC_FIELD -> {
+                        System.arraycopy(event.values, 0, geomag, 0, 3); hasGeomag = true
+                        if (hasGravity && rotationVectorSensor == null) {
+                            val r = FloatArray(9)
+                            if (android.hardware.SensorManager.getRotationMatrix(r, null, gravity, geomag)) publishHeading(r)
+                        }
                     }
                 }
             } catch (e: Exception) {
                 // safe ignore
             }
         }
-        override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+        override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {
+            if (sensor?.type == android.hardware.Sensor.TYPE_MAGNETIC_FIELD || sensor?.type == android.hardware.Sensor.TYPE_ROTATION_VECTOR ||
+                sensor?.type == android.hardware.Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR) _compassAccuracy.value = accuracy
+        }
     }
 
     init {
@@ -1443,6 +1634,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Manual city fallback when location permission is denied (same storage path as GPS). */
+    fun setManualCity(name: String, lat: Double, lng: Double) {
+        viewModelScope.launch {
+            userPreferencesRepo.updateLocation(lat, lng)
+            _hasCurrentLocation.value = true
+            _currentLocationName.value = name
+            prefs.edit().putString("manual_city_name", name).apply()
+            recalculatePrayers()
+        }
+    }
+
     private fun processLocation(location: android.location.Location, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val currentLat = location.latitude
@@ -1497,7 +1699,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             _hasCurrentLocation.value = true
             _currentLocationName.value = String.format(Locale.US, "%.4f, %.4f", lat, lng)
 
-            _qiblaBearing.value = calculateQiblaDirection(lat, lng)
+            _qiblaBearing.value = com.noorpro.app.qibla.QiblaMath.bearingToKaaba(lat, lng).toFloat()
+            updateDeclination(lat, lng)
             val qiblaDistance = FloatArray(1)
             android.location.Location.distanceBetween(lat, lng, 21.422487, 39.826206, qiblaDistance)
             _qiblaDistanceKm.value = qiblaDistance[0] / 1000f
@@ -1520,6 +1723,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             areaAndCity
                         }
+                        // Prayer notifications (alarm receiver) show this same place name.
+                        runCatching { com.noorpro.app.prayer.PrayerPrefs(app).locationLabel = _currentLocationName.value }
                     }
                 }
             } catch (e: Exception) {
@@ -1529,14 +1734,25 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             val dateFormatter = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
             val todayStr = dateFormatter.format(Date())
 
+            // Offline first: calculate locally (Adhan) from the last-known location and publish
+            // immediately. The AlAdhan request below only refines the values when online.
+            runCatching {
+                val calculated = prayerSettingsController.calculatePrayers(latitude = lat, longitude = lng)
+                if (calculated.none { it.time == "--:--" }) {
+                    _prayers.value = calculated
+                    calculateNextPrayer()
+                }
+                val now = java.util.Calendar.getInstance()
+                val h = com.noorpro.app.data.LocalHijri.fromGregorian(now, _hijriAdjustment.value)
+                _todayHijri.value = "${h.day} ${com.noorpro.app.data.LocalHijri.monthsEn[h.month - 1]} ${h.year} AH"
+                _todayGregorian.value = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.US).format(now.time)
+            }.onFailure { CrashReporter.report(it) }
+
             try {
                 
                 val isHanafi = prayerSettingsController.selectedMadhab.value == Madhab.HANAFI
                 val schoolStr = if (isHanafi) "1" else "0" 
-                val method = when (prayerSettingsController.selectedMethod.value) {
-                    CalculationMethod.KARACHI -> 1
-                    CalculationMethod.MWL -> 3
-                }
+                val method = prayerSettingsController.selectedMethod.value.aladhanId
                 // Let AlAdhan resolve the timezone from the current coordinates. A fixed
                 // timezone (for example UTC) produces incorrect prayer times for most users.
                 val url = okhttp3.HttpUrl.Builder()
@@ -1667,8 +1883,38 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         _moreActiveTab.value = index
     }
 
+    private val _surahAudioDownload = MutableStateFlow<Float?>(null)
+    /** Progress (0..1) of the current per-surah audio download, or null when idle. */
+    val surahAudioDownload: StateFlow<Float?> = _surahAudioDownload.asStateFlow()
+
+    fun isSurahAudioCached(surahId: Int): Boolean = com.noorpro.app.audio.QuranAudioCache.isSurahCached(
+        getApplication(), _selectedReciter.value.prefixUrl, surahId, IslamicData.surahAyahsCount[surahId] ?: 0
+    )
+
+    /** Saves every ayah of [surahId] for the selected reciter so it plays offline. */
+    fun downloadSurahAudio(surahId: Int, onResult: (Boolean) -> Unit) {
+        if (_surahAudioDownload.value != null) return
+        val prefix = _selectedReciter.value.prefixUrl
+        val count = IslamicData.surahAyahsCount[surahId] ?: 0
+        _surahAudioDownload.value = 0f
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val ok = runCatching {
+                com.noorpro.app.audio.QuranAudioCache.downloadSurah(getApplication(), prefix, surahId, count) {
+                    _surahAudioDownload.value = it
+                }
+            }.getOrDefault(false)
+            _surahAudioDownload.value = null
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onResult(ok) }
+        }
+    }
+
+    fun deleteSurahAudio(surahId: Int) {
+        com.noorpro.app.audio.QuranAudioCache.deleteSurah(getApplication(), _selectedReciter.value.prefixUrl, surahId)
+    }
+
     fun selectReciter(reciter: Reciter) {
-        _selectedReciter.value = reciter
+        // Unknown, removed (e.g. Alafasy, id 1) or stale reciters fall back to Al-Husary.
+        _selectedReciter.value = IslamicData.reciters.firstOrNull { it.id == reciter.id } ?: defaultReciter()
         _audioProgress.value = 0f
         _audioPosition.value = "0:00"
         _currentAudioTrack.value = null
@@ -1694,14 +1940,10 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         try {
-            val oldPlayer = mediaPlayer
-            mediaPlayer = null
-            oldPlayer?.setOnPreparedListener(null)
-            oldPlayer?.setOnCompletionListener(null)
-            oldPlayer?.setOnErrorListener(null)
-            oldPlayer?.release()
+            stopCurrentForNewItem()
 
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -1709,7 +1951,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(track.audioUrl)
-                setOnErrorListener { _, _, _ ->
+                setOnErrorListener { _, what, extra ->
+                    logPlayerError(track.audioUrl, what, extra)
                     _isAudioPlaying.value = false
                     true
                 }
@@ -1767,11 +2010,8 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissMiniAudioPlayer() {
         try {
-            mediaPlayer?.setOnPreparedListener(null)
-            mediaPlayer?.setOnCompletionListener(null)
-            mediaPlayer?.setOnErrorListener(null)
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
+            runCatching { mediaPlayer?.stop() }
+            releaseQuietly(mediaPlayer)
         } catch (e: Exception) {
             CrashReporter.report(e)
         } finally {
@@ -1786,22 +2026,23 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun playAyahAudioFromUrl(surahId: Int, ayahIndex: Int) {
+    private fun playAyahAudioFromUrl(surahId: Int, ayahIndex: Int, attempt: Int = 0) {
+        val gen = playbackGeneration.current
         val ayahNumberInSurah = ayahIndex + 1
         val surahStr = String.format("%03d", surahId)
         val ayahStr = String.format("%03d", ayahNumberInSurah)
         val prefix = _selectedReciter.value.prefixUrl
-        val url = "${prefix}${surahStr}${ayahStr}.mp3"
+        val url = com.noorpro.app.audio.QuranAudioCache
+            .cachedFile(getApplication(), prefix, surahId, ayahNumberInSurah)?.absolutePath
+            ?: "${prefix}${surahStr}${ayahStr}.mp3"
 
         try {
             val oldPlayer = mediaPlayer
             mediaPlayer = null
-            oldPlayer?.setOnPreparedListener(null)
-            oldPlayer?.setOnCompletionListener(null)
-            oldPlayer?.setOnErrorListener(null)
-            oldPlayer?.release()
+            releaseQuietly(oldPlayer)
             
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -1809,9 +2050,24 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(url)
-                setOnErrorListener { _, _, _ ->
-                    _isAudioPlaying.value = false
-                    true // Return true to indicate error was handled and prevent onCompletion from being called
+                setOnErrorListener { _, what, extra ->
+                    if (!playbackGeneration.isCurrent(gen)) return@setOnErrorListener true
+                    logPlayerError(url, what, extra)
+                    // Transient network/stream errors: retry the same ayah once, then skip to the next
+                    // one instead of silently stopping the whole surah.
+                    val surah = _playingSurah.value
+                    when {
+                        attempt < 1 -> viewModelScope.launch {
+                            delay(700)
+                            if (_playingSurah.value?.id == surahId && _playingAyahIndex.value == ayahIndex) {
+                                playAyahAudioFromUrl(surahId, ayahIndex, attempt + 1)
+                            }
+                        }
+                        surah != null && surah.id == surahId && ayahIndex + 1 < surah.verses.size ->
+                            viewModelScope.launch { selectAyahToPlay(ayahIndex + 1) }
+                        else -> _isAudioPlaying.value = false
+                    }
+                    true // handled: prevents onCompletion
                 }
                 setOnPreparedListener { 
                     try {
@@ -1829,6 +2085,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                     _audioDuration.value = String.format("%d:%02d", mins, secs)
                 }
                 setOnCompletionListener {
+                    if (!playbackGeneration.isCurrent(gen)) return@setOnCompletionListener
                     val surah = _playingSurah.value ?: _selectedSurah.value
                     if (surah != null) {
                         if (_isRepeatEnabled.value) {
@@ -1874,37 +2131,61 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         navigateTo(DeenScreen.AUDIO_PLAYLIST)
     }
 
-    /** Al Noor Audio (nasheed/naat) — separate from Quran AUDIO_* screens. */
-    var alNoorPlaylistId: String = ""
-        private set
-
-    fun openAlNoorAudio() {
-        navigateTo(DeenScreen.AL_NOOR_AUDIO)
-    }
-
-    fun openAlNoorPlaylist(playlistId: String) {
-        alNoorPlaylistId = playlistId
-        navigateTo(DeenScreen.AL_NOOR_PLAYLIST)
-    }
-
-    fun openAlNoorSearch() {
-        navigateTo(DeenScreen.AL_NOOR_SEARCH)
-    }
-
-    fun openAlNoorNowPlaying() {
-        navigateTo(DeenScreen.AL_NOOR_NOW_PLAYING)
-    }
 
     // ---- Playlist queue: "Play all" (and tapping a track) autoplays the whole playlist in order,
     //      advancing to the next track automatically when the current one finishes. ----
+    private val _queueState = MutableStateFlow<Pair<List<AudioQueueItem>, Int>>(emptyList<AudioQueueItem>() to -1)
     private var audioQueue: List<AudioQueueItem> = emptyList()
     private var audioQueueIndex: Int = -1
 
     private fun audioQueueActive(): Boolean = audioQueue.isNotEmpty()
 
+    // ---- 1.0.81: observable queue for the Spotify-style queue sheet (drag to reorder). ----
+    /** (items, currentIndex). Empty when no playlist queue is active. */
+    val queueState: StateFlow<Pair<List<AudioQueueItem>, Int>> = _queueState.asStateFlow()
+    private fun publishQueue() { _queueState.value = audioQueue to audioQueueIndex }
+
+    /** Turns "play surah N, then the next ones" into an explicit queue so the user can reorder it. */
+    fun ensureEditableQueue() {
+        if (audioQueueActive()) return
+        val cur = (_playingSurah.value ?: _selectedSurah.value)?.id ?: return
+        if (cur !in 1..114) return
+        audioQueue = (0 until 12).map { ((cur - 1 + it) % 114) + 1 }.map { id ->
+            AudioQueueItem(id, null, com.noorpro.app.data.QuranMetaData.surahNamesEn.getOrElse(id - 1) { "Surah $id" }, "")
+        }
+        audioQueueIndex = 0
+        publishQueue()
+    }
+
+    fun moveQueueItem(from: Int, to: Int) {
+        if (from !in audioQueue.indices || to !in audioQueue.indices || from == to) return
+        val list = audioQueue.toMutableList(); val item = list.removeAt(from); list.add(to, item)
+        audioQueueIndex = when (audioQueueIndex) {
+            from -> to
+            in (minOf(from, to)..maxOf(from, to)) -> if (from < to) audioQueueIndex - 1 else audioQueueIndex + 1
+            else -> audioQueueIndex
+        }
+        audioQueue = list
+        publishQueue()
+    }
+
+    fun removeQueueItem(index: Int) {
+        if (index !in audioQueue.indices || index == audioQueueIndex) return
+        audioQueue = audioQueue.toMutableList().also { it.removeAt(index) }
+        if (index < audioQueueIndex) audioQueueIndex--
+        publishQueue()
+    }
+
+    fun playQueueAt(index: Int) {
+        if (index !in audioQueue.indices) return
+        audioQueueIndex = index
+        playCurrentQueueItem()
+    }
+
     fun clearAudioQueue() {
         audioQueue = emptyList()
         audioQueueIndex = -1
+        publishQueue()
     }
 
     /** Start a playlist from [startIndex] and keep playing track-by-track. */
@@ -1917,6 +2198,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun playCurrentQueueItem() {
         val item = audioQueue.getOrNull(audioQueueIndex) ?: return
+        publishQueue()
         if (item.ayah != null) playAyahTrackInternal(item.surahId, item.ayah, item.title, item.arabic)
         else playSurahNow(playbackSurah(item.surahId), triggerPlayback = true)
     }
@@ -1962,13 +2244,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
         val url = "${_selectedReciter.value.prefixUrl}${String.format("%03d", surahId)}${String.format("%03d", ayahNumber)}.mp3"
         try {
-            val old = mediaPlayer
-            mediaPlayer = null
-            old?.setOnPreparedListener(null)
-            old?.setOnCompletionListener(null)
-            old?.setOnErrorListener(null)
-            old?.release()
+            val gen = stopCurrentForNewItem()
             mediaPlayer = MediaPlayer().apply {
+                setWakeMode(getApplication(), android.os.PowerManager.PARTIAL_WAKE_LOCK)
                 setAudioAttributes(
                     android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -1976,7 +2254,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                         .build()
                 )
                 setDataSource(url)
-                setOnErrorListener { _, _, _ -> _isAudioPlaying.value = false; true }
+                setOnErrorListener { _, what, extra -> logPlayerError(url, what, extra); _isAudioPlaying.value = false; true }
                 setOnPreparedListener { mp ->
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -1989,6 +2267,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                     _audioDuration.value = String.format("%d:%02d", d / 1000 / 60, (d / 1000) % 60)
                 }
                 setOnCompletionListener {
+                    if (!playbackGeneration.isCurrent(gen)) return@setOnCompletionListener
                     // Continue the playlist if one is active; otherwise just stop.
                     if (!(audioQueueActive() && advanceAudioQueue())) {
                         _isAudioPlaying.value = false
@@ -2084,6 +2363,21 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (e: Exception) {
             CrashReporter.report(e)
+        }
+    }
+
+    // 1.0.80: sleep timer — pauses playback after the chosen number of minutes.
+    private val _sleepTimerEndsAt = MutableStateFlow<Long?>(null)
+    val sleepTimerEndsAt = _sleepTimerEndsAt.asStateFlow()
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        if (minutes == null || minutes <= 0) { _sleepTimerEndsAt.value = null; return }
+        _sleepTimerEndsAt.value = System.currentTimeMillis() + minutes * 60_000L
+        sleepTimerJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(minutes * 60_000L)
+            if (_isAudioPlaying.value) toggleAudioPlayback()
+            _sleepTimerEndsAt.value = null
         }
     }
 
@@ -2244,6 +2538,18 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         navigateTo(DeenScreen.ACTIVE_QUIZ)
     }
 
+    /**
+     * Opens the full Quran audio player directly from the mini-player. Debounced so a double tap
+     * cannot also hit controls on the freshly opened player (e.g. "Lyrics" -> Quran reader).
+     */
+    fun openNowPlaying() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastOpenNowPlayingAt < 600) return
+        lastOpenNowPlayingAt = now
+        navigateTo(DeenScreen.NOW_PLAYING)
+    }
+    private var lastOpenNowPlayingAt = 0L
+
     fun navigateTo(screen: DeenScreen) {
         val current = _currentScreen.value
         if (screen == current) return
@@ -2263,6 +2569,15 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         if (backStack.isEmpty()) return false
         _currentScreen.value = backStack.removeAt(backStack.lastIndex)
         return true
+    }
+
+    /** Return from a Quran sub-reader to the Quran tab without leaving a stale loop in history. */
+    fun returnToQuranRoot() {
+        _selectedSurah.value = null
+        _activeDbVerses.value = emptyList()
+        _quranError.value = null
+        backStack.clear()
+        _currentScreen.value = DeenScreen.QURAN
     }
 
     fun downloadAllQuranData(onResult: (Boolean) -> Unit) {
@@ -2533,6 +2848,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun playSurahNow(surah: Surah, triggerPlayback: Boolean = true) {
+        val gen = if (triggerPlayback) stopCurrentForNewItem() else playbackGeneration.current
         _selectedSurah.value = surah
         _playingSurah.value = surah
         _currentAudioTrack.value = null
@@ -2569,7 +2885,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                 _audioProgress.value = 0f
                 _audioPosition.value = "0:00"
                 _playingAyahIndex.value = 0
-                if (triggerPlayback) {
+                if (triggerPlayback && playbackGeneration.isCurrent(gen)) {
                     playAyahAudioFromUrl(updatedSurah.id, 0)
                 }
             } catch (e: Exception) {
@@ -2724,6 +3040,12 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         _recentQuranReads.value = (listOf(cleanSurah to cleanAyah) +
             _recentQuranReads.value.filterNot { it.first.id == cleanSurah.id })
             .take(3)
+        // 1.0.98: persist for restarts + the Continue Quran home-screen widget.
+        runCatching {
+            val app = getApplication<Application>()
+            com.noorpro.app.data.QuranLastRead.save(app, cleanSurah.id, cleanAyah, cleanSurah.nameEnglish, cleanSurah.nameArabic)
+            com.noorpro.app.widget.ContinueQuranWidget.requestRefresh(app)
+        }
     }
 
     fun toggleBookmark(surah: Surah, ayahNumber: Int, ayahText: String) {
@@ -2751,6 +3073,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         if (current != null) {
             val newEnabled = !current.isNotificationEnabled
             prayerSettingsController.setAlarmEnabled(prayerName, newEnabled)
+            if (newEnabled) com.noorpro.app.ui.screens.ExactAlarmAsk.onAdhanEnabled(getApplication())
             recalculatePrayers()
         }
     }
@@ -2852,11 +3175,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startCompassListening() {
         try {
-            sensorManager?.registerListener(
-                sensorEventListener,
-                rotationVectorSensor,
-                android.hardware.SensorManager.SENSOR_DELAY_UI
-            )
+            smoothedHeading = Float.NaN
+            val sm = sensorManager
+            if (sm == null) { _compassAvailable.value = false; return }
+            if (rotationVectorSensor != null) {
+                sm.registerListener(sensorEventListener, rotationVectorSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            } else if (accelSensor != null && magSensor != null) {
+                sm.registerListener(sensorEventListener, accelSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+                sm.registerListener(sensorEventListener, magSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            } else { _compassAvailable.value = false; return }
+            // Magnetometer accuracy is reported separately; listen to it for the calibration hint.
+            if (magSensor != null && rotationVectorSensor != null) sm.registerListener(sensorEventListener, magSensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
         } catch (e: Exception) {
             CrashReporter.report(e, "startCompassListening")
         }
@@ -2996,8 +3325,13 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun repairMojibake(value: String): String {
         return try {
-            if (value.any { it.code in 0x0080..0x00FF }) {
-                String(value.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+            // Only re-decode text that is really UTF-8 read as Latin-1; genuine Latin-1 letters
+            // (e.g. Turkish ü/ç/ö) are kept, otherwise they turn into U+FFFD boxes.
+            if (value.any { it.code in 0x0080..0x00FF } && value.all { it.code <= 0xFF }) {
+                Charsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(value.toByteArray(Charsets.ISO_8859_1))).toString()
             } else {
                 value
             }
@@ -3019,7 +3353,11 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             sensorManager?.unregisterListener(sensorEventListener)
         } catch (_: Exception) {}
         try {
-            mediaPlayer?.release()
+            if (com.noorpro.app.audio.session.QuranSessionBridge.commands === quranSessionCommands) {
+                com.noorpro.app.audio.session.QuranSessionBridge.commands = null
+                com.noorpro.app.audio.session.QuranSessionBridge.update(getApplication(), null)
+            }
+            releaseQuietly(mediaPlayer)
             mediaPlayer = null
         } catch (_: Exception) {}
         try {

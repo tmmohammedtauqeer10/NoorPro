@@ -256,17 +256,30 @@ fun DuaHubScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    // Row spacing is per-item bottom padding so a collapsed (unfilled) ad row adds no gap.
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f)
                         .testTag("dua_categories_grid")
                 ) {
-                    items(filteredCategories, key = { it.id }) { category: DuaCategory ->
-                        DuaCategoryCard(
-                            category = category,
-                            onClick = { viewModel.selectDuaCategory(category) }
-                        )
+                    items(filteredCategories.take(4), key = { it.id }) { category: DuaCategory ->
+                        Box(Modifier.padding(bottom = 16.dp)) {
+                            DuaCategoryCard(
+                                category = category,
+                                onClick = { viewModel.selectDuaCategory(category) }
+                            )
+                        }
+                    }
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }, key = "inline_ad") {
+                        com.noorpro.app.ads.InlineAdCard(Modifier.padding(bottom = 16.dp))
+                    }
+                    items(filteredCategories.drop(4), key = { it.id }) { category: DuaCategory ->
+                        Box(Modifier.padding(bottom = 16.dp)) {
+                            DuaCategoryCard(
+                                category = category,
+                                onClick = { viewModel.selectDuaCategory(category) }
+                            )
+                        }
                     }
                 }
                 

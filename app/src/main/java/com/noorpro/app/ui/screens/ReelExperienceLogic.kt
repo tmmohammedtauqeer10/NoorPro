@@ -65,7 +65,7 @@ internal fun wideReelFrame(viewportWidthDp: Float, viewportHeightDp: Float, aspe
     val aspect = aspectRatio.takeIf { it.isFinite() && it > 1.15f } ?: (16f / 9f)
     val frameHeight = (width / aspect).coerceAtMost((height - 360f).coerceAtLeast(120f))
     val frameWidth = frameHeight * aspect
-    val top = ((height - 180f - frameHeight) / 2f).coerceAtLeast(112f)
+    val top = ((height - frameHeight) / 2f - 40f).coerceAtLeast(112f)
         .coerceAtMost((height - frameHeight - 80f).coerceAtLeast(0f))
     return WideReelFrame(frameWidth, frameHeight, top)
 }
@@ -84,6 +84,41 @@ internal fun stableReelOrder(previousIds: List<String>, rankedIds: List<String>)
     val retainedSet = retained.toSet()
     return retained + rankedIds.filterNot { it in retainedSet }
 }
+
+/**
+ * A reel opened from Profile, Saved, a notification, or immediately after upload starts a fresh
+ * viewing session at page zero. Keeping the rest of the stable feed after it is important: if a
+ * brand-new reel were merely appended to the end, the pager would open on its final page and the
+ * member could not swipe forward to another reel.
+ */
+internal fun reelOrderWithFocus(
+    previousIds: List<String>,
+    rankedIds: List<String>,
+    focusedId: String
+): List<String> {
+    val stable = stableReelOrder(previousIds, rankedIds)
+    val cleanFocus = focusedId.trim()
+    if (cleanFocus.isEmpty() || cleanFocus !in stable) return stable
+    return listOf(cleanFocus) + stable.filterNot { it == cleanFocus }
+}
+
+/** Keep a successful local interaction visible until its Firestore counter snapshot catches up. */
+internal fun displayedEngagementCount(
+    remoteCount: Long,
+    activeForCurrentUser: Boolean,
+    optimisticCount: Long?,
+    /** 1.0.84: server value when the optimistic change was made. Once the live snapshot moves
+     *  away from it (our write landed, or someone else liked/commented) the server wins, so the
+     *  count never goes stale. null = legacy behaviour. */
+    remoteAtChange: Long? = null,
+): Long = when {
+    optimisticCount == null -> maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+    remoteAtChange != null && remoteCount != remoteAtChange -> maxOf(remoteCount, if (activeForCurrentUser) 1L else 0L)
+    else -> optimisticCount
+}
+
+internal fun nextEngagementCount(currentCount: Long, activating: Boolean): Long =
+    (currentCount + if (activating) 1L else -1L).coerceAtLeast(0L)
 
 /**
  * Ads stay between ordinary Ummah cards: one after the first post and then only after eight more.

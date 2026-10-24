@@ -1,5 +1,9 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.material3.IconButton
+
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -88,15 +94,16 @@ private val exploreTools = listOf(
     ExploreTool("Azkar", "Morning, evening, and daily remembrance", "Worship", Icons.Default.Favorite, DeenScreen.AZKAR),
     ExploreTool("Dua Collection", "Supplications organized by occasion", "Worship", Icons.Default.Language, DeenScreen.DUA_HUB),
     ExploreTool("Tasbih", "Simple digital dhikr counter", "Worship", Icons.Default.TouchApp, DeenScreen.TASBIH),
+    ExploreTool("Darood Sharif", "Salawat with Arabic, translation, counter and sources", "Worship", Icons.Default.Favorite, DeenScreen.DAROOD_SHARIF),
+    ExploreTool("Ruhani Ilaj", "Ruqyah, protection and shifa ayat with sources", "Worship", Icons.Default.Shield, DeenScreen.RUHANI),
+    ExploreTool("Tasawwuf", "Books, tariqas, silsila charts, awliya and practices", "Worship", Icons.Default.Spa, DeenScreen.TASAWWUF),
     ExploreTool("Hajj & Umrah", "Step-by-step rituals, flights, hotels, and package planning", "Worship", Icons.Default.TravelExplore, DeenScreen.HAJJ_UMRAH),
     ExploreTool("Noor AI", "Ask Islamic questions, generate duas, and explain Quran or Hadith safely", "AI", Icons.Default.AutoAwesome, DeenScreen.AI_HUB),
     ExploreTool("Quran", "Read chapters, translations, and recitations", "Quran", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.QURAN),
-    ExploreTool("Audio", "Quran audio playlists and recitations", "Quran", Icons.Default.Audiotrack, DeenScreen.AUDIO_LIBRARY),
-    ExploreTool("Al Noor Audio", "Copyright-free nasheed & naat (Islamic Spotify)", "Worship", Icons.Default.Audiotrack, DeenScreen.AL_NOOR_AUDIO),
+    ExploreTool("Al-Noor Audio", "Quran recitations, nasheeds and playlists", "Quran", Icons.Default.Audiotrack, DeenScreen.AUDIO_LIBRARY),
     ExploreTool("Indo-Pak Quran", "Read with Indo-Pak script styling", "Quran", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.INDOPAK_QURAN),
     ExploreTool("Quran Bookmarks", "Return to saved verses and reading points", "Quran", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
-    ExploreTool("Quran Learning", "Learn Quran with guided progress", "Learning", Icons.Default.School, DeenScreen.QURAN_LEARNING_DASHBOARD),
-    ExploreTool("Qaida Tutor", "Practice Arabic letters and foundational reading", "Learning", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
+    ExploreTool("Quran Learning", "Step-by-step course: Qaida to advanced tajweed", "Learning", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
     ExploreTool("Hadith Library", "Browse supported Hadith collections", "Learning", Icons.Default.LibraryBooks, DeenScreen.HADITH_LIBRARY),
     ExploreTool("Islamic Library", "Read books from the verified catalog", "Learning", Icons.Default.LibraryBooks, DeenScreen.LIBRARY_DASHBOARD),
     ExploreTool("Ummah", "Approved Islamic reels, images, and reminders", "Daily Life", Icons.Default.Public, DeenScreen.UMMAH),
@@ -113,72 +120,37 @@ private val MatteGold = Color(0xFF0E8C73)
 
 @Composable
 fun ExploreScreen(viewModel: DeenViewModel) {
+    // 1.0.73: Home "See All" shows the same categorized grid as the More tab (single catalog).
     var query by remember { mutableStateOf("") }
-    val filteredTools = remember(query) {
-        if (query.isBlank()) {
-            exploreTools
-        } else {
-            exploreTools.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                    it.description.contains(query, ignoreCase = true) ||
-                    it.category.contains(query, ignoreCase = true)
-            }
-        }
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 48.dp, end = 20.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text(
-                text = "Explore",
-                color = TextPrimary,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                text = "All your reliable Islamic tools in one place",
-                color = TextSecondary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(modifier = Modifier.height(18.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text("Search Quran, prayer, dua, learning...") },
-                shape = RoundedCornerShape(16.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (filteredTools.isEmpty()) {
+    com.noorpro.app.ui.components.StitchScreen {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, top = 40.dp, end = 20.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             item {
-                Text(
-                    text = "No tools match \"$query\".",
-                    color = TextSecondary,
-                    modifier = Modifier.padding(vertical = 24.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = com.noorpro.app.ui.components.stitchText())
+                    }
+                    Column {
+                        Text("All features", color = com.noorpro.app.ui.components.stitchPrimary(), fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                        Text("Every Noor Pro tool, grouped", color = com.noorpro.app.ui.components.stitchMutedText(), fontSize = 13.sp)
+                    }
+                }
+            }
+            item {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    placeholder = { Text("Search Quran, prayer, dua, learning...") },
+                    shape = RoundedCornerShape(16.dp)
                 )
             }
-        } else {
-            filteredTools.groupBy { it.category }.forEach { (category, tools) ->
-                item {
-                    Text(
-                        text = category,
-                        color = MatteGold,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
-                    )
-                }
-                items(tools, key = { it.title }) { tool ->
-                    ExploreToolCard(tool = tool, onClick = { viewModel.navigateTo(tool.screen) })
-                }
-            }
+            item { MoreCategoryGrid(onOpen = { viewModel.navigateTo(it) }, query = query) }
         }
     }
 }

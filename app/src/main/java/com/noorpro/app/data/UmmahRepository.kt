@@ -34,8 +34,22 @@ data class UmmahPost(
     val mediaHeight: Int = 0,
     val mediaRotationDegrees: Int = 0,
     val publicationStatus: String = "published",
-    val storageProvider: String = ""
+    val storageProvider: String = "",
+    /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
+    val pendingStorageRef: String = "",
+    /** 1.0.75: optional multi-photo carousel (first item == mediaUrl). Empty for legacy posts. */
+    val mediaUrls: List<String> = emptyList(),
+    /** 1.1.1 (additive, need the updated publisher): poll options (2..4), poll close time, AI label, place, audience. */
+    val pollOptions: List<String> = emptyList(),
+    val pollEndsAt: Long = 0L,
+    val aiLabel: Boolean = false,
+    val locationName: String = "",
+    val visibility: String = "everyone"
 )
+
+/** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
+ * the UI stop retrying a valid receipt while still retrying transient network/rules failures. */
+enum class ReelViewResult { COUNTED, ALREADY_COUNTED, FAILED }
 
 /** A member shown in a followers / following list (Instagram-style). */
 data class UmmahFollowUser(
@@ -65,7 +79,8 @@ data class UmmahChat(
     val lastMessageType: String,
     val lastSenderUid: String,
     val updatedAt: Long,
-    val unreadCount: Long = 0
+    val unreadCount: Long = 0,
+    val meta: ChatMeta = ChatMeta()
 )
 
 data class UmmahGroup(
@@ -91,7 +106,19 @@ data class UmmahMessage(
     val replyToName: String = "",
     val replyToText: String = "",
     val replyToType: String = "",
-    val reactions: Map<String, String> = emptyMap()
+    val reactions: Map<String, String> = emptyMap(),
+    /** 1.0.82: Instagram-style in-app share of a reel / Ummah post ("post_share" messages). */
+    val sharedPostId: String = "",
+    val sharedPostKind: String = "",
+    val sharedThumb: String = "",
+    val sharedCreatorUid: String = "",
+    val sharedCreatorName: String = "",
+    val sharedCreatorPhoto: String = "",
+    val sharedCaption: String = "",
+    /** 1.0.92: voice notes — length + 0..100 amplitude bars; forwarded flag. */
+    val durationMs: Long = 0,
+    val waveform: List<Int> = emptyList(),
+    val forwarded: Boolean = false
 )
 
 data class UmmahComment(
@@ -102,7 +129,8 @@ data class UmmahComment(
     val creatorName: String,
     val createdAt: Long,
     val parentCommentId: String = "",
-    val replyToName: String = ""
+    val replyToName: String = "",
+    val likeCount: Long = 0
 )
 
 data class UmmahSavedCollection(
@@ -155,8 +183,11 @@ class UmmahRepository {
     private val publicationRetryAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val publicationRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** A creator can interact with a reel during its brief submission-to-publication window.
-     * Retry public counters so those first likes, saves, shares, and views are not lost. */
+    /**
+     * Update the public counter, or the creator-owned submission while a new reel is waiting for
+     * backend promotion. This removes the publication race that used to make a successful Like,
+     * Save, Comment, Share, or View fall back to zero on a newly uploaded reel.
+     */
     private fun incrementPublishedCounter(
         postId: String,
         field: String,
@@ -169,21 +200,29 @@ class UmmahRepository {
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     onResult(true)
-                } else if (attempt < 6) {
-                    publicationRetryHandler.postDelayed(
-                        {
-                            incrementPublishedCounter(
-                                postId = postId,
-                                field = field,
-                                delta = delta,
-                                attempt = attempt + 1,
-                                onResult = onResult
-                            )
-                        },
-                        ((attempt + 1) * 1_500L).coerceAtMost(6_000L)
-                    )
                 } else {
-                    onResult(false)
+                    firestore.collection("ummah_submissions").document(postId)
+                        .update(field, com.google.firebase.firestore.FieldValue.increment(delta))
+                        .addOnCompleteListener { submissionTask ->
+                            if (submissionTask.isSuccessful) {
+                                onResult(true)
+                            } else if (attempt < 3) {
+                                publicationRetryHandler.postDelayed(
+                                    {
+                                        incrementPublishedCounter(
+                                            postId = postId,
+                                            field = field,
+                                            delta = delta,
+                                            attempt = attempt + 1,
+                                            onResult = onResult
+                                        )
+                                    },
+                                    ((attempt + 1) * 1_000L).coerceAtMost(3_000L)
+                                )
+                            } else {
+                                onResult(false)
+                            }
+                        }
                 }
             }
     }
@@ -235,6 +274,7 @@ class UmmahRepository {
                 .associateBy { it.id }
                 .values
                 .sortedByDescending { it.publishedAt }
+                .let { playableOnly(it) { mainHandler.post { emit() } } }
             val message = if (merged.isEmpty()) publishedError ?: submissionError else null
             onResult(merged, message)
         }
@@ -256,7 +296,7 @@ class UmmahRepository {
                         return@mapNotNull null
                     }
                     document.toUmmahPost()
-                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                 emit()
             }
 
@@ -288,18 +328,70 @@ class UmmahRepository {
                         }
                     mySubmissions = visibleSubmissions
                         .map { it.toUmmahPost(fallbackTimestamp = System.currentTimeMillis()) }
-                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                     emit()
                 }
         }
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Resolve legacy gs:// / storage-path media and drop video posts whose media is permanently
+     * unreachable on the server (missing object, revoked token, Storage disabled), so the feed
+     * and Reels never show a broken card. [reemit] fires when a background check changes the result.
+     */
+    private fun playableOnly(posts: List<UmmahPost>, reemit: () -> Unit): List<UmmahPost> =
+        posts.mapNotNull { post ->
+            var p = post
+            if (p.pendingStorageRef.isNotBlank()) {
+                val url = com.noorpro.app.data.media.ReelMediaAvailability.resolvedUrl(p.pendingStorageRef)
+                if (url == null) {
+                    com.noorpro.app.data.media.ReelMediaAvailability.resolveStorageRef(p.pendingStorageRef, reemit)
+                    // Text-only content can still be shown; a media-only post waits for its URL.
+                    return@mapNotNull if (p.caption.isNotBlank() || p.arabicText.isNotBlank()) p else null
+                }
+                p = p.copy(mediaUrl = url, pendingStorageRef = "")
+            }
+            if (!com.noorpro.app.data.media.MediaUrls.looksLikeVideo(p.type, p.mediaUrl)) return@mapNotNull p
+            val urls = listOf(p.hlsUrl, p.mediaUrl)
+            com.noorpro.app.data.media.ReelMediaAvailability.ensureChecked(urls, reemit)
+            if (com.noorpro.app.data.media.ReelMediaAvailability.isDead(urls)) null else p
+        }
+
+    private fun DocumentSnapshot.rawMediaUrl(): String =
+        com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_MEDIA_FIELDS) { getString(it) }
+
+    /**
+     * 1.0.91 Reels search: one-shot array-contains query over the server-maintained search arrays
+     * ("hashtags" or "searchKeywords"), limited to published posts. Client ranks + filters blocks.
+     */
+    fun searchPublishedPosts(field: String, value: String, limit: Long = 80, onResult: (List<UmmahPost>) -> Unit) {
+        if (value.isBlank() || field !in setOf("hashtags", "searchKeywords")) { onResult(emptyList()); return }
+        firestore.collection("ummah_posts")
+            .whereEqualTo("approved", true)
+            .whereEqualTo("status", "published")
+            .whereArrayContains(field, value)
+            .limit(limit)
+            .get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.toUmmahPost() }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
     private fun DocumentSnapshot.toUmmahPost(fallbackTimestamp: Long = 0L): UmmahPost = UmmahPost(
         id = id,
         type = getString("type")?.lowercase() ?: "image",
-        mediaUrl = getString("mediaUrl").orEmpty(),
-        hlsUrl = getString("hlsUrl").orEmpty(),
-        thumbnailUrl = getString("thumbnailUrl").orEmpty(),
+        mediaUrl = rawMediaUrl().let { raw ->
+            if (com.noorpro.app.data.media.MediaUrls.storagePathToResolve(raw, getString("mediaPath").orEmpty()) != null) ""
+            else com.noorpro.app.data.media.MediaUrls.normalize(raw)
+        },
+        pendingStorageRef = com.noorpro.app.data.media.MediaUrls
+            .storagePathToResolve(rawMediaUrl(), getString("mediaPath").orEmpty()).orEmpty(),
+        hlsUrl = com.noorpro.app.data.media.MediaUrls.normalize(getString("hlsUrl").orEmpty())
+            .takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
+        thumbnailUrl = com.noorpro.app.data.media.MediaUrls.normalize(
+            com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_THUMB_FIELDS) { getString(it) }
+        ).takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
         creatorUid = getString("creatorUid").orEmpty(),
         creatorName = getString("creatorName") ?: "Noor Pro",
         creatorHandle = getString("creatorHandle") ?: "@noorpro",
@@ -321,7 +413,17 @@ class UmmahRepository {
         mediaHeight = (get("mediaHeight") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0,
         mediaRotationDegrees = (get("mediaRotationDegrees") as? Number)?.toInt() ?: 0,
         publicationStatus = getString("status") ?: "published",
-        storageProvider = getString("storageProvider").orEmpty()
+        storageProvider = getString("storageProvider").orEmpty(),
+        mediaUrls = (get("mediaUrls") as? List<*>).orEmpty().filterIsInstance<String>()
+            .map { com.noorpro.app.data.media.MediaUrls.normalize(it) }
+            .filter { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.take(10),
+        pollOptions = ((get("poll") as? Map<*, *>)?.get("options") as? List<*>).orEmpty()
+            .filterIsInstance<String>().map { it.trim().take(80) }.filter { it.isNotBlank() }.take(4)
+            .takeIf { it.size >= 2 }.orEmpty(),
+        pollEndsAt = ((get("poll") as? Map<*, *>)?.get("endsAt") as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L,
+        aiLabel = getBoolean("aiLabel") == true,
+        locationName = getString("locationName").orEmpty().take(80),
+        visibility = if (getString("visibility") == "followers") "followers" else "everyone"
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
@@ -410,6 +512,66 @@ class UmmahRepository {
         incrementPublishedCounter(cleanPostId, "viewCount")
     }
 
+    /**
+     * 1.0.83: real, de-duplicated view. In one transaction: if this user has no receipt at
+     * ummah_posts/{id}/views/{uid}, create it (create-once rule) and +1 viewCount. A second view
+     * by the same user — on any device/reinstall — is a no-op. The result distinguishes a new
+     * count, an existing receipt, and a retryable failure.
+     */
+    fun recordUniqueView(postId: String, watchedMs: Long, onResult: (ReelViewResult) -> Unit = {}) {
+        val cleanPostId = postId.trim()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (cleanPostId.isBlank() || uid == null) return onResult(ReelViewResult.FAILED)
+        val post = firestore.collection("ummah_posts").document(cleanPostId)
+        val receipt = post.collection("views").document(uid)
+
+        fun fallbackAfterFailedReceipt(transactionError: Exception?) {
+            if ((transactionError as? com.google.firebase.firestore.FirebaseFirestoreException)?.code ==
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+            ) {
+                // Compatibility with a backend that has the safe counter rule deployed but not the
+                // newer receipt subcollection yet.
+                incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                }
+                return
+            }
+            // Older production rules did not yet allow the /views receipt. Check whether the
+            // transaction actually committed before using the compatible +1 counter update.
+            receipt.get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        onResult(ReelViewResult.ALREADY_COUNTED)
+                    } else {
+                        incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                            onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    // A network failure should remain retryable when the viewer returns to the reel.
+                    onResult(ReelViewResult.FAILED)
+                }
+        }
+
+        firestore.runTransaction { tx ->
+            if (tx.get(receipt).exists()) return@runTransaction false
+            if (!tx.get(post).exists()) return@runTransaction null
+            tx.set(receipt, mapOf("uid" to uid, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(), "watchedMs" to watchedMs))
+            tx.update(post, "viewCount", com.google.firebase.firestore.FieldValue.increment(1L))
+            true
+        }.addOnCompleteListener { t ->
+            when {
+                !t.isSuccessful -> fallbackAfterFailedReceipt(t.exception)
+                t.result == null -> incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                } // newly uploaded reel still present only in ummah_submissions
+                t.result == true -> onResult(ReelViewResult.COUNTED)
+                else -> onResult(ReelViewResult.ALREADY_COUNTED)
+            }
+        }
+    }
+
     fun observeSavedCollections(onResult: (List<UmmahSavedCollection>) -> Unit) {
         val user = FirebaseAuth.getInstance().currentUser ?: run {
             onResult(emptyList())
@@ -491,6 +653,22 @@ class UmmahRepository {
                 }
                 onResult(profiles)
             }
+    }
+
+    /** 1.0.92: server-indexed people lookup (searchKeys prefix array written by indexPeopleSearch). */
+    fun searchProfiles(key: String, onResult: (List<UmmahProfile>) -> Unit) {
+        if (key.isBlank()) return onResult(emptyList())
+        firestore.collection("ummah_profiles").whereArrayContains("searchKeys", key.take(15)).limit(30).get()
+            .addOnSuccessListener { snap ->
+                onResult(snap.documents.map { doc ->
+                    UmmahProfile(
+                        uid = doc.id, name = doc.getString("name").orEmpty(), handle = doc.getString("handle").orEmpty(),
+                        photoUrl = doc.getString("photoUrl").orEmpty(), bio = doc.getString("bio").orEmpty(),
+                        isPrivate = doc.getBoolean("isPrivate") ?: false, hideCounts = doc.getBoolean("hideCounts") ?: false
+                    )
+                })
+            }
+            .addOnFailureListener { onResult(emptyList()) }
     }
 
     /** Publish/refresh the signed-in member's public profile card. Fire-and-forget. */
@@ -626,8 +804,17 @@ class UmmahRepository {
         creatorHandle: String = "",
         creatorDisplayName: String = "",
         creatorPhotoUrlOverride: String = "",
+        onSubmitted: (String) -> Unit = {},
+        onProgress: (Float) -> Unit = {},
+        extraImageUris: List<Uri> = emptyList(),
+        /** 1.1.1: an uploaded reel/video cover (https). Blank keeps the previous behaviour. */
+        thumbnailUrlOverride: String = "",
+        /** 1.1.1: optional composer fields (poll, aiLabel, locationName, visibility). Empty = unchanged. */
+        extraFields: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
+        val extras = if (type == "image") extraImageUris.take(9) else emptyList()
+        val photoCount = 1 + extras.size
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
         val resolvedHandle = creatorHandle.trim().ifBlank { "@${user.email?.substringBefore("@").orEmpty()}" }
             .let { if (it.startsWith("@")) it else "@$it" }
@@ -651,12 +838,13 @@ class UmmahRepository {
             mediaUrl: String,
             mediaPath: String = "",
             hlsUrl: String = "",
-            storageProvider: String = "firebase"
+            storageProvider: String = "firebase",
+            mediaUrls: List<String> = emptyList()
         ) {
             val publishedCaption = caption.trim().ifBlank {
                 if (mediaUrl.isNotBlank()) "Shared with the Ummah" else ""
             }
-            val thumbnailUrl = if (type == "image") mediaUrl else ""
+            val thumbnailUrl = if (type == "image") mediaUrl else thumbnailUrlOverride.takeIf { it.startsWith("https://") }.orEmpty()
             // The client writes an authenticated submission. A trusted Firestore trigger validates
             // it, then publishes it into ummah_posts so the reel appears in the live feed.
             firestore.collection("ummah_submissions").add(
@@ -689,8 +877,9 @@ class UmmahRepository {
                     "displayAspectRatio" to videoMetadata.displayAspectRatio.toDouble(),
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                )
+                ) + (if (mediaUrls.size > 1) mapOf("mediaUrls" to mediaUrls.take(10)) else emptyMap()) + extraFields
             ).addOnSuccessListener { document ->
+                onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
                 // Keep storage-provider and backend workflow details out of the member experience.
                 val message = if (type == "reel" || type == "video") {
@@ -700,7 +889,7 @@ class UmmahRepository {
                 }
                 onResult(true, message)
             }.addOnFailureListener { error ->
-                onResult(false, error.localizedMessage ?: "Post submit failed.")
+                onResult(false, "Couldn't publish your post. Check your connection and tap Retry.")
             }
         }
 
@@ -709,44 +898,148 @@ class UmmahRepository {
             return
         }
 
-        val contentType = normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
+        val mediaUri = if (type == "image") ImageCompressor.compress(context, mediaUri, maxSide = 2048, quality = 90) else mediaUri  // 1.0.83: sharper chat photos
+        val contentType = if (type == "image") "image/jpeg" else normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
         val mediaSize = contentLength(context, mediaUri)
         if (mediaSize >= MAX_UMMAH_MEDIA_BYTES) {
             return onResult(false, "This file is too large. Choose a photo or video smaller than 100 MB.")
         }
 
-        // Upload the raw bytes to Firebase Storage. Used directly for images, and as the fallback
-        // for videos when the AWS/CloudFront pipeline is off or unreachable.
-        fun uploadViaFirebase() {
+        // Firebase Storage is the primary upload path (images and reels). Each attempt reports
+        // progress; transient failures are retried with backoff, and if Storage is unavailable
+        // (e.g. HTTP 402/403 when billing lapses) reels/videos fall back to the AWS S3 +
+        // CloudFront pipeline. Members only ever see a friendly message.
+        val isVideo = type == "reel" || type == "video"
+        fun uploadExtras(start: Int, acc: List<String>, done: (List<String>?) -> Unit) =
+            uploadExtrasImpl(context, user.uid, extras, start, acc, onProgress) { r -> mainHandler.post { done(r) } }
+        fun uploadViaCdn(lastError: Throwable?) {
+            if (!ReelCdnUploader.ENABLED) {
+                return onResult(false, UploadErrors.friendly(lastError, isVideo))
+            }
+            onProgress(0f)
+            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata, onProgress = { onProgress(it) }) { result ->
+                mainHandler.post {
+                    if (result != null) {
+                        onProgress(1f)
+                        publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+                    } else {
+                        onResult(false, UploadErrors.friendly(lastError, isVideo))
+                    }
+                }
+            }
+        }
+
+        fun uploadViaFirebase(attempt: Int) {
             val folder = if (type == "image") "images" else "videos"
             val ref = FirebaseStorage.getInstance().reference
                 .child("ummah_submissions/${user.uid}/$folder/${System.currentTimeMillis()}")
             val metadata = StorageMetadata.Builder()
                 .setContentType(contentType)
                 .build()
-            ref.putFile(mediaUri, metadata)
-                .addOnSuccessListener {
-                    ref.downloadUrl
-                        .addOnSuccessListener { downloadUri -> publishPost(downloadUri.toString(), ref.path) }
-                        .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Could not read uploaded media URL.") }
-                }
-                .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Media upload failed.") }
-        }
-
-        // Reels/videos: try the AWS S3 + CloudFront pipeline first (fast, cheap playback). On any
-        // failure or when it's disabled, fall back to Firebase Storage so uploads never break.
-        if (ReelCdnUploader.ENABLED && (type == "reel" || type == "video")) {
-            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata) { result ->
-                if (result != null) {
-                    publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+            fun failed(error: Throwable) {
+                android.util.Log.w("NoorUpload", "storage upload failed attempt=$attempt http=${UploadErrors.httpCodeOf(error)}: ${error.javaClass.simpleName}")
+                if (attempt < 2 && UploadErrors.isRetryable(error)) {
+                    mainHandler.postDelayed({ uploadViaFirebase(attempt + 1) }, 1_500L * (attempt + 1))
                 } else {
-                    uploadViaFirebase()
+                    uploadViaCdn(error)
                 }
             }
-            return
+            ref.putFile(mediaUri, metadata)
+                .addOnProgressListener { snap ->
+                    if (snap.totalByteCount > 0) onProgress((snap.bytesTransferred.toFloat() / snap.totalByteCount / photoCount).coerceIn(0f, 1f))
+                }
+                .addOnSuccessListener {
+                    ref.downloadUrl
+                        .addOnSuccessListener { downloadUri ->
+                            if (extras.isEmpty()) { onProgress(1f); publishPost(downloadUri.toString(), ref.path) }
+                            else uploadExtras(0, listOf(downloadUri.toString())) { urls ->
+                                if (urls == null) onResult(false, "Couldn't upload all photos. Check your connection and tap Retry.")
+                                else { onProgress(1f); publishPost(urls.first(), ref.path, mediaUrls = urls) }
+                            }
+                        }
+                        .addOnFailureListener { error -> failed(error) }
+                }
+                .addOnFailureListener { error -> failed(error) }
         }
 
-        uploadViaFirebase()
+        uploadViaFirebase(0)
+    }
+
+    /** Sequentially uploads the remaining carousel photos (compressed JPEG) to the same submissions folder. */
+    private fun uploadExtrasImpl(
+        context: Context, uid: String, extras: List<Uri>, index: Int, acc: List<String>,
+        onProgress: (Float) -> Unit, done: (List<String>?) -> Unit
+    ) {
+        if (index >= extras.size) return done(acc)
+        val total = extras.size + 1
+        val file = ImageCompressor.compress(context, extras[index])
+        val ref = FirebaseStorage.getInstance().reference.child("ummah_submissions/$uid/images/${System.currentTimeMillis()}_${index + 1}")
+        ref.putFile(file, StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .addOnProgressListener { snap ->
+                if (snap.totalByteCount > 0) onProgress(((index + 1) + snap.bytesTransferred.toFloat() / snap.totalByteCount) / total)
+            }
+            .addOnSuccessListener {
+                ref.downloadUrl.addOnSuccessListener { url ->
+                    uploadExtrasImpl(context, uid, extras, index + 1, acc + url.toString(), onProgress, done)
+                }.addOnFailureListener { done(null) }
+            }
+            .addOnFailureListener { done(null) }
+    }
+
+    /** X-style repost / quote-repost into the Ummah feed. Creates a normal text submission that
+     *  references the original post; the trusted publisher promotes it like any other post. */
+    fun repost(context: Context, original: UmmahPost, quote: String, onResult: (Boolean, String?) -> Unit) {
+        val link = "https://noor-pro-d87e3.web.app/reel?id=${original.id}"
+        val handle = original.creatorHandle.ifBlank { "@ummah" }
+        val body = buildString {
+            if (quote.isNotBlank()) { append(quote.trim()); append("\n\n") }
+            append("\uD83D\uDD01 Reposted from "); append(handle)
+            val text = original.caption.ifBlank { original.arabicText }.trim()
+            if (text.isNotBlank()) { append(": "); append(text.take(280)) }
+            append("\n"); append(link)
+        }.take(2000)
+        submitPost(context, body, "", original.category.ifBlank { "Reminder" }, "text", null, "repost:${original.id}", onResult = { ok, msg ->
+            onResult(ok, if (ok) (if (quote.isBlank()) "Reposted to the Ummah feed" else "Quote posted to the Ummah feed") else msg)
+        })
+    }
+
+    /** 1.1.1: upload a chosen reel cover (JPEG) next to the member's submissions; null on failure. */
+    fun uploadCover(file: java.io.File, onResult: (String?) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(null)
+        val ref = FirebaseStorage.getInstance().reference
+            .child("ummah_submissions/${user.uid}/images/${System.currentTimeMillis()}_cover")
+        ref.putFile(Uri.fromFile(file), StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .continueWithTask { ref.downloadUrl }
+            .addOnCompleteListener { t -> mainHandler.post { onResult(if (t.isSuccessful) t.result.toString() else null) } }
+    }
+
+    /** 1.1.1: vote once in a post's poll (needs the 1.1.1 rules). */
+    fun votePoll(postId: String, option: Int, onResult: (Boolean) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        firestore.collection("ummah_posts").document(postId).collection("poll_votes").document(user.uid)
+            .set(mapOf("uid" to user.uid, "option" to option, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()))
+            .addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** 1.1.1: live poll tally (option -> votes) and my vote (-1 if none). */
+    fun observePoll(postId: String, onResult: (Map<Int, Int>, Int) -> Unit): com.google.firebase.firestore.ListenerRegistration? {
+        val me = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        return firestore.collection("ummah_posts").document(postId).collection("poll_votes")
+            .addSnapshotListener { snap, _ ->
+                val docs = snap?.documents.orEmpty()
+                val tally = docs.mapNotNull { (it.get("option") as? Number)?.toInt() }.groupingBy { it }.eachCount()
+                onResult(tally, docs.firstOrNull { it.id == me }?.let { (it.get("option") as? Number)?.toInt() } ?: -1)
+            }
+    }
+
+    /** 1.1.1: followers-only posts from creators I follow (one query per creator, as the rules require). */
+    fun fetchFollowerPosts(creators: Collection<String>, onResult: (List<UmmahPost>) -> Unit) {
+        val ids = creators.filter { it.isNotBlank() }.take(30)
+        if (ids.isEmpty() || FirebaseAuth.getInstance().currentUser == null) return onResult(emptyList())
+        val tasks = ids.map { uid -> firestore.collection("ummah_follower_posts").whereEqualTo("creatorUid", uid).limit(20).get() }
+        com.google.android.gms.tasks.Tasks.whenAllComplete(tasks).addOnCompleteListener {
+            onResult(tasks.filter { it.isSuccessful }.flatMap { t -> t.result.documents.map { it.toUmmahPost() } })
+        }
     }
 
     fun report(postId: String, reason: String, onResult: (Boolean) -> Unit) {
@@ -760,6 +1053,38 @@ class UmmahRepository {
                 "postId" to postId,
                 "reason" to reason,
                 "reporterUid" to user.uid,
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+        ).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /**
+     * Report any kind of user-generated content (post, reel, comment, message, group, user).
+     * Moderators review `ummah_reports` within 24 hours.
+     */
+    fun reportContent(
+        type: String,
+        targetId: String,
+        targetUid: String,
+        reason: String,
+        details: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || targetId.isBlank()) {
+            onResult(false)
+            return
+        }
+        firestore.collection("ummah_reports").add(
+            mapOf(
+                "postId" to targetId,
+                "targetType" to type.take(20),
+                "targetId" to targetId.take(200),
+                "targetUid" to targetUid.take(128),
+                "reason" to reason.take(120),
+                "details" to details.take(300),
+                "reporterUid" to user.uid,
+                "status" to "open",
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
         ).addOnCompleteListener { onResult(it.isSuccessful) }
@@ -814,11 +1139,53 @@ class UmmahRepository {
                         creatorName = document.getString("creatorName") ?: "Community member",
                         createdAt = document.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
                         parentCommentId = document.getString("parentCommentId").orEmpty(),
-                        replyToName = document.getString("replyToName").orEmpty()
+                        replyToName = document.getString("replyToName").orEmpty(),
+                        likeCount = document.getLong("likeCount") ?: 0L
                     )
                 }.sortedBy { it.createdAt }
-                onResult(comments)
+                // 1.0.78: Instagram threading - each reply sits under its top-level comment.
+                val ids = comments.map { it.id }.toSet()
+                val roots = comments.filter { it.parentCommentId.isBlank() || it.parentCommentId !in ids }
+                val byParent = comments.filter { it.parentCommentId.isNotBlank() && it.parentCommentId in ids }.groupBy { it.parentCommentId }
+                fun thread(c: UmmahComment): List<UmmahComment> = listOf(c) + byParent[c.id].orEmpty().flatMap { thread(it) }
+                onResult(roots.flatMap { thread(it) })
             }
+    }
+
+    /** 1.0.78: real comment likes - per-member like doc + public likeCount (+/-1 only by rules). */
+    fun toggleCommentLike(commentId: String, active: Boolean, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        if (commentId.isBlank()) return onResult(false)
+        val likeDoc = firestore.collection("ummah_users").document(user.uid).collection("comment_likes").document(commentId)
+        firestore.runTransaction { tx ->
+            val already = tx.get(likeDoc).exists()
+            when {
+                active && !already -> { tx.set(likeDoc, mapOf("commentId" to commentId, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())); 1L }
+                !active && already -> { tx.delete(likeDoc); -1L }
+                else -> 0L
+            }
+        }.addOnCompleteListener { task ->
+            val delta = if (task.isSuccessful) task.result ?: 0L else 0L
+            if (delta != 0L) {
+                firestore.collection("ummah_comments").document(commentId)
+                    .update("likeCount", com.google.firebase.firestore.FieldValue.increment(delta))
+            }
+            onResult(task.isSuccessful)
+        }
+    }
+
+    fun observeMyCommentLikes(onResult: (Set<String>) -> Unit): ListenerRegistration? {
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
+        return firestore.collection("ummah_users").document(user.uid).collection("comment_likes")
+            .addSnapshotListener { snap, _ -> onResult(snap?.documents.orEmpty().map { it.id }.toSet()) }
+    }
+
+    fun deleteOwnComment(comment: UmmahComment, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        if (comment.creatorUid != user.uid) return onResult(false)
+        firestore.collection("ummah_comments").document(comment.id).delete().addOnCompleteListener { t ->
+            onResult(t.isSuccessful)
+        }
     }
 
     fun observeUserComments(onResult: (List<UmmahComment>) -> Unit) {
@@ -883,10 +1250,7 @@ class UmmahRepository {
             )
         ).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // Pending AWS reels do not have a public post document yet. Keep the successful
-                // comment and update the public counter only when that document is available.
-                firestore.collection("ummah_posts").document(postId)
-                    .update("commentCount", com.google.firebase.firestore.FieldValue.increment(1))
+                incrementPublishedCounter(postId, "commentCount")
             }
             onResult(task.isSuccessful)
         }
@@ -915,9 +1279,15 @@ class UmmahRepository {
                         lastMessageType = document.getString("lastMessageType").orEmpty(),
                         lastSenderUid = document.getString("lastSenderUid").orEmpty(),
                         updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
-                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L
+                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L,
+                        meta = ChatMeta.fromFields(document.getData(com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior.ESTIMATE).orEmpty())
                     )
                 }.sortedByDescending { it.updatedAt }
+                // 1.0.78: double grey tick - acknowledge delivery of new incoming messages.
+                chats.filter { chat ->
+                    chat.lastSenderUid.isNotBlank() && chat.lastSenderUid != user.uid &&
+                        chat.updatedAt > (chat.meta.deliveredAt[user.uid] ?: 0L)
+                }.forEach { ChatRealtime.markDelivered(it.id) }
                 onResult(chats, null)
             }
         chatListeners += registration
@@ -927,8 +1297,7 @@ class UmmahRepository {
     fun markChatRead(chatId: String) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         if (chatId.isBlank()) return
-        firestore.collection("ummah_chats").document(chatId)
-            .update("unread_$uid", 0L)
+        ChatRealtime.markRead(chatId)
     }
 
     fun observeGroups(onResult: (List<UmmahGroup>, String?) -> Unit) {
@@ -1082,7 +1451,11 @@ class UmmahRepository {
                     onResult(emptyList(), error.localizedMessage ?: "Unable to load messages.")
                     return@addSnapshotListener
                 }
-                val messages = snapshot?.documents.orEmpty().map { document ->
+                val me = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                val messages = snapshot?.documents.orEmpty().filter { document ->
+                    // 1.0.78 "Delete for me": hide messages this member removed from their view.
+                    ((document.get("hiddenFor") as? List<*>)?.contains(me) != true)
+                }.map { document ->
                     UmmahMessage(
                         id = document.id,
                         senderUid = document.getString("senderUid").orEmpty(),
@@ -1095,12 +1468,94 @@ class UmmahRepository {
                         replyToName = document.getString("replyToName").orEmpty(),
                         replyToText = document.getString("replyToText").orEmpty(),
                         replyToType = document.getString("replyToType").orEmpty(),
-                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap()
+                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap(),
+                        sharedPostId = document.getString("sharedPostId").orEmpty(),
+                        sharedPostKind = document.getString("sharedPostKind").orEmpty(),
+                        sharedThumb = document.getString("sharedThumb").orEmpty(),
+                        sharedCreatorUid = document.getString("sharedCreatorUid").orEmpty(),
+                        sharedCreatorName = document.getString("sharedCreatorName").orEmpty(),
+                        sharedCreatorPhoto = document.getString("sharedCreatorPhoto").orEmpty(),
+                        sharedCaption = document.getString("sharedCaption").orEmpty(),
+                        durationMs = document.getLong("durationMs") ?: 0L,
+                        waveform = (document.get("waveform") as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty(),
+                        forwarded = document.getBoolean("forwarded") ?: false
                     )
                 }
                 onResult(messages, null)
             }
         chatListeners += registration
+    }
+
+    /** One-shot read of a published post for shared-post cards. null = deleted / not published. */
+    fun fetchPublishedPost(postId: String, onResult: (UmmahPost?) -> Unit) {
+        val id = postId.trim()
+        if (id.isBlank() || id.contains('/')) return onResult(null)
+        firestore.collection("ummah_posts").document(id).get()
+            .addOnSuccessListener { doc ->
+                val post = if (doc.exists()) runCatching { doc.toUmmahPost() }.getOrNull() else null
+                onResult(post?.takeIf { it.publicationStatus.isBlank() || it.publicationStatus == "published" })
+            }
+            .addOnFailureListener { onResult(null) }
+    }
+
+    /**
+     * 1.0.82: send [post] to each recipient's 1:1 chat as a "post_share" message (Instagram style).
+     * An optional [note] rides in the message text. The share counter is incremented once.
+     * Recipients the sender has blocked are skipped by the caller; Firestore rules also refuse a
+     * share to someone who has blocked the sender.
+     */
+    fun sendPostShare(post: UmmahPost, recipients: List<Pair<String, String>>, note: String, onResult: (Int, String?) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(0, "Please sign in to share.")
+        val targets = recipients.filter { it.first.isNotBlank() && it.first != user.uid }.distinctBy { it.first }.take(15)
+        if (targets.isEmpty()) return onResult(0, "Choose who to send to.")
+        val isReel = post.type == "reel" || post.type == "video"
+        val kind = if (isReel) "reel" else "post"
+        val preview = if (isReel) "Sent a reel" else "Sent a post"
+        // Keep a real visual on the chat card. Older reels often have no generated thumbnail, so
+        // carry the MP4 URL and let the receiver extract/cache a frame from it.
+        val thumb = post.thumbnailUrl.ifBlank {
+            post.mediaUrls.firstOrNull().orEmpty().ifBlank { post.mediaUrl }
+        }
+            .takeIf { it.startsWith("https://") }.orEmpty().take(2000)
+        var done = 0; var ok = 0; var firstError: String? = null
+        targets.forEach { (uid, name) ->
+            val chatId = listOf(user.uid, uid).sorted().joinToString("_")
+            val chatRef = firestore.collection("ummah_chats").document(chatId)
+            firestore.runBatch { batch ->
+                batch.set(chatRef, mapOf(
+                    "participantUids" to listOf(user.uid, uid),
+                    "participantNames" to mapOf(user.uid to (user.displayName ?: user.email?.substringBefore("@") ?: "You"), uid to name.ifBlank { "Friend" }),
+                    "lastMessage" to preview,
+                    "lastMessageType" to "post_share",
+                    "lastSenderUid" to user.uid,
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "unread_$uid" to com.google.firebase.firestore.FieldValue.increment(1)
+                ), com.google.firebase.firestore.SetOptions.merge())
+                batch.set(chatRef.collection("messages").document(), mapOf(
+                    "senderUid" to user.uid,
+                    "senderName" to (user.displayName ?: "Community member"),
+                    "text" to note.trim().take(500),
+                    "mediaUrl" to "",
+                    "type" to "post_share",
+                    "sharedTo" to uid,
+                    "sharedPostId" to post.id.take(128),
+                    "sharedPostKind" to kind,
+                    "sharedThumb" to thumb,
+                    "sharedCreatorUid" to post.creatorUid.take(128),
+                    "sharedCreatorName" to post.creatorName.take(80),
+                    "sharedCreatorPhoto" to post.creatorPhotoUrl.takeIf { it.startsWith("https://") }.orEmpty().take(1000),
+                    "sharedCaption" to post.caption.ifBlank { post.arabicText }.trim().take(300),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                ))
+            }.addOnCompleteListener { task ->
+                done++
+                if (task.isSuccessful) ok++ else if (firstError == null) firstError = task.exception?.localizedMessage ?: "Couldn't send."
+                if (done == targets.size) {
+                    if (ok > 0) incrementShare(post.id)
+                    onResult(ok, firstError)
+                }
+            }
+        }
     }
 
     fun observeGroupMessages(groupId: String, onResult: (List<UmmahMessage>, String?) -> Unit) {
@@ -1275,6 +1730,7 @@ class UmmahRepository {
         replyToName: String = "",
         replyToText: String = "",
         replyToType: String = "",
+        extra: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to chat.")
@@ -1288,7 +1744,7 @@ class UmmahRepository {
 
         fun writeMessage(mediaUrl: String) {
             val cleanType = when (type) {
-                "image", "video", "reel", "audio", "location", "file", "pdf" -> type
+                "image", "video", "reel", "audio", "location", "file", "pdf", "call" -> type
                 else -> "text"
             }
             val preview = text.ifBlank {
@@ -1331,7 +1787,7 @@ class UmmahRepository {
                         "replyToText" to replyToText.trim().take(220),
                         "replyToType" to replyToType.trim().take(24),
                         "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                    )
+                    ) + extra.filterKeys { it in setOf("durationMs", "waveform", "forwarded") }
                 )
             }.addOnCompleteListener { task ->
                 onResult(task.isSuccessful, task.exception?.localizedMessage)

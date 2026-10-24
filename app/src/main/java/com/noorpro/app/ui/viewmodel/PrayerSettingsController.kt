@@ -19,9 +19,19 @@ enum class Madhab {
     HANAFI
 }
 
-enum class CalculationMethod {
-    KARACHI,
-    MWL
+/** Calculation conventions. [aladhanId] is the AlAdhan API `method` id; the offline calculator maps the same names. */
+enum class CalculationMethod(val aladhanId: Int, val label: String, val region: String) {
+    KARACHI(1, "University of Islamic Sciences, Karachi", "Best precision for South Asia"),
+    ISNA(2, "Islamic Society of North America (ISNA)", "North America"),
+    MWL(3, "Muslim World League (MWL)", "Europe, Far East & global default"),
+    MAKKAH(4, "Umm al-Qura University, Makkah", "Arabian Peninsula"),
+    EGYPT(5, "Egyptian General Authority of Survey", "Africa, Syria, Lebanon"),
+    DUBAI(16, "Dubai (UAE)", "United Arab Emirates"),
+    QATAR(10, "Qatar", "Qatar"),
+    KUWAIT(9, "Kuwait", "Kuwait"),
+    SINGAPORE(11, "Majlis Ugama Islam Singapura", "Singapore, Malaysia, Indonesia"),
+    TURKEY(13, "Diyanet İşleri Başkanlığı, Turkey", "Turkey"),
+    TEHRAN(7, "Institute of Geophysics, University of Tehran", "Iran")
 }
 
 class PrayerSettingsController(private val context: Context) {
@@ -29,9 +39,9 @@ class PrayerSettingsController(private val context: Context) {
 
     private val _selectedMadhab = MutableStateFlow(
         try {
-            Madhab.valueOf(prefs.getString("madhab", Madhab.STANDARD.name) ?: Madhab.STANDARD.name)
+            Madhab.valueOf(prefs.getString("madhab", Madhab.HANAFI.name) ?: Madhab.HANAFI.name)
         } catch (e: Exception) {
-            Madhab.STANDARD
+            Madhab.HANAFI
         }
     )
     val selectedMadhab: StateFlow<Madhab> = _selectedMadhab.asStateFlow()
@@ -48,7 +58,19 @@ class PrayerSettingsController(private val context: Context) {
     // --- CUSTOMIZABLE PRAYER ALARMS ---
     private val userPrefsRepo = com.noorpro.app.data.UserPreferencesRepository(context)
 
-    private val _alarmSound = MutableStateFlow(prefs.getString("alarm_sound", "Mecca Adhan") ?: "Mecca Adhan")
+    // Older versions stored names such as "Mecca Adhan" (no custom audio ever shipped); map them
+    // onto the three real choices so the settings screen shows what actually plays.
+    private val _alarmSound = MutableStateFlow(
+        (prefs.getString("alarm_sound", com.noorpro.app.prayer.PrayerPrefs.DEFAULT_SOUND)
+            ?: com.noorpro.app.prayer.PrayerPrefs.DEFAULT_SOUND).let { saved ->
+            if (saved in com.noorpro.app.prayer.PrayerPrefs.SOUND_OPTIONS) saved
+            else when (com.noorpro.app.prayer.AdhanSound.fromPref(saved)) {
+                com.noorpro.app.prayer.AdhanSound.NOTIFICATION -> "Notification tone"
+                com.noorpro.app.prayer.AdhanSound.SILENT -> "Silent"
+                else -> com.noorpro.app.prayer.PrayerPrefs.DEFAULT_SOUND
+            }.also { prefs.edit().putString("alarm_sound", it).apply() }
+        }
+    )
     val alarmSound: StateFlow<String> = _alarmSound.asStateFlow()
 
     fun updateAlarmSound(sound: String) {
@@ -57,8 +79,10 @@ class PrayerSettingsController(private val context: Context) {
         CoroutineScope(Dispatchers.IO).launch { userPrefsRepo.updateAlarmSound(sound) }
     }
 
+    /** The five daily prayers default to ON so a fresh install actually notifies; Sunrise never has an adhan. */
     fun isAlarmEnabled(prayerName: String): Boolean {
-        return prefs.getBoolean("alarm_enabled_$prayerName", false)
+        if (prayerName.equals("Sunrise", ignoreCase = true)) return false
+        return prefs.getBoolean("alarm_enabled_$prayerName", true)
     }
 
     fun setAlarmEnabled(prayerName: String, enabled: Boolean) {
@@ -80,13 +104,24 @@ class PrayerSettingsController(private val context: Context) {
     }
 
     fun updateMadhab(madhab: Madhab) {
+        val changed = _selectedMadhab.value != madhab
         prefs.edit().putString("madhab", madhab.name).apply()
         _selectedMadhab.value = madhab
+        // Re-plan adhan notifications and redraw widgets with the new Asr convention.
+        if (changed) {
+            clearCachedApiTimings()
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
+        }
     }
 
     fun updateCalculationMethod(method: CalculationMethod) {
+        val changed = _selectedMethod.value != method
         prefs.edit().putString("method", method.name).apply()
         _selectedMethod.value = method
+        if (changed) {
+            clearCachedApiTimings()
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
+        }
     }
 
     fun calculatePrayers(
@@ -94,10 +129,13 @@ class PrayerSettingsController(private val context: Context) {
         latitude: Double,
         longitude: Double,
         timeZone: Double = TimeZone.getDefault().getOffset(date.time) / 3_600_000.0,
-        schedule: Boolean = true
+        schedule: Boolean = true,
+        allowNetwork: Boolean = false
     ): List<PrayerTime> {
-        val times = com.noorpro.app.data.OfflinePrayerCalculator.calculate(
-            date, latitude, longitude, timeZone, _selectedMethod.value, _selectedMadhab.value
+        // Same source as the Prayer screen (cached AlAdhan timings), offline calculator as fallback.
+        val times = com.noorpro.app.prayer.PrayerTimesProvider.timesFor(
+            context, date, latitude, longitude, _selectedMethod.value, _selectedMadhab.value, timeZone,
+            allowNetwork = allowNetwork
         )
         val prayersList = listOf(
             PrayerTime("Fajr", times.getValue("Fajr"), FajrColor, isAlarmEnabled("Fajr")),
@@ -111,88 +149,24 @@ class PrayerSettingsController(private val context: Context) {
         return prayersList
     }
 
+    /**
+     * (Re)plans every prayer alarm from the shared time source. The arguments are kept for source
+     * compatibility; scheduling always uses the current preferences. Call from a background thread.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    /** AlAdhan responses cached per day were computed with the old method/madhab; drop them. */
+    private fun clearCachedApiTimings() {
+        val appPrefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val editor = appPrefs.edit()
+        appPrefs.all.keys.filter { it.startsWith("cached_prayer_data_") }.forEach { editor.remove(it) }
+        editor.apply()
+    }
+
     fun scheduleAlarms(prayers: List<PrayerTime>, date: Date = Date()) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-        val now = Calendar.getInstance()
-
-        for (prayer in prayers) {
-            // Sunrise is informational only — never schedule an Adhan for it.
-            if (prayer.name.equals("Sunrise", ignoreCase = true)) continue
-
-            val intent = android.content.Intent(context, com.noorpro.app.receiver.PrayerAlarmReceiver::class.java).apply {
-                putExtra("PRAYER_NAME", prayer.name)
-                putExtra("ALARM_SOUND", _alarmSound.value)
-                putExtra("REMINDER_OFFSET", getReminderOffset(prayer.name))
-            }
-            // Use prayer name hash code as a simple unique request code
-            val pendingIntent = android.app.PendingIntent.getBroadcast(
-                context,
-                prayer.name.hashCode(),
-                intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // Cancel existing alarm
-            alarmManager.cancel(pendingIntent)
-
-            if (prayer.isNotificationEnabled) {
-                val timeParts = prayer.time.split(":")
-                if (timeParts.size == 2) {
-                    val hour = timeParts[0].toIntOrNull() ?: continue
-                    val min = timeParts[1].toIntOrNull() ?: continue
-
-                    val offset = getReminderOffset(prayer.name)
-
-                    val alarmTime = Calendar.getInstance().apply {
-                        time = date
-                        set(Calendar.HOUR_OF_DAY, hour)
-                        set(Calendar.MINUTE, min)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                        add(Calendar.MINUTE, -offset) // subtract offset (e.g. 10 mins early)
-                    }
-
-                    // If time already passed today, schedule for tomorrow
-                    if (alarmTime.before(now)) {
-                        alarmTime.add(Calendar.DAY_OF_YEAR, 1)
-                    }
-
-                    // Preserve the prayer's calendar day even when an early reminder
-                    // crosses midnight; the receiver uses it to schedule the next day.
-                    val prayerDay = (alarmTime.clone() as Calendar).apply { add(Calendar.MINUTE, offset) }
-                    intent.putExtra("PRAYER_DATE", prayerDay.timeInMillis)
-                    android.app.PendingIntent.getBroadcast(
-                        context, prayer.name.hashCode(), intent,
-                        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-                    )
-
-                    try {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                            if (alarmManager.canScheduleExactAlarms()) {
-                                alarmManager.setExactAndAllowWhileIdle(
-                                    android.app.AlarmManager.RTC_WAKEUP,
-                                    alarmTime.timeInMillis,
-                                    pendingIntent
-                                )
-                            } else {
-                                alarmManager.setAndAllowWhileIdle(
-                                    android.app.AlarmManager.RTC_WAKEUP,
-                                    alarmTime.timeInMillis,
-                                    pendingIntent
-                                )
-                            }
-                        } else {
-                            alarmManager.setExactAndAllowWhileIdle(
-                                android.app.AlarmManager.RTC_WAKEUP,
-                                alarmTime.timeInMillis,
-                                pendingIntent
-                            )
-                        }
-                    } catch (e: Exception) {
-                        CrashReporter.report(e)
-                    }
-                }
-            }
+        try {
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAll(context, allowNetwork = false)
+        } catch (e: Exception) {
+            CrashReporter.report(e)
         }
     }
 }

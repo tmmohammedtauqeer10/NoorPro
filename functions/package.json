@@ -4,10 +4,11 @@
   "private": true,
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "lint": "node --check index.js",
+    "test": "node composer.test.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {

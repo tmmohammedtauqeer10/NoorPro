@@ -1,5 +1,15 @@
 ﻿package com.noorpro.app.ui.screens
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.zIndex
+import androidx.compose.animation.togetherWith
+import com.noorpro.app.ui.components.stitchLine
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.FormatQuote
 import android.Manifest
 import android.app.Activity
 import android.app.DownloadManager
@@ -15,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -50,6 +59,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,9 +78,17 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AccountBalance
@@ -179,6 +200,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -232,6 +254,7 @@ import com.noorpro.app.data.UmmahMessage
 import com.noorpro.app.data.UmmahPost
 import com.noorpro.app.data.UmmahRepository
 import com.noorpro.app.data.UmmahSavedCollection
+import com.noorpro.app.ui.components.stitchOnPrimaryAccent
 import com.noorpro.app.ui.components.StitchCard
 import com.noorpro.app.ui.components.StitchCream
 import com.noorpro.app.ui.components.StitchEmerald
@@ -266,129 +289,12 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
+/** 1.0.99: Home is the redesigned [NoorHomeScreen] (NoorHome.kt). */
 @Composable
-fun StitchHomeScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    val prayers by viewModel.prayers.collectAsState()
-    val nextPrayerName by viewModel.nextPrayerName.collectAsState()
-    val nextPrayerCountdown by viewModel.nextPrayerCountdown.collectAsState()
-    val location by viewModel.currentLocationName.collectAsState()
-    val hasLocation by viewModel.hasCurrentLocation.collectAsState()
-    val dailyQuote by viewModel.dailyQuote.collectAsState()
-    val lastReadSurah by viewModel.lastReadSurah.collectAsState()
-    val lastReadAyah by viewModel.lastReadAyah.collectAsState()
-    val playingSurah by viewModel.playingSurah.collectAsState()
-    val currentAudioTrack by viewModel.currentAudioTrack.collectAsState()
-    val displayName = viewModel.userDisplayName.ifBlank { if (viewModel.isLoggedIn) "Friend" else "Guest" }
-    val firstName = displayName.trim().split(" ").firstOrNull().orEmpty().ifBlank { "Guest" }
-    val bottomInset = if (playingSurah != null || currentAudioTrack != null) 268.dp else 168.dp
-
-    val streak by viewModel.currentStreak.collectAsState()
-    val completedSurahs by viewModel.completedSurahs.collectAsState()
-    val hijriAdjustment by viewModel.hijriAdjustment.collectAsState()
-
-    val locationSettingsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        viewModel.checkLocationAndRefresh { }
-    }
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) ||
-            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false)
-        if (granted) {
-            if (com.noorpro.app.data.DeviceLocationProvider.isLocationEnabled(context)) {
-                viewModel.checkLocationAndRefresh { }
-            } else {
-                locationSettingsLauncher.launch(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-        }
-    }
-    val requestLocation: () -> Unit = {
-        if (com.noorpro.app.data.DeviceLocationProvider.hasPermission(context)) {
-            if (com.noorpro.app.data.DeviceLocationProvider.isLocationEnabled(context)) {
-                viewModel.checkLocationAndRefresh { }
-            } else {
-                locationSettingsLauncher.launch(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
-        }
-    }
-
-    StitchScreen {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, top = 30.dp, end = 20.dp, bottom = bottomInset),
-            verticalArrangement = Arrangement.spacedBy(26.dp)
-        ) {
-            item {
-                StitchHomeHeader(
-                    name = firstName,
-                    photoUrl = viewModel.userPhotoUrl,
-                    onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) },
-                    onNotifications = { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                )
-            }
-            item {
-                StitchImmersivePrayerHero(
-                    prayers = prayers,
-                    nextPrayerName = nextPrayerName,
-                    countdown = nextPrayerCountdown,
-                    location = location,
-                    hasLocation = hasLocation,
-                    hijriAdjustment = hijriAdjustment,
-                    displayTime = viewModel::displayPrayerTime,
-                    onLocationClick = requestLocation
-                )
-            }
-            item {
-                StitchSacredToolsCard(
-                    onTool = { viewModel.navigateTo(it) },
-                    onSeeAll = { viewModel.navigateTo(DeenScreen.EXPLORE) }
-                )
-            }
-            item {
-                StitchAudioHubEntryCard(onOpen = { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) })
-            }
-            item {
-                StitchHomeSponsoredAdCard()
-            }
-            item {
-                StitchDevotionCard(
-                    prayers = prayers,
-                    streak = streak,
-                    lastReadSurah = lastReadSurah,
-                    lastReadAyah = lastReadAyah,
-                    completedSurahs = completedSurahs.size,
-                    onOpen = { viewModel.navigateTo(DeenScreen.SPIRITUAL_PROGRESS) }
-                )
-            }
-            item {
-                StitchUmmahSpotlightCard(
-                    quote = dailyQuote,
-                    onJoin = { viewModel.navigateTo(DeenScreen.UMMAH) }
-                )
-            }
-            item {
-                StitchContinueReadingCard(
-                    surah = lastReadSurah,
-                    ayah = lastReadAyah,
-                    onContinue = { viewModel.selectSurah(lastReadSurah) }
-                )
-            }
-            item {
-                StitchDailyAyahCard(quote = dailyQuote)
-            }
-        }
-    }
-}
+fun StitchHomeScreen(viewModel: DeenViewModel) = NoorHomeScreen(viewModel)
 
 /** Today's Hijri date, e.g. "Dhul-Hijjah 14, 1446 AH", honouring the user's adjustment. */
-private fun hijriDateLabel(adjustment: Int): String {
+internal fun hijriDateLabel(adjustment: Int): String {
     return runCatching {
         val cal = android.icu.util.IslamicCalendar()
         cal.add(android.icu.util.Calendar.DAY_OF_MONTH, adjustment)
@@ -455,13 +361,14 @@ private fun StitchImmersivePrayerHero(
                 ) {
                     Text(hijriDateLabel(hijriAdjustment), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(if (hasLocation) "NEXT PRAYER" else "PRAYER TIMES", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text(if (hasLocation) nextPrayerName else "Location", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
+                    Text(if (hasLocation) "NEXT PRAYER" else "PRAYER TIMES", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1, softWrap = false)
+                    Text(if (hasLocation) nextPrayerName else "Location", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon, maxLines = 1, softWrap = false)
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Column {
+                // Left column takes the remaining width so a long location ellipsizes instead of squeezing the time.
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -478,17 +385,30 @@ private fun StitchImmersivePrayerHero(
                             fontSize = 13.sp,
                             fontWeight = if (hasLocation) FontWeight.Normal else FontWeight.Bold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text(if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location", color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    val cdMotion = com.noorpro.app.ui.components.animationsEnabled()
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = if (hasLocation) friendlyCountdown(countdown) else "Tap to set your location",
+                        transitionSpec = {
+                            if (cdMotion)
+                                (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(220)) { it / 2 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220))) togetherWith
+                                    (androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(180)) { -it / 2 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+                            else androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                        },
+                        label = "countdown"
+                    ) { txt -> Text(txt, color = StitchGold, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                 }
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(clock, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold, lineHeight = 44.sp)
+                // Time never wraps: measured at its intrinsic width; long clocks (e.g. "12:55") shrink slightly.
+                val clockSize = if (clock.length > 4) 38.sp else 44.sp
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.wrapContentWidth()) {
+                    Text(clock, color = Color.White, fontSize = clockSize, fontWeight = FontWeight.Bold, lineHeight = clockSize, maxLines = 1, softWrap = false)
                     if (meridiem.isNotBlank()) {
                         Spacer(Modifier.width(4.dp))
-                        Text(meridiem.uppercase(), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(meridiem.uppercase(), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 }
             }
@@ -553,7 +473,7 @@ private fun StitchSacredToolsCard(onTool: (DeenScreen) -> Unit, onSeeAll: () -> 
                     modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(stitchPrimary()),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = StitchGold, modifier = Modifier.size(24.dp))
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = stitchOnPrimaryAccent(), modifier = Modifier.size(24.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -649,7 +569,7 @@ private fun StitchUmmahSpotlightCard(quote: Pair<String, String>, onJoin: () -> 
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "   ${quote.first}   ",
+                "“${quote.first}”",
                 color = Color.White.copy(alpha = 0.95f),
                 fontSize = 18.sp,
                 lineHeight = 26.sp,
@@ -657,7 +577,7 @@ private fun StitchUmmahSpotlightCard(quote: Pair<String, String>, onJoin: () -> 
             )
             if (quote.second.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("    ${quote.second}", color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("— ${quote.second}", color = StitchGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(18.dp))
             Row(
@@ -687,7 +607,7 @@ private fun StitchDailyAyahCard(quote: Pair<String, String>) {
             Box(Modifier.width(70.dp).height(1.dp).background(StitchGold.copy(alpha = 0.5f)))
             Spacer(Modifier.height(22.dp))
             Text(
-                "   ${quote.first}   ",
+                "“${quote.first}”",
                 color = stitchPrimary(),
                 fontSize = 24.sp,
                 lineHeight = 33.sp,
@@ -697,7 +617,7 @@ private fun StitchDailyAyahCard(quote: Pair<String, String>) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "    ${quote.second.uppercase()}",
+                "— ${quote.second.uppercase()}",
                 color = StitchGold,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
@@ -724,7 +644,7 @@ private fun StitchHomeHeader(
                 .size(48.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .background(StitchEmerald)
-                .border(1.dp, StitchLine, RoundedCornerShape(15.dp))
+                .border(1.dp, stitchLine(), RoundedCornerShape(15.dp))
                 .clickable(onClick = onProfile),
             contentAlignment = Alignment.Center
         ) {
@@ -750,7 +670,7 @@ private fun StitchHomeHeader(
                 .size(46.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
                 .clickable(onClick = onNotifications),
             contentAlignment = Alignment.Center
         ) {
@@ -883,16 +803,20 @@ private fun StitchNextPrayerHero(
                         color = Color.White,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = com.noorpro.app.ui.theme.LibreCaslon
+                        fontFamily = com.noorpro.app.ui.theme.LibreCaslon,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = friendlyCountdown(countdown),
                         color = StitchGold,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 12.dp)) {
                     Icon(
                         imageVector = prayerGlyph(nextPrayerName),
                         contentDescription = null,
@@ -905,6 +829,8 @@ private fun StitchNextPrayerHero(
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(Color.Black.copy(alpha = 0.18f))
@@ -998,7 +924,7 @@ private fun StitchScheduleItem(
             .background(if (active) StitchEmerald else stitchSoftSurface())
             .border(
                 width = if (active) 2.dp else 1.dp,
-                color = if (active) StitchGold else StitchLine.copy(alpha = 0.6f),
+                color = if (active) StitchGold else stitchLine().copy(alpha = 0.6f),
                 shape = RoundedCornerShape(16.dp)
             )
     ) {
@@ -1099,7 +1025,7 @@ private fun StitchGoalTile(
                 .size(58.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape),
+                .border(1.dp, stitchLine(), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(goal.icon, contentDescription = goal.label, tint = stitchPrimary(), modifier = Modifier.size(25.dp))
@@ -1161,7 +1087,7 @@ private fun StitchContinueReadingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text("${surah.englishTranslation}     Ayah $ayah", color = stitchMutedText(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${surah.englishTranslation} · Ayah $ayah", color = stitchMutedText(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.height(13.dp))
                 Box(
                     modifier = Modifier
@@ -1285,7 +1211,7 @@ private fun StitchReflectionCard(quote: Pair<String, String>) {
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Text(
-                        text = "   $body   ",
+                        text = "“$body”",
                         color = stitchText(),
                         fontSize = 20.sp,
                         lineHeight = 30.sp,
@@ -1296,7 +1222,7 @@ private fun StitchReflectionCard(quote: Pair<String, String>) {
                 if (reference != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "    Quran $reference",
+                        text = "— Quran $reference",
                         color = stitchMutedText(),
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.End)
@@ -1371,7 +1297,7 @@ fun StitchQuranScreen(viewModel: DeenViewModel) {
     var searchOpen by remember { mutableStateOf(false) }
     var showTranslationSheet by remember { mutableStateOf(false) }
     var isDownloadingOfflineQuran by remember { mutableStateOf(false) }
-    var offlineDownloadComplete by remember { mutableStateOf(false) }
+    var offlineDownloadComplete by remember { mutableStateOf(true) } // Quran text is bundled
 
     BackHandler(enabled = selectedSurah != null) {
         viewModel.closeSelectedSurah()
@@ -1636,7 +1562,7 @@ private fun StitchQuranOption(
             .heightIn(min = 78.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.72f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.72f), RoundedCornerShape(16.dp))
             .clickable(enabled = !loading, onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1661,7 +1587,7 @@ private fun StitchSurahJuzTabs(selected: String, onSelect: (String) -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.72f), RoundedCornerShape(22.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.72f), RoundedCornerShape(22.dp))
             .padding(5.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -1968,7 +1894,23 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
     val bearing by viewModel.qiblaBearing.collectAsState()
     val azimuth by viewModel.sensorAzimuth.collectAsState()
     val distanceKm by viewModel.qiblaDistanceKm.collectAsState()
-    val rotation = (bearing - azimuth + 360f) % 360f
+    val hasLocation by viewModel.hasCurrentLocation.collectAsState()
+    val accuracy by viewModel.compassAccuracy.collectAsState()
+    val compassOk by viewModel.compassAvailable.collectAsState()
+    // Unwrapped angles so animations take the short way across 0/360 (no full-circle spins).
+    var needleAngle by remember { mutableFloatStateOf(com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth)) }
+    var dialAngle by remember { mutableFloatStateOf(-azimuth) }
+    LaunchedEffect(bearing, azimuth) {
+        needleAngle += com.noorpro.app.qibla.QiblaMath.shortestDelta(needleAngle, com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth))
+        dialAngle += com.noorpro.app.qibla.QiblaMath.shortestDelta(dialAngle, -azimuth)
+    }
+    val rotation by androidx.compose.animation.core.animateFloatAsState(needleAngle, androidx.compose.animation.core.tween(120), label = "needle")
+    val dialRot by androidx.compose.animation.core.animateFloatAsState(dialAngle, androidx.compose.animation.core.tween(120), label = "dial")
+    val offBy = kotlin.math.abs(com.noorpro.app.qibla.QiblaMath.shortestDelta(0f, com.noorpro.app.qibla.QiblaMath.needleAngle(bearing, azimuth)))
+    // 1.0.73: one haptic tick when the needle comes into alignment (within 5 degrees).
+    val qiblaHaptic = com.noorpro.app.ui.components.rememberHaptic()
+    val qiblaAligned = offBy < 5f
+    LaunchedEffect(qiblaAligned) { if (qiblaAligned) qiblaHaptic() }
 
     DisposableEffect(Unit) {
         viewModel.startCompassListening()
@@ -1987,14 +1929,36 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
                     StitchHeadline("Direction to Makkah", fontSize = 36)
                 }
             }
+            if (!hasLocation) item {
+                StitchCard(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, null, tint = stitchPrimary())
+                        Spacer(Modifier.width(10.dp))
+                        Text("Location needed for an accurate Qibla. Enable location or choose your city.", color = stitchText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.checkLocationAndRefresh { } }) { Text("Update") }
+                    }
+                }
+            }
+            if (!compassOk) item {
+                Text("This phone has no compass sensor. Face ${bearing.toInt()}° from true north (use the sun or a landmark).", color = stitchMutedText(), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            } else if (accuracy <= android.hardware.SensorManager.SENSOR_STATUS_ACCURACY_LOW) item {
+                StitchCard(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AllInclusive, null, tint = StitchGold, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Compass needs calibration: move your phone in a figure-8 a few times, away from metal and magnets.", color = stitchText(), fontSize = 13.sp, lineHeight = 18.sp)
+                    }
+                }
+            }
             item {
-                StitchCompass(rotation = rotation)
+                StitchCompass(rotation = rotation, dialRotation = dialRot)
             }
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("${bearing.toInt()}   from North", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
+                    Text(if (hasLocation) "${bearing.toInt()}° from North" else "Waiting for location", color = stitchText(), fontSize = 35.sp, fontWeight = FontWeight.Black)
+                    if (hasLocation && compassOk && offBy < 4f) Text("You are facing the Qibla", color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text(
-                        "Heading ${azimuth.toInt()}   - rotate yourself until the gold marker is at the top",
+                        "Heading ${azimuth.toInt()}° (true north) · turn until the gold Kaaba marker is at the top",
                         color = stitchMutedText(),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -2012,7 +1976,7 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
                         Spacer(modifier = Modifier.height(18.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             StitchInfoBox("Distance", if (distanceKm > 0f) "${distanceKm.toInt()} km" else "Updating", Modifier.weight(1f))
-                            StitchInfoBox("Bearing", "${bearing.toInt()}  ", Modifier.weight(1f))
+                            StitchInfoBox("Bearing", "${bearing.toInt()}°", Modifier.weight(1f))
                         }
                         Spacer(modifier = Modifier.height(18.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2028,14 +1992,25 @@ fun StitchQiblaScreen(viewModel: DeenViewModel) {
 }
 
 @Composable
-private fun StitchCompass(rotation: Float) {
+internal fun StitchCompass(rotation: Float, dialRotation: Float = 0f) {
+    val dark = com.noorpro.app.ui.theme.isAppDark
+    val dialFill = if (dark) Color(0xFF14211D) else Color.White
+    val dialRing = if (dark) Color(0xFF3B5148) else StitchLine
+    val minorTick = if (dark) Color(0xFF7E978D) else StitchLine
+    val majorTick = if (dark) Color(0xFFD4AF37) else StitchEmerald
+    val letter = if (dark) Color(0xFFEDE6D3) else stitchMutedText()
+    val needle = if (dark) Color(0xFFD4AF37) else StitchEmerald
+    val marker = if (dark) Color(0xFFD4AF37) else StitchGold
+    val markerIcon = if (dark) Color(0xFF0B1512) else Color.White
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+          // Compass rose turns with the phone (-heading) so N on the dial always points to real north.
+          Box(modifier = Modifier.fillMaxSize().rotate(dialRotation), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2, size.height / 2)
                 val radius = min(size.width, size.height) / 2 - 10.dp.toPx()
-                drawCircle(Color.White, radius = radius, center = center)
-                drawCircle(StitchLine, radius = radius, center = center, style = Stroke(2.dp.toPx()))
+                drawCircle(dialFill, radius = radius, center = center)
+                drawCircle(dialRing, radius = radius, center = center, style = Stroke(2.dp.toPx()))
                 for (i in 0 until 60) {
                     val angle = Math.toRadians((i * 6 - 90).toDouble())
                     val outer = Offset(
@@ -2047,13 +2022,21 @@ private fun StitchCompass(rotation: Float) {
                         center.x + cos(angle).toFloat() * innerRadius,
                         center.y + sin(angle).toFloat() * innerRadius
                     )
-                    drawLine(if (i % 15 == 0) StitchEmerald else StitchLine, inner, outer, if (i % 15 == 0) 3.dp.toPx() else 1.dp.toPx())
+                    drawLine(if (i % 15 == 0) majorTick else minorTick, inner, outer, if (i % 15 == 0) 3.dp.toPx() else 1.dp.toPx())
                 }
             }
-            Text("N", modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("S", modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("E", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("W", modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp), color = stitchMutedText(), fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("N", modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("S", modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("E", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("W", modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp), color = letter, fontWeight = FontWeight.Black, fontSize = 20.sp)
+          }
+            // Fixed index at the top = the direction the phone is pointing.
+            Canvas(Modifier.fillMaxSize()) {
+                val p = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width / 2 - 9.dp.toPx(), 0f); lineTo(size.width / 2 + 9.dp.toPx(), 0f); lineTo(size.width / 2, 12.dp.toPx()); close()
+                }
+                drawPath(p, needle)
+            }
             Box(
                 modifier = Modifier
                     .size(210.dp)
@@ -2065,20 +2048,20 @@ private fun StitchCompass(rotation: Float) {
                         .width(7.dp)
                         .height(118.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(StitchEmerald)
+                        .background(needle)
                 )
                 Box(
                     modifier = Modifier
                         .padding(top = 12.dp)
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(StitchGold),
+                        .background(marker),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Mosque, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Mosque, contentDescription = null, tint = markerIcon, modifier = Modifier.size(24.dp))
                 }
             }
-            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(StitchEmerald))
+            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(needle))
         }
     }
 }
@@ -2105,12 +2088,15 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
     val isLoggedIn = viewModel.isLoggedIn
     val displayName = viewModel.userDisplayName.ifBlank { if (isLoggedIn) "User" else "Guest" }
     val email = viewModel.userEmail.ifBlank { "Sign in to post in the ummah" }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    if (showDeleteAccount) DeleteAccountDialog(viewModel) { showDeleteAccount = false }
 
     if (!isLoggedIn) {
         StitchGuestProfileScreen(
             onBack = { viewModel.goBack() },
             onEdit = { viewModel.navigateTo(DeenScreen.LOGIN) },
-            onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) }
+            onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) },
+            onOpen = { viewModel.navigateTo(it) }
         )
         return
     }
@@ -2189,17 +2175,9 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
             item {
                 StitchPremiumBanner(onUpgrade = { viewModel.navigateTo(DeenScreen.NOOR_PRO_PLUS) })
             }
-            item {
-                StitchProfileSection("Quick Access") {
-                    StitchListRow("Bookmarks", null, Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.BOOKMARKS) }
-                    StitchDivider()
-                    StitchListRow("99 Names of Allah", null, Icons.Default.Star) { viewModel.navigateTo(DeenScreen.ASMA_UL_HUSNA) }
-                    StitchDivider()
-                    StitchListRow("Zakat Calculator", null, Icons.Default.Calculate) { viewModel.navigateTo(DeenScreen.ZAKAT) }
-                    StitchDivider()
-                    StitchListRow("Daily Reminder", null, Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                }
-            }
+            // 1.0.73: one categorized grid replaces Quick Access / Daily Dashboard / Knowledge / Lifestyle
+            // (same catalog as Home "See All"; no duplicate or dead entries).
+            item { MoreCategoryGrid(onOpen = { viewModel.navigateTo(it) }) }
             item {
                 StitchProfileSection("Your Activity") {
                     StitchListRow("Saved", "Saved reels and posts", Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
@@ -2209,40 +2187,6 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     StitchListRow("Likes & comments", "See posts you liked and comments you made", Icons.Default.ChatBubble) { viewModel.navigateTo(DeenScreen.UMMAH_LIKES_COMMENTS) }
                     StitchDivider()
                     StitchListRow("Time management", "Daily usage reminders and focus controls", Icons.Default.CalendarMonth) { viewModel.navigateTo(DeenScreen.UMMAH_TIME_MANAGEMENT) }
-                }
-            }
-            item {
-                StitchProfileSection("Daily Dashboard") {
-                    StitchListRow("Spiritual Progress", "Streak, daily checklist & weekly yield", Icons.Default.AutoGraph) { viewModel.navigateTo(DeenScreen.SPIRITUAL_PROGRESS) }
-                    StitchDivider()
-                    StitchListRow("Prayer Tracker", null, Icons.Default.CheckCircle) { viewModel.navigateTo(DeenScreen.QAZA_TRACKER) }
-                    StitchDivider()
-                    StitchListRow("Tasbih", null, Icons.Default.Fingerprint) { viewModel.navigateTo(DeenScreen.TASBIH) }
-                    StitchDivider()
-                    StitchListRow("Dua & Adhkar", null, Icons.Default.VolunteerActivism) { viewModel.navigateTo(DeenScreen.DUA_HUB) }
-                }
-            }
-            item {
-                StitchHubSectionLabel("Knowledge & Growth")
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Discover Library", Icons.Default.LocalLibrary, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
-                        StitchHubTile("Quiz", Icons.Default.Quiz, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Learning", Icons.Default.AutoStories, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) }
-                        StitchHubTile("Hajj & Umrah", Icons.Default.Mosque, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.HAJJ_UMRAH) }
-                    }
-                }
-            }
-            item {
-                StitchProfileSection("Lifestyle") {
-                    StitchListRow("Health", null, Icons.Default.Favorite) { viewModel.navigateTo(DeenScreen.HEALTH_WELLNESS) }
-                    StitchDivider()
-                    StitchListRow("DeenPoints", null, Icons.Default.Star) { viewModel.navigateTo(DeenScreen.DEEN_POINTS) }
-                    StitchDivider()
-                    StitchListRow("Hijri Calendar", null, Icons.Default.CalendarMonth) { viewModel.navigateTo(DeenScreen.CALENDAR) }
                 }
             }
             item {
@@ -2300,6 +2244,10 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                 StitchProfileSection("Account") {
                     StitchListRow("Account Settings", null, Icons.Default.Settings) { viewModel.navigateTo(DeenScreen.SETTINGS) }
                     StitchDivider()
+                    if (viewModel.isLoggedIn) {
+                        PhoneLinkRow { title, subtitle, onClick -> StitchListRow(title, subtitle, Icons.Default.Phone) { onClick() } }
+                        StitchDivider()
+                    }
                     StitchListRow(
                         "Switch Account",
                         "Add accounts and switch securely by Firebase uid",
@@ -2318,6 +2266,15 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                             viewModel.handleLogout()
                             viewModel.navigateTo(DeenScreen.LOGIN)
                         }
+                        StitchDivider()
+                        StitchListRow(
+                            title = "Delete account",
+                            subtitle = "Permanently delete your account and data",
+                            icon = Icons.Default.Delete,
+                            iconTint = Color(0xFFBA1A1A),
+                            titleColor = Color(0xFFBA1A1A),
+                            trailing = {}
+                        ) { showDeleteAccount = true }
                     } else {
                         StitchListRow("Sign In", "Post in the Ummah and sync progress", Icons.Default.Person) {
                             viewModel.navigateTo(DeenScreen.LOGIN)
@@ -2334,14 +2291,16 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
 private fun StitchGuestProfileScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onSignIn: () -> Unit
+    onSignIn: () -> Unit,
+    onOpen: (DeenScreen) -> Unit = {}
 ) {
     StitchScreen {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 22.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -2374,9 +2333,12 @@ private fun StitchGuestProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(88.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             StitchGuestSignInProfileCard(onSignIn = onSignIn)
+            Spacer(modifier = Modifier.height(28.dp))
+            // 1.0.73: guests also get the full categorized "More" grid.
+            MoreCategoryGrid(onOpen = onOpen, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -2396,8 +2358,8 @@ private fun StitchGuestSignInProfileCard(
                 spotColor = stitchPrimary().copy(alpha = 0.10f)
             )
             .clip(RoundedCornerShape(32.dp))
-            .background(Color.White)
-            .padding(horizontal = 34.dp, vertical = 58.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 34.dp, vertical = 28.dp)
     ) {
         Box(
             modifier = Modifier
@@ -2731,7 +2693,7 @@ private fun StitchStatDivider() {
         modifier = Modifier
             .height(42.dp)
             .width(1.dp)
-            .background(StitchLine.copy(alpha = 0.75f))
+            .background(stitchLine().copy(alpha = 0.75f))
     )
 }
 
@@ -2809,7 +2771,7 @@ private fun StitchMoreProfileTab(label: String, selected: Boolean, onClick: () -
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) stitchPrimary() else stitchSurface())
-            .border(1.dp, if (selected) stitchPrimary() else StitchLine, RoundedCornerShape(999.dp))
+            .border(1.dp, if (selected) stitchPrimary() else stitchLine(), RoundedCornerShape(999.dp))
             .clickable { onClick() }
             .padding(horizontal = 28.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center
@@ -2905,9 +2867,9 @@ private fun StitchMoreProfilePostPreview(post: UmmahPost, onOpen: () -> Unit) {
                 .background(stitchSoftSurface()),
             contentAlignment = Alignment.Center
         ) {
-            if (post.thumbnailUrl.isNotBlank()) {
+            if (post.thumbnailUrl.isNotBlank() || post.mediaUrl.isNotBlank()) {
                 AsyncImage(
-                    model = post.thumbnailUrl,
+                    model = post.previewModel(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -3126,17 +3088,17 @@ private fun StitchDivider() {
             .fillMaxWidth()
             .height(1.dp)
             .padding(start = 82.dp)
-            .background(StitchLine.copy(alpha = 0.65f))
+            .background(stitchLine().copy(alpha = 0.65f))
     )
 }
 
-private data class StitchUmmahFeedState(
+internal data class StitchUmmahFeedState(
     val posts: List<UmmahPost>,
     val error: String?,
     val loading: Boolean
 )
 
-private data class StitchInteractionState(
+internal data class StitchInteractionState(
     val liked: Set<String>,
     val saved: Set<String>
 )
@@ -3152,7 +3114,7 @@ private data class StitchUserCommentState(
 )
 
 @Composable
-private fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
+internal fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
     val repository = remember(refreshKey) { UmmahRepository() }
     var posts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
     var profiles by remember { mutableStateOf<Map<String, com.noorpro.app.data.UmmahProfile>>(emptyMap()) }
@@ -3187,7 +3149,11 @@ private fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
         }
     }
 
-    return StitchUmmahFeedState(posts = mergedPosts, error = error, loading = loading)
+    val blockedUids = rememberBlockedUids()
+    val visiblePosts = remember(mergedPosts, blockedUids) {
+        if (blockedUids.isEmpty()) mergedPosts else mergedPosts.filter { it.creatorUid.isBlank() || it.creatorUid !in blockedUids }
+    }
+    return StitchUmmahFeedState(posts = visiblePosts, error = error, loading = loading)
 }
 
 /**
@@ -3200,7 +3166,7 @@ private fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState {
  * A small deterministic jitter keeps the order feeling alive without reshuffling on
  * every recomposition.
  */
-private fun rankUmmahPosts(
+internal fun rankUmmahPosts(
     posts: List<UmmahPost>,
     following: Set<String>,
     liked: Set<String>,
@@ -3239,7 +3205,7 @@ private fun rankUmmahPosts(
 /** Live uid     public profile map, so avatars/names update everywhere the moment a profile
  *  is edited (photo, name, @username). */
 @Composable
-private fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahProfile> {
+internal fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahProfile> {
     val repository = remember { UmmahRepository() }
     var profiles by remember { mutableStateOf<Map<String, com.noorpro.app.data.UmmahProfile>>(emptyMap()) }
     DisposableEffect(repository) {
@@ -3250,7 +3216,7 @@ private fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahProf
 }
 
 @Composable
-private fun rememberStitchFollowing(isLoggedIn: Boolean): Set<String> {
+internal fun rememberStitchFollowing(isLoggedIn: Boolean): Set<String> {
     val repository = remember(isLoggedIn) { UmmahRepository() }
     var following by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -3285,7 +3251,7 @@ private fun rememberStitchFollowers(isLoggedIn: Boolean, targetUid: String? = nu
 }
 
 @Composable
-private fun rememberStitchInteractions(isLoggedIn: Boolean): StitchInteractionState {
+internal fun rememberStitchInteractions(isLoggedIn: Boolean): StitchInteractionState {
     val repository = remember(isLoggedIn) { UmmahRepository() }
     var liked by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
     var saved by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
@@ -3333,7 +3299,12 @@ private fun rememberStitchUserComments(isLoggedIn: Boolean): StitchUserCommentSt
     return StitchUserCommentState(comments = comments, loading = loading)
 }
 
-private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPost, repository: UmmahRepository): Boolean {
+internal fun shareStitchUmmahPost(
+    context: android.content.Context,
+    post: UmmahPost,
+    repository: UmmahRepository,
+    onCounted: (Boolean) -> Unit = {}
+): Boolean {
     val body = buildString {
         val text = post.caption.ifBlank { post.arabicText }.trim()
         if (text.isNotBlank()) {
@@ -3342,7 +3313,7 @@ private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPo
         }
         // Share a clean Noor Pro web link (never a raw cloud/storage URL). The page plays the
         // reel/post in the browser and offers the app download.
-        append("    Watch on Noor Pro: https://noor-pro-d87e3.web.app/reel?id=")
+        append("\n▶ Watch on Noor Pro: https://noor-pro-d87e3.web.app/reel?id=")
         append(post.id)
         append("\n\n")
         append("Get the Noor Pro app: https://noor-pro-d87e3.web.app")
@@ -3354,7 +3325,11 @@ private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPo
     }
     return runCatching {
         context.startActivity(Intent.createChooser(intent, "Share from Noor Pro"))
-        repository.incrementShare(post.id)
+        // Atomic FieldValue.increment on ummah_posts/{id}.shareCount (submission while pending).
+        repository.incrementShare(post.id) { ok ->
+            if (!ok) android.util.Log.w("NoorReels", "share count increment failed id=${post.id}")
+            onCounted(ok)
+        }
         true
     }.getOrElse {
         Toast.makeText(context, "No sharing app is available", Toast.LENGTH_SHORT).show()
@@ -3362,19 +3337,47 @@ private fun shareStitchUmmahPost(context: android.content.Context, post: UmmahPo
     }
 }
 
-private fun copyStitchReelLink(context: android.content.Context, postId: String) {
+internal fun copyStitchReelLink(context: android.content.Context, postId: String) {
     val link = "https://noor-pro-d87e3.web.app/reel?id=$postId"
     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Noor Pro reel", link))
     Toast.makeText(context, "Reel link copied", Toast.LENGTH_SHORT).show()
 }
 
-private fun UmmahPost.isReelLike(): Boolean {
+/**
+ * Stream to play for a reel. HLS is preferred when the stored geometry is trusted (old AWS jobs
+ * padded portrait sources to 16:9); after an MP4 failure (e.g. a 4K source the phone can't
+ * decode) the HLS ladder is used even without trusted geometry.
+ */
+internal fun reelPlaybackUrl(
+    mediaUrl: String,
+    hlsUrl: String,
+    trustedGeometry: Boolean,
+    hlsFailed: Boolean,
+    mp4Failed: Boolean
+): String = when {
+    hlsUrl.isBlank() -> mediaUrl
+    hlsFailed -> mediaUrl.ifBlank { hlsUrl }
+    mp4Failed || mediaUrl.isBlank() -> hlsUrl
+    trustedGeometry -> hlsUrl
+    else -> mediaUrl
+}
+
+/** Network hiccups worth one silent retry; 4xx responses and decoder errors are not. */
+internal fun isTransientReelError(errorCode: Int, httpCode: Int?): Boolean = when {
+    httpCode != null -> httpCode >= 500
+    else -> errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+        errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+        errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+}
+
+internal fun UmmahPost.isReelLike(): Boolean {
     val cleanType = type.lowercase()
     return cleanType == "reel" || cleanType == "short"
 }
 
-private fun UmmahPost.isVideoMedia(): Boolean {
+internal fun UmmahPost.isVideoMedia(): Boolean {
     val cleanType = type.lowercase()
     val cleanUrl = mediaUrl.lowercase()
     return cleanType == "reel" ||
@@ -3385,22 +3388,27 @@ private fun UmmahPost.isVideoMedia(): Boolean {
         cleanUrl.contains("video")
 }
 
-private fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
+internal fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
 
-private data class StitchReelQuality(
+/** Image model for a post preview: thumbnail, else (for videos) a streamed first frame. */
+internal fun UmmahPost.previewModel(): Any? =
+    if (isVideoMedia()) com.noorpro.app.data.media.videoPreviewModel(thumbnailUrl, mediaUrl)
+    else thumbnailUrl.ifBlank { mediaUrl }
+
+internal data class StitchReelQuality(
     val label: String,
     val maxWidth: Int,
     val maxHeight: Int
 )
 
-private val stitchReelQualityOptions = listOf(
+internal val stitchReelQualityOptions = listOf(
     StitchReelQuality("Auto", Int.MAX_VALUE, Int.MAX_VALUE),
     StitchReelQuality("480p", 854, 480),
     StitchReelQuality("720p", 1280, 720),
     StitchReelQuality("1080p", 1920, 1080)
 )
 
-private val stitchReelSpeedOptions = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+internal val stitchReelSpeedOptions = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 
 private fun ExoPlayer.applyStitchReelQuality(quality: StitchReelQuality) {
     setTrackSelectionParameters(
@@ -3422,15 +3430,29 @@ private fun ExoPlayer.applyStitchCaptions(enabled: Boolean) {
     )
 }
 
-private fun compactCount(value: Long): String {
+internal fun compactCount(value: Long): String = abbreviateCount(value)
+
+/** X-style abbreviated counts: 999, 1.2K, 12K, 1.5M, 2.1B. */
+internal fun abbreviateCount(value: Long): String {
+    val v = value.coerceAtLeast(0L)
+    fun fmt(n: Double, suffix: String): String {
+        val rounded = if (n < 10) kotlin.math.floor(n * 10) / 10 else kotlin.math.floor(n)
+        val text = if (rounded % 1.0 == 0.0) rounded.toLong().toString() else "%.1f".format(java.util.Locale.US, rounded)
+        return text + suffix
+    }
     return when {
-        value >= 1_000_000 -> "${value / 1_000_000}M"
-        value >= 1_000 -> "${value / 1_000}k"
-        else -> value.toString()
+        v >= 1_000_000_000L -> fmt(v / 1_000_000_000.0, "B")
+        v >= 1_000_000L -> fmt(v / 1_000_000.0, "M")
+        v >= 1_000L -> fmt(v / 1_000.0, "K")
+        else -> v.toString()
     }
 }
 
-private fun timeAgo(timestamp: Long): String {
+/** #hashtags and @mentions in a caption, in order, without duplicates. */
+internal fun captionTags(text: String): List<String> =
+    Regex("""(?<![\w])([#@][\p{L}\p{N}_]{2,40})""").findAll(text).map { it.groupValues[1] }.distinct().take(8).toList()
+
+internal fun timeAgo(timestamp: Long): String {
     if (timestamp <= 0L) return "Just now"
     val diff = (System.currentTimeMillis() - timestamp).coerceAtLeast(0L)
     val minutes = diff / 60_000L
@@ -3460,7 +3482,12 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     val feedbackStore = remember(context, currentUid) { ReelFeedbackStore(context.applicationContext, currentUid) }
     var reelFeedback by remember(feedbackStore) { mutableStateOf(feedbackStore.load()) }
     var topTab by remember { mutableStateOf("For You") }
+    var hashtagFilter by remember { mutableStateOf("") }
+    var reelsMuted by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var quoteTarget by remember { mutableStateOf<UmmahPost?>(null) }
     var userPaused by remember { mutableStateOf(false) }
+    var reelReportTarget by remember { mutableStateOf<ReportTarget?>(null) }
+    reelReportTarget?.let { UgcReportDialog(it) { reelReportTarget = null } }
     var landscapeViewer by remember { mutableStateOf(false) }
     var commentPost by remember { mutableStateOf<UmmahPost?>(null) }
     var optimisticFollowing by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -3468,19 +3495,28 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // instead of waiting for the Firestore round-trip; reverted only if the write fails.
     var optimisticLikes by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var optimisticSaves by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var optimisticLikeCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticSaveCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticCommentCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var optimisticShareCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    // 1.0.84: server count at the moment of each optimistic change ("like:id", "save:id", "comment:id").
+    var optimisticBase by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var optimisticViewCounts by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var playbackErrorReelId by remember { mutableStateOf<String?>(null) }
     var playbackRetryToken by remember { mutableStateOf(0) }
     // Reels already counted as a view this session (dedupe so one watch = one view).
     var viewedReelIds by remember { mutableStateOf(emptySet<String>()) }
     val requestedReelId = viewModel.reelFocusId.trim()
+    val exploreQueue = viewModel.reelQueue
     val rankedReels = remember(
-        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback
+        feedState.posts, topTab, following, interactions.liked, interactions.saved, reelFeedback, hashtagFilter, viewModel.reelFocusPost, exploreQueue
     ) {
-        feedState.posts
+        // 1.0.91: opened from Reels Explore / search — play exactly those results, in that order.
+        if (exploreQueue.isNotEmpty()) return@remember exploreQueue.filter { it.opensInVideoViewer() }.filterNot { it.id in reelFeedback.hiddenReelIds }
+        (feedState.posts + listOfNotNull(viewModel.reelFocusPost).filter { f -> feedState.posts.none { it.id == f.id } })
             .filter { it.opensInVideoViewer() }
             .filter { topTab != "Following" || it.creatorUid in following }
+            .filter { hashtagFilter.isBlank() || hashtagFilter.lowercase() in captionTags(it.caption + " " + it.arabicText).map { t -> t.lowercase() } }
             .filterNot { it.id in reelFeedback.hiddenReelIds }
             .let { list ->
                 if (topTab == "Following") list else {
@@ -3489,7 +3525,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             }
     }
     var stableReelIds by remember(feedRefreshKey, topTab, currentUid) { mutableStateOf(emptyList<String>()) }
-    val orderedReelIds = stableReelOrder(stableReelIds, rankedReels.map { it.id })
+    val orderedReelIds = reelOrderWithFocus(
+        previousIds = stableReelIds,
+        rankedIds = rankedReels.map { it.id },
+        focusedId = requestedReelId
+    )
     SideEffect {
         if (stableReelIds != orderedReelIds) stableReelIds = orderedReelIds
     }
@@ -3551,14 +3591,23 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             .build()
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                    com.noorpro.app.data.media.ReelCache.dataSourceFactory(context)
+                )
+            )
             .build().apply {
                 repeatMode = Player.REPEAT_MODE_ONE
                 playWhenReady = false
             }
     }
     DisposableEffect(Unit) { onDispose { reelPlayer.release() } }
+    // Al Noor Audio owns audio focus while it plays: pause reels and don't auto-resume over it.
+    val alNoorAudible by com.noorpro.app.audio.AlNoorAudioSession.also { it.init(context) }.anyAudible.collectAsState()
+    LaunchedEffect(alNoorAudible) { if (alNoorAudible) reelPlayer.pause() }
+    LaunchedEffect(reelsMuted) { reelPlayer.volume = if (reelsMuted) 0f else 1f }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { reelPlayer.pause() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused) reelPlayer.play() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (!userPaused && !alNoorAudible) reelPlayer.play() }
 
     // When a pull-to-refresh finishes, jump back to the top so the newest reel plays    
     // the same behaviour as Instagram.
@@ -3572,6 +3621,10 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     val activePost = reels.getOrNull(activePage)
     // Reels whose adaptive HLS stream failed (e.g. still transcoding)     play their MP4 instead.
     var hlsFailedIds by remember { mutableStateOf(emptySet<String>()) }
+    // Reels whose MP4 failed (e.g. a 4K source the device can't decode) — play the HLS ladder.
+    var mp4FailedIds by remember { mutableStateOf(emptySet<String>()) }
+    // One silent automatic retry per reel for transient network errors before showing Retry.
+    var autoRetriedIds by remember { mutableStateOf(emptySet<String>()) }
     // Keep measured dimensions per reel so a newly selected portrait reel never briefly inherits
     // the previous wide reel's Rotate button or letterboxed layout.
     var measuredReelAspects by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
@@ -3583,18 +3636,58 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
         if (landscapeViewer) updateReelLandscape(false)
         // Count one real view per reel per session (deduped). The Firestore increment flows back
         // through the live feed listener, so the count updates in search, profile & Creator Studio.
+        userPaused = false
+        // 1.0.83: a view only counts after ~2.5 s actually on screen, once per user per reel
+        // (server-side receipt + transaction). The +1 is shown only after the server accepts it,
+        // so the number is never inflated.
         val watchedId = activePost.id
         if (watchedId.isNotBlank() && watchedId !in viewedReelIds) {
-            viewedReelIds = viewedReelIds + watchedId
-            followRepository.incrementViews(watchedId)
+            if (com.noorpro.app.data.media.ReelViewLedger.hasViewed(context, currentUid, watchedId)) {
+                viewedReelIds = viewedReelIds + watchedId
+                return@LaunchedEffect
+            }
+            kotlinx.coroutines.delay(REEL_VIEW_THRESHOLD_MS)
+            val base = activePost.viewCount
+            followRepository.recordUniqueView(watchedId, REEL_VIEW_THRESHOLD_MS) { result ->
+                when (result) {
+                    com.noorpro.app.data.ReelViewResult.COUNTED -> {
+                        viewedReelIds = viewedReelIds + watchedId
+                        com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+                        optimisticViewCounts = optimisticViewCounts +
+                            (watchedId to maxOf(optimisticViewCounts[watchedId] ?: 0L, base + 1L))
+                    }
+                    com.noorpro.app.data.ReelViewResult.ALREADY_COUNTED -> {
+                        viewedReelIds = viewedReelIds + watchedId
+                        com.noorpro.app.data.media.ReelViewLedger.markViewed(context, currentUid, watchedId)
+                    }
+                    com.noorpro.app.data.ReelViewResult.FAILED -> Unit // retry after the user returns to this reel
+                }
+            }
         }
-        userPaused = false
+    }
+
+    // Reels without stored geometry: read the MP4 header (no decode) so portrait sources are
+    // known even when the phone must play the (possibly padded) HLS ladder instead.
+    var probedSourceAspects by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
+    LaunchedEffect(activePost?.id) {
+        val post = activePost ?: return@LaunchedEffect
+        if (uploadedReelAspectRatio(post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees) == null && post.mediaUrl.isNotBlank()) {
+            com.noorpro.app.data.media.ReelCache.probeSourceAspect(post.mediaUrl) { aspect ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post { probedSourceAspects = probedSourceAspects + (post.id to aspect) }
+            }
+        }
+    }
+    // Preload/cache the next 2 reels so the next swipe starts instantly.
+    LaunchedEffect(activePage, reels.size) {
+        val next = (1..2).mapNotNull { reels.getOrNull(activePage + it) }
+        com.noorpro.app.data.media.ReelCache.prefetch(context, next.map { it.mediaUrl })
     }
 
     // Load the active reel's stream. Prefer adaptive HLS (smooth on any network); if it errors or
     // is still transcoding, hlsFailedIds flips and this re-runs to play the original MP4.
     val useMp4Fallback = activePost != null && activePost.id in hlsFailedIds
-    LaunchedEffect(activePost?.id, useMp4Fallback, playbackRetryToken) {
+    val useHlsFallback = activePost != null && activePost.id in mp4FailedIds
+    LaunchedEffect(activePost?.id, useMp4Fallback, useHlsFallback, playbackRetryToken) {
         val post = activePost ?: run { reelPlayer.clearMediaItems(); return@LaunchedEffect }
         // HLS files created before source geometry was stored were forced to 16:9 by the old AWS
         // job. Play their original MP4 so existing portrait reels are repaired too.
@@ -3603,16 +3696,18 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             post.mediaHeight,
             post.mediaRotationDegrees
         ) != null
-        val playUrl = if (post.hlsUrl.isNotBlank() && hasTrustedSourceGeometry && post.id !in hlsFailedIds) {
-            post.hlsUrl
-        } else {
-            post.mediaUrl
-        }
+        val playUrl = reelPlaybackUrl(
+            mediaUrl = post.mediaUrl,
+            hlsUrl = post.hlsUrl,
+            trustedGeometry = hasTrustedSourceGeometry,
+            hlsFailed = post.id in hlsFailedIds,
+            mp4Failed = post.id in mp4FailedIds
+        )
         if (playUrl.isNotBlank()) {
             reelPlayer.setMediaItem(MediaItem.Builder().setUri(Uri.parse(playUrl)).setMediaId(post.id).build())
             reelPlayer.prepare()
             reelPlayer.seekTo(0)
-            if (!userPaused) reelPlayer.play()
+            if (!userPaused && !alNoorAudible) reelPlayer.play()
         } else {
             reelPlayer.clearMediaItems()
         }
@@ -3622,6 +3717,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     // with the original MP4 (which is always present).
     val activePostState = rememberUpdatedState(activePost)
     val hlsFailedState = rememberUpdatedState(hlsFailedIds)
+    val mp4FailedState = rememberUpdatedState(mp4FailedIds)
+    val probedSourceAspectsState = rememberUpdatedState(probedSourceAspects)
     DisposableEffect(reelPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -3635,7 +3732,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                 if (reelPlayer.currentMediaItem?.mediaId != post.id) return
                 val sourceAspect = uploadedReelAspectRatio(
                     post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees
-                )
+                ) ?: probedSourceAspectsState.value[post.id]
+                    ?: com.noorpro.app.data.media.ReelCache.knownSourceAspect(post.mediaUrl)
                 // Media3 applies container rotation to VideoSize on supported Android devices, so
                 // the displayed dimensions are safe as the fallback for pre-metadata MP4 reels.
                 val streamAspect = displayedReelAspectRatio(
@@ -3643,14 +3741,16 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     height = videoSize.height,
                     pixelWidthHeightRatio = videoSize.pixelWidthHeightRatio
                 )
-                if (post.id !in hlsFailedState.value &&
-                    reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl &&
-                    shouldFallbackFromPaddedHls(sourceAspect, streamAspect)
-                ) {
+                val playingHls = reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl
+                val paddedHls = playingHls && shouldFallbackFromPaddedHls(sourceAspect, streamAspect)
+                if (paddedHls && post.id !in hlsFailedState.value && post.id !in mp4FailedState.value) {
                     hlsFailedIds = hlsFailedIds + post.id
                     return
                 }
-                val aspect = sourceAspect ?: streamAspect
+                // The decoded frame (videoSize) is the truth. Only a letterboxed HLS ladder that we
+                // must keep playing uses the source geometry, so ZOOM crops its padding away.
+                val aspect = if (paddedHls) sourceAspect ?: streamAspect
+                    else streamAspect.takeIf { it.isFinite() && it > 0f } ?: sourceAspect ?: 0f
                 if (aspect.isFinite() && aspect > 0f) {
                     measuredReelAspects = measuredReelAspects + (post.id to aspect)
                 }
@@ -3659,12 +3759,25 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
             override fun onPlayerError(error: PlaybackException) {
                 val post = activePostState.value ?: return
                 if (reelPlayer.currentMediaItem?.mediaId != post.id) return
-                if (post.id !in hlsFailedState.value &&
-                    reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString() == post.hlsUrl
-                ) {
-                    hlsFailedIds = hlsFailedIds + post.id
-                } else {
-                    playbackErrorReelId = post.id
+                val failedUrl = reelPlayer.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                val httpCode = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
+                android.util.Log.w(
+                    "NoorReels",
+                    "reel playback error id=${post.id} code=${error.errorCode}/${error.errorCodeName}" +
+                        (httpCode?.let { " http=$it" } ?: "") +
+                        " url=${com.noorpro.app.data.media.MediaUrls.redact(failedUrl)}",
+                    error
+                )
+                when {
+                    failedUrl == post.hlsUrl && post.id !in hlsFailedState.value ->
+                        if (post.mediaUrl.isNotBlank()) hlsFailedIds = hlsFailedIds + post.id else playbackErrorReelId = post.id
+                    failedUrl == post.mediaUrl && post.hlsUrl.isNotBlank() && post.id !in hlsFailedState.value && post.id !in mp4FailedIds ->
+                        mp4FailedIds = mp4FailedIds + post.id
+                    isTransientReelError(error.errorCode, httpCode) && post.id !in autoRetriedIds -> {
+                        autoRetriedIds = autoRetriedIds + post.id
+                        reelPlayer.prepare()
+                    }
+                    else -> playbackErrorReelId = post.id
                 }
             }
         }
@@ -3708,12 +3821,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
     ) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         when {
-            feedState.loading -> {
-                CircularProgressIndicator(
-                    color = StitchGold,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
+            feedState.loading -> StitchReelSkeleton()
             feedState.error != null -> {
                 StitchReelsEmptyState(
                     title = "Unable to load reels",
@@ -3752,7 +3860,9 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     // so scrolling feels fast and effortless like Instagram (default needs a ~50% drag).
                     flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(
                         state = pagerState,
-                        snapPositionalThreshold = 0.25f
+                        snapPositionalThreshold = 0.25f,
+                        // 1.0.74: springy settle (honours "Remove animations" via the system scale).
+                        snapAnimationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 420f)
                     )
                 ) { page ->
                     // A follow/filter/feed update may remove pages before Pager settles.
@@ -3763,16 +3873,18 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     val effectiveLiked = optimisticLikes[post.id] ?: persistedLiked
                     val persistedSaved = post.id in interactions.saved
                     val effectiveSaved = optimisticSaves[post.id] ?: persistedSaved
-                    val displayedLikeCount = (post.likeCount + when {
-                        effectiveLiked && !persistedLiked -> 1L
-                        !effectiveLiked && persistedLiked -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
-                    val displayedSaveCount = (post.saveCount + when {
-                        effectiveSaved && !persistedSaved -> 1L
-                        !effectiveSaved && persistedSaved -> -1L
-                        else -> 0L
-                    }).coerceAtLeast(0L)
+                    val displayedLikeCount = displayedEngagementCount(
+                        post.likeCount,
+                        effectiveLiked,
+                        optimisticLikeCounts[post.id],
+                        optimisticBase["like:${post.id}"]
+                    )
+                    val displayedSaveCount = displayedEngagementCount(
+                        post.saveCount,
+                        effectiveSaved,
+                        optimisticSaveCounts[post.id],
+                        optimisticBase["save:${post.id}"]
+                    )
                         StitchLiveReelPage(
                             post = post,
                             displayName = displayName,
@@ -3783,17 +3895,40 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             isLiked = effectiveLiked,
                             isSaved = effectiveSaved,
                             displayLikeCount = displayedLikeCount,
-                            displayCommentCount = maxOf(post.commentCount, optimisticCommentCounts[post.id] ?: 0L),
+                            displayCommentCount = displayedEngagementCount(post.commentCount, false, optimisticCommentCounts[post.id], optimisticBase["comment:${post.id}"]),
                             displaySaveCount = displayedSaveCount,
                             displayShareCount = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L),
+                            displayViewCount = maxOf(post.viewCount, optimisticViewCounts[post.id] ?: 0L),
                             isActive = page == activePage,
                             isPlaying = page == activePage && !userPaused,
                             playbackFailed = page == activePage && playbackErrorReelId == post.id,
-                            videoAspectRatio = uploadedReelAspectRatio(
-                                post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees
-                            ) ?: measuredReelAspects[post.id] ?: 0f,
+                            // Real decoded aspect first; stored metadata only until the first frame.
+                            videoAspectRatio = measuredReelAspects[post.id]
+                                ?: (uploadedReelAspectRatio(post.mediaWidth, post.mediaHeight, post.mediaRotationDegrees)
+                                    ?: probedSourceAspects[post.id])?.takeIf { it < 1.15f }
+                                ?: 0f,
                             landscapeMode = landscapeViewer,
                             player = reelPlayer,
+                            muted = reelsMuted,
+                            onToggleMute = { reelsMuted = !reelsMuted },
+                            onTag = { tag ->
+                                if (tag.startsWith("#")) {
+                                    hashtagFilter = tag
+                                    topTab = "For You"
+                                } else {
+                                    val target = feedState.posts.firstOrNull { it.creatorHandle.equals(tag, ignoreCase = true) && it.creatorUid.isNotBlank() }
+                                    if (target != null) viewModel.openCreatorProfile(target.creatorUid, target.creatorName, target.creatorHandle)
+                                    else Toast.makeText(context, "$tag isn't on Noor Pro yet", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onRepost = {
+                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to repost", Toast.LENGTH_SHORT).show()
+                                else followRepository.repost(context, post, "") { _, msg -> Toast.makeText(context, msg ?: "Done", Toast.LENGTH_SHORT).show() }
+                            },
+                            onQuote = {
+                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to quote", Toast.LENGTH_SHORT).show()
+                                else quoteTarget = post
+                            },
                             onFollow = {
                                 if (post.creatorUid == currentUid) {
                                     Toast.makeText(context, "This is your reel", Toast.LENGTH_SHORT).show()
@@ -3824,9 +3959,15 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticLikes[post.id] ?: (post.id in interactions.liked)
                                     val next = !current
                                     optimisticLikes = optimisticLikes + (post.id to next)
+                                    val previousCount = displayedLikeCount
+                                    optimisticBase = optimisticBase + ("like:${post.id}" to post.likeCount)
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", next) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to current)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -3848,9 +3989,15 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     val current = optimisticSaves[post.id] ?: (post.id in interactions.saved)
                                     val next = !current
                                     optimisticSaves = optimisticSaves + (post.id to next)
+                                    val previousCount = displayedSaveCount
+                                    optimisticBase = optimisticBase + ("save:${post.id}" to post.saveCount)
+                                    optimisticSaveCounts = optimisticSaveCounts + (
+                                        post.id to nextEngagementCount(previousCount, next)
+                                    )
                                     followRepository.toggleInteraction(post.id, "saved", next) { ok ->
                                         if (!ok) {
                                             optimisticSaves = optimisticSaves + (post.id to current)
+                                            optimisticSaveCounts = optimisticSaveCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update saved", Toast.LENGTH_SHORT).show()
                                         } else if (next) {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.45f)
@@ -3859,10 +4006,8 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 }
                             },
                             onShare = {
-                                if (shareStitchUmmahPost(context, post, followRepository)) {
-                                    val next = maxOf(post.shareCount, optimisticShareCounts[post.id] ?: 0L) + 1L
-                                    optimisticShareCounts = optimisticShareCounts + (post.id to next)
-                                }
+                                // 1.0.82: Instagram-style in-app share sheet (DMs, copy link, other apps, story).
+                                viewModel.sharePost = post
                             },
                             onOpenProfile = {
                                 viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle)
@@ -3872,9 +4017,15 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                     Toast.makeText(context, "Sign in to like reels", Toast.LENGTH_SHORT).show()
                                 } else if (!(optimisticLikes[post.id] ?: (post.id in interactions.liked))) {
                                     optimisticLikes = optimisticLikes + (post.id to true)
+                                    val previousCount = displayedLikeCount
+                                    optimisticBase = optimisticBase + ("like:${post.id}" to post.likeCount)
+                                    optimisticLikeCounts = optimisticLikeCounts + (
+                                        post.id to nextEngagementCount(previousCount, true)
+                                    )
                                     followRepository.toggleInteraction(post.id, "likes", true) { ok ->
                                         if (!ok) {
                                             optimisticLikes = optimisticLikes + (post.id to false)
+                                            optimisticLikeCounts = optimisticLikeCounts + (post.id to previousCount)
                                             Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show()
                                         } else {
                                             reelFeedback = feedbackStore.recordPositive(post, 0.25f)
@@ -3887,9 +4038,7 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                                 if (!viewModel.isLoggedIn) {
                                     Toast.makeText(context, "Sign in to report", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    followRepository.report(post.id, "Reported from reels") { ok ->
-                                        Toast.makeText(context, if (ok) "Reported. Thank you." else "Unable to report", Toast.LENGTH_SHORT).show()
-                                    }
+                                    reelReportTarget = ReportTarget("reel", post.id, post.creatorUid, reelUsername(post), post.caption)
                                 }
                             },
                             onInterested = { reelFeedback = feedbackStore.markInterested(post) },
@@ -3897,6 +4046,10 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                             onResetRecommendations = { reelFeedback = feedbackStore.reset() },
                             onRetry = {
                                 playbackErrorReelId = null
+                                // Real retry: forget earlier failures so HLS/MP4 are both tried again.
+                                hlsFailedIds = hlsFailedIds - post.id
+                                mp4FailedIds = mp4FailedIds - post.id
+                                autoRetriedIds = autoRetriedIds - post.id
                                 playbackRetryToken++
                             },
                             onTogglePlay = {
@@ -3917,11 +4070,72 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                 onSelected = { topTab = it },
                 onProfile = { viewModel.openMyProfile() },
                 onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
-                onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
+                onSearch = { viewModel.navigateTo(DeenScreen.REELS_EXPLORE) },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .padding(top = 18.dp, start = 22.dp, end = 22.dp)
+            )
+        }
+        if (exploreQueue.isNotEmpty() && !landscapeViewer) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 74.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { viewModel.reelQueue = emptyList() }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Explore results · ${exploreQueue.size}", color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.Close, contentDescription = "Back to For You", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
+        DisposableEffect(Unit) { onDispose { viewModel.reelQueue = emptyList() } }
+        LaunchedEffect(topTab) { if (topTab != "For You") viewModel.reelQueue = emptyList() }
+        if (hashtagFilter.isNotBlank() && !landscapeViewer) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 74.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { hashtagFilter = "" }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(hashtagFilter, color = StitchGold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.Close, contentDescription = "Clear hashtag", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+        }
+        quoteTarget?.let { target ->
+            var quoteText by remember(target.id) { mutableStateOf("") }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { quoteTarget = null },
+                title = { Text("Quote repost") },
+                text = {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = quoteText,
+                        onValueChange = { quoteText = it.take(500) },
+                        placeholder = { Text("Add your reflection") },
+                        minLines = 3
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        enabled = quoteText.isNotBlank(),
+                        onClick = {
+                            quoteTarget = null
+                            followRepository.repost(context, target, quoteText) { _, msg -> Toast.makeText(context, msg ?: "Done", Toast.LENGTH_SHORT).show() }
+                        }
+                    ) { Text("Post") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { quoteTarget = null }) { Text("Cancel") } }
             )
         }
         commentPost?.let { target ->
@@ -3935,8 +4149,11 @@ fun StitchReelsScreen(viewModel: DeenViewModel) {
                     viewModel.openCreatorProfile(uid, name, handle)
                 },
                 onCommentAdded = {
-                    val next = maxOf(target.commentCount, optimisticCommentCounts[target.id] ?: 0L) + 1L
-                    optimisticCommentCounts = optimisticCommentCounts + (target.id to next)
+                    // Base on the live post (not the stale sheet target) so the server can take over.
+                    val live = reels.firstOrNull { it.id == target.id } ?: target
+                    val shown = displayedEngagementCount(live.commentCount, false, optimisticCommentCounts[target.id], optimisticBase["comment:${target.id}"])
+                    optimisticBase = optimisticBase + ("comment:${target.id}" to live.commentCount)
+                    optimisticCommentCounts = optimisticCommentCounts + (target.id to shown + 1L)
                 },
                 onDismiss = { commentPost = null }
             )
@@ -4008,13 +4225,16 @@ private fun StitchReelsTopChrome(
 }
 
 @Composable
-private fun StitchReelsTopTab(label: String, active: Boolean, onClick: () -> Unit) {
+internal fun StitchReelsTopTab(label: String, active: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Text(label, color = Color.White.copy(alpha = if (active) 1f else 0.72f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        val ta by androidx.compose.animation.core.animateFloatAsState(if (active) 1f else 0.72f, label = "tabA")
+        val tw by androidx.compose.animation.core.animateDpAsState(if (active) 58.dp else 0.dp, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 450f), label = "tabW")
+        Text(label, color = Color.White.copy(alpha = ta), fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(6.dp))
         Box(
             modifier = Modifier
-                .width(if (active) 58.dp else 0.dp)
+                .width(tw)
+                .clip(RoundedCornerShape(2.dp))
                 .height(3.dp)
                 .background(Color(0xFF89E6C8))
         )
@@ -4022,26 +4242,45 @@ private fun StitchReelsTopTab(label: String, active: Boolean, onClick: () -> Uni
 }
 
 @Composable
-private fun StitchReelAction(
+internal fun StitchReelAction(
     icon: ImageVector,
     label: String,
     selected: Boolean = false,
+    selectedIcon: ImageVector? = null,
+    selectedTint: Color = Color.White,
     onClick: () -> Unit
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(if (selected) StitchEmerald.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.28f))
-                .border(1.dp, if (selected) StitchGold.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.18f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = label, tint = if (selected) StitchGold else Color.White, modifier = Modifier.size(23.dp))
-        }
+    // 1.0.78: Instagram-style - bare outline glyphs (no white chip) with a soft shadow so they
+    // stay readable on bright video; liked heart fills red, saved bookmark fills white.
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    val pop = com.noorpro.app.ui.components.popScale(selected)
+    val tint by androidx.compose.animation.animateColorAsState(if (selected) selectedTint else Color.White, label = "reelActTint")
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = { haptic(); onClick() }).padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        com.noorpro.app.ui.components.ShadowedIcon(
+            icon = if (selected && selectedIcon != null) selectedIcon else icon,
+            contentDescription = label,
+            tint = tint,
+            size = 30.dp,
+            modifier = Modifier.graphicsLayer { scaleX = pop; scaleY = pop }
+        )
         if (label.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(3.dp))
+            androidx.compose.animation.AnimatedContent(
+                targetState = label,
+                transitionSpec = {
+                    (androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn()) togetherWith
+                        (androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut())
+                },
+                label = "countRoll"
+            ) { l ->
+                Text(
+                    l, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset(0f, 2f), 6f))
+                )
+            }
         }
     }
 }
@@ -4140,7 +4379,7 @@ private fun <T> StitchLandscapeSettingsGroup(
 }
 
 @Composable
-private fun StitchLiveReelPage(
+internal fun StitchLiveReelPage(
     post: UmmahPost,
     displayName: String,
     ownUsername: String = "",
@@ -4153,12 +4392,18 @@ private fun StitchLiveReelPage(
     displayCommentCount: Long,
     displaySaveCount: Long,
     displayShareCount: Long,
+    displayViewCount: Long,
     isActive: Boolean,
     isPlaying: Boolean,
     playbackFailed: Boolean,
     videoAspectRatio: Float,
     landscapeMode: Boolean,
     player: ExoPlayer?,
+    muted: Boolean = false,
+    onToggleMute: () -> Unit = {},
+    onTag: (String) -> Unit = {},
+    onRepost: () -> Unit = {},
+    onQuote: () -> Unit = {},
     onFollow: () -> Unit,
     onLike: () -> Unit,
     onComment: () -> Unit,
@@ -4175,6 +4420,7 @@ private fun StitchLiveReelPage(
     onTogglePlay: () -> Unit
 ) {
     var captionExpanded by remember(post.id) { mutableStateOf(false) }
+    var heartBurst by remember(post.id) { mutableStateOf(0) }
     var showPlaybackSettings by remember(post.id) { mutableStateOf(false) }
     var showMoreSheet by remember(post.id) { mutableStateOf(false) }
     // Auto-captions default ON (Instagram-style): embedded video text tracks are enabled and
@@ -4182,7 +4428,6 @@ private fun StitchLiveReelPage(
     var captionsOn by remember(post.id) { mutableStateOf(true) }
     var selectedQuality by remember(post.id) { mutableStateOf(stitchReelQualityOptions.first()) }
     var selectedSpeed by remember(post.id) { mutableStateOf(1f) }
-    var speedBoosting by remember(post.id) { mutableStateOf(false) }
     var seekFeedback by remember(post.id) { mutableStateOf<String?>(null) }
     var showTransportControls by remember(post.id) { mutableStateOf(false) }
     val context = LocalContext.current
@@ -4193,7 +4438,7 @@ private fun StitchLiveReelPage(
         val p = player ?: return
         val target = (p.currentPosition + deltaMs).coerceIn(0L, if (p.duration > 0) p.duration else Long.MAX_VALUE)
         p.seekTo(target)
-        seekFeedback = if (deltaMs >= 0) "+10s" else "   10s"
+        seekFeedback = if (deltaMs >= 0) "+10s" else "−10s"
     }
     LaunchedEffect(seekFeedback) {
         if (seekFeedback != null) { delay(650); seekFeedback = null }
@@ -4226,7 +4471,7 @@ private fun StitchLiveReelPage(
     // back every page with a soft emerald   black wash. The live (texture) surface, when present,
     // covers it edge-to-edge     but the wash means the frame never flashes pure black.
     val reelBackdrop = Brush.verticalGradient(
-        if (wideVideoChrome || landscapeMode) {
+        if (landscapeMode) {
             listOf(Color.Black, Color.Black)
         } else {
             listOf(StitchEmerald.copy(alpha = 0.55f), Color.Black, Color.Black)
@@ -4273,70 +4518,89 @@ private fun StitchLiveReelPage(
                 )
             }
         } else {
-            Box(
+            val previewFrame = ReelPreviewFrame.frame
+            if (previewFrame != null && wideFrame != null) {
+                // Screenshot previews only: a still frame where the wide video surface would be.
+                androidx.compose.foundation.Image(
+                    previewFrame, null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.align(Alignment.TopCenter).offset(y = wideFrame.topDp.dp)
+                        .width(wideFrame.widthDp.dp).height(wideFrame.heightDp.dp)
+                )
+            } else Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Brush.verticalGradient(listOf(StitchEmerald, Color.Black))),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Mosque, contentDescription = null, tint = StitchGold.copy(alpha = 0.2f), modifier = Modifier.size(220.dp))
+                if (previewFrame != null) androidx.compose.foundation.Image(previewFrame, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Icon(Icons.Default.Mosque, contentDescription = null, tint = StitchGold.copy(alpha = 0.2f), modifier = Modifier.size(220.dp))
             }
         }
 
-        // Tap anywhere on the reel to play/pause.
+        // Use Compose's click gesture arbitration here. The old full-screen detectTapGestures
+        // consumed the initial pointer press, which could prevent the parent VerticalPager from
+        // receiving a swipe after a reel was opened from Profile.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(post.id, selectedSpeed) {
-                    detectTapGestures(
-                        onTap = {
-                            if (landscapeMode) {
-                                showTransportControls = if (isPlaying) !showTransportControls else true
-                            } else {
-                                onTogglePlay()
-                            }
-                        },
-                        onDoubleTap = { offset ->
-                            // YouTube-style zones: double-tap left = back 10s, right = forward 10s,
-                            // middle = like.
-                            val third = size.width / 3f
-                            when {
-                                offset.x < third -> seekBy(-10_000L)
-                                offset.x > third * 2 -> seekBy(10_000L)
-                                else -> onDoubleTapLike()
-                            }
-                        },
-                        onPress = {
-                            // Instagram-style: press and hold to fast-forward at 2x; release to restore.
-                            val pressScope = this
-                            val releasedQuickly = withTimeoutOrNull(180L) { pressScope.tryAwaitRelease() }
-                            if (releasedQuickly == null) {
-                                speedBoosting = true
-                                player?.setPlaybackSpeed(2f)
-                                pressScope.tryAwaitRelease()
-                                player?.setPlaybackSpeed(selectedSpeed)
-                                speedBoosting = false
-                            }
+                .combinedClickable(
+                    interactionSource = remember(post.id) { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (landscapeMode) {
+                            showTransportControls = if (isPlaying) !showTransportControls else true
+                        } else {
+                            onTogglePlay()
                         }
+                    },
+                    onLongClick = { if (!landscapeMode) onTogglePlay() },
+                    onDoubleClick = {
+                        heartBurst++
+                        onDoubleTapLike()
+                    }
+                )
+        )
+        if (heartBurst > 0) {
+            val heartScale = remember(heartBurst) { androidx.compose.animation.core.Animatable(0.4f) }
+            val heartAlpha = remember(heartBurst) { androidx.compose.animation.core.Animatable(1f) }
+            LaunchedEffect(heartBurst) {
+                heartScale.animateTo(1.15f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 380f))
+                heartAlpha.animateTo(0f, androidx.compose.animation.core.tween(380))
+            }
+            Icon(
+                Icons.Default.Favorite,
+                contentDescription = null,
+                tint = Color(0xFFFF3B5C),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(120.dp)
+                    .graphicsLayer {
+                        scaleX = heartScale.value
+                        scaleY = heartScale.value
+                        alpha = heartAlpha.value
+                    }
+            )
+        }
+        if (isActive && showReelChrome && post.isVideoMedia()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 72.dp, end = 16.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(onClick = onToggleMute),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.Crossfade(muted, label = "mute") { m ->
+                    Icon(
+                        if (m) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = if (m) "Unmute" else "Mute",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-        )
-
-        // "2x" indicator while holding to fast-forward.
-        if (speedBoosting) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 18.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("2x", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -4354,20 +4618,20 @@ private fun StitchLiveReelPage(
                 )
         )
 
-        if (showReelChrome && !wideVideoChrome) {
+        if (showReelChrome) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp, bottom = 118.dp),
+                    .padding(end = 10.dp, bottom = 118.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(11.dp)
             ) {
                 // Every counter is visible from zero so a newly published reel has the same action
                 // layout as an established reel.
-                StitchReelAction(Icons.Default.Favorite, compactCount(displayLikeCount), selected = isLiked, onClick = onLike)
-                StitchReelAction(Icons.Default.ChatBubble, compactCount(displayCommentCount), onClick = onComment)
-                StitchReelAction(Icons.Default.Bookmark, compactCount(displaySaveCount), selected = isSaved, onClick = onSave)
-                StitchReelAction(Icons.Default.Share, compactCount(displayShareCount), onClick = onShare)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Heart, compactCount(displayLikeCount), selected = isLiked, selectedIcon = com.noorpro.app.ui.components.InstaIcons.HeartFilled, selectedTint = com.noorpro.app.ui.components.InstaLikeRed, onClick = onLike)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Comment, compactCount(displayCommentCount), onClick = onComment)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Send, compactCount(displayShareCount), onClick = onShare)
+                StitchReelAction(com.noorpro.app.ui.components.InstaIcons.Bookmark, compactCount(displaySaveCount), selected = isSaved, selectedIcon = com.noorpro.app.ui.components.InstaIcons.BookmarkFilled, onClick = onSave)
                 if (showRotateAction) {
                     StitchReelAction(
                         Icons.Default.ScreenRotation,
@@ -4376,24 +4640,7 @@ private fun StitchLiveReelPage(
                         onClick = { onLandscapeModeChange(true) }
                     )
                 }
-                StitchReelAction(Icons.Default.MoreVert, "More", onClick = { showMoreSheet = true })
-            }
-        } else if (wideVideoChrome) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (wideFrame?.actionsTopDp ?: 0f).dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                StitchLandscapeMiniAction(Icons.Default.Favorite, compactCount(displayLikeCount), isLiked, onLike)
-                StitchLandscapeMiniAction(Icons.Default.ChatBubble, compactCount(displayCommentCount), false, onComment)
-                StitchLandscapeMiniAction(Icons.Default.Bookmark, compactCount(displaySaveCount), isSaved, onSave)
-                StitchLandscapeMiniAction(Icons.Default.Share, compactCount(displayShareCount), false, onShare)
-                StitchWideIconAction(Icons.Default.ScreenRotation, "Rotate") { onLandscapeModeChange(true) }
-                StitchWideIconAction(Icons.Default.MoreVert, "More") { showMoreSheet = true }
+                StitchReelAction(Icons.Default.MoreVert, "", onClick = { showMoreSheet = true })
             }
         } else if (showRotateAction && (!isPlaying || showTransportControls || showPlaybackSettings)) {
             Row(
@@ -4549,11 +4796,21 @@ private fun StitchLiveReelPage(
                     .align(Alignment.BottomStart)
                     .padding(
                         start = 16.dp,
-                        end = if (wideVideoChrome) 16.dp else 84.dp,
+                        end = 84.dp,
                         bottom = 126.dp
                     )
                     .fillMaxWidth()
             ) {
+            // Auto-caption: the reel's Arabic/dua text sits in the caption stack (above the creator
+            // row) so it can never overlap the caption text.
+            if (captionsOn && post.arabicText.isNotBlank()) {
+                Text(
+                    post.arabicText, color = Color.White, fontSize = 17.sp, lineHeight = 26.sp,
+                    textAlign = TextAlign.Start, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 10.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
             // Username only (Instagram-style)     tap avatar or @handle to open the profile,
             // with a compact inline Follow chip beside it.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -4569,8 +4826,8 @@ private fun StitchLiveReelPage(
                     ).weight(1f, fill = false)
                 ) {
                     Box(
-                        modifier = Modifier.size(34.dp).clip(CircleShape).background(StitchGold)
-                            .border(1.5.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                        modifier = Modifier.size(36.dp).border(2.dp, com.noorpro.app.ui.components.NoorRingBrush, CircleShape).padding(3.dp)
+                            .clip(CircleShape).background(StitchGold),
                         contentAlignment = Alignment.Center
                     ) {
                         if (post.creatorPhotoUrl.isNotBlank()) {
@@ -4603,19 +4860,22 @@ private fun StitchLiveReelPage(
                             .height(32.dp)
                             .widthIn(min = 76.dp)
                             .clip(RoundedCornerShape(999.dp))
-                            .background(if (isFollowing) Color.Transparent else StitchEmerald.copy(alpha = 0.96f))
+                            .background(androidx.compose.animation.animateColorAsState(if (isFollowing) Color.Transparent else StitchEmerald.copy(alpha = 0.96f), label = "followBg").value)
                             .border(1.dp, Color.White.copy(alpha = if (isFollowing) 0.72f else 0.45f), RoundedCornerShape(999.dp))
                             .clickable(onClick = onFollow)
+                            .animateContentSize()
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            if (isFollowing) "Following" else "Follow",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
+                        androidx.compose.animation.AnimatedContent(isFollowing, label = "followTxt") { f ->
+                            Text(
+                                if (f) "Following" else "Follow",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -4627,44 +4887,45 @@ private fun StitchLiveReelPage(
                 lineHeight = 19.sp,
                 maxLines = if (captionExpanded) 5 else 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(enabled = hasMoreCaption) {
+                modifier = Modifier.animateContentSize().clickable(enabled = hasMoreCaption) {
                     captionExpanded = !captionExpanded
                 }
             )
+            if (hasMoreCaption) Text(
+                if (captionExpanded) "less" else "more",
+                color = Color.White.copy(alpha = 0.72f), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { captionExpanded = !captionExpanded }.padding(top = 2.dp)
+            )
+            val tags = remember(captionText) { captionTags(captionText) }
+            if (tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tags.forEach { tag ->
+                        Text(
+                            tag,
+                            color = if (tag.startsWith("#")) StitchGold else Color(0xFF8FD3FF),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.White.copy(alpha = 0.14f))
+                                .clickable { onTag(tag) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
             // Keep the views row present from the first play instead of making it appear later.
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                "▶  ${compactCount(post.viewCount)} views",
+                "▶  ${compactCount(displayViewCount)} views",
                 color = Color.White.copy(alpha = 0.86f),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            }
-        }
-
-        // Auto-caption overlay: show the reel's Arabic/dua text as subtitles while playing.
-        if (captionsOn && showReelChrome && post.arabicText.isNotBlank()) {
-            Box(
-                modifier = (if (wideFrame != null) {
-                    Modifier.align(Alignment.TopCenter)
-                        .offset(y = (wideFrame.topDp + wideFrame.heightDp - 72f).dp)
-                } else {
-                    Modifier.align(Alignment.BottomCenter).padding(bottom = 218.dp)
-                })
-                    .padding(start = 30.dp, end = 30.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.58f))
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    post.arabicText,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
 
@@ -4714,6 +4975,8 @@ private fun StitchLiveReelPage(
                 onCopyLink = { copyStitchReelLink(context, post.id) },
                 onReport = onReport,
                 onShare = onShare,
+                onRepost = onRepost,
+                onQuote = onQuote,
                 onDismiss = { showMoreSheet = false }
             )
         }
@@ -4737,9 +5000,11 @@ private fun StitchReelMoreSheet(
     onCopyLink: () -> Unit,
     onReport: () -> Unit,
     onShare: () -> Unit,
+    onRepost: () -> Unit = {},
+    onQuote: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.82f
+    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.86f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             Box(
@@ -4747,49 +5012,101 @@ private fun StitchReelMoreSheet(
                     .fillMaxSize()
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
             )
-            Card(
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF11161D)),
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = sheetMaxHeight)
-                        .verticalScroll(rememberScrollState()).padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(44.dp).height(4.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color.White.copy(alpha = 0.3f))
-                    )
-                    StitchLandscapeSettingsGroup(
-                        title = "Quality",
-                        options = stitchReelQualityOptions,
-                        selected = selectedQuality,
-                        label = { it.label },
-                        onSelected = onQualitySelected
-                    )
-                    StitchLandscapeSettingsGroup(
-                        title = "Playback speed",
-                        options = stitchReelSpeedOptions,
-                        selected = selectedSpeed,
-                        label = { if (it == 1f) "Normal" else "${it}x" },
-                        onSelected = onSpeedSelected
-                    )
-                    StitchReelSheetToggleRow(Icons.Default.ClosedCaption, "Auto captions", captionsOn) { onCaptionsToggle(!captionsOn) }
-                    StitchReelSheetActionRow(Icons.Default.Recommend, "Interested") { onInterested(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.NotInterested, "Not interested") { onNotInterested(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Refresh, "Reset recommendations") { onResetRecommendations(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.SupportAgent, "Find support") { onFindSupport(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Bookmark, if (isSaved) "Remove from saved" else "Save reel") { onSave(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.ContentCopy, "Copy link") { onCopyLink(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Share, "Share") { onShare(); onDismiss() }
-                    StitchReelSheetActionRow(Icons.Default.Flag, "Report") { onReport(); onDismiss() }
+            ReelOptionsSheetContent(
+                selectedQuality, selectedSpeed, captionsOn, isSaved, onQualitySelected, onSpeedSelected, onCaptionsToggle,
+                onInterested, onNotInterested, onResetRecommendations, onFindSupport, onSave, onCopyLink, onReport, onShare,
+                onRepost, onQuote, onDismiss,
+                Modifier.fillMaxWidth().heightIn(max = sheetMaxHeight)
+            )
+        }
+    }
+}
+
+/** Instagram-style reel options: quick actions, playback, recommendations, then Report. */
+@Composable
+internal fun ReelOptionsSheetContent(
+    selectedQuality: StitchReelQuality, selectedSpeed: Float, captionsOn: Boolean, isSaved: Boolean,
+    onQualitySelected: (StitchReelQuality) -> Unit, onSpeedSelected: (Float) -> Unit, onCaptionsToggle: (Boolean) -> Unit,
+    onInterested: () -> Unit, onNotInterested: () -> Unit, onResetRecommendations: () -> Unit, onFindSupport: () -> Unit,
+    onSave: () -> Unit, onCopyLink: () -> Unit, onReport: () -> Unit, onShare: () -> Unit,
+    onRepost: () -> Unit, onQuote: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), color = scheme.surface, tonalElevation = 2.dp,
+        modifier = modifier
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).width(40.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(scheme.outlineVariant))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                ReelQuickAction(Icons.Default.Bookmark, if (isSaved) "Saved" else "Save", isSaved) { onSave(); onDismiss() }
+                ReelQuickAction(Icons.Default.Share, "Share") { onShare(); onDismiss() }
+                ReelQuickAction(Icons.Default.ContentCopy, "Copy link") { onCopyLink(); onDismiss() }
+                ReelQuickAction(Icons.Default.Repeat, "Repost") { onRepost(); onDismiss() }
+            }
+            ReelSheetGroup("Playback") {
+                Text("Quality", color = scheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stitchReelQualityOptions.forEach { q -> androidx.compose.material3.FilterChip(selected = q == selectedQuality, onClick = { onQualitySelected(q) }, label = { Text(q.label) }) }
+                }
+                Text("Speed", color = scheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stitchReelSpeedOptions.forEach { sp -> androidx.compose.material3.FilterChip(selected = sp == selectedSpeed, onClick = { onSpeedSelected(sp) }, label = { Text(if (sp == 1f) "Normal" else "${sp}x") }) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onCaptionsToggle(!captionsOn) }) {
+                    Icon(Icons.Default.ClosedCaption, null, tint = scheme.onSurface, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Captions", color = scheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Switch(checked = captionsOn, onCheckedChange = { onCaptionsToggle(it) })
                 }
             }
+            ReelSheetGroup("Your feed") {
+                ReelSheetRow(Icons.Default.Recommend, "Interested") { onInterested(); onDismiss() }
+                ReelSheetRow(Icons.Default.NotInterested, "Not interested") { onNotInterested(); onDismiss() }
+                ReelSheetRow(Icons.Default.Refresh, "Reset recommendations") { onResetRecommendations(); onDismiss() }
+            }
+            ReelSheetGroup(null) {
+                ReelSheetRow(Icons.Default.FormatQuote, "Quote repost") { onQuote(); onDismiss() }
+                ReelSheetRow(Icons.Default.SupportAgent, "Find support") { onFindSupport(); onDismiss() }
+                ReelSheetRow(Icons.Default.Flag, "Report", tint = scheme.error) { onReport(); onDismiss() }
+            }
         }
+    }
+}
+
+@Composable
+private fun ReelQuickAction(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(6.dp)) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(if (active) scheme.primary else scheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Icon(icon, label, tint = if (active) scheme.onPrimary else scheme.onSurface)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = scheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ReelSheetGroup(title: String?, content: @Composable ColumnScope.() -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(scheme.surfaceVariant.copy(alpha = 0.55f)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (title != null) Text(title, color = scheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        content()
+    }
+}
+
+@Composable
+private fun ReelSheetRow(icon: ImageVector, label: String, tint: Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 8.dp)) {
+        Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(label, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -4944,7 +5261,7 @@ private fun ReelSeekBar(
 }
 
 /** Display the creator's @username only (Instagram-style), normalizing the handle. */
-private fun reelUsername(post: UmmahPost): String {
+internal fun reelUsername(post: UmmahPost): String {
     val raw = post.creatorHandle.ifBlank { post.creatorName }.ifBlank { "ummah" }
     return if (raw.startsWith("@")) raw else "@$raw"
 }
@@ -5023,219 +5340,9 @@ private fun StitchReelsEmptyState(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/** 1.1.0: the Ummah tab is the redesigned community feed (see UmmahFeed.kt). */
 @Composable
-fun StitchUmmahHubScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    var feedRefreshKey by remember { mutableStateOf(0) }
-    val feedState = rememberStitchUmmahFeed(feedRefreshKey)
-    val following = rememberStitchFollowing(viewModel.isLoggedIn)
-    val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
-    val followRepository = remember { UmmahRepository() }
-    val currentUid = remember(viewModel.isLoggedIn) { followRepository.currentUserUid().orEmpty() }
-    val displayName = viewModel.userDisplayName.ifBlank { if (viewModel.isLoggedIn) "Noor" else "Guest" }
-    // Content category chips (the Ummah "social hybrid" design): All / Quran / Hadith / Community /
-    // Reflections. "All" shows the ranked feed; the others filter by category/caption text.
-    val feedCategories = listOf("All", "Quran", "Hadith", "Community", "Reflections")
-    var selectedTab by remember { mutableStateOf("All") }
-    var commentPost by remember { mutableStateOf<UmmahPost?>(null) }
-    // Instant (optimistic) like/save so the feed feels smooth and lag-free.
-    var optimisticLikes by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    var optimisticSaves by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    val feedPosts = feedState.posts.filterNot { it.isReelLike() }
-    val feedReels = feedState.posts.filter { it.isReelLike() }
-    // Main feed is algorithm-ranked like Facebook/Instagram (freshness + engagement + creators you
-    // follow/like + your interest categories), then narrowed to the chosen category chip.
-    val rankedPosts = rankUmmahPosts(feedPosts, following, interactions.liked, interactions.saved)
-    val posts = if (selectedTab == "All") rankedPosts else {
-        val needle = selectedTab.lowercase().removeSuffix("s")
-        rankedPosts.filter { p ->
-            listOf(p.category, p.caption, p.arabicText).any { it.lowercase().contains(needle) }
-        }
-    }
-    val reelStripPosts = rankUmmahPosts(feedReels, following, interactions.liked, interactions.saved).take(10)
-    // Instagram-style pull-to-refresh: swipe down at the top of the feed to reload, then
-    // jump back to the top so the freshest posts show.
-    var refreshing by remember { mutableStateOf(false) }
-    val hubListState = rememberLazyListState()
-    LaunchedEffect(feedState.loading) {
-        if (!feedState.loading && refreshing) {
-            refreshing = false
-            hubListState.scrollToItem(0)
-        }
-    }
-
-    StitchScreen {
-        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = {
-            refreshing = true
-            feedRefreshKey++
-        },
-        modifier = Modifier.fillMaxSize()
-        ) {
-        LazyColumn(
-            state = hubListState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, top = 30.dp, end = 12.dp, bottom = 184.dp),
-            // Tight, connected stacking like the Facebook/YouTube feed in the design (cards nearly
-            // touch, separated only by a thin gap) instead of large spaces between cards.
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item {
-                StitchUmmahTopBar(
-                    displayName = displayName,
-                    photoUrl = viewModel.userPhotoUrl,
-                    onProfile = { viewModel.openMyProfile() },
-                    onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
-                    onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                )
-            }
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(feedCategories) { cat ->
-                        StitchSavedFilterChip(cat, cat == selectedTab) { selectedTab = cat }
-                    }
-                }
-            }
-            item {
-                StitchComposerCard(
-                    avatar = displayName.take(1).uppercase(),
-                    onOpen = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                )
-            }
-            item {
-                StitchYourPostStrip(
-                    reels = reelStripPosts,
-                    onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
-                    onWatchAll = { viewModel.navigateTo(DeenScreen.REELS) },
-                    onOpenReel = { post -> viewModel.openReel(post.id) }
-                )
-            }
-            when {
-                feedState.loading -> item {
-                    Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = stitchPrimary())
-                    }
-                }
-                feedState.error != null -> item {
-                    StitchUmmahEmptyCard(
-                        title = "Unable to load Ummah",
-                        message = feedState.error.orEmpty(),
-                        action = "Try Upload",
-                        onAction = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                    )
-                }
-                posts.isEmpty() -> item {
-                    StitchUmmahEmptyCard(
-                        title = if (selectedTab == "All") "The posts are quiet" else "Nothing in $selectedTab yet",
-                        message = if (selectedTab == "All") "Be the first to share a reflection, image, or reel." else "No posts match \"$selectedTab\" right now. Try another category.",
-                        action = if (selectedTab == "All") "Create a post" else "Show all",
-                        onAction = { if (selectedTab == "All") viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) else selectedTab = "All" }
-                    )
-                }
-                else -> itemsIndexed(posts, key = { _, it -> it.id }) { index, post ->
-                    // Sponsored cards sit between posts, never over media or interaction buttons.
-                    if (shouldShowUmmahFeedAd(index)) {
-                        StitchSponsoredPostCard(modifier = Modifier.padding(bottom = 4.dp))
-                    }
-                    val isLiked = optimisticLikes[post.id] ?: (post.id in interactions.liked)
-                    val isSaved = optimisticSaves[post.id] ?: (post.id in interactions.saved)
-                    if (post.isVideoMedia() && !post.isReelLike()) {
-                        // Long-form video posts render as a YouTube-style card (big thumbnail,
-                        // channel row, like/dislike + Share) to match the Ummah design.
-                        StitchYouTubePostCard(
-                            post = post,
-                            isLiked = isLiked,
-                            onLike = {
-                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to like posts", Toast.LENGTH_SHORT).show()
-                                else {
-                                    val next = !isLiked
-                                    optimisticLikes = optimisticLikes + (post.id to next)
-                                    followRepository.toggleInteraction(post.id, "likes", next) { ok ->
-                                        if (!ok) { optimisticLikes = optimisticLikes + (post.id to isLiked); Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show() }
-                                    }
-                                }
-                            },
-                            onShare = { shareStitchUmmahPost(context, post, followRepository) },
-                            onOpen = { viewModel.openReel(post.id) },
-                            onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) }
-                        )
-                    } else {
-                    StitchRealPostCard(
-                        post = post,
-                        isFollowing = post.creatorUid in following,
-                        isOwnPost = post.creatorUid.isBlank() || post.creatorUid == currentUid,
-                        isLiked = isLiked,
-                        isSaved = isSaved,
-                        onFollow = {
-                            if (post.creatorUid.isBlank() || post.creatorUid == currentUid) {
-                                Toast.makeText(context, "This is your post", Toast.LENGTH_SHORT).show()
-                            } else if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to follow creators", Toast.LENGTH_SHORT).show()
-                            } else {
-                                followRepository.setFollowing(
-                                    creatorUid = post.creatorUid,
-                                    creatorName = post.creatorName,
-                                    creatorHandle = post.creatorHandle,
-                                    following = post.creatorUid !in following
-                                ) { ok ->
-                                    if (!ok) Toast.makeText(context, "Unable to update follow", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        onLike = {
-                            if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to like posts", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val next = !isLiked
-                                optimisticLikes = optimisticLikes + (post.id to next)
-                                followRepository.toggleInteraction(post.id, "likes", next) { ok ->
-                                    if (!ok) { optimisticLikes = optimisticLikes + (post.id to isLiked); Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show() }
-                                }
-                            }
-                        },
-                        onComment = {
-                            if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to comment", Toast.LENGTH_SHORT).show() else commentPost = post
-                        },
-                        onSave = {
-                            if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to save posts", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val next = !isSaved
-                                optimisticSaves = optimisticSaves + (post.id to next)
-                                followRepository.toggleInteraction(post.id, "saved", next) { ok ->
-                                    if (!ok) { optimisticSaves = optimisticSaves + (post.id to isSaved); Toast.makeText(context, "Unable to update saved", Toast.LENGTH_SHORT).show() }
-                                }
-                            }
-                        },
-                        onShare = { shareStitchUmmahPost(context, post, followRepository) },
-                        onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) },
-                        onOpenReel = { viewModel.openReel(post.id) }
-                    )
-                    }
-                }
-            }
-        }
-        }
-    }
-    commentPost?.let { target ->
-        StitchCommentSheet(
-            post = target,
-            repository = followRepository,
-            isLoggedIn = viewModel.isLoggedIn,
-            viewModel = viewModel,
-            onOpenProfile = { uid, name, _ ->
-                commentPost = null
-                viewModel.openCreatorProfile(uid, name, "")
-            },
-            onDismiss = { commentPost = null }
-        )
-    }
-}
+fun StitchUmmahHubScreen(viewModel: DeenViewModel) = NoorUmmahFeedScreen(viewModel)
 
 @Composable
 private fun StitchUmmahTopBar(
@@ -5276,7 +5383,7 @@ private fun StitchUmmahTopBar(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
         ) {
             Icon(Icons.Default.Search, contentDescription = "Search Ummah", tint = stitchPrimary())
         }
@@ -5287,7 +5394,7 @@ private fun StitchUmmahTopBar(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(stitchSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
         ) {
             Icon(Icons.Default.Edit, contentDescription = "Create post", tint = stitchPrimary())
         }
@@ -5297,7 +5404,8 @@ private fun StitchUmmahTopBar(
 @Composable
 fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
     val feedState = rememberStitchUmmahFeed()
-    var query by remember { mutableStateOf("") }
+    // 1.1.0: a tapped #hashtag in the Ummah feed opens search pre-filled with that tag.
+    var query by remember { mutableStateOf(UmmahSearchLaunch.consume()) }
     val cleanQuery = query.trim()
     val profiles = rememberStitchProfiles()
     val q = cleanQuery.lowercase()
@@ -5322,21 +5430,16 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
     }
     val videoResults = remember(results) { results.filter { it.isReelLike() || it.isVideoMedia() } }
     val postResults = remember(results) { results.filter { !it.isReelLike() && !it.isVideoMedia() } }
-    // People search: live profiles + post creators, matched by name / @handle. Uses live profile
-    // photos, so results auto-update the moment someone changes their picture.
-    val users = remember(feedState.posts, profiles, cleanQuery) {
-        if (cleanQuery.isBlank()) emptyList() else {
-            val needle = q.removePrefix("@")
-            val map = LinkedHashMap<String, StitchSearchUser>()
-            profiles.values.forEach { p -> if (p.uid.isNotBlank()) map[p.uid] = StitchSearchUser(p.uid, p.name, p.handle, p.photoUrl) }
-            feedState.posts.forEach { post ->
-                if (post.creatorUid.isNotBlank() && !map.containsKey(post.creatorUid)) {
-                    map[post.creatorUid] = StitchSearchUser(post.creatorUid, post.creatorName, post.creatorHandle, post.creatorPhotoUrl)
-                }
-            }
-            map.values.filter { u -> u.name.lowercase().contains(needle) || u.handle.lowercase().removePrefix("@").contains(needle) }.take(12)
-        }
-    }
+    // 1.0.92: Instagram-style people search (prefix + fuzzy on name/@username, mutuals & following first).
+    val blockedUids = rememberBlockedUids()
+    val graph = rememberPeopleGraph(true)
+    val myUid = remember { runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid }.getOrNull().orEmpty() }
+    val allProfiles = rememberProfilesWithHits(profiles, cleanQuery)
+    val everyone = remember(allProfiles, feedState.posts, graph, blockedUids) { buildPeople(allProfiles, feedState.posts, graph.first, graph.second, blockedUids) }
+    val users = remember(everyone, cleanQuery) { com.noorpro.app.data.search.PeopleRanker.search(cleanQuery, everyone, myUid).take(20) }
+    val suggestedPeople = remember(everyone) { com.noorpro.app.data.search.PeopleRanker.suggested(everyone, myUid) }
+    val relatedPosts = remember(results, feedState.posts) { com.noorpro.app.data.search.ReelSearchRanker.related(results, feedState.posts, 12) }
+    val relatedSearches = remember(results, cleanQuery) { com.noorpro.app.data.search.ReelSearchRanker.relatedSearches(cleanQuery, results) }
     val hasResults = users.isNotEmpty() || videoResults.isNotEmpty() || postResults.isNotEmpty()
 
     StitchScreen {
@@ -5368,6 +5471,9 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                 )
             }
             when {
+                cleanQuery.isBlank() && suggestedPeople.isNotEmpty() -> item {
+                    SuggestedPeopleRow(suggestedPeople, onOpen = { viewModel.openCreatorProfile(it.uid, it.name, it.handle) }, onMessage = { viewModel.openCreatorChat(it.uid, it.name) })
+                }
                 cleanQuery.isBlank() -> item {
                     StitchUmmahEmptyCard(
                         title = "Find beneficial content",
@@ -5393,7 +5499,7 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                     if (users.isNotEmpty()) {
                         item { StitchSearchSectionLabel("People") }
                         items(users, key = { "u_" + it.uid }) { u ->
-                            StitchSearchUserRow(u) { viewModel.openCreatorProfile(u.uid, u.name, u.handle) }
+                            PersonRow(u, onOpen = { viewModel.openCreatorProfile(u.uid, u.name, u.handle) }, onMessage = { viewModel.openCreatorChat(u.uid, u.name) })
                         }
                     }
                     if (videoResults.isNotEmpty()) {
@@ -5420,13 +5526,35 @@ fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
                             )
                         }
                     }
+                    if (relatedSearches.isNotEmpty()) {
+                        item { StitchSearchSectionLabel("Related searches") }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(relatedSearches) { rs ->
+                                    Text(rs, color = stitchText(), fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(stitchSurface()).clickable { query = rs }.padding(horizontal = 12.dp, vertical = 7.dp))
+                                }
+                            }
+                        }
+                    }
+                    if (relatedPosts.isNotEmpty()) {
+                        item { StitchSearchSectionLabel("Related") }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(relatedPosts, key = { "rel_" + it.id }) { post ->
+                                    StitchMiniLiveReelCard(post = post, onClick = {
+                                        if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH)
+                                    })
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-private data class StitchSearchUser(val uid: String, val name: String, val handle: String, val photoUrl: String)
+internal data class StitchSearchUser(val uid: String, val name: String, val handle: String, val photoUrl: String)
 
 @Composable
 private fun StitchSearchSectionLabel(text: String) {
@@ -5435,7 +5563,7 @@ private fun StitchSearchSectionLabel(text: String) {
 
 /** A "People" search result     live avatar + name + @handle, tap to open the creator's profile. */
 @Composable
-private fun StitchSearchUserRow(user: StitchSearchUser, onClick: () -> Unit) {
+internal fun StitchSearchUserRow(user: StitchSearchUser, onClick: () -> Unit) {
     StitchCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(16.dp)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -5476,8 +5604,8 @@ private fun StitchSearchResultCard(
             ) {
                 if (post.thumbnailUrl.isNotBlank()) {
                     AsyncImage(model = post.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                } else if (post.mediaUrl.isNotBlank() && !post.isReelLike()) {
-                    AsyncImage(model = post.mediaUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else if (post.mediaUrl.isNotBlank()) {
+                    AsyncImage(model = post.previewModel(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
                     Icon(if (post.isReelLike()) Icons.Default.SmartDisplay else Icons.Default.Article, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(28.dp))
                 }
@@ -5935,27 +6063,13 @@ fun StitchUmmahTimeManagementScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahPrivacyScreen(viewModel: DeenViewModel) {
-    var privateAccount by remember { mutableStateOf(viewModel.ummahPrivateAccount()) }
-    var hideCounts by remember { mutableStateOf(viewModel.ummahHideCounts()) }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Profile Visibility",
         eyebrow = "Settings",
-        subtitle = "Published community posts and reels are public. These controls affect your profile preview.",
+        subtitle = "Your profile, posts and reels are public in the Ummah community.",
         icon = Icons.Default.Fingerprint
     ) {
-        item {
-            StitchSettingsToggleCard("Limit profile preview", "Show your profile grid to followers. Published posts remain visible in the public feed.", Icons.Default.Fingerprint, privateAccount) {
-                privateAccount = it
-                viewModel.setUmmahPrivacy(it, hideCounts)
-            }
-        }
-        item {
-            StitchSettingsToggleCard("Hide follower & following counts", "Others won't see your follower or following numbers", Icons.Default.Groups, hideCounts) {
-                hideCounts = it
-                viewModel.setUmmahPrivacy(privateAccount, it)
-            }
-        }
         item {
             StitchListRow("Blocked accounts", "Manage accounts you blocked", Icons.Default.Logout) {
                 viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED)
@@ -5986,20 +6100,46 @@ fun StitchUmmahCloseFriendsScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahBlockedScreen(viewModel: DeenViewModel) {
+    val context = LocalContext.current
+    val blocked = rememberBlockedUids().toList().sorted()
+    val profiles = rememberStitchProfiles()
+    val repository = remember { UmmahRepository() }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Blocked",
         eyebrow = "Settings",
-        subtitle = "People you block will not appear in your Ummah feed.",
+        subtitle = "People you block are hidden from your feed, comments and chats.",
         icon = Icons.Default.Logout
     ) {
-        item {
-            StitchUmmahEmptyCard(
-                title = "No blocked accounts",
-                message = "If you block someone from Ummah, you can manage them here.",
-                action = "Back",
-                onAction = { viewModel.goBack() }
-            )
+        if (blocked.isEmpty()) {
+            item {
+                StitchUmmahEmptyCard(
+                    title = "No blocked accounts",
+                    message = "If you block someone from a post, comment, chat or profile, you can manage them here.",
+                    action = "Back",
+                    onAction = { viewModel.goBack() }
+                )
+            }
+        } else {
+            items(blocked, key = { it }) { uid ->
+                val profile = profiles[uid]
+                StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(profile?.name?.ifBlank { null } ?: "Community member", color = stitchText(), fontWeight = FontWeight.Bold)
+                            val handle = profile?.handle.orEmpty()
+                            if (handle.isNotBlank()) {
+                                Text(if (handle.startsWith("@")) handle else "@$handle", color = stitchMutedText(), fontSize = 12.sp)
+                            }
+                        }
+                        TextButton(onClick = {
+                            repository.setBlocked(uid, false) { ok ->
+                                Toast.makeText(context, if (ok) "Unblocked" else "Unable to unblock", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Text("Unblock", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
         }
     }
 }
@@ -6011,34 +6151,93 @@ fun StitchNoorProPlusScreen(viewModel: DeenViewModel) {
         viewModel = viewModel,
         title = "Noor Pro Plus",
         eyebrow = "Subscription",
-        subtitle = "Premium features for deeper learning and a cleaner Ummah creator experience.",
+        subtitle = "Optional upgrade in development. See what is planned.",
         icon = Icons.Default.Star
     ) {
+        // Header
         item {
-            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Coming soon", color = stitchPrimary(), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Text("Noor Pro Plus", color = stitchText(), fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(StitchEmeraldDeep, StitchEmerald))).padding(22.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("COMING SOON", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                    Text("Noor Pro Plus", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                    Text("An optional upgrade we're building. Everything in Noor Pro today stays free.", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp, lineHeight = 20.sp)
+                }
+            }
+        }
+        // Planned benefits, grouped
+        item { Text("What Plus will add", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        val groups = listOf(
+            Triple(Icons.Default.AutoAwesome, "Noor AI", listOf("Longer Ask Noor AI chat history")),
+            Triple(Icons.Default.School, "Learning", listOf("Premium learning paths", "Progress insights")),
+            Triple(Icons.Default.Groups, "Ummah creators", listOf("Creator tools for reels and posts")),
+            Triple(Icons.Default.Bookmark, "Library", listOf("More storage for saved collections")),
+        )
+        items(groups) { (icon, title, list) ->
+            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Row(Modifier.padding(16.dp)) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(stitchPrimary().copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = stitchPrimary(), modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        list.forEach { Text("• $it", color = stitchMutedText(), fontSize = 13.sp) }
+                    }
+                }
+            }
+        }
+        // Free vs Plus
+        item {
+            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row { Text("Feature", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("Free", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                        Text("Plus", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center) }
                     listOf(
-                        "Advanced Ask Imam Noor AI history",
-                        "Premium learning paths and progress insights",
-                        "Creator tools for Ummah reels and posts",
-                        "More storage for saved collections"
-                    ).forEach { benefit ->
+                        "Quran, translations & audio" to true, "Prayer times, adhan & Qibla" to true, "Duas, Darood & Tasawwuf" to true,
+                        "Ask Noor AI" to true, "Quran Reading Course" to true, "Ummah feed & reels" to true,
+                        "Premium learning paths" to false, "Creator tools" to false, "Extra saved-collection storage" to false,
+                    ).forEach { (f, free) ->
+                        androidx.compose.material3.HorizontalDivider(color = stitchLine(), modifier = Modifier.padding(vertical = 8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(benefit, color = stitchText(), fontSize = 14.sp)
+                            Text(f, color = stitchText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                if (free) Icon(Icons.Default.CheckCircle, "Included", tint = stitchPrimary(), modifier = Modifier.size(18.dp)) else Text("—", color = stitchMutedText())
+                            }
+                            Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                if (free) Icon(Icons.Default.CheckCircle, "Included", tint = StitchGold, modifier = Modifier.size(18.dp))
+                                else Text("Planned", color = StitchGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                    Button(
-                        onClick = { Toast.makeText(context, "Noor Pro Plus coming soon", Toast.LENGTH_SHORT).show() },
-                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                        shape = RoundedCornerShape(999.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Notify me", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        // CTA (unchanged behaviour: no purchase yet)
+        item {
+            Button(
+                onClick = { Toast.makeText(context, "Noor Pro Plus coming soon", Toast.LENGTH_SHORT).show() },
+                colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = stitchOnPrimaryAccent()),
+                shape = RoundedCornerShape(999.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp)
+            ) { Text("Notify me", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+            Text("Not available to buy yet — no price has been set.", color = stitchMutedText(), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        }
+        // FAQs
+        item { Text("FAQs", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        items(listOf(
+            "Will current features stay free?" to "Yes. Everything you use in Noor Pro today remains in the free app.",
+            "How much will Plus cost?" to "Pricing hasn't been announced. Nothing is charged from this screen.",
+            "Can I buy it now?" to "Not yet. Tap Notify me — we'll share news in the app when it's ready.",
+        )) { (q, ans) ->
+            var open by remember { mutableStateOf(false) }
+            StitchCard(modifier = Modifier.fillMaxWidth().clickable { open = !open }, shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(q, color = stitchText(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = stitchMutedText())
                     }
+                    if (open) Text(ans, color = stitchMutedText(), fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
         }
@@ -6170,7 +6369,7 @@ private fun StitchSavedStatCard(title: String, value: String, modifier: Modifier
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.7f), RoundedCornerShape(16.dp))
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -6188,7 +6387,7 @@ private fun StitchSavedFilterChip(label: String, selected: Boolean, onClick: () 
             .height(40.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) stitchPrimary() else stitchSurface())
-            .border(1.dp, if (selected) stitchPrimary() else StitchLine, RoundedCornerShape(999.dp))
+            .border(1.dp, if (selected) stitchPrimary() else stitchLine(), RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
@@ -6218,8 +6417,8 @@ private fun StitchSavedContentCard(
                 ) {
                     if (post.thumbnailUrl.isNotBlank()) {
                         AsyncImage(model = post.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    } else if (post.mediaUrl.isNotBlank() && !post.isReelLike()) {
-                        AsyncImage(model = post.mediaUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } else if (post.mediaUrl.isNotBlank()) {
+                        AsyncImage(model = post.previewModel(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
                         Icon(if (post.isReelLike()) Icons.Default.SmartDisplay else Icons.Default.Article, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(30.dp))
                     }
@@ -6269,7 +6468,7 @@ private fun StitchUmmahTabs(selected: String, onSelect: (String) -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -6291,7 +6490,7 @@ private fun StitchUmmahTabs(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun StitchYourPostStrip(
+internal fun StitchYourPostStrip(
     reels: List<UmmahPost>,
     onCreate: () -> Unit,
     onWatchAll: () -> Unit,
@@ -6365,7 +6564,7 @@ private fun StitchMiniLiveReelCard(post: UmmahPost, onClick: () -> Unit) {
             }
             post.mediaUrl.isNotBlank() -> {
                 AsyncImage(
-                    model = post.mediaUrl,
+                    model = post.previewModel(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -6487,7 +6686,7 @@ internal fun StitchUmmahEmptyCard(
 }
 
 @Composable
-private fun StitchRealPostCard(
+internal fun StitchRealPostCard(
     post: UmmahPost,
     isFollowing: Boolean = false,
     isOwnPost: Boolean = false,
@@ -6515,13 +6714,22 @@ private fun StitchRealPostCard(
                         onClick = onFollow,
                         enabled = !isOwnPost,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isFollowing) stitchSoftSurface() else stitchPrimary(),
+                            containerColor = androidx.compose.animation.animateColorAsState(if (isFollowing) stitchSoftSurface() else stitchPrimary(), label = "pf").value,
                             contentColor = if (isFollowing) stitchPrimary() else Color.White
                         ),
                         shape = RoundedCornerShape(999.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp),
+                        modifier = Modifier.animateContentSize()
                     ) {
-                        Text(if (isOwnPost) "You" else if (isFollowing) "Following" else "Follow", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        androidx.compose.animation.AnimatedContent(if (isOwnPost) "You" else if (isFollowing) "Following" else "Follow", label = "pft") { t ->
+                            Text(t, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (!isOwnPost) {
+                        UgcOverflowButton(
+                            ReportTarget("post", post.id, post.creatorUid, reelUsername(post), post.caption),
+                            tint = stitchMutedText()
+                        )
                     }
                 }
             )
@@ -6539,15 +6747,27 @@ private fun StitchRealPostCard(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
+            val body = post.caption.ifBlank { post.arabicText }
+            var expanded by remember(post.id) { mutableStateOf(false) }
+            var overflowing by remember(post.id) { mutableStateOf(false) }
             Text(
-                post.caption.ifBlank { post.arabicText },
+                body,
                 color = stitchText(),
                 fontSize = 15.sp,
-                lineHeight = 22.sp
+                lineHeight = 22.sp,
+                maxLines = if (expanded) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (!expanded) overflowing = it.hasVisualOverflow },
+                modifier = Modifier.animateContentSize()
+            )
+            if (overflowing || expanded) Text(
+                if (expanded) "See less" else "See more",
+                color = stitchMutedText(), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { expanded = !expanded }.padding(top = 4.dp)
             )
             if (post.mediaUrl.isNotBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                StitchFeedMediaPreview(post = post, onOpenReel = onOpenReel)
+                StitchFeedMediaPreview(post = post, onOpenReel = onOpenReel, onDoubleTapLike = { if (!isLiked) onLike() })
             }
             StitchPostActions(
                 isLiked = isLiked,
@@ -6585,7 +6805,7 @@ private fun StitchYouTubePostCard(
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
-                    model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                    model = post.previewModel(),
                     contentDescription = post.caption.ifBlank { "Video" },
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -6624,7 +6844,10 @@ private fun StitchYouTubePostCard(
                     val metaLine = if (views > 0) "${compactCount(views)} views · ${timeAgo(post.publishedAt)}" else timeAgo(post.publishedAt)
                     Text(metaLine, color = stitchMutedText(), fontSize = 12.sp)
                 }
-                Icon(Icons.Default.MoreVert, contentDescription = null, tint = stitchMutedText(), modifier = Modifier.padding(start = 4.dp))
+                UgcOverflowButton(
+                    ReportTarget("post", post.id, post.creatorUid, reelUsername(post), post.caption),
+                    tint = stitchMutedText()
+                )
             }
             Row(
                 modifier = Modifier.padding(start = 64.dp, end = 12.dp, bottom = 14.dp),
@@ -6642,7 +6865,7 @@ private fun StitchYouTubePostCard(
                         Spacer(Modifier.width(6.dp))
                         Text(compactCount(post.likeCount + if (isLiked) 1L else 0L), color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Box(Modifier.width(1.dp).height(20.dp).background(StitchLine))
+                    Box(Modifier.width(1.dp).height(20.dp).background(stitchLine()))
                     Box(
                         modifier = Modifier.clickable { }.padding(horizontal = 12.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
@@ -6664,8 +6887,10 @@ private fun StitchYouTubePostCard(
 }
 
 @Composable
-private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
+private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit, onDoubleTapLike: (() -> Unit)? = null) {
     val isPostVideo = post.isVideoMedia() && !post.isReelLike()
+    var burst by remember(post.id) { mutableStateOf(0) }
+    val canDoubleTap = onDoubleTapLike != null && !isPostVideo && !post.isReelLike() && post.mediaUrls.size <= 1
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -6673,19 +6898,24 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
                 when {
                     post.isReelLike() -> 240.dp
                     isPostVideo -> 214.dp
+                    post.mediaUrls.size > 1 -> 320.dp
                     else -> 190.dp
                 }
             )
             .clip(RoundedCornerShape(14.dp))
             .background(if (isPostVideo) StitchEmeraldDeep else StitchEmerald)
-            .clickable(enabled = post.opensInVideoViewer(), onClick = onOpenReel),
+            .clickable(enabled = post.opensInVideoViewer(), onClick = onOpenReel)
+            .then(if (canDoubleTap) Modifier.pointerInput(post.id) {
+                detectTapGestures(onDoubleTap = { burst++; onDoubleTapLike?.invoke() })
+            } else Modifier),
         contentAlignment = Alignment.Center
     ) {
+        if (burst > 0) StitchHeartBurst(burst, Modifier.zIndex(2f))
         if (isPostVideo) {
             // Show the real video frame (Coil decodes the first frame from the mediaUrl) instead of
             // a black box     like Instagram. A soft scrim + small play button keep it readable.
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption.ifBlank { "Post video" },
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -6701,9 +6931,11 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Open video", tint = Color.White, modifier = Modifier.size(34.dp))
             }
+        } else if (!post.isReelLike() && post.mediaUrls.size > 1) {
+            PhotoCarousel(urls = post.mediaUrls, contentDescription = post.caption, onDoubleTap = { onDoubleTapLike?.invoke() }, modifier = Modifier.fillMaxSize())
         } else if (!post.isReelLike()) {
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -6711,7 +6943,7 @@ private fun StitchFeedMediaPreview(post: UmmahPost, onOpenReel: () -> Unit) {
         } else {
             // Reel preview: show the real first frame (Coil video decoder) instead of a gradient.
             AsyncImage(
-                model = post.thumbnailUrl.ifBlank { post.mediaUrl },
+                model = post.previewModel(),
                 contentDescription = post.caption.ifBlank { "Reel" },
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -6788,7 +7020,7 @@ private fun StitchUmmahSectionHeader(title: String, action: String, onAction: ()
 }
 
 @Composable
-private fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
+internal fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6804,7 +7036,7 @@ private fun StitchComposerCard(avatar: String, onOpen: () -> Unit) {
                         .weight(1f)
                         .clip(RoundedCornerShape(999.dp))
                         .background(stitchSoftSurface())
-                        .border(1.dp, StitchLine.copy(alpha = 0.6f), RoundedCornerShape(999.dp))
+                        .border(1.dp, stitchLine().copy(alpha = 0.6f), RoundedCornerShape(999.dp))
                         .clickable(onClick = onOpen)
                         .padding(horizontal = 18.dp, vertical = 13.dp)
                 ) {
@@ -6843,7 +7075,7 @@ private fun StitchPostTool(icon: ImageVector, label: String) {
 private fun StitchReflectionPostCard() {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            StitchPostHeader("Amina Y.", "2 hours ago    London, UK")
+            StitchPostHeader("Amina Y.", "2 hours ago · London, UK")
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 "Reflection",
@@ -6904,7 +7136,7 @@ private fun StitchEventPostCard() {
 private fun StitchQuestionPostCard() {
     StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            StitchPostHeader("Ibrahim H.", "5 hours ago    Q&A")
+            StitchPostHeader("Ibrahim H.", "5 hours ago · Q&A")
             Spacer(modifier = Modifier.height(12.dp))
             Text("Best resources for learning Tajweed?", color = stitchText(), fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
             Spacer(modifier = Modifier.height(8.dp))
@@ -6926,18 +7158,14 @@ private fun StitchQuestionPostCard() {
 
 /** A compact advertisement that scrolls with community content. */
 @Composable
-private fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
-    StitchCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-        com.noorpro.app.ads.SponsoredFeedCard(Modifier.fillMaxWidth().padding(10.dp))
-    }
+internal fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
+    com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth())
 }
 
 /** A quiet, scroll-away Home ad directly below Noor Audio, as requested. */
 @Composable
-private fun StitchHomeSponsoredAdCard(modifier: Modifier = Modifier) {
-    StitchCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-        com.noorpro.app.ads.SponsoredHomeCard(Modifier.fillMaxWidth().padding(10.dp))
-    }
+internal fun StitchHomeSponsoredAdCard(modifier: Modifier = Modifier) {
+    com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth(), com.noorpro.app.ads.AdIds.BOTTOM_BANNER)
 }
 
 @Composable
@@ -6984,7 +7212,7 @@ private fun StitchPostHeader(
 }
 
 @Composable
-private fun StitchPostActions(
+internal fun StitchPostActions(
     isLiked: Boolean = false,
     isSaved: Boolean = false,
     likeCount: Long = 0,
@@ -6997,32 +7225,75 @@ private fun StitchPostActions(
     onSave: () -> Unit = {},
     onShare: () -> Unit = {}
 ) {
-    Spacer(modifier = Modifier.height(14.dp))
-    Box(Modifier.fillMaxWidth().height(1.dp).background(StitchLine.copy(alpha = 0.7f)))
-    Spacer(modifier = Modifier.height(10.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val likeTint = if (isLiked) Color(0xFFE8505B) else stitchMutedText()
-        val saveTint = if (isSaved) stitchPrimary() else stitchMutedText()
-        val countStyleColor = stitchMutedText()
-        Icon(Icons.Default.Favorite, contentDescription = "Like", tint = likeTint, modifier = Modifier.size(19.dp).clickable(onClick = onLike))
-        if (likeCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(likeCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.width(18.dp))
-        Icon(Icons.Default.ChatBubble, contentDescription = "Comment", tint = stitchMutedText(), modifier = Modifier.size(18.dp).clickable(onClick = onComment))
-        if (commentCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(commentCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.width(18.dp))
-        Icon(Icons.Default.Share, contentDescription = "Share", tint = stitchMutedText(), modifier = Modifier.size(18.dp).clickable(onClick = onShare))
-        if (shareCount > 0) { Spacer(Modifier.width(6.dp)); Text(compactCount(shareCount), color = countStyleColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-        Spacer(modifier = Modifier.weight(1f))
-        Icon(Icons.Default.Bookmark, contentDescription = "Save", tint = saveTint, modifier = Modifier.size(18.dp).clickable(onClick = onSave))
+    // 1.0.78: Instagram layout - heart / comment / send on the left, bookmark on the right, then
+    // "N likes" and "View all N comments". Counts update optimistically on tap and re-sync with
+    // the live Firestore counter.
+    val muted = stitchMutedText()
+    var pendingLike by remember { mutableStateOf(0L) }
+    LaunchedEffect(likeCount) { pendingLike = 0L }
+    val shownLikes = (likeCount + pendingLike).coerceAtLeast(0L)
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    val likePop = com.noorpro.app.ui.components.popScale(isLiked)
+    val savePop = com.noorpro.app.ui.components.popScale(isSaved)
+    val likeTint by androidx.compose.animation.animateColorAsState(if (isLiked) com.noorpro.app.ui.components.InstaLikeRed else stitchText(), label = "likeC")
+    Spacer(modifier = Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        IconButton(onClick = { haptic(); pendingLike += if (isLiked) -1 else 1; onLike() }) {
+            Icon(
+                if (isLiked) com.noorpro.app.ui.components.InstaIcons.HeartFilled else com.noorpro.app.ui.components.InstaIcons.Heart,
+                contentDescription = if (isLiked) "Unlike" else "Like", tint = likeTint,
+                modifier = Modifier.size(26.dp).graphicsLayer { scaleX = likePop; scaleY = likePop }
+            )
+        }
+        IconButton(onClick = onComment) {
+            Icon(com.noorpro.app.ui.components.InstaIcons.Comment, contentDescription = "Comment", tint = stitchText(), modifier = Modifier.size(25.dp))
+        }
+        IconButton(onClick = onShare) {
+            Icon(com.noorpro.app.ui.components.InstaIcons.Send, contentDescription = "Share", tint = stitchText(), modifier = Modifier.size(25.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        if (isVideo && viewCount > 0) Text("${compactCount(viewCount)} views", color = muted, fontSize = 12.sp)
+        IconButton(onClick = { haptic(); onSave() }) {
+            Icon(
+                if (isSaved) com.noorpro.app.ui.components.InstaIcons.BookmarkFilled else com.noorpro.app.ui.components.InstaIcons.Bookmark,
+                contentDescription = if (isSaved) "Saved" else "Save", tint = stitchText(),
+                modifier = Modifier.size(25.dp).graphicsLayer { scaleX = savePop; scaleY = savePop }
+            )
+        }
     }
-    if (isVideo && viewCount > 0) {
-        Spacer(modifier = Modifier.height(6.dp))
-        Text("${compactCount(viewCount)} views", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+        androidx.compose.animation.AnimatedContent(targetState = shownLikes, label = "likesLine") { n ->
+            Text(
+                if (n == 1L) "1 like" else "${compactCount(n)} likes",
+                color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold
+            )
+        }
+        if (commentCount > 0) {
+            Text(
+                if (commentCount == 1L) "View 1 comment" else "View all ${compactCount(commentCount)} comments",
+                color = muted, fontSize = 13.sp,
+                modifier = Modifier.padding(top = 3.dp).clickable(onClick = onComment)
+            )
+        }
+        if (shareCount > 0) Text("${compactCount(shareCount)} shares", color = muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
 @Composable
-private fun StitchCommentSheet(
+private fun StitchPostActionButton(icon: ImageVector, label: String, tint: Color, modifier: Modifier, onClick: () -> Unit, pop: Float = 1f) {
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = { haptic(); onClick() }).padding(vertical = 10.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(18.dp).graphicsLayer { scaleX = pop; scaleY = pop })
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+@Composable
+internal fun StitchCommentSheet(
     post: UmmahPost,
     repository: UmmahRepository,
     isLoggedIn: Boolean,
@@ -7038,6 +7309,8 @@ private fun StitchCommentSheet(
     var sending by remember(post.id) { mutableStateOf(false) }
     var replyTarget by remember(post.id) { mutableStateOf<UmmahComment?>(null) }
     val liveProfiles = rememberStitchProfiles()
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
 
     // Hide the app's floating bottom navigation while the sheet is open so its input row
     // never collides with the navbar.
@@ -7046,6 +7319,12 @@ private fun StitchCommentSheet(
         onDispose { viewModel.setModalOverlayActive(false) }
     }
 
+    var myCommentLikes by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val currentCommentUid = remember(isLoggedIn) { repository.currentUserUid().orEmpty() }
+    DisposableEffect(isLoggedIn) {
+        val reg = if (isLoggedIn) repository.observeMyCommentLikes { myCommentLikes = it } else null
+        onDispose { reg?.remove() }
+    }
     DisposableEffect(post.id) {
         val registration = repository.observeComments(post.id) { list ->
             comments = list
@@ -7099,10 +7378,24 @@ private fun StitchCommentSheet(
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
                             )
                             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                items(comments, key = { it.id }) { c ->
+                                items(comments.filter { it.creatorUid !in blockedUids }, key = { it.id }) { c ->
                                     StitchCommentRow(
                                         comment = c,
                                         photoUrl = liveProfiles[c.creatorUid]?.photoUrl.orEmpty(),
+                                        liked = c.id in myCommentLikes,
+                                        mine = c.creatorUid == currentCommentUid,
+                                        onToggleLike = { now ->
+                                            if (!isLoggedIn) { Toast.makeText(context, "Sign in to like comments", Toast.LENGTH_SHORT).show() }
+                                            else {
+                                                myCommentLikes = if (now) myCommentLikes + c.id else myCommentLikes - c.id
+                                                repository.toggleCommentLike(c.id, now)
+                                            }
+                                        },
+                                        onDelete = {
+                                            repository.deleteOwnComment(c) { ok ->
+                                                Toast.makeText(context, if (ok) "Comment deleted" else "Unable to delete", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
                                         onOpenProfile = { onOpenProfile(c.creatorUid, c.creatorName, "") },
                                         onReply = { target ->
                                             replyTarget = target
@@ -7153,7 +7446,7 @@ private fun StitchCommentSheet(
                             OutlinedTextField(
                                 value = draft,
                                 onValueChange = { draft = it.take(500) },
-                                placeholder = { Text("Add a comment   ") },
+                                placeholder = { Text("Add a comment…") },
                                 modifier = Modifier.weight(1f),
                                 maxLines = 4,
                                 shape = RoundedCornerShape(18.dp)
@@ -7166,6 +7459,7 @@ private fun StitchCommentSheet(
                                         Toast.makeText(context, "Sign in to comment", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
+                                    if (!termsGate.check()) return@Button
                                     sending = true
                                     val target = replyTarget
                                     repository.submitComment(
@@ -7203,19 +7497,31 @@ private fun StitchCommentSheet(
     }
 
 @Composable
-private fun StitchCommentRow(
+internal fun StitchCommentRow(
     comment: UmmahComment,
     photoUrl: String = "",
+    liked: Boolean = false,
+    mine: Boolean = false,
+    onToggleLike: (Boolean) -> Unit = {},
+    onDelete: () -> Unit = {},
     onOpenProfile: () -> Unit,
     onReply: (UmmahComment) -> Unit
 ) {
-    var liked by remember(comment.id) { mutableStateOf(false) }
+    // 1.0.78: persisted comment likes with a live count, threaded replies, delete own, report.
+    var pending by remember(comment.id) { mutableStateOf(0L) }
+    LaunchedEffect(comment.likeCount) { pending = 0L }
+    val shownLikes = (comment.likeCount + pending).coerceAtLeast(0L)
+    val pop = com.noorpro.app.ui.components.popScale(liked)
+    val haptic = com.noorpro.app.ui.components.rememberHaptic()
+    var confirmDelete by remember(comment.id) { mutableStateOf(false) }
+    fun toggle() { haptic(); pending += if (liked) -1 else 1; onToggleLike(!liked) }
+    val isReply = comment.parentCommentId.isNotBlank()
     Row(
         verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(start = if (comment.parentCommentId.isBlank()) 0.dp else 28.dp)
+        modifier = Modifier.padding(start = if (isReply) 46.dp else 0.dp)
     ) {
         Box(
-            modifier = Modifier.size(38.dp).clip(CircleShape).background(StitchEmerald).clickable(onClick = onOpenProfile),
+            modifier = Modifier.size(if (isReply) 30.dp else 38.dp).clip(CircleShape).background(StitchEmerald).clickable(onClick = onOpenProfile),
             contentAlignment = Alignment.Center
         ) {
             if (photoUrl.isNotBlank()) {
@@ -7234,47 +7540,63 @@ private fun StitchCommentRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     comment.creatorName.ifBlank { "Member" },
-                    color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable(onClick = onOpenProfile)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(commentAgo(comment.createdAt), color = stitchMutedText(), fontSize = 12.sp)
             }
-            Spacer(Modifier.height(3.dp))
-            if (comment.replyToName.isNotBlank()) {
-                Text(
-                    "Replying to ${comment.replyToName}",
-                    color = stitchPrimary(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(2.dp))
+            val body = androidx.compose.ui.text.buildAnnotatedString {
+                if (comment.replyToName.isNotBlank() && !comment.text.startsWith("@")) {
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = stitchPrimary(), fontWeight = FontWeight.SemiBold))
+                    append("@${comment.replyToName} "); pop()
+                }
+                append(comment.text)
             }
-            Text(comment.text, color = stitchText().copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 19.sp)
+            Text(body, color = stitchText().copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 19.sp)
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (shownLikes > 0) {
+                    Text(if (shownLikes == 1L) "1 like" else "${compactCount(shownLikes)} likes", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(16.dp))
+                }
                 Text(
-                    "Like",
-                    color = if (liked) Color(0xFFE8505B) else stitchMutedText(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { liked = !liked }
-                )
-                Spacer(Modifier.width(18.dp))
-                Text(
-                    "Reply",
-                    color = stitchMutedText(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    "Reply", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable { onReply(comment) }
                 )
+                if (mine) {
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        "Delete", color = Color(0xFFE5484D).copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { confirmDelete = true }
+                    )
+                }
             }
         }
-        Icon(
-            Icons.Default.Favorite,
-            contentDescription = "Like comment",
-            tint = if (liked) Color(0xFFE8505B) else stitchMutedText().copy(alpha = 0.55f),
-            modifier = Modifier.size(17.dp).clickable { liked = !liked }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                if (liked) com.noorpro.app.ui.components.InstaIcons.HeartFilled else com.noorpro.app.ui.components.InstaIcons.Heart,
+                contentDescription = if (liked) "Unlike comment" else "Like comment",
+                tint = if (liked) com.noorpro.app.ui.components.InstaLikeRed else stitchMutedText(),
+                modifier = Modifier.padding(top = 6.dp).size(16.dp).graphicsLayer { scaleX = pop; scaleY = pop }.clickable { toggle() }
+            )
+        }
+        if (!mine) {
+            UgcOverflowButton(
+                ReportTarget("comment", comment.id, comment.creatorUid, comment.creatorName, comment.text),
+                modifier = Modifier.size(32.dp),
+                tint = stitchMutedText()
+            )
+        }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete comment?") },
+            text = { Text("This removes your comment for everyone.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Delete", color = Color(0xFFE5484D)) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
     }
 }
@@ -7291,7 +7613,7 @@ private fun commentAgo(createdAt: Long): String {
 }
 
 @Composable
-private fun StitchSignInRequiredScreen(
+internal fun StitchSignInRequiredScreen(
     title: String,
     message: String,
     onBack: () -> Unit,
@@ -7382,7 +7704,7 @@ private fun StitchSignInRequiredCard(
                     .size(82.dp)
                     .clip(CircleShape)
                     .background(stitchSoftSurface())
-                    .border(1.dp, StitchLine.copy(alpha = 0.75f), CircleShape),
+                    .border(1.dp, stitchLine().copy(alpha = 0.75f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -7433,209 +7755,8 @@ fun StitchUmmahCreateScreen(
     viewModel: DeenViewModel,
     reelMode: Boolean
 ) {
-    val context = LocalContext.current
-    val repository = remember { UmmahRepository() }
-    var caption by remember { mutableStateOf("") }
-    var arabicText by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(if (reelMode) "Reel" else "Reflection") }
-    var postType by remember { mutableStateOf(if (reelMode) "reel" else "text") }
-    var mediaUri by remember { mutableStateOf<Uri?>(null) }
-    var submitting by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        mediaUri = uri
-        postType = "image"
-    }
-    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        mediaUri = uri
-        postType = if (reelMode) "reel" else "video"
-    }
-
-    if (!viewModel.isLoggedIn) {
-        StitchSignInRequiredScreen(
-            title = if (reelMode) "Upload Reel" else "Create Post",
-            message = "Please sign in before uploading posts or reels.",
-            onBack = { viewModel.goBack() },
-            onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) }
-        )
-        return
-    }
-
-    StitchScreen {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 22.dp, top = 42.dp, end = 22.dp, bottom = 56.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.statusBarsPadding()) {
-                    IconButton(onClick = { viewModel.goBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        if (reelMode) "Upload Reel" else "Create Post",
-                        color = stitchText(),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = com.noorpro.app.ui.theme.LibreCaslon
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.size(48.dp))
-                }
-            }
-
-            item {
-                StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        StitchSectionLabel(if (reelMode) "Reel details" else "Post details")
-                        OutlinedTextField(
-                            value = caption,
-                            onValueChange = { caption = it },
-                            label = { Text("Caption") },
-                            placeholder = { Text("Share something beneficial...") },
-                            minLines = 3,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = arabicText,
-                            onValueChange = { arabicText = it },
-                            label = { Text("Arabic / dua text optional") },
-                            minLines = 2,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(listOf("Reflection", "Reminder", "Knowledge", "Question", "Dua", "Reel")) { chip ->
-                                StitchPill(chip, selected = category == chip) { category = chip }
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        StitchSectionLabel("Media")
-                        if (mediaUri != null) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(if (reelMode) 320.dp else 210.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(stitchSoftSurface()),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (postType == "image") {
-                                    AsyncImage(
-                                        model = mediaUri,
-                                        contentDescription = "Selected image",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    StitchInlinePostVideoPlayer(
-                                        mediaUrl = mediaUri.toString(),
-                                        contentDescription = "Selected video",
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-                        }
-                        if (reelMode) {
-                            Button(
-                                onClick = { videoPicker.launch("video/*") },
-                                colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Videocam, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (mediaUri == null) "Choose Reel Video" else "Change Reel Video", fontWeight = FontWeight.Bold)
-                            }
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                Button(
-                                    onClick = { imagePicker.launch("image/*") },
-                                    colors = ButtonDefaults.buttonColors(containerColor = stitchSoftSurface(), contentColor = stitchPrimary()),
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.Image, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Photo")
-                                }
-                                Button(
-                                    onClick = { videoPicker.launch("video/*") },
-                                    colors = ButtonDefaults.buttonColors(containerColor = stitchSoftSurface(), contentColor = stitchPrimary()),
-                                    shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.Videocam, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Video")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (error != null) {
-                item {
-                    Text(error.orEmpty(), color = Color(0xFFBA1A1A), fontSize = 13.sp)
-                }
-            }
-
-            item {
-                Button(
-                    enabled = !submitting,
-                    onClick = {
-                        submitting = true
-                        error = null
-                        val finalType = if (reelMode) "reel" else postType
-                        repository.submitPost(
-                            context = context,
-                            caption = caption,
-                            arabicText = arabicText,
-                            category = category,
-                            type = finalType,
-                            mediaUri = mediaUri,
-                            sourceReference = "",
-                            creatorHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
-                            creatorDisplayName = viewModel.userDisplayName,
-                            creatorPhotoUrlOverride = viewModel.userPhotoUrl
-                        ) { success, message ->
-                            submitting = false
-                            if (success) {
-                                Toast.makeText(
-                                    context,
-                                    message ?: "Published to Ummah",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                viewModel.navigateTo(if (reelMode) DeenScreen.REELS else DeenScreen.UMMAH)
-                            } else {
-                                error = message ?: "Unable to submit."
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                    shape = RoundedCornerShape(999.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (submitting) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(if (reelMode) "Publish Reel" else "Publish", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
+    // 1.1.1: the new composer (feed post / reel / story) lives in UmmahComposer*.kt.
+    NoorCreateScreen(viewModel, reelMode)
 }
 
 @Composable
@@ -7680,8 +7801,10 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
     val followingCount = if (isOther) profileFollowingUsers.size else following.size
     // Respect the viewed member's privacy flags (only applies when viewing someone else).
     val viewedProfile = if (isOther) liveProfiles[profileUid] else null
-    val hideOtherCounts = viewedProfile?.hideCounts == true
-    val privateLocked = viewedProfile?.isPrivate == true && !isFollowingCreator
+    // Public Instagram-style profile: real counts and the grid are always shown (published posts and
+    // reels are public in Ummah anyway).
+    val hideOtherCounts = false
+    val privateLocked = false
     val profileBio = if (isOther) {
         liveProfiles[profileUid]?.bio.orEmpty()
     } else {
@@ -7720,7 +7843,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     if (isOther) {
-                        Spacer(modifier = Modifier.size(48.dp))
+                        UgcOverflowButton(ReportTarget("user", profileUid, profileUid, displayName), tint = stitchMutedText())
                     } else {
                         IconButton(
                             onClick = {
@@ -7766,7 +7889,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                     ) {
                         // Live avatar: own photo from the account, other members' from their
                         // public profile card so photo changes show here instantly.
-                        val profilePhoto = if (!isOther) viewModel.userPhotoUrl
+                        val profilePhoto = if (!isOther) viewModel.userPhotoUrl.ifBlank { liveProfiles[profileUid]?.photoUrl.orEmpty() }
                         else liveProfiles[profileUid]?.photoUrl.orEmpty()
                         if (profilePhoto.isNotBlank()) {
                             AsyncImage(
@@ -7863,19 +7986,29 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                                 containerColor = if (isFollowingCreator) stitchSurface() else stitchPrimary(),
                                 contentColor = if (isFollowingCreator) stitchText() else Color.White
                             ),
-                            border = if (isFollowingCreator) BorderStroke(1.dp, StitchLine) else null,
+                            border = if (isFollowingCreator) BorderStroke(1.dp, stitchLine()) else null,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(if (isFollowingCreator) "Following" else "Follow")
                         }
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                if (!viewModel.isLoggedIn) viewModel.navigateTo(DeenScreen.LOGIN)
+                                else viewModel.openCreatorChat(profileUid, displayName)
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, stitchLine()),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = stitchText()),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Message") }
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { viewModel.navigateTo(if (viewModel.isLoggedIn) DeenScreen.UMMAH_PROFILE_EDIT else DeenScreen.LOGIN) },
                             colors = ButtonDefaults.buttonColors(containerColor = stitchSoftSurface(), contentColor = stitchText()),
-                            border = BorderStroke(1.dp, StitchLine),
+                            border = BorderStroke(1.dp, stitchLine()),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(vertical = 12.dp),
                             modifier = Modifier.weight(1f)
@@ -8106,7 +8239,7 @@ fun StitchFollowingScreen(viewModel: DeenViewModel) {
     val users = rememberStitchFollowingUsers(viewModel.isLoggedIn, targetUid)
     StitchFollowListScreen(
         viewModel = viewModel,
-        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }}     Following" else "Following",
+        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }} · Following" else "Following",
         users = users,
         emptyTitle = "Not following anyone yet",
         emptyMessage = if (isOther) "This member isn't following anyone yet." else "When you follow creators, they appear here."
@@ -8121,7 +8254,7 @@ fun StitchFollowersScreen(viewModel: DeenViewModel) {
     val users = rememberStitchFollowers(viewModel.isLoggedIn, targetUid)
     StitchFollowListScreen(
         viewModel = viewModel,
-        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }}     Followers" else "Followers",
+        title = if (isOther) "${viewModel.viewedCreatorName.ifBlank { "Member" }} · Followers" else "Followers",
         users = users,
         emptyTitle = "No followers yet",
         emptyMessage = if (isOther) "This member has no followers yet." else "Share great reels and your followers will appear here."
@@ -8331,7 +8464,7 @@ fun StitchDiscoverLibraryScreen(viewModel: DeenViewModel) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search books, authors, or topics   ", color = stitchMutedText()) },
+                    placeholder = { Text("Search books, authors, or topics…", color = stitchMutedText()) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = stitchMutedText()) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -8568,7 +8701,7 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                     LinearProgressIndicator(
                         progress = { levelProgress },
                         color = stitchPrimary(),
-                        trackColor = StitchLine,
+                        trackColor = stitchLine(),
                         modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(999.dp))
                     )
                 }
@@ -8660,8 +8793,8 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                 )
             }
 
-            // Locked reward (Umrah Essentials Kit)
-            item {
+            // Locked reward (Umrah Essentials Kit) - hidden from the UI by request (code kept).
+            if (SHOW_UMRAH_ESSENTIALS_KIT) item {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(18.dp))
                         .background(Brush.verticalGradient(listOf(StitchEmerald, StitchEmeraldDeep, Color.Black)))
@@ -8676,7 +8809,7 @@ fun StitchDeenPointsScreen(viewModel: DeenViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (umrahUnlocked) Icons.Default.CheckCircle else Icons.Default.Fingerprint, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(7.dp))
-                            Text(if (umrahUnlocked) "Unlocked     claim in profile" else "Requires 25,000 Points", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(if (umrahUnlocked) "Unlocked — claim in profile" else "Requires 25,000 Points", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -8720,7 +8853,7 @@ private fun StitchMilestoneCard(icon: ImageVector, title: String, subtitle: Stri
                     LinearProgressIndicator(
                         progress = { progress },
                         color = StitchGold,
-                        trackColor = StitchLine,
+                        trackColor = stitchLine(),
                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp))
                     )
                 }
@@ -9083,7 +9216,7 @@ fun StitchUmmahProfileEditScreen(viewModel: DeenViewModel) {
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        if (uploadingPhoto) "Uploading photo   " else "Tap to change profile photo",
+                        if (uploadingPhoto) "Uploading photo…" else "Tap to change profile photo",
                         color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -9222,7 +9355,7 @@ private fun StitchProfileIconAction(
             .size(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -9276,6 +9409,43 @@ private fun StitchProfileMediaGrid(
     }
 }
 
+/** Profile grid image: thumbnail, then the post's own media / a streamed video frame, with Coil
+ *  memory+disk caching. A failed thumbnail falls through to the next candidate instead of grey. */
+@Composable
+internal fun StitchProfileTileImage(post: UmmahPost) {
+    val context = LocalContext.current
+    val candidates = remember(post.id, post.thumbnailUrl, post.mediaUrl) {
+        buildList<Any> {
+            if (post.thumbnailUrl.isNotBlank()) add(post.thumbnailUrl)
+            if (post.mediaUrl.isNotBlank()) {
+                if (post.isVideoMedia()) add(com.noorpro.app.data.media.RemoteVideoFrame(post.mediaUrl)) else add(post.mediaUrl)
+            }
+        }.distinct()
+    }
+    var index by remember(candidates) { mutableStateOf(0) }
+    val model = candidates.getOrNull(index)
+    if (model == null) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(StitchEmerald.copy(alpha = 0.7f), Color.Black))), contentAlignment = Alignment.Center) {
+            Icon(if (post.isReelLike()) Icons.Default.PlayArrow else Icons.Default.Image, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(34.dp))
+        }
+        return
+    }
+    AsyncImage(
+        model = coil.request.ImageRequest.Builder(context)
+            .data(model)
+            .memoryCacheKey("tile:${post.id}:$index")
+            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+            .size(480, 860)
+            .crossfade(true)
+            .build(),
+        contentDescription = post.caption,
+        contentScale = ContentScale.Crop,
+        onError = { index++ },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
 @Composable
 private fun StitchProfileMediaTile(
     post: UmmahPost,
@@ -9289,25 +9459,14 @@ private fun StitchProfileMediaTile(
             .height(if (post.isReelLike()) 178.dp else 126.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.9f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
     ) {
         when {
             // Show the real visual (Instagram-style): a thumbnail if present, otherwise the media
             // itself     for videos/reels the app-wide Coil VideoFrameDecoder renders the first frame
             // instead of a black/gradient placeholder.
-            post.thumbnailUrl.isNotBlank() -> AsyncImage(
-                model = post.thumbnailUrl,
-                contentDescription = post.caption,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            post.mediaUrl.isNotBlank() -> AsyncImage(
-                model = post.mediaUrl,
-                contentDescription = post.caption,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            post.thumbnailUrl.isNotBlank() || post.mediaUrl.isNotBlank() -> StitchProfileTileImage(post)
             else -> {
                 Box(Modifier.fillMaxSize().background(stitchSurface()))
                 Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = stitchPrimary().copy(alpha = 0.4f), modifier = Modifier.align(Alignment.Center).size(42.dp))
@@ -9331,7 +9490,14 @@ private fun StitchProfileMediaTile(
                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(17.dp))
             }
         }
-        Text(
+        if (post.isReelLike() || post.isVideoMedia()) Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(2.dp))
+            Text(compactCount(post.viewCount), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        } else Text(
             post.caption.ifBlank { post.category },
             color = Color.White,
             fontSize = 11.sp,
@@ -9350,7 +9516,7 @@ private fun StitchProfileContentTabs(selected: String, onSelect: (String) -> Uni
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine, RoundedCornerShape(12.dp))
+            .border(1.dp, stitchLine(), RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -9578,6 +9744,8 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
             .ifBlank { "TM" }
     }
     var chats by remember { mutableStateOf<List<UmmahChat>>(emptyList()) }
+    val chatPresence = rememberPresenceMap(chats.mapNotNull { c -> c.participantUids.firstOrNull { it != currentUid } })
+    val chatNow = rememberNowTicker()
     var error by remember { mutableStateOf<String?>(null) }
     var groups by remember { mutableStateOf<List<UmmahGroup>>(emptyList()) }
     var groupError by remember { mutableStateOf<String?>(null) }
@@ -9585,6 +9753,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
     var peopleQuery by remember { mutableStateOf("") }
     var showMyQr by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
+    val groupTermsGate = rememberUgcTermsGate()
     var groupName by remember { mutableStateOf("") }
     var groupDescription by remember { mutableStateOf("") }
     var creatingGroup by remember { mutableStateOf(false) }
@@ -9693,7 +9862,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFE2E9EC))
+                        .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFE2E9EC))
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -9725,7 +9894,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 selectedTab == "Chats" && chats.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = "No conversations yet",
-                        message = "Find someone in People     everyone you follow and your followers are there.",
+                        message = "Find someone in People — everyone you follow and your followers are there.",
                         action = "Find people",
                         onAction = { selectedTab = "People" }
                     )
@@ -9735,72 +9904,23 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                     val profile = profiles[otherUid]
                     val otherName = profile?.name?.ifBlank { null }
                         ?: chat.participantNames[otherUid]?.ifBlank { null } ?: "Member"
-                    val otherPhoto = profile?.photoUrl.orEmpty()
-                    StitchCard(
-                        modifier = Modifier.fillMaxWidth().clickable {
+                    // 1.0.78: WhatsApp-style row - online dot, ticks, typing, green unread badge.
+                    NoorChatListRow(
+                        name = otherName,
+                        photoUrl = profile?.photoUrl.orEmpty(),
+                        preview = chat.lastMessage,
+                        previewIsMine = chat.lastSenderUid == currentUid,
+                        tick = chat.meta.tickFor(otherUid, chat.updatedAt),
+                        typing = chat.meta.isTyping(otherUid, chatNow),
+                        online = chatPresence[otherUid]?.effectiveOnline(chatNow) == true,
+                        unread = chat.unreadCount,
+                        updatedAt = chat.updatedAt,
+                        isCall = chat.lastMessageType == "call",
+                        onClick = {
                             repository.markChatRead(chat.id)
                             viewModel.openCreatorChat(otherUid, otherName)
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(46.dp).clip(CircleShape).background(StitchEmerald),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (otherPhoto.isNotBlank()) {
-                                    AsyncImage(
-                                        model = otherPhoto,
-                                        contentDescription = "$otherName photo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize().clip(CircleShape)
-                                    )
-                                } else {
-                                    Text(otherName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(otherName, color = stitchText(), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                                    Spacer(Modifier.width(8.dp))
-                                    if (chat.updatedAt > 0) {
-                                        Text(commentAgo(chat.updatedAt), color = stitchMutedText(), fontSize = 11.sp)
-                                    }
-                                }
-                                val preview = chat.lastMessage.ifBlank { "Tap to chat" }
-                                Text(
-                                    if (chat.lastSenderUid == currentUid && chat.lastMessage.isNotBlank()) "You: $preview" else preview,
-                                    color = if (chat.unreadCount > 0) stitchText() else stitchMutedText(),
-                                    fontSize = 13.sp,
-                                    fontWeight = if (chat.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (chat.unreadCount > 0) {
-                                Spacer(Modifier.width(8.dp))
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier
-                                            .height(22.dp)
-                                            .clip(RoundedCornerShape(999.dp))
-                                            .background(stitchPrimary())
-                                            .padding(horizontal = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            if (chat.unreadCount > 9) "9+" else chat.unreadCount.toString(),
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Text("New", color = stitchPrimary(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
                         }
-                    }
+                    )
                 }
                 selectedTab == "People" -> {
                     item {
@@ -9818,7 +9938,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         item {
                             StitchUmmahEmptyCard(
                                 title = "No people yet",
-                                message = "Follow creators from posts and reels     everyone you follow (and your followers) appears here, ready to message.",
+                                message = "Follow creators from posts and reels — everyone you follow (and your followers) appears here, ready to message.",
                                 action = "Search Ummah",
                                 onAction = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) }
                             )
@@ -9929,6 +10049,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 TextButton(
                     enabled = !creatingGroup,
                     onClick = {
+                        if (!groupTermsGate.check()) return@TextButton
                         creatingGroup = true
                         repository.createGroup(groupName, groupDescription) { ok, message ->
                             creatingGroup = false
@@ -9972,7 +10093,7 @@ private fun StitchMessagesHubTopBar(
             modifier = Modifier
                 .size(52.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFE2E9EC)),
+                .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFE2E9EC)),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -10016,7 +10137,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .shadow(22.dp, RoundedCornerShape(22.dp), clip = false)
             .padding(horizontal = 28.dp, vertical = 46.dp),
         contentAlignment = Alignment.Center
@@ -10030,7 +10151,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
                 modifier = Modifier
                     .size(96.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEEF5F7)),
+                    .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFEEF5F7)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Groups, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(50.dp))
@@ -10055,7 +10176,7 @@ private fun StitchMessagesSignInCard(onSignIn: () -> Unit) {
             Spacer(Modifier.height(36.dp))
             Button(
                 onClick = onSignIn,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF745C00)),
+                colors = if (!com.noorpro.app.ui.components.isStitchLight()) ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = stitchOnPrimaryAccent()) else ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF745C00)),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
@@ -10092,14 +10213,14 @@ private fun StitchMessageTab(label: String, selected: Boolean, modifier: Modifie
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color.White else Color.Transparent)
+            .background(if (selected) (if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.surface else Color.White) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (selected) stitchPrimary() else Color(0xFF404943),
+            color = if (selected) stitchPrimary() else if (!com.noorpro.app.ui.components.isStitchLight()) stitchMutedText() else Color(0xFF404943),
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
@@ -10207,6 +10328,11 @@ private fun StitchGroupChatPanel(
     var replyTarget by remember(group.id) { mutableStateOf<UmmahMessage?>(null) }
     val context = LocalContext.current
 
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
+    var messageReport by remember { mutableStateOf<ReportTarget?>(null) }
+    messageReport?.let { UgcReportDialog(it) { messageReport = null } }
+
     fun sendGroupPayload(
         text: String = draft.trim(),
         type: String = pendingType,
@@ -10214,6 +10340,7 @@ private fun StitchGroupChatPanel(
         sharedMediaUrl: String = ""
     ) {
         if (sending) return
+        if (!termsGate.check()) return
         if (text.isBlank() && mediaUri == null && sharedMediaUrl.isBlank()) {
             Toast.makeText(context, "Write a message or choose media.", Toast.LENGTH_SHORT).show()
             return
@@ -10394,7 +10521,7 @@ private fun StitchGroupChatPanel(
     val groupListState = rememberLazyListState()
     val groupChatScope = rememberCoroutineScope()
     var highlightedGroupMessageId by remember(group.id) { mutableStateOf("") }
-    val displayedGroupMessages = messages.asReversed()
+    val displayedGroupMessages = messages.filter { it.senderUid !in blockedUids }.asReversed()
 
     fun openGroupReplyTarget(messageId: String) {
         if (messageId.isBlank()) return
@@ -10446,6 +10573,9 @@ private fun StitchGroupChatPanel(
                             canDelete = mineMsg,
                             currentUid = currentUid,
                             highlighted = highlightedGroupMessageId == message.id,
+                            onReport = {
+                                messageReport = ReportTarget("group_message", "${group.id}/${message.id}", message.senderUid, message.senderName, message.text)
+                            },
                             onReply = { replyTarget = it },
                             onOpenReplyTarget = ::openGroupReplyTarget,
                             onReact = { emoji ->
@@ -10578,7 +10708,7 @@ private fun StitchGroupChatHeader(
             .statusBarsPadding()
             .fillMaxWidth()
             .background(stitchSurface())
-            .border(BorderStroke(1.dp, StitchLine.copy(alpha = 0.75f)))
+            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.75f)))
             .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
     ) {
         IconButton(onClick = onBack) {
@@ -10671,7 +10801,7 @@ private fun StitchGroupConstitutionNotice() {
         Card(
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = stitchSurface()),
-            border = BorderStroke(1.dp, StitchLine.copy(alpha = 0.80f)),
+            border = BorderStroke(1.dp, stitchLine().copy(alpha = 0.80f)),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -10705,7 +10835,7 @@ private fun StitchGroupAttachmentPanel(
         modifier = Modifier
             .fillMaxWidth()
             .background(stitchSurface())
-            .border(BorderStroke(1.dp, StitchLine.copy(alpha = 0.75f)))
+            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.75f)))
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -10860,6 +10990,8 @@ private fun StitchGroupInfoSheet(
     var selectedNew by remember { mutableStateOf<Set<String>>(emptySet()) }
     var saving by remember { mutableStateOf(false) }
     var showGroupQr by remember { mutableStateOf(false) }
+    var reportGroup by remember { mutableStateOf<ReportTarget?>(null) }
+    reportGroup?.let { UgcReportDialog(it) { reportGroup = null } }
     val candidates = people.filter { it.uid !in group.memberUids }
 
     fun memberDisplay(uid: String): Pair<String, String> {
@@ -10938,6 +11070,17 @@ private fun StitchGroupInfoSheet(
                             Spacer(Modifier.width(6.dp))
                             Text("Share", fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
                         }
+                    }
+                    if (!isOwner) {
+                        Text(
+                            "Report group",
+                            color = Color(0xFFBA1A1A),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 10.dp).clickable {
+                                reportGroup = ReportTarget("group", group.id, group.ownerUid, group.name, "${group.name}: ${group.description}")
+                            }
+                        )
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -11035,7 +11178,7 @@ private fun StitchGroupInfoSheet(
                                         contentPadding = PaddingValues(vertical = 14.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(if (saving) "Adding   " else "Add ${selectedNew.size} member(s)", fontWeight = FontWeight.Bold)
+                                        Text(if (saving) "Adding…" else "Add ${selectedNew.size} member(s)", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -11087,10 +11230,10 @@ private fun StitchGroupInfoSheet(
 
     if (false && showGroupQr) {
         StitchQrDialog(
-            title = "Group QR     ${group.name}",
+            title = "Group QR — ${group.name}",
             subtitle = "Share this so friends can ask to join. The group admin adds members from People.",
-            content = "Join my Noor Pro group \"${group.name}\"     get the app: https://noor-pro-d87e3.web.app (Group: ${group.name})",
-            shareText = "Join my group \"${group.name}\" on Noor Pro!\n\nGet the app: https://noor-pro-d87e3.web.app\nThen follow me and I'll add you from Messages     People.\nHelp & contact: noorpro.official@gmail.com",
+            content = "Join my Noor Pro group \"${group.name}\" — get the app: https://noor-pro-d87e3.web.app (Group: ${group.name})",
+            shareText = "Join my group \"${group.name}\" on Noor Pro!\n\nGet the app: https://noor-pro-d87e3.web.app\nThen follow me and I'll add you from Messages › People.\nHelp & contact: noorpro.official@gmail.com",
             onDismiss = { showGroupQr = false }
         )
     }
@@ -11148,11 +11291,11 @@ private fun StitchConstitutionContent() {
         )
         StitchConstitutionRule(
             "Sharing & reposting",
-            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact     do not edit verses or narrations out of context."
+            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact — do not edit verses or narrations out of context."
         )
         StitchConstitutionRule(
             "Moderation",
-            "Content against the Constitution may be removed. Repeated violations can lead to restricted posting, wiped harmful content, suspension, or account deletion."
+            "Every post, reel, comment, message and group has a Report option, and you can block any member. Reports are reviewed within 24 hours; content against the Constitution is removed and repeat or serious violations lead to restricted posting, suspension or account removal. Contact: noorpro.official@gmail.com."
         )
         StitchConstitutionRule(
             "Groups and popularity",
@@ -11160,7 +11303,7 @@ private fun StitchConstitutionContent() {
         )
         StitchConstitutionRule(
             "Privacy and security",
-            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful     never share someone's private messages without their consent."
+            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful — never share someone's private messages without their consent."
         )
         StitchConstitutionRule(
             "Religious care",
@@ -11203,22 +11346,28 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
     var pendingMedia by remember(otherUid) { mutableStateOf<Uri?>(null) }
     var pendingType by remember(otherUid) { mutableStateOf("text") }
     var cameraCaptureUri by remember(otherUid) { mutableStateOf<Uri?>(null) }
-    var recorder by remember(otherUid) { mutableStateOf<MediaRecorder?>(null) }
-    var recordingFile by remember(otherUid) { mutableStateOf<File?>(null) }
-    var isRecording by remember(otherUid) { mutableStateOf(false) }
     var showAttachments by remember(otherUid) { mutableStateOf(false) }
     var replyTarget by remember(otherUid) { mutableStateOf<UmmahMessage?>(null) }
     val chatId = remember(otherUid, currentUid) {
         if (otherUid.isBlank() || currentUid.isBlank()) null else listOf(currentUid, otherUid).sorted().joinToString("_")
     }
 
+    val termsGate = rememberUgcTermsGate()
+    val blockedUids = rememberBlockedUids()
+    var messageReport by remember { mutableStateOf<ReportTarget?>(null) }
+    messageReport?.let { UgcReportDialog(it) { messageReport = null } }
+    var sharedViewerPost by remember { mutableStateOf<UmmahPost?>(null) }
+    sharedViewerPost?.let { SharedPostViewer(it) { sharedViewerPost = null } }
+
     fun sendChatPayload(
         text: String = draft.trim(),
         type: String = pendingType,
         mediaUri: Uri? = pendingMedia,
-        sharedMediaUrl: String = ""
+        sharedMediaUrl: String = "",
+        extra: Map<String, Any> = emptyMap()
     ) {
         if (sending) return
+        if (!termsGate.check()) return
         if (text.isBlank() && mediaUri == null && sharedMediaUrl.isBlank()) {
             Toast.makeText(context, "Write a message or choose media.", Toast.LENGTH_SHORT).show()
             return
@@ -11236,7 +11385,8 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
             replyToMessageId = reply?.id.orEmpty(),
             replyToName = reply?.senderName.orEmpty(),
             replyToText = reply?.let { noorMessageReplyText(it) }.orEmpty(),
-            replyToType = reply?.type.orEmpty()
+            replyToType = reply?.type.orEmpty(),
+            extra = extra
         ) { ok, err ->
             sending = false
             if (ok) {
@@ -11301,52 +11451,22 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         if (granted) captureCameraPhoto() else Toast.makeText(context, "Camera permission denied.", Toast.LENGTH_SHORT).show()
     }
 
-    fun startVoiceRecording() {
-        try {
-            val file = createNoorChatCacheFile(context, "m4a")
-            @Suppress("DEPRECATION")
-            val newRecorder = MediaRecorder()
-            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            newRecorder.setOutputFile(file.absolutePath)
-            newRecorder.prepare()
-            newRecorder.start()
-            recorder = newRecorder
-            recordingFile = file
-            isRecording = true
-            Toast.makeText(context, "Recording voice message...", Toast.LENGTH_SHORT).show()
-        } catch (error: Exception) {
-            recorder?.release()
-            recorder = null
-            recordingFile = null
-            isRecording = false
-            Toast.makeText(context, error.localizedMessage ?: "Unable to record audio.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun stopVoiceRecordingAndSend() {
-        val activeRecorder = recorder ?: return
-        val file = recordingFile
-        val stopped = runCatching { activeRecorder.stop() }.isSuccess
-        runCatching { activeRecorder.release() }
-        recorder = null
-        recordingFile = null
-        isRecording = false
-        if (!stopped || file == null || !file.exists()) {
-            Toast.makeText(context, "Recording was too short.", Toast.LENGTH_SHORT).show()
-            return
-        }
+    // 1.0.92: hold-to-record voice notes (slide left = cancel, slide up = lock).
+    val voiceRec = remember(otherUid) { VoiceRecorderController(context) }
+    fun sendVoice(clip: VoiceRecorderController.Clip) {
         sendChatPayload(
-            text = draft.trim().ifBlank { "Voice message" },
-            type = "audio",
-            mediaUri = Uri.fromFile(file)
+            text = "Voice message", type = "audio", mediaUri = Uri.fromFile(clip.file),
+            extra = mapOf("durationMs" to clip.durationMs, "waveform" to clip.waveform)
         )
     }
-
     val audioPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startVoiceRecording() else Toast.makeText(context, "Microphone permission denied.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, if (granted) "Hold the mic to record" else "Microphone permission denied.", Toast.LENGTH_SHORT).show()
     }
+    fun ensureMic(): Boolean {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return true
+        audioPermission.launch(Manifest.permission.RECORD_AUDIO); return false
+    }
+    val isRecording = voiceRec.recording
 
     fun sendCurrentLocation() {
         if (sending) return
@@ -11380,27 +11500,45 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         if (granted) sendCurrentLocation() else Toast.makeText(context, "Location permission denied.", Toast.LENGTH_SHORT).show()
     }
 
+    var chatMeta by remember(chatId) { mutableStateOf(com.noorpro.app.data.ChatMeta()) }
+    var otherPresence by remember(otherUid) { mutableStateOf<com.noorpro.app.data.Presence?>(null) }
+    val chatNow = rememberNowTicker()
     DisposableEffect(chatId) {
+        val regs = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
         if (chatId != null) {
             repository.markChatRead(chatId)
-            repository.observeMessages(chatId) { list, err -> messages = list; error = err }
+            repository.observeMessages(chatId) { list, err ->
+                // Opening/keeping the chat open marks new incoming messages as read (blue ticks).
+                if (list.lastOrNull()?.let { it.senderUid != currentUid } == true) repository.markChatRead(chatId)
+                messages = list; error = err
+            }
+            com.noorpro.app.data.ChatRealtime.observeChatMeta(chatId) { chatMeta = it }?.let { regs += it }
         }
-        onDispose { repository.close() }
+        com.noorpro.app.data.ChatRealtime.observePresence(otherUid) { otherPresence = it }?.let { regs += it }
+        onDispose {
+            regs.forEach { it.remove() }
+            chatId?.let { com.noorpro.app.data.ChatRealtime.setTyping(it, false) }
+            repository.close()
+        }
+    }
+    val callPermissionHint = remember { mutableStateOf(false) }
+    fun startCall(video: Boolean) {
+        if (otherUid.isBlank()) return
+        if (otherUid in blockedUids) {
+            Toast.makeText(context, "Unblock $otherName to call.", Toast.LENGTH_SHORT).show(); return
+        }
+        com.noorpro.app.calls.CallActivity.startOutgoing(context, otherUid, otherName, video)
     }
 
-    DisposableEffect(otherUid) {
-        onDispose {
-            runCatching {
-                if (isRecording) recorder?.stop()
-                recorder?.release()
-            }
-        }
-    }
+    DisposableEffect(otherUid) { onDispose { runCatching { voiceRec.cancel() } } }
+    var wallpaper by remember { mutableStateOf(ChatWallpaper.load(context)) }
+    var forwardMsg by remember { mutableStateOf<UmmahMessage?>(null) }
+    forwardMsg?.let { fm -> ForwardMessageDialog(fm, currentUid, onDismiss = { forwardMsg = null }) }
 
     val chatListState = rememberLazyListState()
     val chatScope = rememberCoroutineScope()
     var highlightedChatMessageId by remember(otherUid) { mutableStateOf("") }
-    val displayedChatMessages = messages.asReversed()
+    val displayedChatMessages = messages.filter { it.senderUid !in blockedUids }.asReversed()
 
     fun openChatReplyTarget(messageId: String) {
         if (messageId.isBlank()) return
@@ -11417,48 +11555,33 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
         }
     }
 
+    // Unread divider: remember my read mark from when the chat opened.
+    var openReadAt by remember(chatId) { mutableStateOf(-1L) }
+    LaunchedEffect(chatMeta) { if (openReadAt < 0 && chatMeta.readAt.isNotEmpty()) openReadAt = chatMeta.readAt[currentUid] ?: 0L }
+    val unreadCount = remember(displayedChatMessages, openReadAt) {
+        if (openReadAt <= 0) 0 else displayedChatMessages.takeWhile { it.senderUid != currentUid && it.createdAt > openReadAt }.size
+    }
+    // Scroll-to-bottom FAB with a count of messages that arrived while scrolled up.
+    val atBottom by remember { androidx.compose.runtime.derivedStateOf { chatListState.firstVisibleItemIndex <= 1 } }
+    var anchorId by remember(chatId) { mutableStateOf("") }
+    LaunchedEffect(atBottom, displayedChatMessages.firstOrNull()?.id) { if (atBottom) anchorId = displayedChatMessages.firstOrNull()?.id.orEmpty() }
+    val unseen = if (atBottom) 0 else displayedChatMessages.indexOfFirst { it.id == anchorId }.coerceAtLeast(0)
+    val otherTyping = chatMeta.isTyping(otherUid, chatNow)
+    val cc = chatColors()
+
     StitchScreen {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)
-            ) {
-                IconButton(onClick = { viewModel.goBack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
-                }
-                // WhatsApp-style: tap the person's name/photo to open their profile.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = otherUid.isNotBlank()) {
-                            viewModel.openCreatorProfile(otherUid, otherName, "")
-                        }
-                        .padding(vertical = 4.dp)
-                ) {
-                    val otherPhoto = rememberStitchProfiles()[otherUid]?.photoUrl.orEmpty()
-                    Box(
-                        modifier = Modifier.size(38.dp).clip(CircleShape).background(StitchEmerald),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (otherPhoto.isNotBlank()) {
-                            AsyncImage(
-                                model = otherPhoto,
-                                contentDescription = "$otherName photo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape)
-                            )
-                        } else {
-                            Text(otherName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(otherName, color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon, maxLines = 1)
-                        Text("View profile", color = stitchMutedText(), fontSize = 11.sp)
-                    }
-                }
-            }
+        Column(modifier = Modifier.fillMaxSize().chatWallpaper(wallpaper)) {
+            NoorChatHeader(
+                name = otherName,
+                photoUrl = rememberStitchProfiles()[otherUid]?.photoUrl.orEmpty(),
+                status = if (otherTyping) "typing…" else com.noorpro.app.data.ChatRealtime.lastSeenLabel(otherPresence, chatNow),
+                canCall = viewModel.isLoggedIn && otherUid.isNotBlank(),
+                wallpaper = wallpaper,
+                onWallpaper = { wallpaper = it; ChatWallpaper.save(context, it) },
+                onBack = { viewModel.goBack() },
+                onProfile = { if (otherUid.isNotBlank()) viewModel.openCreatorProfile(otherUid, otherName, "") },
+                onCall = { startCall(it) }
+            )
 
             if (!viewModel.isLoggedIn) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -11467,32 +11590,66 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                 return@Column
             }
 
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = chatListState,
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
                 reverseLayout = true,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(displayedChatMessages, key = { it.id }) { m ->
+                if (otherTyping) item(key = "typing") { Box(Modifier.animateItem()) { NoorTypingBubble() } }
+                itemsIndexed(displayedChatMessages, key = { _, m -> m.id }) { index, m ->
                     val mine = m.senderUid == currentUid
-                    StitchChatMessageBubble(
-                        message = m,
-                        mine = mine,
-                        canDelete = mine,
-                        currentUid = currentUid,
-                        highlighted = highlightedChatMessageId == m.id,
-                        onReply = { replyTarget = it },
-                        onOpenReplyTarget = ::openChatReplyTarget,
-                        onReact = { emoji ->
-                            val current = m.reactions[currentUid]
-                            repository.reactToChatMessage(chatId.orEmpty(), m.id, if (emoji == current) "" else emoji)
-                        },
-                        onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) }
-                    )
+                    val older = displayedChatMessages.getOrNull(index + 1)
+                    val newer = displayedChatMessages.getOrNull(index - 1)
+                    val newDay = older == null || !sameChatDay(older.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis(), m.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis())
+                    val firstOfGroup = newDay || older?.senderUid != m.senderUid || older.type == "call"
+                    val lastOfGroup = newer == null || newer.senderUid != m.senderUid
+                    Column(Modifier.animateItem()) {
+                        if (newDay) NoorDateChip(chatDayLabel(m.createdAt))
+                        if (unreadCount > 0 && index == unreadCount - 1) NoorUnreadDivider(unreadCount)
+                        Box(Modifier.padding(top = if (firstOfGroup) 6.dp else 1.5.dp, bottom = if (lastOfGroup) 2.dp else 0.dp)) {
+                            if (m.type == "call") {
+                                NoorCallLogBubble(
+                                    text = m.text,
+                                    mine = mine,
+                                    time = if (m.createdAt > 0) android.text.format.DateFormat.format("h:mm a", m.createdAt).toString() else "",
+                                    onCallBack = { startCall(video = m.text.contains("video", ignoreCase = true)) }
+                                )
+                            } else NoorSwipeToReply(onReply = { replyTarget = m }) {
+                                StitchChatMessageBubble(
+                                    message = m,
+                                    mine = mine,
+                                    canDelete = mine,
+                                    currentUid = currentUid,
+                                    highlighted = highlightedChatMessageId == m.id,
+                                    onReport = {
+                                        messageReport = ReportTarget("chat_message", "${chatId.orEmpty()}/${m.id}", m.senderUid, m.senderName, m.text)
+                                    },
+                                    onReply = { replyTarget = it },
+                                    onOpenReplyTarget = ::openChatReplyTarget,
+                                    onReact = { emoji ->
+                                        val current = m.reactions[currentUid]
+                                        repository.reactToChatMessage(chatId.orEmpty(), m.id, if (emoji == current) "" else emoji)
+                                    },
+                                    onDelete = { repository.deleteChatMessage(chatId.orEmpty(), m.id) },
+                                    tick = if (mine) chatMeta.tickFor(otherUid, m.createdAt) else -1,
+                                    onDeleteForMe = { com.noorpro.app.data.ChatRealtime.hideForMe(chatId.orEmpty(), m.id) },
+                                    blockedUids = blockedUids,
+                                    onOpenShared = { p -> if (p.type == "reel" || p.type == "video") viewModel.openSharedReel(p) else sharedViewerPost = p },
+                                    modern = true,
+                                    tail = firstOfGroup,
+                                    onForward = if (m.type == "post_share") null else ({ forwardMsg = m })
+                                )
+                            }
+                        }
+                    }
                 }
-                item {
-                    StitchChatDateChip()
-                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !atBottom, enter = androidx.compose.animation.scaleIn() + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut(),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp)
+            ) { NoorScrollFab(unseen) { chatScope.launch { chatListState.animateScrollToItem(0) } } }
             }
             error?.let {
                 Text(it, color = Color(0xFFE5484D), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -11502,61 +11659,35 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                replyTarget?.let { target ->
-                    StitchReplyComposerPreview(
-                        target = target,
-                        onCancel = { replyTarget = null }
-                    )
+                androidx.compose.animation.AnimatedVisibility(replyTarget != null) {
+                    replyTarget?.let { target ->
+                        Box(Modifier.padding(horizontal = 8.dp)) { StitchReplyComposerPreview(target = target, onCancel = { replyTarget = null }) }
+                    }
                 }
-                if (pendingMedia != null || isRecording) {
-                    StitchPendingMediaPreview(
-                        pendingType = pendingType,
-                        pendingMedia = pendingMedia,
-                        isRecording = isRecording,
-                        onRemove = {
-                            pendingMedia = null
-                            pendingType = "text"
-                        }
-                    )
+                if (pendingMedia != null) {
+                    Box(Modifier.padding(horizontal = 8.dp)) {
+                        StitchPendingMediaPreview(
+                            pendingType = pendingType,
+                            pendingMedia = pendingMedia,
+                            isRecording = false,
+                            onRemove = {
+                                pendingMedia = null
+                                pendingType = "text"
+                            }
+                        )
+                    }
                 }
-                if (showAttachments || pendingMedia != null || isRecording) {
+                androidx.compose.animation.AnimatedVisibility(showAttachments) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        item {
-                            StitchMessageTool(Icons.Default.PhotoCamera, "Camera") {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                    captureCameraPhoto()
-                                } else {
-                                    cameraPermission.launch(Manifest.permission.CAMERA)
-                                }
-                            }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.Image, "Image") { imagePicker.launch("image/*") }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.Videocam, "Video") { videoPicker.launch("video/*") }
-                        }
-                        item {
-                            StitchMessageTool(
-                                icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                label = if (isRecording) "Send voice" else "Record",
-                                active = isRecording
-                            ) {
-                                if (isRecording) {
-                                    stopVoiceRecordingAndSend()
-                                } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                    startVoiceRecording()
-                                } else {
-                                    audioPermission.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                        }
+                        item { StitchMessageTool(Icons.Default.Image, "Gallery") { imagePicker.launch("image/*") } }
+                        item { StitchMessageTool(Icons.Default.Videocam, "Video") { videoPicker.launch("video/*") } }
                         item {
                             StitchMessageTool(Icons.Default.LocationOn, "Location") {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -11566,46 +11697,28 @@ fun StitchChatScreen(viewModel: DeenViewModel) {
                                 }
                             }
                         }
-                        item {
-                            StitchMessageTool(Icons.Default.Article, "Files") { filePicker.launch("*/*") }
-                        }
-                        item {
-                            StitchMessageTool(Icons.Default.LocalLibrary, "PDF") { pdfPicker.launch("application/pdf") }
-                        }
+                        item { StitchMessageTool(Icons.Default.Article, "Document") { filePicker.launch("*/*") } }
+                        item { StitchMessageTool(Icons.Default.LocalLibrary, "PDF") { pdfPicker.launch("application/pdf") } }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showAttachments = !showAttachments }) {
-                        Icon(
-                            if (showAttachments) Icons.Default.Close else Icons.Default.Add,
-                            contentDescription = if (showAttachments) "Close attachments" else "Add attachment",
-                            tint = if (showAttachments) stitchPrimary() else stitchMutedText()
-                        )
-                    }
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = { draft = it.take(2000) },
-                        placeholder = { Text("Message   ") },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 4,
-                        shape = RoundedCornerShape(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        enabled = !sending && (draft.trim().isNotBlank() || pendingMedia != null),
-                        onClick = { sendChatPayload() },
-                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                        shape = RoundedCornerShape(999.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier.height(52.dp)
-                    ) {
-                        if (sending) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text("Send", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                }
+                NoorChatComposer(
+                    draft = draft,
+                    onDraft = {
+                        draft = it.take(2000)
+                        chatId?.let { id -> com.noorpro.app.data.ChatRealtime.setTyping(id, draft.isNotBlank()) }
+                    },
+                    sending = sending,
+                    canSendWithoutText = pendingMedia != null,
+                    recorder = voiceRec,
+                    onSend = { sendChatPayload() },
+                    onAttach = { showAttachments = !showAttachments },
+                    onCamera = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) captureCameraPhoto()
+                        else cameraPermission.launch(Manifest.permission.CAMERA)
+                    },
+                    ensureMic = ::ensureMic,
+                    onVoice = ::sendVoice
+                )
             }
         }
     }
@@ -11615,6 +11728,7 @@ private fun noorMessageTypeLabel(type: String): String = when (type) {
     "image" -> "Photo"
     "video" -> "Video"
     "reel" -> "Reel"
+    "post_share" -> "Shared post"
     "audio" -> "Voice message"
     "location" -> "Location"
     "pdf" -> "PDF"
@@ -11636,7 +11750,7 @@ private fun StitchReplyComposerPreview(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.75f), RoundedCornerShape(16.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -11721,7 +11835,7 @@ private fun StitchPendingMediaPreview(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(stitchSoftSurface())
-            .border(1.dp, StitchLine.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
+            .border(1.dp, stitchLine().copy(alpha = 0.65f), RoundedCornerShape(18.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -11792,7 +11906,7 @@ private fun StitchChatDateChip() {
             letterSpacing = 0.4.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xFFDDE3E6).copy(alpha = 0.72f))
+                .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFDDE3E6).copy(alpha = 0.72f))
                 .padding(horizontal = 14.dp, vertical = 6.dp)
         )
     }
@@ -11825,6 +11939,8 @@ private fun StitchChatAvatar(name: String, mine: Boolean) {
     }
 }
 
+private const val REEL_VIEW_THRESHOLD_MS = 2_500L
+
 @Composable
 private fun StitchSharedMediaCard(
     message: UmmahMessage,
@@ -11834,21 +11950,15 @@ private fun StitchSharedMediaCard(
 ) {
     val isVideo = message.type == "video" || message.type == "reel"
     val cardBg = if (mine) stitchPrimary().copy(alpha = 0.92f) else Color(0xFFE3E9EB)
-    Box(
-        modifier = Modifier
-            .width(232.dp)
-            .height(150.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(cardBg)
-            .clickable(onClick = onOpen),
-        contentAlignment = Alignment.Center
+    // 1.0.83: full aspect ratio + sharp decode (was a fixed 232x150 centre-crop).
+    ChatMediaThumb(
+        url = message.mediaUrl,
+        isVideo = isVideo,
+        contentDescription = message.text.ifBlank { noorMessageTypeLabel(message.type) },
+        width = 250.dp,
+        background = cardBg,
+        modifier = Modifier.clickable(onClick = onOpen),
     ) {
-        AsyncImage(
-            model = message.mediaUrl,
-            contentDescription = message.text.ifBlank { noorMessageTypeLabel(message.type) },
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
         if (isVideo) {
             Box(
                 modifier = Modifier
@@ -11922,7 +12032,7 @@ private fun StitchMessageTool(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StitchChatMessageBubble(
+internal fun StitchChatMessageBubble(
     message: UmmahMessage,
     mine: Boolean,
     canDelete: Boolean = false,
@@ -11931,18 +12041,28 @@ private fun StitchChatMessageBubble(
     onReply: (UmmahMessage) -> Unit = {},
     onOpenReplyTarget: (String) -> Unit = {},
     onReact: (String) -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    onReport: (() -> Unit)? = null,
+    tick: Int = -1,
+    onDeleteForMe: (() -> Unit)? = null,
+    blockedUids: Set<String> = emptySet(),
+    onOpenShared: ((UmmahPost) -> Unit)? = null,
+    /** 1.0.92: WhatsApp-style 1:1 look (tails, grouping, no avatars, voice-note bubble). */
+    modern: Boolean = false,
+    tail: Boolean = true,
+    onForward: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val bubbleColor = if (mine) stitchPrimary() else stitchSurface()
-    val textColor = if (mine) Color.White else stitchText()
+    val cc = chatColors()
+    val bubbleColor = if (modern) (if (mine) cc.mine else cc.other) else if (mine) stitchPrimary() else stitchSurface()
+    val textColor = if (modern) (if (mine) cc.onMine else cc.onOther) else if (mine) Color.White else stitchText()
     val isArabic = message.text.any { it in '\u0600'..'\u06FF' }
     var menuOpen by remember(message.id) { mutableStateOf(false) }
     var previewOpen by remember(message.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val isHttpMedia = message.mediaUrl.startsWith("http")
     val hasMedia = message.mediaUrl.isNotBlank()
-    val bubbleShape = RoundedCornerShape(
+    val bubbleShape: androidx.compose.ui.graphics.Shape = if (modern) ChatBubbleShape(mine, tail) else RoundedCornerShape(
         topStart = if (!mine) 2.dp else 12.dp,
         topEnd = if (mine) 2.dp else 12.dp,
         bottomStart = 12.dp,
@@ -11985,15 +12105,15 @@ private fun StitchChatMessageBubble(
     }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        if (!mine) {
+        if (!mine && !modern) {
             StitchChatAvatar(name = message.senderName, mine = false)
             Spacer(Modifier.width(8.dp))
         }
         Column(
             horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(max = 292.dp)
+            modifier = Modifier.widthIn(max = if (modern) 318.dp else 292.dp)
         ) {
-            if (!mine && message.senderName.isNotBlank()) {
+            if (!mine && !modern && message.senderName.isNotBlank()) {
                 Text(
                     message.senderName,
                     color = stitchMutedText(),
@@ -12008,27 +12128,24 @@ private fun StitchChatMessageBubble(
                     .clip(bubbleShape)
                     .background(bubbleColor)
                     .border(highlightBorder, bubbleShape)
-                    .pointerInput(message.id) {
-                        var dragTotal = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { dragTotal = 0f },
-                            onHorizontalDrag = { _, dragAmount ->
-                                if (dragAmount > 0) dragTotal += dragAmount
-                            },
-                            onDragEnd = {
-                                if (dragTotal > 90f) onReply(message)
-                                dragTotal = 0f
-                            },
-                            onDragCancel = { dragTotal = 0f }
-                        )
-                    }
                     .combinedClickable(
                         onClick = { if (hasMedia) openMedia() },
                         onLongClick = { menuOpen = true }
                     )
-                    .padding(if (hasMedia && message.type in listOf("image", "video", "reel")) 5.dp else 12.dp)
+                    .then(
+                        if (modern) {
+                            val base = if (hasMedia && message.type in listOf("image", "video", "reel")) 4.dp else 9.dp
+                            Modifier.padding(start = base + if (mine) 0.dp else CHAT_TAIL, end = base + if (mine) CHAT_TAIL else 0.dp, top = if (base == 9.dp) 6.dp else 4.dp, bottom = 4.dp)
+                        } else Modifier.padding(if (hasMedia && message.type in listOf("image", "video", "reel")) 5.dp else 12.dp)
+                    )
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(if (modern) 3.dp else 6.dp)) {
+                    if (message.forwarded) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = textColor.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
+                            Text(" Forwarded", color = textColor.copy(alpha = 0.6f), fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                        }
+                    }
                     if (message.replyToText.isNotBlank() || message.replyToType.isNotBlank()) {
                         StitchReplyQuote(
                             replyName = message.replyToName,
@@ -12041,8 +12158,9 @@ private fun StitchChatMessageBubble(
                     when {
                         message.type == "image" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "video" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
+                        message.type == "post_share" -> SharedPostCard(message, blockedUids) { p -> onOpenShared?.invoke(p) }
                         message.type == "reel" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
-                        message.type == "audio" && hasMedia -> StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
+                        message.type == "audio" && hasMedia -> if (modern) VoiceNoteBubble(message, mine, textColor) else StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
                         message.type == "location" && hasMedia -> StitchMessageMediaRow(Icons.Default.LocationOn, "Open shared location", textColor, hasMenu = false, onClick = ::openMedia)
                         message.type == "pdf" && hasMedia -> StitchMessageMediaRow(Icons.Default.Article, "Open PDF", textColor, hasMenu = true, onClick = ::openMedia, onMenu = { menuOpen = true })
                         message.type == "file" && hasMedia -> StitchMessageMediaRow(Icons.Default.CloudQueue, "Open file", textColor, hasMenu = true, onClick = ::openMedia, onMenu = { menuOpen = true })
@@ -12051,17 +12169,23 @@ private fun StitchChatMessageBubble(
                         Text(
                             message.text,
                             color = textColor,
-                            fontSize = 14.sp,
+                            fontSize = if (modern) 15.sp else 14.sp,
                             textAlign = if (isArabic) TextAlign.End else TextAlign.Start
                         )
                     }
-                    if (message.text.isBlank() && message.mediaUrl.isBlank()) {
+                    if (message.text.isBlank() && message.mediaUrl.isBlank() && message.type != "post_share") {
                         Text(message.type.replaceFirstChar { it.uppercase() }, color = textColor, fontSize = 14.sp)
                     }
                     // Timestamp, right-aligned like WhatsApp.
                     val stamp = if (message.createdAt > 0) android.text.format.DateFormat.format("h:mm a", message.createdAt).toString() else ""
-                    if (stamp.isNotBlank()) {
-                        Text(stamp, color = textColor.copy(alpha = 0.7f), fontSize = 10.sp, modifier = Modifier.align(Alignment.End))
+                    if (stamp.isNotBlank() || tick >= 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.End)) {
+                            Text(stamp, color = if (modern) (if (mine) textColor.copy(alpha = 0.6f) else cc.meta) else textColor.copy(alpha = 0.7f), fontSize = if (modern) 11.sp else 10.sp)
+                            if (tick >= 0) {
+                                Spacer(Modifier.width(3.dp))
+                                NoorReadTicks(tick, if (tick == 3) NoorReadBlue else if (modern) cc.meta else textColor.copy(alpha = 0.75f))
+                            }
+                        }
                     }
                 }
             }
@@ -12113,15 +12237,30 @@ private fun StitchChatMessageBubble(
                 if (message.text.isNotBlank()) {
                     androidx.compose.material3.DropdownMenuItem(text = { Text("Copy") }, onClick = { menuOpen = false; copyText() })
                 }
+                if (onForward != null && message.type != "call") {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Forward") }, onClick = { menuOpen = false; onForward() })
+                }
+                if (!mine && onReport != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Report or block", color = Color(0xFFBA1A1A)) },
+                        onClick = { menuOpen = false; onReport() }
+                    )
+                }
+                if (onDeleteForMe != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Delete for me", color = Color(0xFFBA1A1A)) },
+                        onClick = { menuOpen = false; onDeleteForMe() }
+                    )
+                }
                 if (canDelete) {
                     androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Delete", color = Color(0xFFBA1A1A), fontWeight = FontWeight.SemiBold) },
+                        text = { Text("Delete for everyone", color = Color(0xFFBA1A1A), fontWeight = FontWeight.SemiBold) },
                         onClick = { menuOpen = false; onDelete() }
                     )
                 }
             }
         }
-        if (mine) {
+        if (mine && !modern) {
             Spacer(Modifier.width(8.dp))
             StitchChatAvatar(name = message.senderName, mine = true)
         }
@@ -12249,10 +12388,9 @@ private fun StitchMessageMediaPreviewDialog(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 when (message.type) {
                     "image" -> {
-                        AsyncImage(
-                            model = message.mediaUrl,
+                        ZoomableChatImage(
+                            url = message.mediaUrl,
                             contentDescription = message.text.ifBlank { "Photo message" },
-                            contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -12337,7 +12475,7 @@ private fun StitchGenericFilePreview(
         modifier = Modifier
             .padding(24.dp)
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -12731,7 +12869,7 @@ private fun SpiritualPrayerRow(
             Box(
                 modifier = Modifier.size(30.dp).clip(CircleShape)
                     .background(if (fardDone) StitchEmerald else Color.Transparent)
-                    .border(if (fardDone) 0.dp else 2.dp, if (fardDone) StitchEmerald else StitchLine, CircleShape)
+                    .border(if (fardDone) 0.dp else 2.dp, if (fardDone) StitchEmerald else stitchLine(), CircleShape)
                     .clickable(onClick = onFard),
                 contentAlignment = Alignment.Center
             ) {
@@ -12864,3 +13002,134 @@ private fun currentWeekDates(): List<String> {
 private fun isSameDay(a: Calendar, b: Calendar): Boolean =
     a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
 
+
+/** Still frame used only by JVM screenshot previews (there is no video decoder in tests). */
+internal object ReelPreviewFrame { var frame: androidx.compose.ui.graphics.ImageBitmap? = null }
+
+
+/** Umrah Essentials Kit entry is hidden everywhere (feature code kept for later). */
+private const val SHOW_UMRAH_ESSENTIALS_KIT = false
+
+/** Home entry to Noor AI: search-style field + suggested question chips. */
+@Composable
+private fun StitchAskNoorAiCard(onOpen: () -> Unit, onAsk: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(stitchPrimary().copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = stitchPrimary(), modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Ask Noor AI", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                    Text("General Islamic guidance, with sources where possible", color = stitchMutedText(), fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(stitchSoftSurface())
+                    .border(1.dp, stitchLine(), RoundedCornerShape(16.dp)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Search, null, tint = stitchMutedText(), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Ask about salah, Quran, duas…", color = stitchMutedText(), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.Send, null, tint = stitchPrimary(), modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("How can I improve focus in salah?", "What breaks wudu?", "How do I build a daily Quran habit?", "Rights of parents in Islam")) { q ->
+                    Text(q, color = stitchText(), fontSize = 12.sp, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, stitchLine(), RoundedCornerShape(999.dp))
+                            .clickable { onAsk(q) }.padding(horizontal = 12.dp, vertical = 8.dp))
+                }
+            }
+        }
+    }
+}
+
+
+/** 1.0.74: heart burst overlay for double-tap like on Ummah images. */
+@Composable
+internal fun StitchHeartBurst(trigger: Int, modifier: Modifier = Modifier) {
+    if (!com.noorpro.app.ui.components.animationsEnabled()) return
+    val scale = remember(trigger) { androidx.compose.animation.core.Animatable(0.4f) }
+    val alpha = remember(trigger) { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(trigger) {
+        scale.animateTo(1.15f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 380f))
+        alpha.animateTo(0f, androidx.compose.animation.core.tween(380))
+    }
+    Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White,
+        modifier = modifier.size(96.dp).graphicsLayer { scaleX = scale.value; scaleY = scale.value; this.alpha = alpha.value })
+}
+
+/** Shimmer placeholder shaped like an Ummah post card. */
+@Composable
+internal fun StitchPostSkeleton() {
+    StitchCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.noorpro.app.ui.components.ShimmerBox(Modifier.size(40.dp), 20.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    com.noorpro.app.ui.components.ShimmerBox(Modifier.width(140.dp).height(12.dp), 6.dp)
+                    com.noorpro.app.ui.components.ShimmerBox(Modifier.width(80.dp).height(10.dp), 5.dp)
+                }
+            }
+            com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth().height(12.dp), 6.dp)
+            com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth(0.7f).height(12.dp), 6.dp)
+            com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth().height(170.dp), 14.dp)
+        }
+    }
+}
+
+/** Dark shimmer skeleton for the reels feed while it loads. */
+@Composable
+internal fun StitchReelSkeleton() {
+    Box(Modifier.fillMaxSize().background(Color(0xFF0B1512))) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 120.dp, end = 90.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.noorpro.app.ui.components.ShimmerBox(Modifier.size(36.dp), 18.dp)
+                Spacer(Modifier.width(10.dp))
+                com.noorpro.app.ui.components.ShimmerBox(Modifier.width(120.dp).height(14.dp), 7.dp)
+            }
+            com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth().height(12.dp), 6.dp)
+            com.noorpro.app.ui.components.ShimmerBox(Modifier.fillMaxWidth(0.6f).height(12.dp), 6.dp)
+        }
+        Column(Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 130.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            repeat(4) { com.noorpro.app.ui.components.ShimmerBox(Modifier.size(44.dp), 22.dp) }
+        }
+    }
+}
+
+
+/** Composer thumbnails: tap ◀ to move a photo earlier, ✕ to remove, + to add (max 10). */
+@Composable
+internal fun PhotoReorderStrip(photos: List<Any>, onRemove: (Uri) -> Unit, onMoveLeft: (Int) -> Unit, onAddMore: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("${photos.size}/10 photos · first photo is the cover", color = stitchMutedText(), fontSize = 12.sp)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(photos, key = { _, u -> u.toString() }) { i, u ->
+                Box(Modifier.size(76.dp).animateItem().clip(RoundedCornerShape(12.dp)).background(stitchSoftSurface())) {
+                    AsyncImage(model = u, contentDescription = "Photo ${i + 1}", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    Text("${i + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 6.dp))
+                    Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
+                        .clickable { (u as? Uri)?.let(onRemove) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Close, "Remove photo ${i + 1}", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                    if (i > 0) Box(Modifier.align(Alignment.TopStart).padding(3.dp).size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f))
+                        .clickable { onMoveLeft(i) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Move photo ${i + 1} earlier", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            if (photos.size < 10) item {
+                Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, stitchLine(), RoundedCornerShape(12.dp)).clickable(onClick = onAddMore), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Add, "Add photos", tint = stitchPrimary())
+                }
+            }
+        }
+    }
+}

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
@@ -694,6 +695,20 @@ fun SurahReaderView(
 
     var reciterDropdownExpanded by remember { mutableStateOf(false) }
 
+    // 1.0.76: Word-by-word + Hifz mode (normal reader only).
+    var showHifz by remember(surah.id) { mutableStateOf(false) }
+    if (showHifz && surah.id > 0) {
+        androidx.activity.compose.BackHandler { showHifz = false }
+        HifzWordScreen(
+            surahId = surah.id,
+            surahName = "${surah.englishTranslation.ifBlank { surah.nameArabic }} · ${surah.nameArabic}",
+            versesCount = surah.versesCount,
+            startAyah = lastReadAyah.coerceAtLeast(1),
+            onBack = { showHifz = false }
+        )
+        return
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -745,6 +760,15 @@ fun SurahReaderView(
                     )
                 }
 
+                if (surah.id > 0) {
+                    IconButton(
+                        onClick = { if (isPlaying) viewModel.toggleAudioPlayback(); showHifz = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.School, contentDescription = "Word by word & Hifz mode", tint = MatteGold, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
                 // Translation selector action
                 IconButton(
                     onClick = { showTranslationSheet = true },
@@ -879,8 +903,8 @@ fun SurahReaderView(
                                     text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = MatteGold,
-                                        fontFamily = LibreCaslon,
+                                        color = com.noorpro.app.ui.components.quranArabicColor(),
+                                        fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                                         textAlign = TextAlign.Center
                                     ),
                                     modifier = Modifier.fillMaxWidth()
@@ -991,6 +1015,24 @@ fun SurahReaderView(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
+                                // 1.0.79: Ask Noor AI about this ayah (opens the chat with the question pre-sent).
+                                IconButton(
+                                    onClick = {
+                                        NoorAiLaunch.pending = "Explain Surah ${surah.nameEnglish} ${surah.id}:$ayahNumber in detail — meaning, context of revelation, tafsir from classical Sunni mufassirun, and lessons for daily life."
+                                        viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.AI_HUB)
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.AutoAwesome,
+                                        contentDescription = "Ask Noor AI about this ayah",
+                                        tint = MatteGold,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
                                 // Bookmark Ayah action
                                 IconButton(
                                     onClick = { onAyahBookmarkToggle(ayahNumber, verse.first) },
@@ -1040,11 +1082,11 @@ fun SurahReaderView(
 
                         // Arabic Verse Text Align Right
                         Text(
-                            text = verse.first,
+                            text = com.noorpro.app.ui.components.quranDisplayText(verse.first),
                             style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = LightGold,
-                                fontFamily = LibreCaslon,
+                                fontWeight = FontWeight.Normal,
+                                color = com.noorpro.app.ui.components.quranArabicColor(),
+                                fontFamily = com.noorpro.app.ui.components.QuranArabicFont,
                                 lineHeight = 44.sp,
                                 textAlign = TextAlign.Right
                             ),
@@ -1066,6 +1108,7 @@ fun SurahReaderView(
                                 text = verse.second,
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     color = TextPrimary,
+                                    fontFamily = if (selectedTranslationKey.startsWith("ur.")) com.noorpro.app.ui.components.QuranArabicFont else null,
                                     lineHeight = if (selectedTranslationKey.startsWith("ur.")) 32.sp else 24.sp,
                                     textAlign = if (selectedTranslationKey.startsWith("ur.")) TextAlign.Right else TextAlign.Start
                                 ),

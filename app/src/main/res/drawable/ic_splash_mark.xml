@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.97: splash-screen icon - cream N on the green splash background (fits the 2/3 circle). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFDF9F0"
+        android:pathData="M32.21,73.3L32.21,33.26A1.26,1.26 0 0 1 33.48,32L39.52,32A6.87,6.87 0 0 1 44.97,34.69L64.26,59.85L64.26,35.81A3.81,3.81 0 0 1 68.07,32L74.64,32A1.14,1.14 0 0 1 75.79,33.14L75.79,73.65A2.35,2.35 0 0 1 73.43,76L67.26,76A6.66,6.66 0 0 1 62.1,73.55L53.39,62.86C50.86,59.75 47.84,58 44.87,55.79A8.07,8.07 0 0 1 43.46,44.17A8.32,8.32 0 0 0 43.75,60.33L43.75,72.36A3.64,3.64 0 0 1 40.1,76L34.91,76A2.7,2.7 0 0 1 32.21,73.3Z" />
+</vector>

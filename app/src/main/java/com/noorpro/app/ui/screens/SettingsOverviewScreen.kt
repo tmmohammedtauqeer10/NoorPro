@@ -28,6 +28,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noorpro.app.data.CloudBackupRepository
+import com.noorpro.app.ui.components.pressScale
+import com.noorpro.app.ui.components.staggeredEntrance
 import com.noorpro.app.ui.theme.*
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
@@ -40,8 +42,12 @@ fun SettingsScreen(viewModel: DeenViewModel) {
     val use12HourTime by viewModel.use12HourTime.collectAsState()
     val theme by viewModel.themeMode.collectAsState()
     val language by viewModel.appLanguage.collectAsState()
+    val selectedReciter by viewModel.selectedReciter.collectAsState()
     var showPrivacy by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    val showAdPrivacy = com.noorpro.app.ads.ConsentManager.privacyOptionsRequired.value
+    val signedIn = viewModel.isLoggedIn
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val cloudBackupRepository = remember { CloudBackupRepository() }
     var cloudBusy by remember { mutableStateOf(false) }
@@ -109,143 +115,151 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                     icon = Icons.Default.Settings
                 )
             }
-            item { SettingsSectionTitle("Preferences") }
+            // 1.0.73: grouped sections (Account, Prayer, Quran, Appearance, Notifications,
+            // Privacy & Data, Al-Noor Audio, Backup, Support, About). Every pre-existing action is kept.
             item {
-                SettingsHubRow("Theme", "Current: ${theme.name.lowercase().replaceFirstChar { it.uppercase() }}", Icons.Default.Palette) {
-                    viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS)
-                }
-            }
-            item {
-                SettingsHubRow("Language", "Current: ${language.name}", Icons.Default.Translate) {
-                    viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS)
-                }
-            }
-
-            item { SettingsSectionTitle("General") }
-            item {
-                SettingsHubRow("Location & API Sync", "Refresh location, prayer times, Qibla, and Hijri date", Icons.Default.LocationOn) {
-                    viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS)
-                }
-            }
-            item {
-                SettingsHubRow("Prayer Time Calculation", "Method, Madhab, alarms, and translations", Icons.Default.AccessTime) {
-                    viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS)
-                }
-            }
-            item {
-                SettingsStepperRow("Hijri Adjustment", "$hijriAdjustment day", Icons.Default.CalendarMonth,
-                    onMinus = { viewModel.updateHijriAdjustment(hijriAdjustment - 1) },
-                    onPlus = { viewModel.updateHijriAdjustment(hijriAdjustment + 1) }
-                )
-            }
-            item {
-                SettingsHubRow("Notification Settings", "Prayer alerts, alarm sound, and reminder schedules", Icons.Default.NotificationsActive) {
-                    viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS)
-                }
-            }
-            item {
-                SettingsChoiceRow(
-                    title = "Reminder Type",
-                    subtitle = reminderType,
-                    icon = Icons.Default.Notifications,
-                    options = listOf("Notification", "Alarm"),
-                    selected = reminderType,
-                    onSelected = viewModel::updateReminderType
-                )
-            }
-            item {
-                SettingsChoiceRow(
-                    title = "Time Format",
-                    subtitle = if (use12HourTime) "12-hour time with AM/PM" else "24-hour time",
-                    icon = Icons.Default.Schedule,
-                    options = listOf("12 Hour", "24 Hour"),
-                    selected = if (use12HourTime) "12 Hour" else "24 Hour",
-                    onSelected = { viewModel.updateTimeFormat(it == "12 Hour") }
-                )
-            }
-            item {
-                SettingsHubRow("Sync Home Widget", "Refresh prayer and Hijri information", Icons.Default.Widgets) {
-                    viewModel.recalculatePrayers()
-                    Toast.makeText(context, "Prayer and Hijri data refreshed.", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            item { SettingsSectionTitle("Backup & Tools") }
-            item {
-                SettingsCloudBackupCard(
-                    busy = cloudBusy,
-                    status = cloudStatus,
-                    onBackup = {
-                        cloudBusy = true
-                        cloudStatus = "Saving your settings to Firebase..."
-                        cloudBackupRepository.backupSettings(
-                            settingsJson = viewModel.exportSettingsJson(),
-                            appVersion = com.noorpro.app.BuildConfig.VERSION_NAME
-                        ) { ok, message ->
-                            cloudBusy = false
-                            cloudStatus = message
-                            Toast.makeText(context, message ?: if (ok) "Cloud backup saved." else "Cloud backup failed.", Toast.LENGTH_SHORT).show()
+                SettingsGroup("Account", Icons.Default.AccountCircle, index = 1) {
+                    if (signedIn) {
+                        GroupRow("Profile", viewModel.userEmail.ifBlank { "Your Noor Pro profile" }, Icons.Default.Person) { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }
+                        GroupRow("Switch account", "Saved accounts on this device", Icons.Default.SwitchAccount) { viewModel.navigateTo(DeenScreen.ACCOUNT_SWITCHER) }
+                        GroupRow("Sign out", "You can sign back in any time", Icons.Default.Logout) {
+                            viewModel.handleLogout(); viewModel.navigateTo(DeenScreen.LOGIN)
                         }
-                    },
-                    onRestore = {
-                        cloudBusy = true
-                        cloudStatus = "Checking your cloud backup..."
-                        cloudBackupRepository.restoreSettings { snapshot, message ->
-                            cloudBusy = false
-                            if (snapshot == null) {
-                                val status = message ?: "No cloud backup found."
-                                cloudStatus = status
-                                Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
-                            } else {
-                                val restored = viewModel.importSettingsJson(snapshot.settingsJson)
-                                val status = if (restored) "Cloud backup restored." else "Cloud backup could not be applied."
-                                cloudStatus = status
-                                Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
+                        GroupRow("Delete account", "Permanently delete your account and data", Icons.Default.DeleteForever, danger = true) { showDeleteAccount = true }
+                    } else {
+                        GroupRow("Sign in", "Sync progress and join the Ummah community", Icons.Default.Login) { viewModel.navigateTo(DeenScreen.LOGIN) }
+                        GroupRow("Switch account", "Saved accounts on this device", Icons.Default.SwitchAccount) { viewModel.navigateTo(DeenScreen.ACCOUNT_SWITCHER) }
+                    }
+                }
+            }
+            item {
+                SettingsGroup("Prayer", Icons.Default.AccessTime, index = 2) {
+                    GroupRow("Calculation method & Asr madhab", "Method, madhab and high-latitude rules", Icons.Default.Calculate) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Adhan sound per prayer", "Choose the adhan for each prayer", Icons.Default.VolumeUp) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Prayer notifications & exact alarms", "Reminders, pre-alerts and alarm permission", Icons.Default.Alarm) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Location & city", "Refresh location, prayer times, Qibla and Hijri date", Icons.Default.LocationOn) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Qibla", "Compass calibration and settings", Icons.Default.Explore) { viewModel.navigateTo(DeenScreen.QIBLA_MORE) }
+                    GroupStepper("Hijri adjustment", "$hijriAdjustment day", Icons.Default.CalendarMonth,
+                        onMinus = { viewModel.updateHijriAdjustment(hijriAdjustment - 1) },
+                        onPlus = { viewModel.updateHijriAdjustment(hijriAdjustment + 1) })
+                    GroupChoice("Time format", Icons.Default.Schedule, listOf("12 Hour", "24 Hour"), if (use12HourTime) "12 Hour" else "24 Hour") {
+                        viewModel.updateTimeFormat(it == "12 Hour")
+                    }
+                    GroupRow("Sync home widget", "Refresh prayer and Hijri information", Icons.Default.Widgets) {
+                        viewModel.recalculatePrayers()
+                        Toast.makeText(context, "Prayer and Hijri data refreshed.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            item {
+                SettingsGroup("Quran", Icons.Default.MenuBook, index = 3) {
+                    GroupRow("Script, translations & font size", "Arabic script, translation languages, text size", Icons.Default.Translate) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Reciter", "Current: ${selectedReciter.name}", Icons.Default.RecordVoiceOver) { viewModel.navigateTo(DeenScreen.NOW_PLAYING) }
+                    GroupRow("Offline Quran download", "Download the full Arabic Quran", Icons.Default.Download) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                }
+            }
+            item {
+                SettingsGroup("Appearance", Icons.Default.Palette, index = 4) {
+                    GroupChoice("Theme", Icons.Default.DarkMode, listOf("System", "Light", "Dark"),
+                        theme.name.lowercase().replaceFirstChar { it.uppercase() }) {
+                        viewModel.updateThemeMode(com.noorpro.app.ui.viewmodel.ThemeMode.valueOf(it.uppercase()))
+                    }
+                    GroupRow("App language", "Current: ${language.name}", Icons.Default.Language) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Text size", "Reading font size", Icons.Default.FormatSize) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                }
+            }
+            item {
+                SettingsGroup("Notifications", Icons.Default.NotificationsActive, index = 5) {
+                    GroupRow("Notification settings", "Prayer alerts, alarm sound and reminder schedules", Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("Community notifications", "Likes, comments and messages", Icons.Default.Forum) { viewModel.navigateTo(DeenScreen.UMMAH_NOTIFICATIONS) }
+                }
+            }
+            item {
+                SettingsGroup("Privacy & Data", Icons.Default.Shield, index = 6) {
+                    GroupRow("Profile visibility", "Who can see your Ummah profile", Icons.Default.Visibility) { viewModel.navigateTo(DeenScreen.UMMAH_PRIVACY) }
+                    GroupRow("Blocked accounts", "Manage people you blocked", Icons.Default.Block) { viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED) }
+                    GroupRow("Data safety", "What Noor Pro stores and why", Icons.Default.PrivacyTip) { showPrivacy = true }
+                    if (showAdPrivacy) GroupRow("Ad consent", "Review or change your ad privacy choices", Icons.Default.AdsClick) {
+                        (context as? android.app.Activity)?.let { com.noorpro.app.ads.ConsentManager.showPrivacyOptions(it) }
+                    }
+                }
+            }
+            item {
+                SettingsGroup("Al-Noor Audio", Icons.Default.Headphones, index = 7) {
+                    GroupRow("Audio library", "Recitations, nasheeds, podcasts, duas, tarjuma and tafsir", Icons.Default.LibraryMusic) { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) }
+                    GroupRow("Now playing", "Player, reciter and queue", Icons.Default.PlayCircle) { viewModel.navigateTo(DeenScreen.NOW_PLAYING) }
+                }
+            }
+            item {
+                SettingsGroup("Backup & Tools", Icons.Default.CloudSync, index = 8) {
+                    SettingsCloudBackupCard(
+                        busy = cloudBusy,
+                        status = cloudStatus,
+                        onBackup = {
+                            cloudBusy = true
+                            cloudStatus = "Saving your settings to Firebase..."
+                            cloudBackupRepository.backupSettings(
+                                settingsJson = viewModel.exportSettingsJson(),
+                                appVersion = com.noorpro.app.BuildConfig.VERSION_NAME
+                            ) { ok, message ->
+                                cloudBusy = false
+                                cloudStatus = message
+                                Toast.makeText(context, message ?: if (ok) "Cloud backup saved." else "Cloud backup failed.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onRestore = {
+                            cloudBusy = true
+                            cloudStatus = "Checking your cloud backup..."
+                            cloudBackupRepository.restoreSettings { snapshot, message ->
+                                cloudBusy = false
+                                if (snapshot == null) {
+                                    val status = message ?: "No cloud backup found."
+                                    cloudStatus = status
+                                    Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val restored = viewModel.importSettingsJson(snapshot.settingsJson)
+                                    val status = if (restored) "Cloud backup restored." else "Cloud backup could not be applied."
+                                    cloudStatus = status
+                                    Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
+                    )
+                    GroupRow("Backup settings file", "Save preferences to a JSON file on your phone", Icons.Default.Backup) { backupLauncher.launch("noor-pro-settings.json") }
+                    GroupRow("Restore settings file", "Restore preferences from a local backup", Icons.Default.Restore) { restoreLauncher.launch(arrayOf("application/json", "text/plain")) }
+                    GroupRow("Export prayer times", "Create a shareable CSV file", Icons.Default.FileDownload) { exportPrayerLauncher.launch("noor-pro-prayer-times.csv") }
+                }
+            }
+            item {
+                SettingsGroup("Support", Icons.Default.SupportAgent, index = 9) {
+                    GroupRow("Ask Noor AI", "App help and Islamic guidance", Icons.Default.AutoAwesome) { viewModel.navigateTo(DeenScreen.AI_HUB) }
+                    GroupRow("Rate Noor Pro", "Leave a review on Google Play", Icons.Default.StarRate) {
+                        val pkg = context.packageName
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))) }
+                            .onFailure { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg"))) } }
                     }
-                )
-            }
-            item {
-                SettingsHubRow("Backup Settings File", "Save preferences to a JSON file on your phone", Icons.Default.Backup) {
-                    backupLauncher.launch("noor-pro-settings.json")
-                }
-            }
-            item {
-                SettingsHubRow("Restore Settings File", "Restore preferences from a local backup", Icons.Default.Restore) {
-                    restoreLauncher.launch(arrayOf("application/json", "text/plain"))
-                }
-            }
-            item {
-                SettingsHubRow("Export Prayer Times", "Create a shareable CSV file", Icons.Default.FileDownload) {
-                    exportPrayerLauncher.launch("noor-pro-prayer-times.csv")
-                }
-            }
-
-            item { SettingsSectionTitle("Support") }
-            item {
-                SettingsHubRow("Ask Noor AI", "Fast app help, Islamic guidance and longer answers", Icons.Default.AutoAwesome) {
-                    viewModel.navigateTo(DeenScreen.AI_HUB)
-                }
-            }
-            item {
-                SettingsHubRow("Privacy Policy", "How Noor Pro handles your information", Icons.Default.PrivacyTip) {
-                    showPrivacy = true
-                }
-            }
-            item {
-                SettingsHubRow("Feedback", "Send suggestions or report a problem", Icons.Default.Feedback) {
-                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
-                        putExtra(Intent.EXTRA_SUBJECT, "Noor Pro feedback")
-                        putExtra(Intent.EXTRA_TEXT, "App version: ${com.noorpro.app.BuildConfig.VERSION_NAME}\n\n")
+                    GroupRow("Share Noor Pro", "Invite family and friends", Icons.Default.Share) {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Noor Pro — Quran, prayer times, Qibla and more: https://play.google.com/store/apps/details?id=${context.packageName}")
+                        }
+                        runCatching { context.startActivity(Intent.createChooser(send, "Share Noor Pro")) }
                     }
-                    runCatching { context.startActivity(intent) }
-                        .onFailure { Toast.makeText(context, "No email app is available.", Toast.LENGTH_SHORT).show() }
+                    GroupRow("Contact us", "noorpro.official@gmail.com", Icons.Default.Email) {
+                        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:noorpro.official@gmail.com")).apply {
+                            putExtra(Intent.EXTRA_SUBJECT, "Noor Pro feedback")
+                            putExtra(Intent.EXTRA_TEXT, "App version: ${com.noorpro.app.BuildConfig.VERSION_NAME}\n\n")
+                        }
+                        runCatching { context.startActivity(intent) }
+                            .onFailure { Toast.makeText(context, "No email app is available.", Toast.LENGTH_SHORT).show() }
+                    }
+                    GroupRow("Privacy policy", "How Noor Pro handles your information", Icons.Default.Policy) { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) }
+                    GroupRow("Terms of service", "Community rules, reporting and moderation", Icons.Default.Gavel) { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) }
                 }
             }
             item {
-                SettingsHubRow("About Noor Pro", "Version ${com.noorpro.app.BuildConfig.VERSION_NAME}", Icons.Default.Info) {
-                    showAbout = true
+                SettingsGroup("About", Icons.Default.Info, index = 10) {
+                    GroupRow("About Noor Pro", "Version ${com.noorpro.app.BuildConfig.VERSION_NAME} (${com.noorpro.app.BuildConfig.VERSION_CODE})", Icons.Default.Info) { showAbout = true }
                 }
             }
         }
@@ -258,9 +272,11 @@ fun SettingsScreen(viewModel: DeenViewModel) {
             onDismiss = { showPrivacy = false }
         )
     }
+    if (showDeleteAccount) DeleteAccountDialog(viewModel) { showDeleteAccount = false }
     if (showAbout) {
         SettingsInfoDialog(
             title = "About Noor Pro",
+            showLogo = true,
             body = "Noor Pro is an all-in-one Islamic companion for Quran, prayer times, Qibla, Azkar, duas, learning, and personal progress. Prayer and Hijri information is refreshed through the AlAdhan API with an offline calculation fallback.",
             onDismiss = { showAbout = false }
         )
@@ -349,9 +365,11 @@ private fun SettingsChoiceRow(title: String, subtitle: String, icon: ImageVector
 }
 
 @Composable
-private fun SettingsInfoDialog(title: String, body: String, onDismiss: () -> Unit) {
+private fun SettingsInfoDialog(title: String, body: String, showLogo: Boolean = false, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        // 1.0.97: About shows the NoorPro logo.
+        icon = if (showLogo) ({ NoorBrandMark(56.dp) }) else null,
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
@@ -459,3 +477,76 @@ private fun settingsBorderColor(): Color = if (settingsIsLight()) Color(0xFFE4E7
 
 @Composable
 private fun settingsIconBackground(): Color = if (settingsIsLight()) Color(0xFFF2F4EE) else Color(0xFF17241F)
+
+
+@Composable
+private fun SettingsGroup(title: String, icon: ImageVector, index: Int = 0, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp).staggeredEntrance(index, settingsSeen, index)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, bottom = 8.dp)) {
+            Icon(icon, contentDescription = null, tint = settingsAccentColor(), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(title.uppercase(), color = settingsAccentColor(), fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 2.sp)
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = settingsCardColor()),
+            border = BorderStroke(1.dp, settingsBorderColor()),
+            shape = RoundedCornerShape(22.dp)
+        ) { Column(Modifier.padding(vertical = 4.dp), content = content) }
+    }
+}
+
+@Composable
+private fun GroupRowShell(icon: ImageVector, danger: Boolean = false, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    val tint = if (danger) Color(0xFFE57373) else settingsAccentColor()
+    Row(modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(38.dp).background(settingsIconBackground(), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        content()
+    }
+}
+
+@Composable
+private fun GroupRow(title: String, subtitle: String, icon: ImageVector, danger: Boolean = false, onClick: () -> Unit) {
+    GroupRowShell(icon, danger, Modifier.pressScale().clickable(onClick = onClick)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = if (danger) Color(0xFFE57373) else settingsTextColor(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = settingsMutedColor(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = settingsMutedColor())
+    }
+}
+
+@Composable
+private fun GroupStepper(title: String, subtitle: String, icon: ImageVector, onMinus: () -> Unit, onPlus: () -> Unit) {
+    GroupRowShell(icon) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = settingsTextColor(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(subtitle, color = settingsMutedColor(), fontSize = 12.sp)
+        }
+        IconButton(onClick = onMinus) { Icon(Icons.Default.Remove, "Decrease", tint = settingsAccentColor()) }
+        IconButton(onClick = onPlus) { Icon(Icons.Default.Add, "Increase", tint = settingsAccentColor()) }
+    }
+}
+
+@Composable
+private fun GroupChoice(title: String, icon: ImageVector, options: List<String>, selected: String, onSelected: (String) -> Unit) {
+    GroupRowShell(icon) {
+        Text(title, color = settingsTextColor(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Row(Modifier.background(settingsIconBackground(), RoundedCornerShape(50)).padding(3.dp)) {
+            options.forEach { o ->
+                val sel = o == selected
+                val bg by androidx.compose.animation.animateColorAsState(if (sel) settingsAccentColor() else Color.Transparent, label = "seg")
+                Text(o, color = if (sel) (if (settingsIsLight()) Color.White else Color(0xFF10211E)) else settingsMutedColor(),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.background(bg, RoundedCornerShape(50)).clickable { onSelected(o) }.padding(horizontal = 10.dp, vertical = 6.dp))
+            }
+        }
+    }
+}
+
+
+/** Groups animate in once per process, not on every scroll back. */
+private val settingsSeen = java.util.Collections.synchronizedSet(mutableSetOf<Int>())

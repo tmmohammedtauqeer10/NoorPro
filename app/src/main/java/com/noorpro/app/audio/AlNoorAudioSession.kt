@@ -1,23 +1,24 @@
 package com.noorpro.app.audio
 
 import android.content.Context
+import kotlinx.coroutines.flow.stateIn
 import com.noorpro.app.audio.player.AlNoorPlayer
-import com.noorpro.app.audio.repository.AlNoorAudioRepository
-import com.noorpro.app.audio.repository.BundledAlNoorAudioRepository
 import com.noorpro.app.audio.session.AlNoorMediaSession
 import com.noorpro.app.audio.session.AlNoorMediaSessionController
 import com.noorpro.app.audio.session.AlNoorPlaybackChannels
 
 /**
- * App-wide Al Noor Audio session (separate from Quran MediaPlayer).
- * Initialized once from [com.noorpro.app.NoorProApplication].
+ * Process-wide Al Noor Audio session (separate from Quran MediaPlayer).
+ *
+ * The single [AlNoorPlayer] lives for the whole process and is bound to a MediaSession by
+ * [com.noorpro.app.audio.session.AlNoorMediaSessionService], which is (re)started whenever playback
+ * starts and runs as a `mediaPlayback` foreground service while audio plays. UI composables
+ * (mini-player, Now Playing) only observe / command this player, so leaving a screen or tab never
+ * touches playback. Initialised lazily - never from Application.onCreate.
  */
 object AlNoorAudioSession {
     @Volatile
     private var initialized = false
-
-    lateinit var repository: AlNoorAudioRepository
-        private set
 
     lateinit var player: AlNoorPlayer
         private set
@@ -31,16 +32,21 @@ object AlNoorAudioSession {
             if (initialized) return
             val app = context.applicationContext
             AlNoorPlaybackChannels.ensure(app)
-            repository = BundledAlNoorAudioRepository(app)
             player = AlNoorPlayer(app)
-            mediaSession = AlNoorMediaSession.obtain(app).also {
-                it.attach(player)
-                // Starts AlNoorMediaSessionService (media3-session).
-                it.startSession()
-            }
+            mediaSession = AlNoorMediaSession.obtain(app).also { it.attach(player) }
             initialized = true
         }
     }
 
     fun isInitialized(): Boolean = initialized
+
+    /** True while Al Noor OR Quran recitation is audible; Reels pause on this. Requires [init]. */
+    val anyAudible: kotlinx.coroutines.flow.StateFlow<Boolean> by lazy {
+        kotlinx.coroutines.flow.combine(player.audible, com.noorpro.app.audio.session.QuranSessionBridge.audible) { a, q -> a || q }
+            .stateIn(
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate),
+                kotlinx.coroutines.flow.SharingStarted.Eagerly,
+                false,
+            )
+    }
 }

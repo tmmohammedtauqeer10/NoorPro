@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -147,6 +148,7 @@ fun PrayerTimesScreen(
                     .weight(1f)
             ) {
                 // Draw continuous line for vertical timeline
+                val timelineColor = stitchLine()
                 Canvas(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -154,7 +156,7 @@ fun PrayerTimesScreen(
                         .padding(vertical = 24.dp)
                 ) {
                     drawLine(
-                        color = StitchLine,
+                        color = timelineColor,
                         start = Offset(22.dp.toPx(), 0.0f),
                         end = Offset(22.dp.toPx(), size.height),
                         strokeWidth = 2.dp.toPx(),
@@ -219,7 +221,7 @@ fun PrayerTimesRowItem(
         label = "prayerGlyphBg",
     )
     val glyphBorder by animateColorAsState(
-        targetValue = if (isActive) StitchEmerald else StitchLine,
+        targetValue = if (isActive) StitchEmerald else stitchLine(),
         animationSpec = tween(380),
         label = "prayerGlyphBorder",
     )
@@ -287,7 +289,7 @@ fun PrayerTimesRowItem(
                 .clip(RoundedCornerShape(18.dp))
                 .background(cardBg)
                 .then(
-                    if (!isActive) Modifier.border(1.dp, StitchLine, RoundedCornerShape(18.dp))
+                    if (!isActive) Modifier.border(1.dp, if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.outlineVariant else StitchLine, RoundedCornerShape(18.dp))
                     else Modifier
                 )
         ) {

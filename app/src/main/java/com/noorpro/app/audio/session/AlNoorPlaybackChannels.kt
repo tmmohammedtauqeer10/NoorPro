@@ -19,10 +19,10 @@ object AlNoorPlaybackChannels {
         nm.createNotificationChannel(
             NotificationChannel(
                 PLAYBACK,
-                "Al Noor Audio",
+                "Audio playback",
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Nasheed/naat playback controls (not prayer adhan)"
+                description = "Quran recitation playback controls (not prayer adhan)"
                 setShowBadge(false)
                 setSound(null, null)
             },

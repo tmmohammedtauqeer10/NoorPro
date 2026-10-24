@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98 Now playing 4x2 (green): artwork, title / subtitle, prev / play-pause / next, progress + times. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_green"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp">
+
+    <ImageView
+        android:id="@+id/widget_np_art"
+        android:layout_width="76dp"
+        android:layout_height="76dp"
+        android:contentDescription="Artwork"
+        android:scaleType="centerCrop"
+        android:src="@drawable/widget_art_fallback" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+            <TextView
+                android:id="@+id/widget_np_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="Play Quran"
+                android:textColor="@color/widget_on_green"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/widget_np_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="NoorPro"
+                android:textColor="@color/widget_on_green_muted"
+                android:textSize="13sp"
+                android:layout_marginTop="4dp" />
+            </LinearLayout>
+            <ImageView
+                android:id="@+id/widget_np_prev"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="6dp"
+                android:contentDescription="Previous"
+                android:padding="5dp"
+                android:src="@drawable/ic_widget_prev" />
+            <FrameLayout
+                android:id="@+id/widget_np_play_btn"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/widget_play_circle">
+                <ImageView
+                    android:id="@+id/widget_np_play"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Play or pause"
+                    android:src="@drawable/ic_widget_play" />
+            </FrameLayout>
+            <ImageView
+                android:id="@+id/widget_np_next"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:contentDescription="Next"
+                android:padding="5dp"
+                android:src="@drawable/ic_widget_next" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/widget_np_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="12dp"
+            android:indeterminate="false"
+            android:max="1000"
+            android:progress="0"
+            android:progressDrawable="@drawable/widget_progress" />
+
+        <LinearLayout
+            android:id="@+id/widget_np_times"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+            <Chronometer
+                android:id="@+id/widget_np_elapsed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="@color/widget_on_green_muted"
+                android:textSize="11sp" />
+            <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+            <TextView
+                android:id="@+id/widget_np_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/widget_on_green_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

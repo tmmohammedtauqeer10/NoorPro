@@ -2,13 +2,18 @@
 <resources>
     <string name="app_name">Noor Pro</string>
     <string name="widget_next_prayer_label">Next prayer</string>
-    <string name="widget_next_prayer_description">Shows the next salah name, time, and countdown.</string>
+    <string name="widget_next_prayer_description">Next salah with its time and a live countdown.</string>
     <string name="widget_day_header">Today</string>
-    <string name="widget_day_prayers_description">Shows Fajr through Isha times for today.</string>
+    <string name="widget_day_prayers_label">Prayer times</string>
+    <string name="widget_day_prayers_description">Today\'s Fajr to Isha times with the next prayer highlighted.</string>
+    <string name="widget_continue_quran_label">Continue Quran</string>
+    <string name="widget_continue_quran_description">Pick up the Quran right where you left off.</string>
+    <string name="widget_now_playing_label">Now playing</string>
+    <string name="widget_now_playing_description">Control Quran recitation and Al Noor audio from your home screen.</string>
     <string name="al_noor_audio_title">Al Noor Audio</string>
     <string name="ongoing_next_prayer_title">Show next prayer in shade</string>
     <string name="ongoing_next_prayer_subtitle">Quiet ongoing notification with countdown (not adhan)</string>
-    <string name="al_noor_playback_channel_name">Al Noor Audio</string>
+    <string name="al_noor_playback_channel_name">Audio playback</string>
     <string name="battery_opt_tip_title">Battery optimization tip</string>
     <string name="battery_opt_tip_body">Allow unrestricted battery so prayer alarms and the next-prayer shade stay reliable.</string>
     <string name="battery_opt_tip_action">Open battery settings</string>
