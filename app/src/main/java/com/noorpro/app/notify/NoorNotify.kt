@@ -18,16 +18,16 @@ import com.noorpro.app.R
 /**
  * 1.0.96: one design language for every NoorPro notification.
  *
- * - [SMALL_ICON]: the monochrome masjid mark (white on transparent, 24dp vector) for every channel
- *   and the status bar.
+ * - [SMALL_ICON]: 1.0.97 the NoorPro N-crescent logo (white on transparent, 24dp vector) for every
+ *   channel and the status bar.
  * - [accent]: NoorPro green, gold is used for highlights inside the art.
- * - Prayer art is bundled (drawable-nodpi, ~250 KB total): a rounded green large-icon tile per time
- *   of day and a text-free 2.3:1 banner (geometric lattice, masjid skyline, sun / crescent) in a dark
+ * - Prayer art is bundled (drawable-nodpi, ~250 KB total): a rounded large-icon tile per time of day
+ *   (1.0.97: the cream N logo on that time of day's tint) and a text-free 2.3:1 banner (geometric lattice, masjid skyline, sun / crescent) in a dark
  *   and a light version, picked from the system night mode so it matches the shade.
  */
 object NoorNotify {
     val SMALL_ICON: Int = R.drawable.ic_stat_noorpro
-    const val ACCENT = 0xFF0E6B53.toInt()
+    const val ACCENT = 0xFF0B6243.toInt()
     const val GOLD = 0xFFD4AF37.toInt()
 
     fun accent(context: Context): Int = ContextCompat.getColor(context, R.color.noor_notification_accent)

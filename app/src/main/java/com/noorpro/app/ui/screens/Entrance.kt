@@ -98,15 +98,34 @@ fun IslamicPattern(color: Color, modifier: Modifier = Modifier, cell: Dp = 56.dp
     }
 }
 
+/** 1.0.97: NoorPro brand green / cream (the N-crescent logo). */
+internal val noorLogoGreen = Color(0xFF0B6243)
+internal val noorLogoCream = Color(0xFFFDF9F0)
+
+/**
+ * 1.0.97: the NoorPro logo - cream N-crescent on a green rounded tile. On green surfaces
+ * ([onGreen] = true) the bare cream N is drawn instead so it never sits as a tile-on-green.
+ */
 @Composable
-fun NoorBrandMark(size: Dp = 84.dp, ring: Color = brandGold) {
-    Box(
-        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f))
-            .background(Color(0xFFFAF3EA)).border(2.dp, ring.copy(alpha = 0.8f), RoundedCornerShape(size * 0.3f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(painterResource(R.drawable.app_logo), contentDescription = "Noor Pro", modifier = Modifier.fillMaxSize())
+fun NoorBrandMark(size: Dp = 84.dp, onGreen: Boolean = false) {
+    if (onGreen) {
+        Image(
+            painterResource(R.drawable.brand_n_glyph), contentDescription = "NoorPro",
+            modifier = Modifier.size(size * 0.99f, size)
+        )
+    } else {
+        Image(painterResource(R.drawable.brand_n_tile), contentDescription = "NoorPro", modifier = Modifier.size(size))
     }
+}
+
+/** 1.0.97: "NoorPro" wordmark (vector, Plus Jakarta Sans ExtraBold) tinted to [color]. */
+@Composable
+fun NoorWordmark(height: Dp = 28.dp, color: Color = noorLogoGreen) {
+    Image(
+        painterResource(R.drawable.brand_wordmark), contentDescription = "NoorPro",
+        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color),
+        modifier = Modifier.height(height)
+    )
 }
 
 /** In-app splash that continues the system splash (same green + mark) and fades into the app. */
@@ -114,23 +133,18 @@ fun NoorBrandMark(size: Dp = 84.dp, ring: Color = brandGold) {
 fun BrandSplash(modifier: Modifier = Modifier) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, tween(650, easing = FastOutSlowInEasing)) }
-    Box(
-        modifier.fillMaxSize().background(Brush.verticalGradient(listOf(brandGreen, brandGreenDeep))),
-        contentAlignment = Alignment.Center
-    ) {
-        IslamicPattern(brandGold.copy(alpha = 0.07f), Modifier.fillMaxSize())
+    // 1.0.97: same flat green + cream N as the system splash, with the NoorPro wordmark under it.
+    Box(modifier.fillMaxSize().background(noorLogoGreen), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.graphicsAlpha(appear.value).offset(y = ((1f - appear.value) * 16).dp)
         ) {
-            NoorBrandMark(112.dp)
-            Spacer(Modifier.height(22.dp))
-            Text("Noor Pro", color = Color(0xFFFAF3EA), fontSize = 34.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text("Prayer · Quran · Remembrance", color = brandGold, fontSize = 14.sp, letterSpacing = 1.5.sp)
+            NoorBrandMark(104.dp, onGreen = true)
+            Spacer(Modifier.height(26.dp))
+            NoorWordmark(34.dp, noorLogoCream)
         }
         Text(
-            "بِسْمِ ٱللَّهِ", color = Color(0xFFFAF3EA).copy(alpha = 0.55f), fontSize = 18.sp,
+            "بِسْمِ ٱللَّهِ", color = noorLogoCream.copy(alpha = 0.55f), fontSize = 18.sp,
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 36.dp)
         )
     }
@@ -345,7 +359,7 @@ private fun WelcomePage() {
     ) {
         IslamicPattern(brandGold.copy(alpha = 0.10f), Modifier.fillMaxSize(), cell = 48.dp)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            NoorBrandMark(92.dp)
+            NoorBrandMark(84.dp, onGreen = true)
             Spacer(Modifier.height(16.dp))
             Text("السَّلَامُ عَلَيْكُمْ", color = brandGold, fontSize = 30.sp)
             Text("Assalamu Alaikum", color = Color(0xFFFAF3EA), fontSize = 16.sp, letterSpacing = 1.sp)

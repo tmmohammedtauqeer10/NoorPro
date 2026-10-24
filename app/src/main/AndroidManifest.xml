@@ -106,7 +106,7 @@
         <receiver android:name="com.noorpro.app.receiver.PrayerAlarmReceiver" android:exported="false" />
         <!-- 1.0.96: Stop adhan / Prayed / Snooze buttons on prayer notifications. -->
         <receiver android:name="com.noorpro.app.receiver.NotificationActionReceiver" android:exported="false" />
-        <!-- FCM-displayed notifications use the same masjid mark + NoorPro green. -->
+        <!-- FCM-displayed notifications use the same NoorPro N logo + logo green. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_noorpro" />

@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 1.0.96: NoorPro notification / status-bar icon. Monochrome (white on transparent) masjid:
-     crescent finial, dome, arched door and two minarets. 24dp, one icon for every channel. -->
+<!-- 1.0.97: NoorPro notification / status-bar icon - the N-crescent mark, white on transparent (system tints it). Used by every channel + FCM default. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <group android:translateY="0.8">
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M12,6.2C14.6,9.1 18.6,10.2 18.6,14.6L5.4,14.6C5.4,10.2 9.4,9.1 12,6.2ZM4.6,15.6H19.4V21H13.6V18.6A1.6,1.6 0 0 0 10.4,18.6V21H4.6ZM11.45,4.6H12.55V6.6H11.45ZM12,0.9A1.9,1.9 0 1 0 13.9,3.35A1.45,1.45 0 1 1 12,0.9ZM1.6,21V9.6L2.55,7.8L3.5,9.6V21ZM20.5,21V9.6L21.45,7.8L22.4,9.6V21Z" />
-    </group>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M2.097,20.772L2.097,2.574A0.574,0.574 0 0 1 2.671,2L5.416,2A3.122,3.122 0 0 1 7.894,3.222L16.663,14.659L16.663,3.733A1.733,1.733 0 0 1 18.396,2L21.384,2A0.519,0.519 0 0 1 21.903,2.519L21.903,20.93A1.07,1.07 0 0 1 20.833,22L18.028,22A3.026,3.026 0 0 1 15.683,20.885L11.724,16.028C10.571,14.613 9.201,13.818 7.849,12.814A3.67,3.67 0 0 1 7.207,7.532A3.783,3.783 0 0 0 7.34,14.876L7.34,20.344A1.656,1.656 0 0 1 5.684,22L3.325,22A1.228,1.228 0 0 1 2.097,20.772Z" />
 </vector>

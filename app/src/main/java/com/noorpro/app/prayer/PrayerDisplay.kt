@@ -42,9 +42,9 @@ object PrayerDisplay {
         if (month.isBlank()) "" else if (short) "$day $month" else "$day $month $year AH"
     }.getOrDefault("")
 
-    /** Renders the emerald masjid tile vector into a small bitmap for notification large icons. */
-    fun masjidLargeIcon(context: Context, sizePx: Int = 192): Bitmap? = runCatching {
-        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_masjid_tile) ?: return null
+    /** 1.0.97: renders the NoorPro N tile (green, cream N) into a bitmap for notification large icons. */
+    fun brandLargeIcon(context: Context, sizePx: Int = 192): Bitmap? = runCatching {
+        val drawable = ContextCompat.getDrawable(context, R.drawable.brand_n_tile) ?: return null
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, sizePx, sizePx)

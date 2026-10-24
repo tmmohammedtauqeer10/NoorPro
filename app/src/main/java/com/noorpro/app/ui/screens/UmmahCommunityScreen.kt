@@ -119,12 +119,7 @@ private fun UmmahComingSoonScreen(viewModel: DeenViewModel) {
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.app_logo),
-                        contentDescription = "Noor Pro logo",
-                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    NoorBrandMark(58.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("NOOR PRO", color = MatteGold, fontSize = 11.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Black)

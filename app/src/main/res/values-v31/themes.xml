@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 1.0.97: Android 12+ system splash - logo green, cream N, "NoorPro" wordmark at the bottom. -->
+    <style name="Theme.NoorPro.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#0B6243</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_mark</item>
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/Theme.NoorPro</item>
+        <item name="android:windowSplashScreenBrandingImage">@drawable/splash_branding</item>
+    </style>
+</resources>

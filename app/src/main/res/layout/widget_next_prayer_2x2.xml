@@ -35,7 +35,7 @@
                 android:layout_width="14dp"
                 android:layout_height="14dp"
                 android:importantForAccessibility="no"
-                android:src="@drawable/widget_crescent" />
+                android:src="@drawable/widget_logo_n" />
 
             <TextView
             android:id="@+id/widget_next_label"

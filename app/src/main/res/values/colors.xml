@@ -12,8 +12,8 @@
     <color name="widget_muted">#FF9AA89F</color>
     <color name="widget_accent">#FF0E8C73</color>
     <color name="widget_highlight_bg">#330E8C73</color>
-    <!-- 1.0.96: notification accent (NoorPro green) + gold highlight. -->
-    <color name="noor_notification_accent">#FF0E6B53</color>
+    <!-- 1.0.96: notification accent + gold highlight. 1.0.97: accent = logo green #0B6243. -->
+    <color name="noor_notification_accent">#FF0B6243</color>
     <color name="noor_notification_gold">#FFD4AF37</color>
 </resources>
 

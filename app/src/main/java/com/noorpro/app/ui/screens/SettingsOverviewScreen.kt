@@ -276,6 +276,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
     if (showAbout) {
         SettingsInfoDialog(
             title = "About Noor Pro",
+            showLogo = true,
             body = "Noor Pro is an all-in-one Islamic companion for Quran, prayer times, Qibla, Azkar, duas, learning, and personal progress. Prayer and Hijri information is refreshed through the AlAdhan API with an offline calculation fallback.",
             onDismiss = { showAbout = false }
         )
@@ -364,9 +365,11 @@ private fun SettingsChoiceRow(title: String, subtitle: String, icon: ImageVector
 }
 
 @Composable
-private fun SettingsInfoDialog(title: String, body: String, onDismiss: () -> Unit) {
+private fun SettingsInfoDialog(title: String, body: String, showLogo: Boolean = false, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        // 1.0.97: About shows the NoorPro logo.
+        icon = if (showLogo) ({ NoorBrandMark(56.dp) }) else null,
         title = { Text(title) },
         text = { Text(body) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }

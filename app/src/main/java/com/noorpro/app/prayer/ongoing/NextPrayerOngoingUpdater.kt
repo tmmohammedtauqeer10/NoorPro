@@ -155,7 +155,7 @@ object NextPrayerOngoingUpdater {
             .addAction(0, "Qibla", NoorNotify.openApp(context, 71002, "OPEN_QIBLA"))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        (prayerName?.let { NoorNotify.tile(context, it) } ?: PrayerDisplay.masjidLargeIcon(context))?.let { builder.setLargeIcon(it) }
+        (prayerName?.let { NoorNotify.tile(context, it) } ?: PrayerDisplay.brandLargeIcon(context))?.let { builder.setLargeIcon(it) }
         if (place.isNotBlank()) builder.setSubText(place)
         else PrayerDisplay.hijriLabel(context, short = false).takeIf { it.isNotBlank() }?.let { builder.setSubText(it) }
         if (rows.isNotEmpty()) {
