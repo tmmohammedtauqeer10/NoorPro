@@ -277,13 +277,13 @@ internal fun AudioVideoPill(t: SpTheme, audio: Boolean, audioEnabled: Boolean = 
 }
 
 /** Bridge from the official YouTube IFrame API (state + time) back to Compose. */
-private class YtBridge(val onState: (Int) -> Unit, val onTime: (Long, Long) -> Unit) {
+internal class YtBridge(val onState: (Int) -> Unit, val onTime: (Long, Long) -> Unit) {
     private val h = android.os.Handler(android.os.Looper.getMainLooper())
     @android.webkit.JavascriptInterface fun state(s: Int) { h.post { onState(s) } }
     @android.webkit.JavascriptInterface fun time(pos: Double, dur: Double) { h.post { onTime(pos.toLong(), dur.toLong()) } }
 }
 
-private fun ytHtml(id: String, startSec: Long) = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+internal fun ytHtml(id: String, startSec: Long) = """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;background:#000;height:100%;overflow:hidden}#p,iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}</style></head>
 <body><div id="p"></div><script src="https://www.youtube.com/iframe_api"></script><script>
 var player;function onYouTubeIframeAPIReady(){player=new YT.Player('p',{videoId:'$id',playerVars:{autoplay:1,playsinline:1,rel:0,modestbranding:1,start:$startSec},

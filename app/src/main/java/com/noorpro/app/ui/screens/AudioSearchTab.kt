@@ -102,8 +102,8 @@ internal class SearchDoc(
     val art: @Composable (Modifier) -> Unit, val circle: Boolean = false, val action: () -> Unit,
 )
 
-internal val SEARCH_SECTIONS = listOf("Official channels", "Surahs", "Reciters", "Nasheeds", "Podcasts", "Episodes", "Duas", "Tafsir", "Urdu", "Bengali", "Translations", "Playlists")
-internal val SEARCH_TRENDING = listOf("Ya-Sin", "Ar-Rahman", "Al-Kahf", "Mishary", "MAF Nasheed", "Morning duas", "Tafsir Urdu", "Bengali", "Yaqeen")
+internal val SEARCH_SECTIONS = listOf("Official channels", "Bayans", "Surahs", "Reciters", "Nasheeds", "Podcasts", "Episodes", "Duas", "Tafsir", "Urdu", "Bengali", "Translations", "Playlists")
+internal val SEARCH_TRENDING = listOf("Ya-Sin", "Ar-Rahman", "Al-Kahf", "Mishary", "MAF Nasheed", "Bayans", "Morning duas", "Tafsir Urdu", "Bengali", "Yaqeen")
 
 private object RecentSearches {
     private fun p(c: android.content.Context) = c.getSharedPreferences("noor_audio_lib", android.content.Context.MODE_PRIVATE)
@@ -121,6 +121,11 @@ internal fun buildSearchIndex(ctx: android.content.Context, surahs: List<Surah>,
     com.noorpro.app.audio.catalog.OfficialChannels.all.forEach { ch ->
         out += SearchDoc("Official channels", ch.name, ch.subtitle, ch.searchFields, pop = 60, circle = true,
             art = { m -> ChannelInitials(ch, 48.dp) }) { com.noorpro.app.audio.catalog.OfficialChannels.open(ctx, ch.url) }
+    }
+    // 1.0.95: CC BY bayans (YouTube's embedded player).
+    com.noorpro.app.audio.catalog.CcBayans.all.forEach { b ->
+        out += SearchDoc("Bayans", b.title, "Bayan · ${b.channel.speaker} · ${b.topic}", b.searchFields, pop = 40,
+            art = { m -> BayanThumb(b, m.clip(RoundedCornerShape(4.dp))) }) { if (!openBayanAudio(ctx, b)) bayanOpenRequest.value = b }
     }
     surahs.forEach { s -> out += SearchDoc("Surahs", s.nameEnglish, "Surah ${s.id} · ${s.englishTranslation}",
         listOf(s.nameEnglish, s.nameArabic, s.englishTranslation, s.id.toString(), "surah ${s.nameEnglish}"), pop = 120 - s.id,
@@ -267,5 +272,6 @@ internal fun SpSearchTab(t: SpTheme, query: String, onQuery: (String) -> Unit, s
             }
         }
     }
+    bayanOpenRequest.value?.let { b -> BayanPlayerDialog(t, b) { bayanOpenRequest.value = null } }
     mafOpenRequest.value?.let { v -> YtPlayerDialog(t, v, YtChannelRepository.cached(ctx)?.videos.orEmpty()) { mafOpenRequest.value = null } }
 }

@@ -366,7 +366,7 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
                         Icon(Icons.Default.Close, "Close Al-Noor Audio", tint = t.text, modifier = Modifier.clip(CircleShape).clickable(onClick = onExit).padding(8.dp))
                     }
                     Spacer(Modifier.height(12.dp))
-                    SpChips(t, listOf("All", "Quran", "Nasheeds", "Podcasts", "Duas"), chip) { chip = it }
+                    SpChips(t, listOf("All", "Quran", "Nasheeds", "Podcasts", "Bayans", "Duas"), chip) { chip = it }
                     Spacer(Modifier.height(16.dp))
                 }
             }
@@ -410,8 +410,10 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
                 items(d.podcasts, key = { "p${it.id}" }) { p -> SpCard(t, p.name, "${p.publisher} · ${p.category}", onClick = { open("podcast:${p.id}") }) { mod -> SpArt(mod, url = d.artFor(p), tint = coverColor(p.id.hashCode() + 3), label = p.name, corner = 10.dp) } }
             }
         }
+        // 1.0.95: CC BY bayans from official channels (YouTube's embedded player only).
+        if (all || chip == "Podcasts" || chip == "Bayans") item(key = "bayans") { BayansShelf(t) { open("browse:Bayans") } }
         // 1.0.93: official scholar channels (link-out only — not hosted).
-        if (all || chip == "Podcasts") item(key = "official") {
+        if (all || chip == "Podcasts" || chip == "Bayans") item(key = "official") {
             OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
         }
         if (all || chip == "Duas") item(key = "duas") {
@@ -464,6 +466,7 @@ internal val SP_BROWSE = listOf(
     SpBrowse("Recitations", Color(0xFF0F7A4F), Icons.Default.MenuBook, "recitations"),
     SpBrowse("Nasheeds", Color(0xFF8D3FD1), Icons.Default.MusicNote, "browse:Nasheeds"),
     SpBrowse("Podcasts", Color(0xFF1E5AA8), Icons.Default.Podcasts, "browse:Podcasts"),
+    SpBrowse("Bayans", Color(0xFF0F5D46), Icons.Default.Mic, "browse:Bayans"),
     SpBrowse("Duas", Color(0xFFD2691E), Icons.Default.FrontHand, "cat:Dua Audio"),
     SpBrowse("Tafsir", Color(0xFFB02E6B), Icons.Default.AutoStories, "cat:Tafsir"),
     SpBrowse("Tarjuma", Color(0xFF3A7D2C), Icons.Default.Translate, "cat:Tarjuma"),
@@ -795,6 +798,19 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                     itemsIndexed(IslamicData.reciters, key = { _, r -> "ar${r.id}" }) { i, r ->
                         SpTrackRow(t, null, r.name, if (r.id == selectedReciter.id) "Reciter · selected" else "Reciter", false, { open("reciter:${r.id}") }, art = { _ -> ReciterAvatarArt(r, SP_REC_PORTRAITS.getOrNull(i), 48.dp) })
                     }
+                }
+                rt == "browse:Bayans" -> {
+                    var playing by remember { mutableStateOf<com.noorpro.app.audio.catalog.CcBayan?>(null) }
+                    val col = Color(0xFF0F5D46)
+                    SpDetailPage(t, SpDetailHeader("Bayans", "Creative Commons (CC BY) bayans from official channels · YouTube's official player",
+                        "${com.noorpro.app.audio.catalog.CcBayans.all.size} bayans · ${com.noorpro.app.audio.catalog.CcBayans.channels.size} channels", col) { m -> SpArt(m, tint = col, label = "Bayans") },
+                        false, false, null, null, back, null, {}, {}, {}) {
+                        bayanBrowseItems(t) { if (!openBayanAudio(ctx, it)) playing = it }
+                        item(key = "official") { OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 8.dp)) }
+                        item { Text("Videos are shared by each channel under the Creative Commons Attribution licence and play in YouTube's official player. NoorPro doesn't download or host them.",
+                            color = t.muted, fontSize = 11.sp, modifier = Modifier.padding(16.dp)) }
+                    }
+                    playing?.let { b -> BayanPlayerDialog(t, b) { playing = null } }
                 }
                 rt.startsWith("browse:") -> {
                     val kind = rt.removePrefix("browse:")
