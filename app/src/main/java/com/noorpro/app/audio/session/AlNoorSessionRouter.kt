@@ -51,6 +51,7 @@ object AlNoorSessionRouter {
             val target = playerFor(app, src)
             if (s.player !== target) runCatching { s.player = target }
                 .onFailure { Log.w(TAG, "Could not swap session player", it) }
+            NoorMediaLayout.refresh(app, s)
         }
         runCatching { AlNoorMediaSession.obtain(app).startSession() }
             .onFailure { Log.w(TAG, "Could not start media service", it) }

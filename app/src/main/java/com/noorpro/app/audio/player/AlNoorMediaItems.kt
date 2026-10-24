@@ -8,8 +8,8 @@ import com.noorpro.app.audio.models.Track
 /** Maps catalog [Track]s to Media3 [MediaItem]s (metadata feeds notification / lock screen / QS player). */
 object AlNoorMediaItems {
     const val ALBUM_TITLE = "Al Noor Audio"
-    val FALLBACK_ART = "android.resource://${com.noorpro.app.BuildConfig.APPLICATION_ID}/drawable/audio_player_artwork"
-    val QURAN_ART = "android.resource://${com.noorpro.app.BuildConfig.APPLICATION_ID}/drawable/noor_quran_rehal"
+    val FALLBACK_ART = "android.resource://${com.noorpro.app.BuildConfig.APPLICATION_ID}/drawable/noor_cover_audio"
+    val QURAN_ART = "android.resource://${com.noorpro.app.BuildConfig.APPLICATION_ID}/drawable/noor_cover_quran"
 
     fun fromTrack(track: Track): MediaItem {
         val metadata = MediaMetadata.Builder()

@@ -35,13 +35,14 @@ class AlNoorMediaSessionService : MediaSessionService() {
             .setChannelName(R.string.al_noor_playback_channel_name)
             .setNotificationId(AlNoorPlaybackChannels.PLAYBACK_NOTIFICATION_ID)
             .build()
-        provider.setSmallIcon(R.drawable.ic_adhan_notification)
+        provider.setSmallIcon(com.noorpro.app.notify.NoorNotify.SMALL_ICON)
         setMediaNotificationProvider(provider)
 
         // Shared session: plays whichever source (Al Noor nasheeds or Quran recitation) is selected.
         mediaSession = MediaSession.Builder(this, AlNoorSessionRouter.playerFor(this))
             .setSessionActivity(sessionActivityPendingIntent())
             .setId("al_noor_audio_session")
+            .setCallback(NoorMediaLayout.Callback(applicationContext))
             .build()
         // ROOT CAUSE FIX: MediaSessionService only wires a session into its notification manager
         // (and therefore only posts the media notification / goes foreground) after addSession().
@@ -49,7 +50,20 @@ class AlNoorMediaSessionService : MediaSessionService() {
         // used plain startService() with no controller, so the session was never registered and no
         // notification was ever posted ("No media playing" in the QS media player).
         mediaSession?.let { addSession(it); AlNoorSessionRouter.attach(it) }
+        // 1.0.96: keep the custom buttons (−10/+10 or like) in step with the source / track.
+        runCatching { AlNoorSessionRouter.playerFor(this, AlNoorSessionRouter.Source.AL_NOOR).addListener(layoutListener) }
+        runCatching { QuranSessionBridge.sessionPlayer().addListener(layoutListener) }
+        NoorMediaLayout.refresh(this, mediaSession)
         Log.i(TAG, "Al Noor media session service created")
+    }
+
+    private val layoutListener = object : androidx.media3.common.Player.Listener {
+        override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+            NoorMediaLayout.refresh(this@AlNoorMediaSessionService, mediaSession)
+        }
+        override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+            NoorMediaLayout.refresh(this@AlNoorMediaSessionService, mediaSession)
+        }
     }
 
     private fun sessionActivityPendingIntent(): PendingIntent {
@@ -77,6 +91,8 @@ class AlNoorMediaSessionService : MediaSessionService() {
         // without a notification once the service is gone.
         runCatching { if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.pause() }
         runCatching { QuranSessionBridge.pauseForOtherSource() }
+        runCatching { if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.sessionPlayer.removeListener(layoutListener) }
+        runCatching { QuranSessionBridge.sessionPlayer().removeListener(layoutListener) }
         mediaSession?.run {
             AlNoorSessionRouter.detach(this)
             release()

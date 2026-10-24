@@ -1,13 +1,9 @@
 package com.noorpro.app.prayer.ongoing
 
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.noorpro.app.MainActivity
-import com.noorpro.app.R
+import com.noorpro.app.notify.NoorNotify
 import com.noorpro.app.data.UserPreferencesRepository
 import com.noorpro.app.prayer.PrayerDisplay
 import com.noorpro.app.prayer.PrayerNotifications
@@ -126,7 +122,8 @@ object NextPrayerOngoingUpdater {
                 }
             )
         }
-        post(context, title, dateLine + " \u00B7 " + body, next.name, remainingMs, expanded, place)
+        val rows = prayers.map { it.name to PrayerDisplay.clock12(it.time) }
+        post(context, title, dateLine + " \u00B7 " + body, next.name, remainingMs, expanded, place, rows, dateLine)
         return remainingMs
     }
 
@@ -138,20 +135,13 @@ object NextPrayerOngoingUpdater {
         remainingMs: Long,
         expanded: String?,
         place: String = "",
+        rows: List<Pair<String, String>> = emptyList(),
+        dateLine: String = "",
     ) {
-        val open = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("OPEN_PRAYER", true)
-        }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        val pi = PendingIntent.getActivity(context, 71001, open, flags)
+        val pi = NoorNotify.openApp(context, 71001, "OPEN_PRAYER")
 
         val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.ONGOING)
-            .setSmallIcon(R.drawable.ic_adhan_notification)
+            .setSmallIcon(NoorNotify.SMALL_ICON)
             .setContentTitle(title)
             .setContentText(body)
             .setOngoing(true)
@@ -160,14 +150,29 @@ object NextPrayerOngoingUpdater {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(pi)
-            .setColor(PrayerDisplay.EMERALD)
+            .setColor(NoorNotify.accent(context))
             .setShowWhen(true)
+            .addAction(0, "Qibla", NoorNotify.openApp(context, 71002, "OPEN_QIBLA"))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        PrayerDisplay.masjidLargeIcon(context)?.let { builder.setLargeIcon(it) }
+        (prayerName?.let { NoorNotify.tile(context, it) } ?: PrayerDisplay.masjidLargeIcon(context))?.let { builder.setLargeIcon(it) }
         if (place.isNotBlank()) builder.setSubText(place)
         else PrayerDisplay.hijriLabel(context, short = false).takeIf { it.isNotBlank() }?.let { builder.setSubText(it) }
-        if (expanded != null) {
+        if (rows.isNotEmpty()) {
+            // 1.0.96: today's timetable as a clean list, next prayer in bold with a gold-free marker.
+            val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
+            style.addLine(body)
+            rows.forEach { (name, time) ->
+                val line = "$name  \u00B7  $time"
+                if (name == prayerName) {
+                    val sp = android.text.SpannableString("\u25B8 $line")
+                    sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, sp.length, 0)
+                    style.addLine(sp)
+                } else style.addLine("   $line")
+            }
+            if (dateLine.isNotBlank()) style.setSummaryText(dateLine)
+            builder.setStyle(style)
+        } else if (expanded != null) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(expanded).setBigContentTitle(title))
         }
 

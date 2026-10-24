@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import com.noorpro.app.ui.screens.pressScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.togetherWith
+import android.content.Intent
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.util.Log // Added
@@ -117,7 +118,25 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    /** 1.0.96: screen requested by a notification action (cold start or onNewIntent). */
+    private val notificationNav = androidx.compose.runtime.mutableStateOf<com.noorpro.app.ui.viewmodel.DeenScreen?>(null)
+
+    private fun notificationTarget(i: Intent?, includePrayer: Boolean): com.noorpro.app.ui.viewmodel.DeenScreen? = when {
+        i == null -> null
+        i.getBooleanExtra("OPEN_QIBLA", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QIBLA_MORE
+        i.getBooleanExtra("OPEN_QURAN", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QURAN
+        includePrayer && i.getBooleanExtra("OPEN_PRAYER", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES
+        else -> null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        notificationTarget(intent, includePrayer = true)?.let { notificationNav.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (savedInstanceState == null) notificationNav.value = notificationTarget(intent, includePrayer = false)
         // Android 12+ SplashScreen API (back-ported): brand green + app mark, then hands over to Compose.
         installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -154,6 +173,11 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES)
                 }
+            }
+            // 1.0.96: notification buttons (Qibla / Read Quran / Open) also work when the app is already open.
+            val notifTarget = notificationNav.value
+            androidx.compose.runtime.LaunchedEffect(notifTarget) {
+                notifTarget?.let { viewModel.navigateTo(it); notificationNav.value = null }
             }
             val themeMode by viewModel.themeMode.collectAsState()
             val systemTheme = androidx.compose.foundation.isSystemInDarkTheme()

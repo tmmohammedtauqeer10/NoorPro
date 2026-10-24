@@ -1,23 +1,13 @@
 package com.noorpro.app.receiver
 
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.os.Build
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import com.noorpro.app.MainActivity
-import com.noorpro.app.R
 import com.noorpro.app.audio.AlNoorAudioSession
-import com.noorpro.app.prayer.AdhanSound
 import com.noorpro.app.prayer.DailyReminderContent
 import com.noorpro.app.prayer.PrayerDisplay
 import com.noorpro.app.prayer.PrayerNotifications
-import com.noorpro.app.prayer.PrayerPrefs
 import com.noorpro.app.prayer.PrayerScheduler
 import com.noorpro.app.prayer.channels.PrayerNotificationChannels
 import com.noorpro.app.prayer.ongoing.NextPrayerOngoingUpdater
@@ -59,20 +49,22 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
                                 }
                             }
                         }
-                        PrayerScheduler.KIND_PRE -> showReminder(
-                            app, 7100 + prayer.hashCode().mod(50),
-                            "$prayer in $minutes minutes", "Get ready for $prayer prayer.", "Prepare for salah."
+                        PrayerScheduler.KIND_PRE -> PrayerNotifications.postReminder(
+                            app, 7100 + prayer.hashCode().mod(50), prayer,
+                            "$prayer in $minutes minutes",
+                            if (triggerAt > 0L) "$prayer at ${PrayerDisplay.clock12(triggerAt + minutes * 60_000L)} \u00B7 get ready for salah" else "Get ready for $prayer prayer.",
+                            "Make wudu and prepare for salah."
                         )
-                        PrayerScheduler.KIND_JUMMAH -> showReminder(
-                            app, 7160, "Jumu'ah Mubarak",
+                        PrayerScheduler.KIND_JUMMAH -> PrayerNotifications.postReminder(
+                            app, 7160, "Jumuah", "Jumu'ah Mubarak",
                             "Jumu'ah prayer is soon. Take ghusl, wear your best, and head to the masjid early.",
                             "Recite Surah Al-Kahf and send salawat upon the Prophet \uFDFA."
                         )
-                        PrayerScheduler.KIND_SUHOOR -> showReminder(
-                            app, 7161, "Suhoor time", "Fajr is in about 30 minutes - time for suhoor.", "Ramadan Mubarak."
+                        PrayerScheduler.KIND_SUHOOR -> PrayerNotifications.postReminder(
+                            app, 7161, "Suhoor", "Suhoor time", "Fajr is in about 30 minutes - time for suhoor.", "Ramadan Mubarak."
                         )
-                        PrayerScheduler.KIND_IFTAR -> showReminder(
-                            app, 7162, "Iftar time", "Maghrib has begun - you may break your fast.",
+                        PrayerScheduler.KIND_IFTAR -> PrayerNotifications.postReminder(
+                            app, 7162, "Iftar", "Iftar time", "Maghrib has begun - you may break your fast.",
                             "Dua: Dhahaba al-zama' wabtallatil-'uruq, wa thabata al-ajr in sha Allah."
                         )
                         PrayerScheduler.KIND_DAILY -> showDaily(app)
@@ -98,58 +90,9 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun openApp(context: Context, code: Int, extra: String): PendingIntent {
-        val open = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(extra, true)
-        }
-        return PendingIntent.getActivity(context, code, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    private fun largeIcon(context: Context) = PrayerDisplay.masjidLargeIcon(context) ?: try {
-        BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
-    } catch (_: Exception) {
-        null
-    }
-
-    private fun notifyOrIgnore(context: Context, id: Int, notification: android.app.Notification) {
-        PrayerNotifications.notifySafely(context, id, notification, androidx.core.app.NotificationCompat.getChannelId(notification) ?: PrayerNotificationChannels.REMINDER)
-    }
-
-    private suspend fun showReminder(context: Context, id: Int, title: String, text: String, big: String) {
-        val pi = openApp(context, id, "OPEN_PRAYER")
-        val now = System.currentTimeMillis()
-        val place = PrayerNotifications.resolveLocation(context)
-        val dateLine = PrayerDisplay.dateLine(PrayerDisplay.gregorianLabel(now), PrayerDisplay.hijriLabel(context, short = false))
-        val extra = if (place.isBlank()) dateLine else "$dateLine\n\uD83D\uDCCD $place"
-        val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.REMINDER)
-            .setSmallIcon(R.drawable.ic_adhan_notification)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$text\n$big\n$extra").setBigContentTitle(title))
-            .setColor(PrayerDisplay.EMERALD)
-            .setContentIntent(pi)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setAutoCancel(true)
-        largeIcon(context)?.let { builder.setLargeIcon(it) }
-        notifyOrIgnore(context, id, builder.build())
-    }
-
-    private suspend fun showDaily(context: Context) {
+    private fun showDaily(context: Context) {
         val item = DailyReminderContent.forDay(Calendar.getInstance().get(Calendar.DAY_OF_YEAR))
-        val pi = openApp(context, 7170, "OPEN_QURAN")
-        val builder = NotificationCompat.Builder(context, PrayerNotificationChannels.DAILY)
-            .setSmallIcon(R.drawable.ic_adhan_notification)
-            .setContentTitle("Ayah of the day")
-            .setContentText(item.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("${item.text}\n\n${item.reference}").setBigContentTitle("Ayah of the day"))
-            .setColor(PrayerDisplay.EMERALD)
-            .setContentIntent(pi)
-            .setAutoCancel(true)
-        largeIcon(context)?.let { builder.setLargeIcon(it) }
-        notifyOrIgnore(context, 7170, builder.build())
+        PrayerNotifications.postDaily(context, item.text, item.reference)
     }
 
     companion object {
