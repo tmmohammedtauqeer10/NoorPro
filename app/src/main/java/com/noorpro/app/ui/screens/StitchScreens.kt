@@ -289,142 +289,12 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
+/** 1.0.99: Home is the redesigned [NoorHomeScreen] (NoorHome.kt). */
 @Composable
-fun StitchHomeScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    val prayers by viewModel.prayers.collectAsState()
-    val nextPrayerName by viewModel.nextPrayerName.collectAsState()
-    val nextPrayerCountdown by viewModel.nextPrayerCountdown.collectAsState()
-    val location by viewModel.currentLocationName.collectAsState()
-    val hasLocation by viewModel.hasCurrentLocation.collectAsState()
-    val dailyQuote by viewModel.dailyQuote.collectAsState()
-    val lastReadSurah by viewModel.lastReadSurah.collectAsState()
-    val lastReadAyah by viewModel.lastReadAyah.collectAsState()
-    val playingSurah by viewModel.playingSurah.collectAsState()
-    val currentAudioTrack by viewModel.currentAudioTrack.collectAsState()
-    val displayName = viewModel.userDisplayName.ifBlank { if (viewModel.isLoggedIn) "Friend" else "Guest" }
-    val firstName = displayName.trim().split(" ").firstOrNull().orEmpty().ifBlank { "Guest" }
-    val bottomInset = if (playingSurah != null || currentAudioTrack != null) 268.dp else 168.dp
-
-    val streak by viewModel.currentStreak.collectAsState()
-    val completedSurahs by viewModel.completedSurahs.collectAsState()
-    val hijriAdjustment by viewModel.hijriAdjustment.collectAsState()
-
-    val locationSettingsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        viewModel.checkLocationAndRefresh { }
-    }
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) ||
-            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false)
-        if (granted) {
-            if (com.noorpro.app.data.DeviceLocationProvider.isLocationEnabled(context)) {
-                viewModel.checkLocationAndRefresh { }
-            } else {
-                locationSettingsLauncher.launch(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-        }
-    }
-    val requestLocation: () -> Unit = {
-        if (com.noorpro.app.data.DeviceLocationProvider.hasPermission(context)) {
-            if (com.noorpro.app.data.DeviceLocationProvider.isLocationEnabled(context)) {
-                viewModel.checkLocationAndRefresh { }
-            } else {
-                locationSettingsLauncher.launch(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
-        }
-    }
-
-    // Add the system navigation-bar inset so the last card (Al-Noor Audio) never sits under the bottom nav.
-    val systemNavInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    StitchScreen {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, top = 30.dp, end = 20.dp, bottom = bottomInset + systemNavInset),
-            verticalArrangement = Arrangement.spacedBy(26.dp)
-        ) {
-            item {
-                StitchHomeHeader(
-                    name = firstName,
-                    photoUrl = viewModel.userPhotoUrl,
-                    onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) },
-                    onNotifications = { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                )
-            }
-            item {
-                StitchImmersivePrayerHero(
-                    prayers = prayers,
-                    nextPrayerName = nextPrayerName,
-                    countdown = nextPrayerCountdown,
-                    location = location,
-                    hasLocation = hasLocation,
-                    hijriAdjustment = hijriAdjustment,
-                    displayTime = viewModel::displayPrayerTime,
-                    onLocationClick = requestLocation
-                )
-            }
-            item {
-                Column {
-                    PermissionNudgeBanner(viewModel, Modifier.padding(bottom = 26.dp))
-                    StitchSacredToolsCard(
-                        onTool = { viewModel.navigateTo(it) },
-                        onSeeAll = { viewModel.navigateTo(DeenScreen.EXPLORE) }
-                    )
-                }
-            }
-            item {
-                StitchAskNoorAiCard(
-                    onOpen = { viewModel.navigateTo(DeenScreen.AI_HUB) },
-                    onAsk = { q -> NoorAiLaunch.pending = q; viewModel.navigateTo(DeenScreen.AI_HUB) }
-                )
-            }
-            item {
-                // Sponsor + inline ad live in the Audio item so a hidden sponsor / unfilled ad adds no gap.
-                Column {
-                    com.noorpro.app.sponsor.SponsorCardSlot("home", Modifier.padding(bottom = 26.dp))
-                    StitchAudioHubEntryCard(onOpen = { viewModel.navigateTo(DeenScreen.AUDIO_LIBRARY) })
-                    StitchHomeSponsoredAdCard(Modifier.padding(top = 26.dp))
-                }
-            }
-            item {
-                StitchDevotionCard(
-                    prayers = prayers,
-                    streak = streak,
-                    lastReadSurah = lastReadSurah,
-                    lastReadAyah = lastReadAyah,
-                    completedSurahs = completedSurahs.size,
-                    onOpen = { viewModel.navigateTo(DeenScreen.SPIRITUAL_PROGRESS) }
-                )
-            }
-            item {
-                StitchUmmahSpotlightCard(
-                    quote = dailyQuote,
-                    onJoin = { viewModel.navigateTo(DeenScreen.UMMAH) }
-                )
-            }
-            item {
-                StitchContinueReadingCard(
-                    surah = lastReadSurah,
-                    ayah = lastReadAyah,
-                    onContinue = { viewModel.selectSurah(lastReadSurah) }
-                )
-            }
-            item {
-                StitchDailyAyahCard(quote = dailyQuote)
-            }
-        }
-    }
-}
+fun StitchHomeScreen(viewModel: DeenViewModel) = NoorHomeScreen(viewModel)
 
 /** Today's Hijri date, e.g. "Dhul-Hijjah 14, 1446 AH", honouring the user's adjustment. */
-private fun hijriDateLabel(adjustment: Int): String {
+internal fun hijriDateLabel(adjustment: Int): String {
     return runCatching {
         val cal = android.icu.util.IslamicCalendar()
         cal.add(android.icu.util.Calendar.DAY_OF_MONTH, adjustment)
@@ -7523,7 +7393,7 @@ private fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
 
 /** A quiet, scroll-away Home ad directly below Noor Audio, as requested. */
 @Composable
-private fun StitchHomeSponsoredAdCard(modifier: Modifier = Modifier) {
+internal fun StitchHomeSponsoredAdCard(modifier: Modifier = Modifier) {
     com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth(), com.noorpro.app.ads.AdIds.BOTTOM_BANNER)
 }
 

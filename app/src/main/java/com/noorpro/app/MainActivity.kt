@@ -538,7 +538,7 @@ fun FloatingBottomNavigationBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(62.dp)
             .clip(navShape)
             .background(
                 Brush.verticalGradient(navColors)
@@ -609,7 +609,8 @@ fun RowScope.NavBarItem(
     onClick: () -> Unit
 ) {
     val unselectedColor = if (isLightTheme) Color(0xFF8DA19A) else StitchDarkMuted
-    val selectedContainer = if (isLightTheme) StitchEmerald else StitchDarkSoft
+    // 1.0.99: selected tab = soft mint pill behind a green icon (dark: deep-green pill, gold icon).
+    val selectedContainer = if (isLightTheme) Color(0xFFE2F0E9) else Color(0xFF1B3A30)
     val selectedLabelColor = if (isLightTheme) StitchEmerald else MatteGold
     val labelColor by androidx.compose.animation.animateColorAsState(if (isSelected) selectedLabelColor else unselectedColor, tween(200), label = "navLabel")
     val pillColor by androidx.compose.animation.animateColorAsState(if (isSelected) selectedContainer else Color.Transparent, tween(200), label = "navPill")
@@ -635,22 +636,22 @@ fun RowScope.NavBarItem(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
                     .background(pillColor)
-                    .padding(horizontal = if (isSelected) 9.dp else 6.dp, vertical = 3.dp)
+                    .padding(horizontal = if (isSelected) 18.dp else 10.dp, vertical = 4.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = if (isSelected) MatteGold else labelColor,
-                    modifier = Modifier.size(18.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
+                    tint = if (isSelected) selectedLabelColor else labelColor,
+                    modifier = Modifier.size(21.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
                 )
             }
 
-            Spacer(modifier = Modifier.height(1.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
                 text = label,
                 color = labelColor,
-                fontSize = 8.sp,
+                fontSize = 10.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
         }

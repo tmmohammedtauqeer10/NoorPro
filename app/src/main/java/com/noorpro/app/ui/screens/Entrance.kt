@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -143,10 +144,18 @@ fun BrandSplash(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(26.dp))
             NoorWordmark(34.dp, noorLogoCream)
         }
-        Text(
-            "بِسْمِ ٱللَّهِ", color = noorLogoCream.copy(alpha = 0.55f), fontSize = 18.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 36.dp)
-        )
+        // 1.0.99: publisher credit ("from Al-Hikmah Digital") replaces the bismillah line, matching the system splash.
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 34.dp)
+                .graphicsAlpha(appear.value).testTag("splash_publisher")
+        ) {
+            Text("from", color = noorLogoCream.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 0.4.sp,
+                fontFamily = com.noorpro.app.ui.theme.PlusJakarta)
+            Spacer(Modifier.height(2.dp))
+            Text("Al-Hikmah Digital", color = noorLogoCream, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.3.sp, fontFamily = com.noorpro.app.ui.theme.PlusJakarta)
+        }
     }
 }
 
