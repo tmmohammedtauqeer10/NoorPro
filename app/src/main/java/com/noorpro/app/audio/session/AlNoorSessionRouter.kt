@@ -38,6 +38,9 @@ object AlNoorSessionRouter {
 
     fun detach(mediaSession: MediaSession) { if (session === mediaSession) session = null }
 
+    /** 1.0.98: the player the live media session controls, or null when the service is not running. Main thread. */
+    fun currentPlayer(): Player? = session?.player
+
     fun select(context: Context, src: Source) {
         check(Looper.myLooper() == Looper.getMainLooper()) { "AlNoorSessionRouter.select must run on main" }
         val app = context.applicationContext
@@ -52,6 +55,7 @@ object AlNoorSessionRouter {
             if (s.player !== target) runCatching { s.player = target }
                 .onFailure { Log.w(TAG, "Could not swap session player", it) }
             NoorMediaLayout.refresh(app, s)
+            com.noorpro.app.widget.NowPlayingWidget.onPlayerChanged(app, s.player)
         }
         runCatching { AlNoorMediaSession.obtain(app).startSession() }
             .onFailure { Log.w(TAG, "Could not start media service", it) }

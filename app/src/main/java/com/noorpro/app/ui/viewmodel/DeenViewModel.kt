@@ -1142,6 +1142,23 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     )
     val recentQuranReads: StateFlow<List<Pair<Surah, Int>>> = _recentQuranReads.asStateFlow()
 
+    // 1.0.98: last-read position survives restarts (and feeds the Continue Quran widget).
+    init {
+        runCatching {
+            com.noorpro.app.data.QuranLastRead.load(getApplication())?.let { saved ->
+                if (saved.surahId > 0) {
+                    IslamicData.surahs.firstOrNull { it.id == saved.surahId }?.let { surah ->
+                        _lastReadSurah.value = surah
+                        _lastReadAyah.value = saved.ayah
+                        val clean = surah.copy(verses = emptyList())
+                        _recentQuranReads.value = (listOf(clean to saved.ayah) +
+                            _recentQuranReads.value.filterNot { it.first.id == clean.id }).take(3)
+                    }
+                }
+            }
+        }
+    }
+
     private val _prayers = MutableStateFlow(IslamicData.defaultPrayers)
     val prayers: StateFlow<List<PrayerTime>> = _prayers.asStateFlow()
 
@@ -3023,6 +3040,12 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         _recentQuranReads.value = (listOf(cleanSurah to cleanAyah) +
             _recentQuranReads.value.filterNot { it.first.id == cleanSurah.id })
             .take(3)
+        // 1.0.98: persist for restarts + the Continue Quran home-screen widget.
+        runCatching {
+            val app = getApplication<Application>()
+            com.noorpro.app.data.QuranLastRead.save(app, cleanSurah.id, cleanAyah, cleanSurah.nameEnglish, cleanSurah.nameArabic)
+            com.noorpro.app.widget.ContinueQuranWidget.requestRefresh(app)
+        }
     }
 
     fun toggleBookmark(surah: Surah, ayahNumber: Int, ayahText: String) {

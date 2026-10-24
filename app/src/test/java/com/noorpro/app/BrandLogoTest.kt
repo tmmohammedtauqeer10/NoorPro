@@ -30,7 +30,7 @@ class BrandLogoTest {
         listOf(
             R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground, R.drawable.ic_launcher_monochrome,
             R.drawable.ic_stat_noorpro, R.drawable.brand_n_tile, R.drawable.brand_n_glyph, R.drawable.brand_wordmark,
-            R.drawable.widget_logo_n, R.drawable.ic_splash_mark, R.drawable.splash_branding,
+            R.drawable.widget_logo_tile_cream, R.drawable.widget_art_fallback, R.drawable.ic_splash_mark, R.drawable.splash_branding,
         ).forEach { assertNotNull(ContextCompat.getDrawable(ctx, it)); render(it) }
     }
 

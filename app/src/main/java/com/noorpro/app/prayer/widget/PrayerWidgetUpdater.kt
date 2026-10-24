@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import com.noorpro.app.MainActivity
@@ -22,19 +21,25 @@ import java.util.concurrent.TimeUnit
 
 object PrayerWidgetUpdater {
 
-    /** Hide secondary lines (Hijri date) when the user shrinks a widget below this height (dp). */
-    private const val MIN_HEIGHT_FOR_HIJRI_NEXT_DP = 130
-    private const val MIN_HEIGHT_FOR_HIJRI_DAY_DP = 100
+    /** Hide secondary lines when the user shrinks a widget below these heights (dp). */
+    private const val MIN_HEIGHT_FULL_NEXT_DP = 140
+    private const val MIN_HEIGHT_SUB_DAY_DP = 150
+    private const val MIN_HEIGHT_HEADER_DAY_DP = 120
 
     suspend fun refreshAll(context: Context) {
         val mgr = AppWidgetManager.getInstance(context)
         val nextIds = mgr.getAppWidgetIds(ComponentName(context, NextPrayerWidgetReceiver::class.java))
         val dayIds = mgr.getAppWidgetIds(ComponentName(context, DayPrayerWidgetReceiver::class.java))
-        if (nextIds.isEmpty() && dayIds.isEmpty()) return
+        if (nextIds.isEmpty() && dayIds.isEmpty()) {
+            WidgetTicker.cancel(context)
+            return
+        }
 
         val snapshot = loadSnapshot(context)
         nextIds.forEach { updateNext(context, mgr, it, snapshot) }
         dayIds.forEach { updateDay(context, mgr, it, snapshot) }
+        // 1.0.98: minute countdown ("In 42 min") - re-armed after every refresh.
+        WidgetTicker.scheduleNext(context)
     }
 
     data class Snapshot(
@@ -104,68 +109,99 @@ object PrayerWidgetUpdater {
         mgr.updateAppWidget(id, buildDayViews(context, id, snap, minHeightDp(mgr, id)))
     }
 
-    /** RemoteViews for the 2x2 widget. [minHeightDp] <= 0 means unknown (show everything). */
+    /** "4:35 PM" or "16:35", following the app's 12/24-hour setting. */
+    fun displayTime(context: Context, hhmm: String, withSuffix: Boolean = true): String {
+        if (!use12Hour(context)) return hhmm
+        val label = PrayerDisplay.clock12(hhmm)
+        return if (withSuffix) label else label.substringBefore(' ')
+    }
+
+    private fun use12Hour(context: Context): Boolean = runCatching {
+        context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getBoolean("use_12_hour_time", true)
+    }.getOrDefault(true)
+
+    /** "In 42 min" / "In 2 h 5 min"; minutes are rounded up so it never reads "In 0 min" early. */
+    fun countdownWords(ms: Long): String {
+        val totalMin = (ms.coerceAtLeast(0) + 59_999L) / 60_000L
+        return when {
+            totalMin <= 1L -> "In 1 min"
+            totalMin < 60L -> "In $totalMin min"
+            totalMin % 60L == 0L -> "In ${totalMin / 60} h"
+            else -> "In ${totalMin / 60} h ${totalMin % 60} min"
+        }
+    }
+
+    private fun countdownText(snap: Snapshot): String {
+        val remaining = snap.targetMs - System.currentTimeMillis()
+        return if (snap.targetMs > 0L && remaining > 0L) countdownWords(remaining) else "In ${snap.countdown}"
+    }
+
+    /** Sun / sunset / moon for the upcoming prayer. */
+    fun timeOfDayIcon(nextName: String): Int = when (nextName.lowercase(Locale.ROOT)) {
+        "dhuhr", "asr", "sunrise" -> R.drawable.ic_widget_sun
+        "maghrib" -> R.drawable.ic_widget_sunset
+        else -> R.drawable.ic_widget_moon
+    }
+
+    /** RemoteViews for the 2x2 Next prayer widget. [minHeightDp] <= 0 means unknown (show everything). */
     fun buildNextViews(context: Context, id: Int, snap: Snapshot, minHeightDp: Int = 0): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_next_prayer_2x2)
-        views.setTextViewText(R.id.widget_next_name, if (snap.available) snap.nextName else "Prayer")
-        views.setTextViewText(R.id.widget_next_time, if (snap.available) snap.nextTime else "--:--")
-        setCountdown(views, R.id.widget_next_countdown, snap, "in %s", "Set location")
-        val showHijri = snap.hijri.isNotBlank() && (minHeightDp <= 0 || minHeightDp >= MIN_HEIGHT_FOR_HIJRI_NEXT_DP)
-        views.setTextViewText(R.id.widget_next_hijri, snap.hijri)
-        views.setViewVisibility(R.id.widget_next_hijri, if (showHijri) View.VISIBLE else View.GONE)
-        views.setOnClickPendingIntent(R.id.widget_next_root, openPrayerPending(context, id))
+        if (snap.available) {
+            views.setTextViewText(R.id.widget_next_name, snap.nextName)
+            views.setTextViewText(R.id.widget_next_time, displayTime(context, snap.nextTime))
+            views.setTextViewText(R.id.widget_next_countdown, countdownText(snap))
+            views.setImageViewResource(R.id.widget_next_icon, timeOfDayIcon(snap.nextName))
+        } else {
+            views.setTextViewText(R.id.widget_next_name, "Prayer")
+            views.setTextViewText(R.id.widget_next_time, "--:--")
+            views.setTextViewText(R.id.widget_next_countdown, "Set location")
+        }
+        // Very short widgets: drop the caption so name + time + countdown still fit.
+        val compact = minHeightDp in 1 until MIN_HEIGHT_FULL_NEXT_DP
+        views.setViewVisibility(R.id.widget_next_label, if (compact) View.GONE else View.VISIBLE)
+        views.setOnClickPendingIntent(android.R.id.background, openPrayerPending(context, id))
         return views
     }
 
-    /** RemoteViews for the 4x2 widget. [minHeightDp] <= 0 means unknown (show everything). */
+    /** RemoteViews for the 4x2 Prayer times widget. [minHeightDp] <= 0 means unknown (show everything). */
     fun buildDayViews(context: Context, id: Int, snap: Snapshot, minHeightDp: Int = 0): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_day_prayers_4x2)
-        val gold = context.getColorCompat(R.color.widget_gold)
-        val muted = context.getColorCompat(R.color.widget_muted)
-        val text = context.getColorCompat(R.color.widget_text)
+        val accent = context.getColorCompat(R.color.widget_accent_text)
+        val ink = context.getColorCompat(R.color.widget_ink)
 
         fun set(slotId: Int, nameId: Int, timeId: Int, name: String) {
             val isNext = snap.available && snap.nextName.equals(name, ignoreCase = true)
             views.setTextViewText(nameId, name)
-            views.setTextViewText(timeId, snap.times[name] ?: "--:--")
-            views.setTextColor(nameId, if (isNext) gold else muted)
-            views.setTextColor(timeId, if (isNext) gold else text)
-            // Rounded gold-tinted chip behind the next prayer column (0 clears it).
-            views.setInt(slotId, "setBackgroundResource", if (isNext) R.drawable.widget_slot_next else 0)
+            views.setTextViewText(timeId, snap.times[name]?.let { displayTime(context, it, withSuffix = false) } ?: "--:--")
+            views.setTextColor(nameId, if (isNext) accent else ink)
+            views.setTextColor(timeId, if (isNext) accent else ink)
+            // Mint pill behind the next prayer column (0 clears it).
+            views.setInt(slotId, "setBackgroundResource", if (isNext) R.drawable.widget_slot_mint else 0)
         }
         set(R.id.widget_day_fajr_slot, R.id.widget_day_fajr_label, R.id.widget_day_fajr_time, "Fajr")
         set(R.id.widget_day_dhuhr_slot, R.id.widget_day_dhuhr_label, R.id.widget_day_dhuhr_time, "Dhuhr")
         set(R.id.widget_day_asr_slot, R.id.widget_day_asr_label, R.id.widget_day_asr_time, "Asr")
         set(R.id.widget_day_maghrib_slot, R.id.widget_day_maghrib_label, R.id.widget_day_maghrib_time, "Maghrib")
         set(R.id.widget_day_isha_slot, R.id.widget_day_isha_label, R.id.widget_day_isha_time, "Isha")
-        setCountdown(
-            views, R.id.widget_day_header, snap,
-            "Next: ${snap.nextName.replace("%", "")} \u00B7 in %s", "Prayer times"
-        )
-        val showHijri = snap.hijri.isNotBlank() && (minHeightDp <= 0 || minHeightDp >= MIN_HEIGHT_FOR_HIJRI_DAY_DP)
-        views.setTextViewText(R.id.widget_day_hijri, snap.hijri)
-        views.setViewVisibility(R.id.widget_day_hijri, if (showHijri) View.VISIBLE else View.GONE)
-        views.setOnClickPendingIntent(R.id.widget_day_root, openPrayerPending(context, id + 1000))
+        if (snap.available) {
+            views.setTextViewText(R.id.widget_day_next_name, snap.nextName)
+            views.setTextViewText(R.id.widget_day_next_time, displayTime(context, snap.nextTime))
+            views.setTextViewText(R.id.widget_day_sub, "Next prayer \u00B7 " + countdownText(snap).replaceFirstChar { it.lowercase() })
+        } else {
+            views.setTextViewText(R.id.widget_day_next_name, "Prayer times")
+            views.setTextViewText(R.id.widget_day_next_time, "")
+            views.setTextViewText(R.id.widget_day_sub, "Open NoorPro to set your location")
+        }
+        views.setTextViewText(R.id.widget_day_today, context.getString(R.string.widget_day_header))
+        val h = minHeightDp
+        views.setViewVisibility(R.id.widget_day_sub, if (h in 1 until MIN_HEIGHT_SUB_DAY_DP) View.GONE else View.VISIBLE)
+        views.setViewVisibility(R.id.widget_day_header_row, if (h in 1 until MIN_HEIGHT_HEADER_DAY_DP) View.GONE else View.VISIBLE)
+        views.setOnClickPendingIntent(android.R.id.background, openPrayerPending(context, id + 1000))
         return views
     }
 
-    /**
-     * Live countdown: a Chronometer in count-down mode is ticked by the launcher itself every
-     * second, so no wake-ups are needed. The refresh alarms only re-point it at the next prayer.
-     */
-    private fun setCountdown(views: RemoteViews, viewId: Int, snap: Snapshot, format: String, placeholder: String) {
-        val remaining = snap.targetMs - System.currentTimeMillis()
-        if (snap.available && snap.targetMs > 0L && remaining > 0L) {
-            views.setChronometerCountDown(viewId, true)
-            views.setChronometer(viewId, SystemClock.elapsedRealtime() + remaining, format, true)
-        } else {
-            val text = if (snap.available) format.replace("%s", snap.countdown) else placeholder
-            views.setChronometer(viewId, SystemClock.elapsedRealtime(), text, false)
-        }
-    }
-
     private fun minHeightDp(mgr: AppWidgetManager, id: Int): Int = try {
-        mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+        mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)  // portrait height
     } catch (_: Exception) {
         0
     }

@@ -1,104 +1,86 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Next-prayer 2x2 widget: emerald card, masjid silhouette, gold accent. RemoteViews-safe views only. -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_next_root"
+<!-- 1.0.98 Next prayer 2x2 (green): N tile + time-of-day icon, NEXT PRAYER, name, time, countdown. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_gradient">
-
-    <ImageView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:adjustViewBounds="true"
-        android:importantForAccessibility="no"
-        android:scaleType="fitXY"
-        android:src="@drawable/widget_masjid_compact" />
+    android:background="@drawable/widget_bg_green"
+    android:orientation="vertical"
+    android:padding="16dp">
 
     <LinearLayout
+        android:id="@+id/widget_next_top"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center_vertical"
-        android:orientation="vertical"
-        android:paddingStart="14dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="10dp">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <ImageView
+            android:id="@+id/widget_next_logo"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="NoorPro"
+            android:src="@drawable/widget_logo_tile_cream" />
+        <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <ImageView
+            android:id="@+id/widget_next_icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_widget_sun" />
+    </LinearLayout>
 
-        <LinearLayout
+    <FrameLayout android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" android:minHeight="6dp" />
+
+        <TextView
+            android:id="@+id/widget_next_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageView
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:importantForAccessibility="no"
-                android:src="@drawable/widget_logo_n" />
-
-            <TextView
-            android:id="@+id/widget_next_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0.1"
-                android:maxLines="1"
-                android:text="@string/widget_next_prayer_label_caps"
-                android:textColor="@color/widget_gold"
-                android:textSize="10sp" />
-        </LinearLayout>
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:text="NEXT PRAYER"
+            android:textColor="@color/widget_on_green_muted"
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.14" />
 
         <TextView
             android:id="@+id/widget_next_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:fontFamily="serif"
             android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
             android:text="Prayer"
-            android:textColor="@color/widget_text"
-            android:textSize="25sp"
+            android:textColor="@color/widget_on_green"
+            android:textSize="28sp"
+            android:layout_marginTop="5dp"
+            android:fontFamily="sans-serif"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/widget_next_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-medium"
             android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
             android:text="--:--"
-            android:textColor="@color/widget_gold"
-            android:textSize="20sp" />
+            android:textColor="@color/widget_on_green"
+            android:textSize="24sp"
+            android:layout_marginTop="3dp"
+            android:fontFamily="sans-serif"
+            android:textStyle="bold" />
 
-        <Chronometer
+        <TextView
             android:id="@+id/widget_next_countdown"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:background="@drawable/widget_pill_bg"
-            android:fontFamily="sans-serif-medium"
             android:maxLines="1"
-            android:paddingStart="9dp"
-            android:paddingTop="2dp"
-            android:paddingEnd="9dp"
-            android:paddingBottom="2dp"
-            android:text="Open Noor Pro"
-            android:textColor="@color/widget_text"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/widget_next_hijri"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:text=""
-            android:textColor="@color/widget_muted"
-            android:textSize="10sp"
-            android:visibility="gone" />
-    </LinearLayout>
-</FrameLayout>
+            android:includeFontPadding="false"
+            android:text="Open NoorPro"
+            android:textColor="@color/widget_on_green_muted"
+            android:textSize="14sp"
+            android:layout_marginTop="5dp" />
+
+</LinearLayout>

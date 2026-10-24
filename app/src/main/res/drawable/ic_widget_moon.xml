@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98: time-of-day icon (night - Isha / before Fajr). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp" android:height="28dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#FFFDF9F0" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M20,14.5A8,8 0 1,1 9.5,4A6.5,6.5 0 0,0 20,14.5Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFDF9F0" android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M17.5,4.5v3M16,6h3" />
+</vector>

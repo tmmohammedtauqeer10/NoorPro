@@ -54,6 +54,9 @@ class AlNoorMediaSessionService : MediaSessionService() {
         runCatching { AlNoorSessionRouter.playerFor(this, AlNoorSessionRouter.Source.AL_NOOR).addListener(layoutListener) }
         runCatching { QuranSessionBridge.sessionPlayer().addListener(layoutListener) }
         NoorMediaLayout.refresh(this, mediaSession)
+        // 1.0.98: home-screen Now playing widget follows the session player.
+        widgetHandler.post(widgetProgressTick)
+        com.noorpro.app.widget.NowPlayingWidget.onPlayerChanged(this, mediaSession?.player)
         Log.i(TAG, "Al Noor media session service created")
     }
 
@@ -63,6 +66,29 @@ class AlNoorMediaSessionService : MediaSessionService() {
         }
         override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
             NoorMediaLayout.refresh(this@AlNoorMediaSessionService, mediaSession)
+        }
+        override fun onEvents(player: androidx.media3.common.Player, events: androidx.media3.common.Player.Events) {
+            if (events.containsAny(
+                    androidx.media3.common.Player.EVENT_IS_PLAYING_CHANGED,
+                    androidx.media3.common.Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    androidx.media3.common.Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    androidx.media3.common.Player.EVENT_MEDIA_METADATA_CHANGED,
+                    androidx.media3.common.Player.EVENT_POSITION_DISCONTINUITY,
+                    androidx.media3.common.Player.EVENT_TIMELINE_CHANGED,
+                )
+            ) {
+                com.noorpro.app.widget.NowPlayingWidget.onPlayerChanged(this@AlNoorMediaSessionService, mediaSession?.player)
+            }
+        }
+    }
+
+    /** 1.0.98: re-sync the widget progress bar every 15 s, only while audio is actually playing. */
+    private val widgetHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val widgetProgressTick: Runnable = object : Runnable {
+        override fun run() {
+            val p = mediaSession?.player
+            if (p != null && p.isPlaying) com.noorpro.app.widget.NowPlayingWidget.onPlayerChanged(this@AlNoorMediaSessionService, p)
+            widgetHandler.postDelayed(this, 15_000L)
         }
     }
 
@@ -93,11 +119,13 @@ class AlNoorMediaSessionService : MediaSessionService() {
         runCatching { QuranSessionBridge.pauseForOtherSource() }
         runCatching { if (AlNoorAudioSession.isInitialized()) AlNoorAudioSession.player.sessionPlayer.removeListener(layoutListener) }
         runCatching { QuranSessionBridge.sessionPlayer().removeListener(layoutListener) }
+        widgetHandler.removeCallbacks(widgetProgressTick)
         mediaSession?.run {
             AlNoorSessionRouter.detach(this)
             release()
             mediaSession = null
         }
+        runCatching { com.noorpro.app.widget.NowPlayingWidget.showIdle(this) }
         super.onDestroy()
     }
 

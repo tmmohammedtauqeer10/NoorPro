@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98 widget. previewLayout = live scalable picker preview (Android 12+);
+     previewImage = rendered fallback for Android 11 and older pickers. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="80dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="110dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_day_prayers_4x2"
     android:previewLayout="@layout/widget_preview_day"
+    android:previewImage="@drawable/widget_picker_prayer_times"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/widget_day_prayers_description" />

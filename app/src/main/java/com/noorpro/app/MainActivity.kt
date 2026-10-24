@@ -129,14 +129,37 @@ class MainActivity : ComponentActivity() {
         else -> null
     }
 
+    /** 1.0.98: request from a home-screen widget (Continue Quran / Now playing). */
+    private data class WidgetNav(val surahId: Int = 0, val ayah: Int = 1, val nowPlaying: Boolean = false, val audio: Boolean = false)
+    private val widgetNav = androidx.compose.runtime.mutableStateOf<WidgetNav?>(null)
+
+    private fun widgetTarget(i: Intent?): WidgetNav? = when {
+        i == null -> null
+        i.getBooleanExtra(EXTRA_QURAN_RESUME, false) ->
+            WidgetNav(surahId = i.getIntExtra(EXTRA_QURAN_SURAH_ID, 1), ayah = i.getIntExtra(EXTRA_QURAN_AYAH, 1).coerceAtLeast(1))
+        i.getBooleanExtra(EXTRA_OPEN_NOW_PLAYING, false) || i.getBooleanExtra("OPEN_AL_NOOR_AUDIO", false) -> WidgetNav(nowPlaying = true)
+        i.getBooleanExtra(EXTRA_OPEN_AUDIO, false) -> WidgetNav(audio = true)
+        else -> null
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         notificationTarget(intent, includePrayer = true)?.let { notificationNav.value = it }
+        widgetTarget(intent)?.let { widgetNav.value = it }
+    }
+
+    companion object {
+        const val EXTRA_QURAN_RESUME = "OPEN_QURAN_RESUME"
+        const val EXTRA_QURAN_SURAH_ID = "QURAN_SURAH_ID"
+        const val EXTRA_QURAN_AYAH = "QURAN_AYAH"
+        const val EXTRA_OPEN_NOW_PLAYING = "OPEN_NOW_PLAYING"
+        const val EXTRA_OPEN_AUDIO = "OPEN_AUDIO_LIBRARY"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (savedInstanceState == null) notificationNav.value = notificationTarget(intent, includePrayer = false)
+        if (savedInstanceState == null) widgetNav.value = widgetTarget(intent)
         // Android 12+ SplashScreen API (back-ported): brand green + app mark, then hands over to Compose.
         installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -178,6 +201,34 @@ class MainActivity : ComponentActivity() {
             val notifTarget = notificationNav.value
             androidx.compose.runtime.LaunchedEffect(notifTarget) {
                 notifTarget?.let { viewModel.navigateTo(it); notificationNav.value = null }
+            }
+            val widgetReq = widgetNav.value
+            androidx.compose.runtime.LaunchedEffect(widgetReq) {
+                val req = widgetReq ?: return@LaunchedEffect
+                widgetNav.value = null
+                when {
+                    req.surahId != 0 -> {
+                        val surah = if (req.surahId > 0) {
+                            com.noorpro.app.data.IslamicData.surahs.firstOrNull { it.id == req.surahId }
+                                ?: com.noorpro.app.data.IslamicData.surahs.first()
+                        } else {
+                            com.noorpro.app.data.Surah(
+                                id = req.surahId, nameEnglish = "Juz ${-req.surahId}", nameArabic = "Juz ${-req.surahId}",
+                                englishTranslation = "", versesCount = com.noorpro.app.data.IslamicData.juzAyahsCount[-req.surahId] ?: 0,
+                                type = "Juz", verses = emptyList(),
+                            )
+                        }
+                        viewModel.resumeReading(surah, req.ayah)
+                    }
+                    req.nowPlaying -> {
+                        val hasMedia = com.noorpro.app.audio.session.AlNoorSessionRouter.currentPlayer()?.mediaItemCount?.let { it > 0 } == true
+                        viewModel.navigateTo(
+                            if (hasMedia) com.noorpro.app.ui.viewmodel.DeenScreen.NOW_PLAYING
+                            else com.noorpro.app.ui.viewmodel.DeenScreen.AUDIO_LIBRARY,
+                        )
+                    }
+                    req.audio -> viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.AUDIO_LIBRARY)
+                }
             }
             val themeMode by viewModel.themeMode.collectAsState()
             val systemTheme = androidx.compose.foundation.isSystemInDarkTheme()

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98 widget. previewLayout = live scalable picker preview (Android 12+);
+     previewImage = rendered fallback for Android 11 and older pickers. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="110dp"
@@ -9,6 +11,7 @@
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_next_prayer_2x2"
     android:previewLayout="@layout/widget_preview_next"
+    android:previewImage="@drawable/widget_picker_next_prayer"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/widget_next_prayer_description" />
