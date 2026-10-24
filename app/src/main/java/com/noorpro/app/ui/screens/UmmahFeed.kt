@@ -367,7 +367,11 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
                         myAvatarUrl = viewModel.userPhotoUrl,
                         isLoggedIn = viewModel.isLoggedIn,
                         blocked = blocked,
-                        onOpenChat = { _, _ -> }
+                        onOpenChat = { _, _ -> },
+                        onCreateStory = {
+                            com.noorpro.app.data.ComposerLaunch.open(com.noorpro.app.data.ComposerDestination.STORY)
+                            viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST)
+                        }
                     )
                 },
                 ad = { StitchSponsoredPostCard() }
@@ -435,8 +439,9 @@ internal fun NoorUmmahFeed(
             item(key = "masthead") {
                 UmmahMasthead(ui.displayName, ui.photoUrl, actions)
             }
+            // 1.1.2: stories ("status") sit under the masthead, above the tabs, in every tab.
             if (stories != null) item(key = "stories") {
-                Box(Modifier.padding(horizontal = 12.dp).padding(bottom = 6.dp)) { stories() }
+                Box(Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp)) { stories() }
             }
             stickyHeader(key = "tabs") {
                 UmmahTabBar(tab, onTab)

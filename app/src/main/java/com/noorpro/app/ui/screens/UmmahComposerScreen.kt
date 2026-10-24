@@ -20,6 +20,7 @@ import com.noorpro.app.data.ComposerDestination
 import com.noorpro.app.data.ComposerDraft
 import com.noorpro.app.data.ComposerDraftStore
 import com.noorpro.app.data.ComposerFlags
+import com.noorpro.app.data.ComposerLaunch
 import com.noorpro.app.data.ComposerLimits
 import com.noorpro.app.data.ReelEditor
 import com.noorpro.app.data.StoryRepository
@@ -40,9 +41,11 @@ import java.io.File
 fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // 1.1.2: "Your story" + in the Ummah stories row preselects Story (consumed once).
+    val launchDestination = remember { ComposerLaunch.consume() }
     if (!viewModel.isLoggedIn) {
         StitchSignInRequiredScreen(
-            title = if (reelMode) "New reel" else "New post",
+            title = when { launchDestination == ComposerDestination.STORY -> "New story"; reelMode -> "New reel"; else -> "New post" },
             message = "Please sign in before sharing posts or reels.",
             onBack = { viewModel.goBack() },
             onSignIn = { viewModel.navigateTo(DeenScreen.LOGIN) }
@@ -50,7 +53,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
         return
     }
     LaunchedEffect(Unit) { ComposerFlags.load() }
-    val state = remember { ComposerUiState(if (reelMode) ComposerDestination.REEL else ComposerDestination.FEED) }
+    val state = remember { ComposerUiState(launchDestination ?: if (reelMode) ComposerDestination.REEL else ComposerDestination.FEED) }
     val repository = remember { UmmahRepository() }
     val store = remember { ComposerDraftStore(context) }
     var drafts by remember { mutableStateOf(store.all()) }

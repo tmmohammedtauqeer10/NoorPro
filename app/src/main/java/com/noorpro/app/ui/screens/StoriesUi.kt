@@ -37,7 +37,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -55,46 +57,93 @@ import com.noorpro.app.data.UmmahStory
 import com.noorpro.app.data.UmmahStoryGroup
 import com.noorpro.app.data.groupStories
 import com.noorpro.app.ui.components.*
+import com.noorpro.app.ui.theme.LibreCaslon
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 private val SeenRing = Brush.linearGradient(listOf(Color(0xFF9AA5A1), Color(0xFF9AA5A1)))
 
-/** Stories row for the top of Ummah. Pure UI — data comes from [rememberStoriesState]. */
+/**
+ * 1.1.2: mine first, then unseen stories (newest first), then seen ones. The viewer uses the same
+ * order so swiping continues in the order the row shows.
+ */
+internal fun orderStoryGroups(groups: List<UmmahStoryGroup>, myUid: String?, isSeen: (UmmahStoryGroup) -> Boolean): List<UmmahStoryGroup> {
+    val mine = groups.filter { myUid != null && it.authorUid == myUid }
+    val others = groups.filter { myUid == null || it.authorUid != myUid }
+        .sortedWith(compareBy<UmmahStoryGroup> { isSeen(it) }.thenByDescending { it.stories.lastOrNull()?.createdAt ?: 0L })
+    return mine + others
+}
+
+/**
+ * 1.1.2: NoorPro stories ("status") row shown at the top of the Ummah feed in every tab, under the
+ * masthead and above the tabs/composer. "Your story" is always first (even when nobody else has a
+ * story); unseen stories carry the emerald/gold ring, seen ones a quiet grey ring. Pure UI.
+ */
 @Composable
-internal fun StoriesRow(
+internal fun NoorStoriesRow(
     groups: List<UmmahStoryGroup>,
     myUid: String?,
+    myName: String,
     myAvatarUrl: String,
     isSeen: (UmmahStoryGroup) -> Boolean,
-    uploading: Float?,
+    uploading: Float? = null,
     onAddStory: () -> Unit,
-    onOpen: (Int) -> Unit
+    onOpen: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val mine = groups.indexOfFirst { it.authorUid == myUid }
-    LazyRow(contentPadding = PaddingValues(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        item(key = "you") {
-            StoryBubble(
-                label = "Your story",
-                avatarUrl = if (mine >= 0) groups[mine].stories.last().coverUrl.ifBlank { myAvatarUrl } else myAvatarUrl,
-                initial = "Y",
-                ring = if (mine >= 0) NoorRingBrush else null,
-                showAdd = true,
-                progress = uploading,
-                onClick = { if (mine >= 0) onOpen(mine) else onAddStory() },
-                onAdd = onAddStory
+    val mine = groups.indexOfFirst { myUid != null && it.authorUid == myUid }
+    val othersCount = groups.size - if (mine >= 0) 1 else 0
+    val unseen = groups.count { it.authorUid != myUid && !isSeen(it) }
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(stitchSurface())
+            .border(1.dp, feedGold().copy(alpha = 0.28f), RoundedCornerShape(22.dp))
+            .padding(top = 12.dp, bottom = 10.dp).testTag("ummah_stories_row")
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Stories", color = feedAccent(), fontSize = 17.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(feedMint()).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                Text("24h", color = feedAccent(), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                when {
+                    unseen > 0 -> "$unseen new"
+                    othersCount > 0 -> "All caught up"
+                    else -> "Share a moment"
+                },
+                color = if (unseen > 0) feedGold() else stitchMutedText(), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
             )
         }
-        itemsIndexed(groups, key = { _, g -> g.authorUid }) { i, g ->
-            if (g.authorUid == myUid) return@itemsIndexed
-            StoryBubble(
-                label = g.authorHandle.removePrefix("@").ifBlank { g.authorName },
-                avatarUrl = g.avatarUrl,
-                initial = g.authorName.take(1).uppercase(),
-                ring = if (isSeen(g)) SeenRing else NoorRingBrush,
-                onClick = { onOpen(i) },
-                modifier = Modifier.staggeredEntrance(i)
-            )
+        Spacer(Modifier.height(10.dp))
+        LazyRow(Modifier.testTag("ummah_stories_list"), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            item(key = "you") {
+                val myGroup = groups.getOrNull(mine)
+                StoryBubble(
+                    label = "Your story",
+                    avatarUrl = myAvatarUrl,
+                    initial = myName.trim().take(1).uppercase().ifBlank { "Y" },
+                    ring = when { myGroup == null -> null; isSeen(myGroup) -> SeenRing; else -> NoorRingBrush },
+                    showAdd = true,
+                    progress = uploading,
+                    onClick = { if (mine >= 0) onOpen(mine) else onAddStory() },
+                    onAdd = onAddStory,
+                    modifier = Modifier.testTag("story_you")
+                )
+            }
+            itemsIndexed(groups, key = { _, g -> g.authorUid }) { i, g ->
+                if (i == mine) return@itemsIndexed
+                StoryBubble(
+                    label = g.authorName.ifBlank { g.authorHandle.removePrefix("@") },
+                    avatarUrl = g.avatarUrl,
+                    initial = g.authorName.take(1).uppercase(),
+                    ring = if (isSeen(g)) SeenRing else NoorRingBrush,
+                    video = g.stories.lastOrNull()?.type == "video",
+                    dim = isSeen(g),
+                    onClick = { onOpen(i) },
+                    modifier = Modifier.testTag("story_${g.authorUid}").staggeredEntrance(i)
+                )
+            }
         }
     }
 }
@@ -102,28 +151,45 @@ internal fun StoriesRow(
 @Composable
 private fun StoryBubble(
     label: String, avatarUrl: String, initial: String, ring: Brush?, showAdd: Boolean = false,
-    progress: Float? = null, onClick: () -> Unit, onAdd: () -> Unit = {}, modifier: Modifier = Modifier
+    progress: Float? = null, video: Boolean = false, dim: Boolean = false,
+    onClick: () -> Unit, onAdd: () -> Unit = {}, modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.width(72.dp).pressScale().clickable(onClick = onClick)) {
-        Box(Modifier.size(68.dp)) {
+    val preview = UmmahFeedPreview.images[avatarUrl]
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.width(74.dp).pressScale().clickable(onClick = onClick)) {
+        Box(Modifier.size(70.dp)) {
             Box(
                 Modifier.fillMaxSize()
-                    .then(if (ring != null) Modifier.border(2.5.dp, ring, CircleShape) else Modifier.border(1.dp, stitchLine(), CircleShape))
-                    .padding(4.dp).clip(CircleShape).background(StitchGold.copy(alpha = 0.35f)),
+                    .then(
+                        if (ring != null) Modifier.border(if (dim) 2.dp else 3.dp, ring, CircleShape)
+                        else Modifier.border(1.5.dp, feedGold().copy(alpha = 0.45f), CircleShape)
+                    )
+                    .padding(4.dp).clip(CircleShape)
+                    .background(if (isStitchLight()) Color(0xFFF3E6C4) else Color(0xFF3A3220)),
                 contentAlignment = Alignment.Center
             ) {
-                if (avatarUrl.isNotBlank()) AsyncImage(avatarUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                else Text(initial.ifBlank { "U" }, color = StitchEmerald, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                when {
+                    preview != null -> androidx.compose.foundation.Image(preview.asImageBitmap(), label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    avatarUrl.isNotBlank() -> AsyncImage(avatarUrl, label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    else -> Text(initial.ifBlank { "U" }, color = if (isStitchLight()) Color(0xFF7A5A12) else StitchGold,
+                        fontWeight = FontWeight.Bold, fontFamily = LibreCaslon, fontSize = 24.sp)
+                }
             }
             if (progress != null) CircularProgressIndicator(progress = { progress }, color = StitchGold, strokeWidth = 3.dp, modifier = Modifier.fillMaxSize())
-            if (showAdd) Box(
-                Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(stitchPrimary())
-                    .border(2.dp, stitchSurface(), CircleShape).clickable(onClick = onAdd),
+            if (video) Box(
+                Modifier.align(Alignment.BottomStart).size(20.dp).clip(CircleShape).background(Color(0xCC0B2B22))
+                    .border(1.5.dp, stitchSurface(), CircleShape),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Default.Add, "Add story", tint = Color.White, modifier = Modifier.size(14.dp)) }
+            ) { Icon(Icons.Default.Videocam, "Video story", tint = Color.White, modifier = Modifier.size(11.dp)) }
+            if (showAdd) Box(
+                Modifier.align(Alignment.BottomEnd).size(24.dp).clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFF0E8C73), Color(0xFF0B5D4B))))
+                    .border(2.dp, stitchSurface(), CircleShape).clickable(onClick = onAdd).testTag("story_add"),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Default.Add, "Add story", tint = StitchGold, modifier = Modifier.size(15.dp)) }
         }
-        Spacer(Modifier.height(5.dp))
-        Text(label, color = stitchText(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = if (dim) stitchMutedText() else stitchText(), fontSize = 11.5.sp,
+            fontWeight = if (dim) FontWeight.Normal else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -131,7 +197,8 @@ private fun StoryBubble(
 @Composable
 internal fun StoriesSection(
     myName: String, myHandle: String, myAvatarUrl: String, isLoggedIn: Boolean,
-    blocked: Set<String>, onOpenChat: (uid: String, name: String) -> Unit
+    blocked: Set<String>, onOpenChat: (uid: String, name: String) -> Unit,
+    onCreateStory: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val repo = remember { runCatching { StoryRepository() }.getOrNull() }
@@ -185,9 +252,14 @@ internal fun StoriesSection(
         if (ok) launchRecord() else Toast.makeText(context, "Camera permission is needed to record", Toast.LENGTH_SHORT).show()
     }
     var chooser by remember { mutableStateOf(false) }
+    // 1.1.2: the + opens the full composer with Story preselected (it handles sign-in for guests);
+    // the old quick chooser is only a fallback when no composer route is wired.
     val add = {
-        if (!isLoggedIn) Toast.makeText(context, "Sign in to add a story", Toast.LENGTH_SHORT).show()
-        else chooser = true
+        when {
+            onCreateStory != null -> onCreateStory()
+            !isLoggedIn -> Toast.makeText(context, "Sign in to add a story", Toast.LENGTH_SHORT).show()
+            else -> chooser = true
+        }
     }
     if (chooser) StoryAddSheet(
         onDismiss = { chooser = false },
@@ -198,13 +270,13 @@ internal fun StoriesSection(
             else camPerm.launch(android.Manifest.permission.CAMERA)
         }
     )
-    if (!isLoggedIn && groups.isEmpty()) return
-    key(seenTick) {
-        StoriesRow(groups, myUid, myAvatarUrl, isSeen = { g -> g.stories.all { seenStore.isSeen(it.id) } }, uploading = uploading, onAddStory = add, onOpen = { openIndex = it })
-    }
+    // 1.1.2: never hide the row — "Your story" shows even for guests and when nobody has a story.
+    val seen: (UmmahStoryGroup) -> Boolean = { g -> g.stories.all { seenStore.isSeen(it.id) } }
+    val ordered = remember(groups, seenTick, myUid) { orderStoryGroups(groups, myUid, seen) }
+    NoorStoriesRow(ordered, myUid, myName, myAvatarUrl, isSeen = seen, uploading = uploading, onAddStory = add, onOpen = { openIndex = it })
     openIndex?.let { start ->
         StoryViewer(
-            groups = groups, startGroup = start, myUid = myUid,
+            groups = ordered, startGroup = start, myUid = myUid,
             onSeen = { s -> if (!seenStore.isSeen(s.id)) { seenStore.markSeen(s.id); repo?.markViewed(s) } },
             onDelete = { s -> repo?.delete(s) { ok -> Toast.makeText(context, if (ok) "Story deleted" else "Couldn't delete", Toast.LENGTH_SHORT).show() } },
             viewerCount = { s, cb -> repo?.viewerCount(s, cb) },

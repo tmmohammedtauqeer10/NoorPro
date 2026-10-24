@@ -308,3 +308,13 @@ fun formatClock(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
 }
+
+/**
+ * 1.1.2: one-shot destination for the next composer launch (e.g. "Your story" + in the Ummah
+ * stories row opens the composer with Story preselected). Consumed once by the create screen.
+ */
+object ComposerLaunch {
+    @Volatile private var pending: ComposerDestination? = null
+    fun open(destination: ComposerDestination) { pending = destination }
+    fun consume(): ComposerDestination? = pending.also { pending = null }
+}
