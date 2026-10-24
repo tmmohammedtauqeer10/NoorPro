@@ -8,6 +8,7 @@
   },
   "scripts": {
     "lint": "node --check index.js",
+    "test": "node composer.test.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {

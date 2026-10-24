@@ -736,6 +736,8 @@ exports.startReelTranscode = onRequest(
   }
 );
 
+const {composerFields} = require("./composer");
+
 // Validate and promote a submission into the public feed. Both the create trigger and the
 // authenticated recovery endpoint use this function, so tester uploads created before the trigger
 // was deployed can still be promoted. The operation is idempotent because the public post keeps the
@@ -816,6 +818,24 @@ async function promoteUmmahSubmission(submission, submissionId) {
     publishedAt: admin.firestore.FieldValue.serverTimestamp()
   };
   Object.assign(publishedPost, reelSearchFields({...publishedPost, soundTitle: data.soundTitle || data.audioTitle || ""}));
+  // 1.1.1 composer fields (optional, validated). Followers-only posts go to their own collection.
+  const extra = composerFields(type, data);
+  Object.assign(publishedPost, extra);
+  const followersOnly = extra.visibility === "followers";
+  if (followersOnly) {
+    const followerRef = admin.firestore().collection("ummah_follower_posts").doc(submissionId);
+    await admin.firestore().runTransaction(async (transaction) => {
+      const existing = await transaction.get(followerRef);
+      if (!existing.exists) transaction.set(followerRef, publishedPost);
+      transaction.update(submission.ref, {
+        approved: true,
+        status: "published",
+        postId: followerRef.id,
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    return {published: true, status: "published", postId: followerRef.id, visibility: "followers"};
+  }
 
   await admin.firestore().runTransaction(async (transaction) => {
     const existing = await transaction.get(postRef);

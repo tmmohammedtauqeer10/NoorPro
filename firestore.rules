@@ -186,7 +186,22 @@ service cloud.firestore {
             && request.resource.data.mediaUrls is list
             && request.resource.data.mediaUrls.size() >= 2
             && request.resource.data.mediaUrls.size() <= 10
-            && request.resource.data.mediaUrls[0] == request.resource.data.mediaUrl));
+            && request.resource.data.mediaUrls[0] == request.resource.data.mediaUrl))
+        // 1.1.1 composer fields — all optional; validated only when present (older clients unaffected).
+        && (!('aiLabel' in request.resource.data) || request.resource.data.aiLabel is bool)
+        && (!('locationName' in request.resource.data)
+          || (request.resource.data.locationName is string && request.resource.data.locationName.size() <= 80))
+        && (!('visibility' in request.resource.data) || request.resource.data.visibility in ["everyone", "followers"])
+        && (!('poll' in request.resource.data)
+          || (request.resource.data.type in ["text", "image", "video"]
+            && request.resource.data.poll is map
+            && request.resource.data.poll.keys().hasOnly(["options", "endsAt"])
+            && request.resource.data.poll.options is list
+            && request.resource.data.poll.options.size() >= 2
+            && request.resource.data.poll.options.size() <= 4
+            && request.resource.data.poll.endsAt is timestamp
+            && request.resource.data.poll.endsAt > request.time
+            && request.resource.data.poll.endsAt < request.time + duration.value(8, 'd')));
       // Creators can see their own pending submissions; nobody else (admins use Admin SDK).
       allow read: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
@@ -194,6 +209,31 @@ service cloud.firestore {
       // bounded engagement deltas as the published document, so its counts do not stay at zero.
       allow update: if ownerEngagementCounterUpdate();
       allow delete: if false;
+    }
+
+    // 1.1.1: one vote per member per poll. Signed-in members read the tally; votes are final.
+    match /ummah_posts/{postId}/poll_votes/{voterUid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.uid == voterUid
+        && request.resource.data.keys().hasOnly(["uid", "option", "createdAt"])
+        && request.resource.data.uid == voterUid
+        && request.resource.data.option is int
+        && request.resource.data.option >= 0
+        && request.resource.data.createdAt == request.time
+        && get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll is map
+        && request.resource.data.option < get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll.options.size()
+        && request.time < get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll.endsAt;
+      allow update, delete: if false;
+    }
+
+    // 1.1.1: followers-only posts. Written only by the trusted publisher (Admin SDK); readable by
+    // the creator and by members who follow the creator.
+    match /ummah_follower_posts/{postId} {
+      allow read: if request.auth != null
+        && (resource.data.creatorUid == request.auth.uid
+          || exists(/databases/$(database)/documents/ummah_users/$(request.auth.uid)/following/$(resource.data.creatorUid)));
+      allow write: if false;
     }
 
     match /ummah_users/{userId}/{interaction}/{postId} {

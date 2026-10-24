@@ -38,7 +38,13 @@ data class UmmahPost(
     /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
     val pendingStorageRef: String = "",
     /** 1.0.75: optional multi-photo carousel (first item == mediaUrl). Empty for legacy posts. */
-    val mediaUrls: List<String> = emptyList()
+    val mediaUrls: List<String> = emptyList(),
+    /** 1.1.1 (additive, need the updated publisher): poll options (2..4), poll close time, AI label, place, audience. */
+    val pollOptions: List<String> = emptyList(),
+    val pollEndsAt: Long = 0L,
+    val aiLabel: Boolean = false,
+    val locationName: String = "",
+    val visibility: String = "everyone"
 )
 
 /** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
@@ -410,7 +416,14 @@ class UmmahRepository {
         storageProvider = getString("storageProvider").orEmpty(),
         mediaUrls = (get("mediaUrls") as? List<*>).orEmpty().filterIsInstance<String>()
             .map { com.noorpro.app.data.media.MediaUrls.normalize(it) }
-            .filter { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.take(10)
+            .filter { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.take(10),
+        pollOptions = ((get("poll") as? Map<*, *>)?.get("options") as? List<*>).orEmpty()
+            .filterIsInstance<String>().map { it.trim().take(80) }.filter { it.isNotBlank() }.take(4)
+            .takeIf { it.size >= 2 }.orEmpty(),
+        pollEndsAt = ((get("poll") as? Map<*, *>)?.get("endsAt") as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L,
+        aiLabel = getBoolean("aiLabel") == true,
+        locationName = getString("locationName").orEmpty().take(80),
+        visibility = if (getString("visibility") == "followers") "followers" else "everyone"
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
@@ -794,6 +807,10 @@ class UmmahRepository {
         onSubmitted: (String) -> Unit = {},
         onProgress: (Float) -> Unit = {},
         extraImageUris: List<Uri> = emptyList(),
+        /** 1.1.1: an uploaded reel/video cover (https). Blank keeps the previous behaviour. */
+        thumbnailUrlOverride: String = "",
+        /** 1.1.1: optional composer fields (poll, aiLabel, locationName, visibility). Empty = unchanged. */
+        extraFields: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
         val extras = if (type == "image") extraImageUris.take(9) else emptyList()
@@ -827,7 +844,7 @@ class UmmahRepository {
             val publishedCaption = caption.trim().ifBlank {
                 if (mediaUrl.isNotBlank()) "Shared with the Ummah" else ""
             }
-            val thumbnailUrl = if (type == "image") mediaUrl else ""
+            val thumbnailUrl = if (type == "image") mediaUrl else thumbnailUrlOverride.takeIf { it.startsWith("https://") }.orEmpty()
             // The client writes an authenticated submission. A trusted Firestore trigger validates
             // it, then publishes it into ummah_posts so the reel appears in the live feed.
             firestore.collection("ummah_submissions").add(
@@ -860,7 +877,7 @@ class UmmahRepository {
                     "displayAspectRatio" to videoMetadata.displayAspectRatio.toDouble(),
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                ) + (if (mediaUrls.size > 1) mapOf("mediaUrls" to mediaUrls.take(10)) else emptyMap())
+                ) + (if (mediaUrls.size > 1) mapOf("mediaUrls" to mediaUrls.take(10)) else emptyMap()) + extraFields
             ).addOnSuccessListener { document ->
                 onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
@@ -984,6 +1001,45 @@ class UmmahRepository {
         submitPost(context, body, "", original.category.ifBlank { "Reminder" }, "text", null, "repost:${original.id}", onResult = { ok, msg ->
             onResult(ok, if (ok) (if (quote.isBlank()) "Reposted to the Ummah feed" else "Quote posted to the Ummah feed") else msg)
         })
+    }
+
+    /** 1.1.1: upload a chosen reel cover (JPEG) next to the member's submissions; null on failure. */
+    fun uploadCover(file: java.io.File, onResult: (String?) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(null)
+        val ref = FirebaseStorage.getInstance().reference
+            .child("ummah_submissions/${user.uid}/images/${System.currentTimeMillis()}_cover")
+        ref.putFile(Uri.fromFile(file), StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .continueWithTask { ref.downloadUrl }
+            .addOnCompleteListener { t -> mainHandler.post { onResult(if (t.isSuccessful) t.result.toString() else null) } }
+    }
+
+    /** 1.1.1: vote once in a post's poll (needs the 1.1.1 rules). */
+    fun votePoll(postId: String, option: Int, onResult: (Boolean) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        firestore.collection("ummah_posts").document(postId).collection("poll_votes").document(user.uid)
+            .set(mapOf("uid" to user.uid, "option" to option, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()))
+            .addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** 1.1.1: live poll tally (option -> votes) and my vote (-1 if none). */
+    fun observePoll(postId: String, onResult: (Map<Int, Int>, Int) -> Unit): com.google.firebase.firestore.ListenerRegistration? {
+        val me = FirebaseAuth.getInstance().currentUser?.uid ?: return null
+        return firestore.collection("ummah_posts").document(postId).collection("poll_votes")
+            .addSnapshotListener { snap, _ ->
+                val docs = snap?.documents.orEmpty()
+                val tally = docs.mapNotNull { (it.get("option") as? Number)?.toInt() }.groupingBy { it }.eachCount()
+                onResult(tally, docs.firstOrNull { it.id == me }?.let { (it.get("option") as? Number)?.toInt() } ?: -1)
+            }
+    }
+
+    /** 1.1.1: followers-only posts from creators I follow (one query per creator, as the rules require). */
+    fun fetchFollowerPosts(creators: Collection<String>, onResult: (List<UmmahPost>) -> Unit) {
+        val ids = creators.filter { it.isNotBlank() }.take(30)
+        if (ids.isEmpty() || FirebaseAuth.getInstance().currentUser == null) return onResult(emptyList())
+        val tasks = ids.map { uid -> firestore.collection("ummah_follower_posts").whereEqualTo("creatorUid", uid).limit(20).get() }
+        com.google.android.gms.tasks.Tasks.whenAllComplete(tasks).addOnCompleteListener {
+            onResult(tasks.filter { it.isSuccessful }.flatMap { t -> t.result.documents.map { it.toUmmahPost() } })
+        }
     }
 
     fun report(postId: String, reason: String, onResult: (Boolean) -> Unit) {

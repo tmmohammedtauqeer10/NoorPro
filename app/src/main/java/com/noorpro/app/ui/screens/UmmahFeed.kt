@@ -184,6 +184,8 @@ internal object UmmahSearchLaunch {
 /** Test/preview hook: decoded images by URL so renders don't need the network. */
 internal object UmmahFeedPreview {
     @Volatile var images: Map<String, android.graphics.Bitmap> = emptyMap()
+    /** 1.1.1: render tests set this so poll cards don't open Firestore listeners. */
+    @Volatile var offline: Boolean = false
 }
 
 // ---------------------------------------------------------------- palette
@@ -191,9 +193,9 @@ internal object UmmahFeedPreview {
 private val FeedMint = Color(0xFFE6F2EC)
 private val FeedMintDark = Color(0xFF173A2F)
 private val FeedLike = Color(0xFFD9475A)
-@Composable private fun feedMint(): Color = if (isStitchLight()) FeedMint else FeedMintDark
-@Composable private fun feedAccent(): Color = if (isStitchLight()) StitchEmerald else Color(0xFF7FD3AE)
-@Composable private fun feedGold(): Color = if (isStitchLight()) Color(0xFFA9842A) else StitchGold
+@Composable internal fun feedMint(): Color = if (isStitchLight()) FeedMint else FeedMintDark
+@Composable internal fun feedAccent(): Color = if (isStitchLight()) StitchEmerald else Color(0xFF7FD3AE)
+@Composable internal fun feedGold(): Color = if (isStitchLight()) Color(0xFFA9842A) else StitchGold
 
 // ---------------------------------------------------------------- state holders
 
@@ -270,11 +272,21 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
     val saved = remember(interactions.saved, optimisticSaves) {
         interactions.saved + optimisticSaves.filterValues { it }.keys - optimisticSaves.filterValues { !it }.keys
     }
+    // 1.1.1: followers-only posts (separate collection) — only fetched when the feature flag is on.
+    LaunchedEffect(Unit) { com.noorpro.app.data.ComposerFlags.load() }
+    LaunchedEffect(feedState.posts) { com.noorpro.app.data.ComposerTagSource.captions = feedState.posts.take(200).map { it.caption } }
+    var followerPosts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
+    LaunchedEffect(following, com.noorpro.app.data.ComposerFlags.visibility) {
+        if (com.noorpro.app.data.ComposerFlags.visibility && viewModel.isLoggedIn && following.isNotEmpty())
+            UmmahRepository().fetchFollowerPosts(following) { followerPosts = it }
+    }
     val reels = remember(feedState.posts, following, interactions) {
         rankUmmahPosts(feedState.posts.filter { it.isReelLike() }, following, interactions.liked, interactions.saved).take(10)
     }
     val ui = UmmahFeedUi(
-        posts = feedState.posts, reels = reels, loading = feedState.loading, error = feedState.error,
+        posts = if (followerPosts.isEmpty()) feedState.posts
+            else (feedState.posts + followerPosts.filter { it.creatorUid in effectiveFollowing }).distinctBy { it.id },
+        reels = reels, loading = feedState.loading, error = feedState.error,
         isLoggedIn = viewModel.isLoggedIn, currentUid = currentUid, displayName = displayName,
         photoUrl = viewModel.userPhotoUrl, following = effectiveFollowing, liked = liked, saved = saved,
         serverLiked = interactions.liked, serverSaved = interactions.saved
@@ -534,7 +546,7 @@ private fun UmmahRoundButton(icon: ImageVector, description: String, onClick: ()
 }
 
 @Composable
-private fun UmmahAvatar(
+internal fun UmmahAvatar(
     name: String, photoUrl: String, size: androidx.compose.ui.unit.Dp,
     ring: Color? = null, onClick: (() -> Unit)? = null, contentDescription: String? = null
 ) {
@@ -735,7 +747,9 @@ internal fun UmmahPostCard(
                 Column(Modifier.weight(1f)) {
                     Text(post.creatorName.ifBlank { reelUsername(post).removePrefix("@") }, color = stitchText(), fontSize = 15.sp,
                         fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${reelUsername(post)} · ${timeAgo(post.publishedAt).removeSuffix(" ago")}", color = stitchMutedText(),
+                    Text("${reelUsername(post)} · ${timeAgo(post.publishedAt).removeSuffix(" ago")}" +
+                        (if (post.locationName.isNotBlank()) " · ${post.locationName}" else "") +
+                        (if (post.visibility == "followers") " · Followers" else ""), color = stitchMutedText(),
                         fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -754,8 +768,12 @@ internal fun UmmahPostCard(
                 Box(Modifier.size(width = 14.dp, height = 2.dp).background(feedGold()))
                 Spacer(Modifier.width(6.dp))
                 Text(label.uppercase(), color = feedGold(), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                if (post.aiLabel) {
+                    Spacer(Modifier.width(8.dp))
+                    UmmahAiBadge()
+                }
             }
-        }
+        } else if (post.aiLabel) Row(Modifier.padding(start = 18.dp, top = 10.dp)) { UmmahAiBadge() }
         // Body
         val caption = post.caption.trim()
         if (caption.isNotBlank()) {
@@ -782,7 +800,76 @@ internal fun UmmahPostCard(
             UmmahPostMedia(post, onOpen = { actions.onOpenReel(post) }, onDoubleTapLike = { if (!isLiked) actions.onLike(post) },
                 modifier = Modifier.padding(horizontal = 12.dp).padding(top = 12.dp))
         }
+        if (post.pollOptions.size >= 2) UmmahPollBlock(post, modifier = Modifier.padding(horizontal = 14.dp).padding(top = 12.dp))
         UmmahActionRow(post, isLiked, isSaved, likeCount, saveCount, actions)
+    }
+}
+
+/** 1.1.1: "AI-assisted" disclosure set by the creator in the composer. */
+@Composable
+internal fun UmmahAiBadge() {
+    Text(
+        "AI-assisted", color = feedAccent(), fontSize = 10.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(feedMint()).padding(horizontal = 8.dp, vertical = 2.dp)
+    )
+}
+
+/** Percent per option (0..100), rounded; zero votes -> zeros. */
+internal fun pollPercents(tally: Map<Int, Int>, options: Int): List<Int> {
+    val total = (0 until options).sumOf { tally[it] ?: 0 }
+    return (0 until options).map { if (total == 0) 0 else Math.round((tally[it] ?: 0) * 100f / total) }
+}
+
+/** 1.1.1: poll on a published post. Votes need the 1.1.1 rules (poll_votes); fails gracefully before that. */
+@Composable
+internal fun UmmahPollBlock(
+    post: UmmahPost,
+    previewTally: Map<Int, Int>? = null,
+    previewMine: Int = -1,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var tally by remember(post.id) { mutableStateOf(previewTally.orEmpty()) }
+    var mine by remember(post.id) { mutableStateOf(previewMine) }
+    if (previewTally == null && !UmmahFeedPreview.offline) {
+        DisposableEffect(post.id) {
+            val reg = runCatching { UmmahRepository().observePoll(post.id) { t, m -> tally = t; mine = m } }.getOrNull()
+            onDispose { reg?.remove() }
+        }
+    }
+    val closed = post.pollEndsAt in 1 until System.currentTimeMillis()
+    val showResults = mine >= 0 || closed
+    val percents = pollPercents(tally, post.pollOptions.size)
+    val total = tally.values.sum()
+    Column(modifier.fillMaxWidth().testTag("ummah_poll_${post.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        post.pollOptions.forEachIndexed { i, option ->
+            val shape = RoundedCornerShape(14.dp)
+            Box(
+                Modifier.fillMaxWidth().height(44.dp).clip(shape)
+                    .border(1.dp, if (mine == i) feedAccent() else stitchLine(), shape)
+                    .clickable(enabled = !showResults) {
+                        mine = i
+                        UmmahRepository().votePoll(post.id, i) { ok ->
+                            if (!ok) { mine = -1; Toast.makeText(context, "Couldn't record your vote. Try again later.", Toast.LENGTH_SHORT).show() }
+                        }
+                    }
+            ) {
+                if (showResults) Box(Modifier.fillMaxHeight().fillMaxWidth(percents[i] / 100f).background(feedMint()))
+                Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(option, color = stitchText(), fontSize = 14.sp, fontWeight = if (mine == i) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    if (showResults) Text("${percents[i]}%", color = feedAccent(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Text(
+            "$total vote${if (total == 1) "" else "s"} · " + when {
+                closed -> "Final results"
+                post.pollEndsAt > 0 -> "${((post.pollEndsAt - System.currentTimeMillis()) / 3_600_000L).coerceAtLeast(1)}h left"
+                else -> "Open"
+            },
+            color = stitchMutedText(), fontSize = 12.sp
+        )
     }
 }
 
