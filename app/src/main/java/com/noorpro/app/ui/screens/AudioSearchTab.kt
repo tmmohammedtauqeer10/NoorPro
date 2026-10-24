@@ -102,7 +102,7 @@ internal class SearchDoc(
     val art: @Composable (Modifier) -> Unit, val circle: Boolean = false, val action: () -> Unit,
 )
 
-internal val SEARCH_SECTIONS = listOf("Surahs", "Reciters", "Nasheeds", "Podcasts", "Episodes", "Duas", "Tafsir", "Urdu", "Bengali", "Translations", "Playlists")
+internal val SEARCH_SECTIONS = listOf("Official channels", "Surahs", "Reciters", "Nasheeds", "Podcasts", "Episodes", "Duas", "Tafsir", "Urdu", "Bengali", "Translations", "Playlists")
 internal val SEARCH_TRENDING = listOf("Ya-Sin", "Ar-Rahman", "Al-Kahf", "Mishary", "MAF Nasheed", "Morning duas", "Tafsir Urdu", "Bengali", "Yaqeen")
 
 private object RecentSearches {
@@ -117,6 +117,11 @@ internal fun buildSearchIndex(ctx: android.content.Context, surahs: List<Surah>,
                               open: (String) -> Unit, playSurah: (Surah) -> Unit): List<SearchDoc> {
     val out = ArrayList<SearchDoc>()
     fun play(tr: Track, q: List<Track>) = playFree(ctx, tr, q)
+    // 1.0.93: official-channel link-outs (content not hosted; opens YouTube externally).
+    com.noorpro.app.audio.catalog.OfficialChannels.all.forEach { ch ->
+        out += SearchDoc("Official channels", ch.name, ch.subtitle, ch.searchFields, pop = 60, circle = true,
+            art = { m -> ChannelInitials(ch, 48.dp) }) { com.noorpro.app.audio.catalog.OfficialChannels.open(ctx, ch.url) }
+    }
     surahs.forEach { s -> out += SearchDoc("Surahs", s.nameEnglish, "Surah ${s.id} · ${s.englishTranslation}",
         listOf(s.nameEnglish, s.nameArabic, s.englishTranslation, s.id.toString(), "surah ${s.nameEnglish}"), pop = 120 - s.id,
         art = { m -> SpArt(m, surah = s, corner = 4.dp) }) { playSurah(s) } }
@@ -252,7 +257,11 @@ internal fun SpSearchTab(t: SpTheme, query: String, onQuery: (String) -> Unit, s
                         Text("${list.size}", color = t.muted, fontSize = 12.sp)
                     }
                 }
-                items(list.take(if (sec == "Surahs" || sec == "Reciters") 6 else 5), key = { "$sec|${it.title}|${it.subtitle}" }) { d ->
+                if (sec == "Official channels") items(list, key = { "oc|${it.title}" }) { d ->
+                    val ch = com.noorpro.app.audio.catalog.OfficialChannels.all.firstOrNull { it.name == d.title }
+                    if (ch != null) OfficialChannelCard(ch, t.elevated, t.text, t.muted, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        onOpen = { if (previewIndex == null) RecentSearches.add(ctx, q); com.noorpro.app.audio.catalog.OfficialChannels.open(ctx, it) })
+                } else items(list.take(if (sec == "Surahs" || sec == "Reciters") 6 else 5), key = { "$sec|${it.title}|${it.subtitle}" }) { d ->
                     SpTrackRow(t, null, d.title, d.subtitle, false, { pick(d) }, art = d.art)
                 }
             }

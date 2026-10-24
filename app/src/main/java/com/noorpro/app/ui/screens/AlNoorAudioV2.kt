@@ -410,6 +410,10 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
                 items(d.podcasts, key = { "p${it.id}" }) { p -> SpCard(t, p.name, "${p.publisher} · ${p.category}", onClick = { open("podcast:${p.id}") }) { mod -> SpArt(mod, url = d.artFor(p), tint = coverColor(p.id.hashCode() + 3), label = p.name, corner = 10.dp) } }
             }
         }
+        // 1.0.93: official scholar channels (link-out only — not hosted).
+        if (all || chip == "Podcasts") item(key = "official") {
+            OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+        }
         if (all || chip == "Duas") item(key = "duas") {
             SpShelf(t, "Duas & Adhkar") {
                 item { SpCard(t, "Dua Audio", "Daily duas, free licensed audio", onClick = { open("cat:Dua Audio") }) { mod -> SpArt(mod, tint = Color(0xFFB0532A), label = "Dua\nAudio") } }
@@ -800,6 +804,7 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                         false, false, null, null, back, null, {}, {}, {}) {
                         // 1.0.86: featured MAF Nasheed YouTube channel at the top of Nasheeds.
                         if (kind == "Nasheeds") item(key = "maf") { Spacer(Modifier.height(8.dp)); MafNasheedShelf(t); Spacer(Modifier.height(18.dp)) }
+                        if (kind == "Podcasts") item(key = "official") { OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)) }
                         items(list, key = { "b${it.id}" }) { p -> SpTrackRow(t, null, p.name, "${p.publisher} · ${p.language} · ${p.category}", false, { open("podcast:${p.id}") },
                             art = { m -> SpArt(m, url = artFor(p), tint = coverColor(p.id.hashCode()), corner = 4.dp) }, liked = "p${p.id}" in follows) }
                         item { Spacer(Modifier.height(16.dp)); SpCredits(t) }

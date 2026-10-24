@@ -73,6 +73,10 @@ internal fun PodcastSection(initialPodcastId: String? = null, kind: String = "po
             val cats = PodcastRepository.categories(lang, kind)
             if (cats.size > 2) FreeChips(cats, cat) { cat = it }
             val list = PodcastRepository.podcasts.filter { it.kind == kind && it.language == lang && (cat == "All" || it.category == cat) }
+            // 1.0.93: official scholar channels for this language (link-out to YouTube, not hosted).
+            if (kind == "podcast") com.noorpro.app.audio.catalog.OfficialChannels.all.filter { it.language == lang }.let { chs ->
+                if (chs.isNotEmpty()) OfficialChannelsBlock(stitchSurface(), stitchText(), stitchMutedText(), channels = chs)
+            }
             list.forEach { p -> PodcastRow(p) { openId = p.id } }
             if (list.isEmpty()) StateCard(
                 "Nothing here yet",
