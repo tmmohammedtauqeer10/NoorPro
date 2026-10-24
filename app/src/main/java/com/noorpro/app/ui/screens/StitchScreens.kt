@@ -3098,7 +3098,7 @@ internal data class StitchUmmahFeedState(
     val loading: Boolean
 )
 
-private data class StitchInteractionState(
+internal data class StitchInteractionState(
     val liked: Set<String>,
     val saved: Set<String>
 )
@@ -3166,7 +3166,7 @@ internal fun rememberStitchUmmahFeed(refreshKey: Int = 0): StitchUmmahFeedState 
  * A small deterministic jitter keeps the order feeling alive without reshuffling on
  * every recomposition.
  */
-private fun rankUmmahPosts(
+internal fun rankUmmahPosts(
     posts: List<UmmahPost>,
     following: Set<String>,
     liked: Set<String>,
@@ -3216,7 +3216,7 @@ internal fun rememberStitchProfiles(): Map<String, com.noorpro.app.data.UmmahPro
 }
 
 @Composable
-private fun rememberStitchFollowing(isLoggedIn: Boolean): Set<String> {
+internal fun rememberStitchFollowing(isLoggedIn: Boolean): Set<String> {
     val repository = remember(isLoggedIn) { UmmahRepository() }
     var following by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -3251,7 +3251,7 @@ private fun rememberStitchFollowers(isLoggedIn: Boolean, targetUid: String? = nu
 }
 
 @Composable
-private fun rememberStitchInteractions(isLoggedIn: Boolean): StitchInteractionState {
+internal fun rememberStitchInteractions(isLoggedIn: Boolean): StitchInteractionState {
     val repository = remember(isLoggedIn) { UmmahRepository() }
     var liked by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
     var saved by remember(isLoggedIn) { mutableStateOf<Set<String>>(emptySet()) }
@@ -3391,7 +3391,7 @@ internal fun UmmahPost.isVideoMedia(): Boolean {
 internal fun UmmahPost.opensInVideoViewer(): Boolean = isReelLike() || isVideoMedia()
 
 /** Image model for a post preview: thumbnail, else (for videos) a streamed first frame. */
-private fun UmmahPost.previewModel(): Any? =
+internal fun UmmahPost.previewModel(): Any? =
     if (isVideoMedia()) com.noorpro.app.data.media.videoPreviewModel(thumbnailUrl, mediaUrl)
     else thumbnailUrl.ifBlank { mediaUrl }
 
@@ -3452,7 +3452,7 @@ internal fun abbreviateCount(value: Long): String {
 internal fun captionTags(text: String): List<String> =
     Regex("""(?<![\w])([#@][\p{L}\p{N}_]{2,40})""").findAll(text).map { it.groupValues[1] }.distinct().take(8).toList()
 
-private fun timeAgo(timestamp: Long): String {
+internal fun timeAgo(timestamp: Long): String {
     if (timestamp <= 0L) return "Just now"
     val diff = (System.currentTimeMillis() - timestamp).coerceAtLeast(0L)
     val minutes = diff / 60_000L
@@ -5261,7 +5261,7 @@ private fun ReelSeekBar(
 }
 
 /** Display the creator's @username only (Instagram-style), normalizing the handle. */
-private fun reelUsername(post: UmmahPost): String {
+internal fun reelUsername(post: UmmahPost): String {
     val raw = post.creatorHandle.ifBlank { post.creatorName }.ifBlank { "ummah" }
     return if (raw.startsWith("@")) raw else "@$raw"
 }
@@ -5340,239 +5340,9 @@ private fun StitchReelsEmptyState(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/** 1.1.0: the Ummah tab is the redesigned community feed (see UmmahFeed.kt). */
 @Composable
-fun StitchUmmahHubScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    var feedRefreshKey by remember { mutableStateOf(0) }
-    val feedState = rememberStitchUmmahFeed(feedRefreshKey)
-    var ummahVisible by remember(feedRefreshKey) { mutableStateOf(12) }
-    val following = rememberStitchFollowing(viewModel.isLoggedIn)
-    val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
-    val followRepository = remember { UmmahRepository() }
-    val currentUid = remember(viewModel.isLoggedIn) { followRepository.currentUserUid().orEmpty() }
-    val displayName = viewModel.userDisplayName.ifBlank { if (viewModel.isLoggedIn) "Noor" else "Guest" }
-    // Content category chips (the Ummah "social hybrid" design): All / Quran / Hadith / Community /
-    // Reflections. "All" shows the ranked feed; the others filter by category/caption text.
-    val feedCategories = listOf("All", "Quran", "Hadith", "Community", "Reflections")
-    var selectedTab by remember { mutableStateOf("All") }
-    var commentPost by remember { mutableStateOf<UmmahPost?>(null) }
-    // Instant (optimistic) like/save so the feed feels smooth and lag-free.
-    var optimisticLikes by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    var optimisticSaves by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    val feedPosts = feedState.posts.filterNot { it.isReelLike() }
-    val feedReels = feedState.posts.filter { it.isReelLike() }
-    // Main feed is algorithm-ranked like Facebook/Instagram (freshness + engagement + creators you
-    // follow/like + your interest categories), then narrowed to the chosen category chip.
-    val rankedPosts = rankUmmahPosts(feedPosts, following, interactions.liked, interactions.saved)
-    val posts = if (selectedTab == "All") rankedPosts else {
-        val needle = selectedTab.lowercase().removeSuffix("s")
-        rankedPosts.filter { p ->
-            listOf(p.category, p.caption, p.arabicText).any { it.lowercase().contains(needle) }
-        }
-    }
-    val reelStripPosts = rankUmmahPosts(feedReels, following, interactions.liked, interactions.saved).take(10)
-    // Instagram-style pull-to-refresh: swipe down at the top of the feed to reload, then
-    // jump back to the top so the freshest posts show.
-    var refreshing by remember { mutableStateOf(false) }
-    val hubListState = rememberLazyListState()
-    LaunchedEffect(feedState.loading) {
-        if (!feedState.loading && refreshing) {
-            refreshing = false
-            hubListState.scrollToItem(0)
-        }
-    }
-
-    StitchScreen {
-        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = {
-            refreshing = true
-            feedRefreshKey++
-        },
-        modifier = Modifier.fillMaxSize()
-        ) {
-        LazyColumn(
-            state = hubListState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, top = 30.dp, end = 12.dp, bottom = 184.dp),
-            // Tight, connected stacking like the Facebook/YouTube feed in the design (cards nearly
-            // touch, separated only by a thin gap) instead of large spaces between cards.
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item {
-                StitchUmmahTopBar(
-                    displayName = displayName,
-                    photoUrl = viewModel.userPhotoUrl,
-                    onProfile = { viewModel.openMyProfile() },
-                    onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
-                    onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                )
-            }
-            // 1.0.75: Instagram-style 24h stories row.
-            item(key = "stories") {
-                var blocked by remember { mutableStateOf<Set<String>>(emptySet()) }
-                LaunchedEffect(viewModel.isLoggedIn) { if (viewModel.isLoggedIn) followRepository.observeBlockedUsers { blocked = it } }
-                StoriesSection(
-                    myName = displayName,
-                    myHandle = "@${viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }}",
-                    myAvatarUrl = viewModel.userPhotoUrl,
-                    isLoggedIn = viewModel.isLoggedIn,
-                    blocked = blocked,
-                    onOpenChat = { _, _ -> }
-                )
-            }
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(feedCategories) { cat ->
-                        StitchSavedFilterChip(cat, cat == selectedTab) { selectedTab = cat }
-                    }
-                }
-            }
-            item {
-                StitchComposerCard(
-                    avatar = displayName.take(1).uppercase(),
-                    onOpen = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                )
-            }
-            item {
-                StitchYourPostStrip(
-                    reels = reelStripPosts,
-                    onCreate = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
-                    onWatchAll = { viewModel.navigateTo(DeenScreen.REELS) },
-                    onOpenReel = { post -> viewModel.openReel(post.id) }
-                )
-            }
-            when {
-                feedState.loading -> items(3) { StitchPostSkeleton() }
-                feedState.error != null -> item {
-                    StitchUmmahEmptyCard(
-                        title = "Unable to load Ummah",
-                        message = feedState.error.orEmpty(),
-                        action = "Try Upload",
-                        onAction = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) }
-                    )
-                }
-                posts.isEmpty() -> item {
-                    StitchUmmahEmptyCard(
-                        title = if (selectedTab == "All") "The posts are quiet" else "Nothing in $selectedTab yet",
-                        message = if (selectedTab == "All") "Be the first to share a reflection, image, or reel." else "No posts match \"$selectedTab\" right now. Try another category.",
-                        action = if (selectedTab == "All") "Create a post" else "Show all",
-                        onAction = { if (selectedTab == "All") viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) else selectedTab = "All" }
-                    )
-                }
-                else -> itemsIndexed(posts.take(ummahVisible), key = { _, it -> it.id }) { index, post ->
-                    // Sponsored cards sit between posts, never over media or interaction buttons.
-                    if (shouldShowUmmahFeedAd(index)) {
-                        StitchSponsoredPostCard(modifier = Modifier.padding(bottom = 4.dp))
-                    }
-                    val isLiked = optimisticLikes[post.id] ?: (post.id in interactions.liked)
-                    val isSaved = optimisticSaves[post.id] ?: (post.id in interactions.saved)
-                    if (post.isVideoMedia() && !post.isReelLike()) {
-                        // Long-form video posts render as a YouTube-style card (big thumbnail,
-                        // channel row, like/dislike + Share) to match the Ummah design.
-                        StitchYouTubePostCard(
-                            post = post,
-                            isLiked = isLiked,
-                            onLike = {
-                                if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to like posts", Toast.LENGTH_SHORT).show()
-                                else {
-                                    val next = !isLiked
-                                    optimisticLikes = optimisticLikes + (post.id to next)
-                                    followRepository.toggleInteraction(post.id, "likes", next) { ok ->
-                                        if (!ok) { optimisticLikes = optimisticLikes + (post.id to isLiked); Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show() }
-                                    }
-                                }
-                            },
-                            onShare = { viewModel.sharePost = post },
-                            onOpen = { viewModel.openReel(post.id) },
-                            onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) }
-                        )
-                    } else {
-                    StitchRealPostCard(
-                        post = post,
-                        isFollowing = post.creatorUid in following,
-                        isOwnPost = post.creatorUid.isBlank() || post.creatorUid == currentUid,
-                        isLiked = isLiked,
-                        isSaved = isSaved,
-                        onFollow = {
-                            if (post.creatorUid.isBlank() || post.creatorUid == currentUid) {
-                                Toast.makeText(context, "This is your post", Toast.LENGTH_SHORT).show()
-                            } else if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to follow creators", Toast.LENGTH_SHORT).show()
-                            } else {
-                                followRepository.setFollowing(
-                                    creatorUid = post.creatorUid,
-                                    creatorName = post.creatorName,
-                                    creatorHandle = post.creatorHandle,
-                                    following = post.creatorUid !in following
-                                ) { ok ->
-                                    if (!ok) Toast.makeText(context, "Unable to update follow", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        onLike = {
-                            if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to like posts", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val next = !isLiked
-                                optimisticLikes = optimisticLikes + (post.id to next)
-                                followRepository.toggleInteraction(post.id, "likes", next) { ok ->
-                                    if (!ok) { optimisticLikes = optimisticLikes + (post.id to isLiked); Toast.makeText(context, "Unable to update like", Toast.LENGTH_SHORT).show() }
-                                }
-                            }
-                        },
-                        onComment = {
-                            if (!viewModel.isLoggedIn) Toast.makeText(context, "Sign in to comment", Toast.LENGTH_SHORT).show() else commentPost = post
-                        },
-                        onSave = {
-                            if (!viewModel.isLoggedIn) {
-                                Toast.makeText(context, "Sign in to save posts", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val next = !isSaved
-                                optimisticSaves = optimisticSaves + (post.id to next)
-                                followRepository.toggleInteraction(post.id, "saved", next) { ok ->
-                                    if (!ok) { optimisticSaves = optimisticSaves + (post.id to isSaved); Toast.makeText(context, "Unable to update saved", Toast.LENGTH_SHORT).show() }
-                                }
-                            }
-                        },
-                        onShare = { viewModel.sharePost = post },
-                        onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) },
-                        onOpenReel = { viewModel.openReel(post.id) }
-                    )
-                    }
-                }
-            }
-            // 1.0.74: infinite scroll — reveal 10 more posts (with shimmer) when the end comes into view.
-            if (!feedState.loading && feedState.error == null && posts.size > ummahVisible) {
-                item(key = "ummah-more-$ummahVisible") {
-                    LaunchedEffect(ummahVisible) {
-                        kotlinx.coroutines.delay(250)
-                        ummahVisible += 10
-                    }
-                    StitchPostSkeleton()
-                }
-            }
-        }
-        }
-    }
-    commentPost?.let { target ->
-        StitchCommentSheet(
-            post = target,
-            repository = followRepository,
-            isLoggedIn = viewModel.isLoggedIn,
-            viewModel = viewModel,
-            onOpenProfile = { uid, name, _ ->
-                commentPost = null
-                viewModel.openCreatorProfile(uid, name, "")
-            },
-            onDismiss = { commentPost = null }
-        )
-    }
-}
+fun StitchUmmahHubScreen(viewModel: DeenViewModel) = NoorUmmahFeedScreen(viewModel)
 
 @Composable
 private fun StitchUmmahTopBar(
@@ -5634,7 +5404,8 @@ private fun StitchUmmahTopBar(
 @Composable
 fun StitchUmmahSearchScreen(viewModel: DeenViewModel) {
     val feedState = rememberStitchUmmahFeed()
-    var query by remember { mutableStateOf("") }
+    // 1.1.0: a tapped #hashtag in the Ummah feed opens search pre-filled with that tag.
+    var query by remember { mutableStateOf(UmmahSearchLaunch.consume()) }
     val cleanQuery = query.trim()
     val profiles = rememberStitchProfiles()
     val q = cleanQuery.lowercase()
@@ -6719,7 +6490,7 @@ private fun StitchUmmahTabs(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun StitchYourPostStrip(
+internal fun StitchYourPostStrip(
     reels: List<UmmahPost>,
     onCreate: () -> Unit,
     onWatchAll: () -> Unit,
@@ -7387,7 +7158,7 @@ private fun StitchQuestionPostCard() {
 
 /** A compact advertisement that scrolls with community content. */
 @Composable
-private fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
+internal fun StitchSponsoredPostCard(modifier: Modifier = Modifier) {
     com.noorpro.app.ads.InlineAdCard(modifier.fillMaxWidth())
 }
 
@@ -7522,7 +7293,7 @@ private fun StitchPostActionButton(icon: ImageVector, label: String, tint: Color
 }
 
 @Composable
-private fun StitchCommentSheet(
+internal fun StitchCommentSheet(
     post: UmmahPost,
     repository: UmmahRepository,
     isLoggedIn: Boolean,
