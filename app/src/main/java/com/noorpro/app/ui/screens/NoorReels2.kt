@@ -319,11 +319,13 @@ private fun Reels2Rail(ui: Reels2Ui, a: Reels2Actions, f: Reels2Features, modifi
 private fun RailButton(icon: ImageVector, label: String, tint: Color, cd: String, onClick: () -> Unit, onLong: (() -> Unit)? = null, tag: String = "") {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.then(if (tag.isNotBlank()) Modifier.testTag(tag) else Modifier)
         .pointerInput(onLong) { detectTapGestures(onTap = { onClick() }, onLongPress = onLong?.let { l -> { _ -> l() } }) }) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x2EFFFFFF)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x47000000)), contentAlignment = Alignment.Center) {
             Icon(icon, cd, tint = tint, modifier = Modifier.size(25.dp))
         }
         Spacer(Modifier.height(3.dp))
-        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        // Shadowed so counts stay legible over bright footage.
+        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0xCC000000), androidx.compose.ui.geometry.Offset(0f, 1.5f), 4f)))
     }
 }
 
