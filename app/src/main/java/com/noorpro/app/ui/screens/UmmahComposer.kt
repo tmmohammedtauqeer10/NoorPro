@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RangeSlider
@@ -142,7 +143,12 @@ class ComposerUiState(destination: ComposerDestination) {
         media = if (video != null) listOf(video.toString()) else photos.map { it.toString() }, isVideo = video != null,
         pollOptions = if (pollOpen) poll.options else emptyList(), pollHours = poll.durationHours,
         aiLabel = aiLabel, location = location, followersOnly = followersOnly,
-        trimStartMs = trimStartMs, trimEndMs = trimEndMs, coverMs = coverMs
+        trimStartMs = trimStartMs, trimEndMs = trimEndMs, coverMs = coverMs,
+        editJson = com.noorpro.app.data.media.edit.EditCodec.draft(com.noorpro.app.data.media.edit.EditCodec.DraftEdits(
+            photos = photoOrigins.filterKeys { it in photos }.entries.associate { (k, v) -> k.toString() to (v.first.toString() to v.second) },
+            reelSource = if (video != null) reelSource?.toString() else null,
+            reel = if (video != null) reelEdit else null
+        ))
     )
 
     fun load(d: ComposerDraft) {
@@ -154,7 +160,9 @@ class ComposerUiState(destination: ComposerDestination) {
         pollOpen = d.pollOptions.isNotEmpty(); poll = ComposerPoll(d.pollOptions.ifEmpty { listOf("", "") }, d.pollHours)
         aiLabel = d.aiLabel; location = d.location; followersOnly = d.followersOnly
         trimStartMs = d.trimStartMs; trimEndMs = d.trimEndMs; coverMs = d.coverMs; coverTouched = d.coverMs > 0
-        photoOrigins = emptyMap(); reelSource = null; reelEdit = null
+        val edits = com.noorpro.app.data.media.edit.EditCodec.draft(d.editJson)
+        photoOrigins = edits.photos.entries.associate { (k, v) -> Uri.parse(k) to (Uri.parse(v.first) to v.second) }.filterKeys { it in photos }
+        reelSource = edits.reelSource?.let(Uri::parse); reelEdit = edits.reel?.takeIf { video != null }
         error = null
     }
 }
@@ -170,7 +178,9 @@ class ComposerActions(
     val onPost: () -> Unit = {},
     /** 1.1.3: open the photo editor for photo #index / the reel editor for the video. */
     val onEditPhoto: (Int) -> Unit = {},
-    val onEditVideo: () -> Unit = {}
+    val onEditVideo: () -> Unit = {},
+    /** 1.1.3 editor pro: lay 2–6 photos out as one collage. */
+    val onCollage: () -> Unit = {}
 )
 
 /** Render-test hook: Uri string -> bitmap (tests can't load content:// images). */
@@ -445,8 +455,19 @@ private fun PhotoStrip(state: ComposerUiState, actions: ComposerActions) {
                 }
             }
         }
-        Text("${state.photos.size}/$max photo${if (max == 1) "" else "s"}" + if (max > 1) " · use ‹ to reorder, first photo is the cover" else "",
-            color = stitchMutedText(), fontSize = 11.5.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${state.photos.size}/$max photo${if (max == 1) "" else "s"}" + if (max > 1) " · use ‹ to reorder, first photo is the cover" else "",
+                color = stitchMutedText(), fontSize = 11.5.sp, modifier = Modifier.weight(1f))
+            if (state.photos.size >= 2) Row(
+                Modifier.clip(RoundedCornerShape(999.dp)).background(feedMint()).border(1.dp, StitchGold.copy(alpha = 0.6f), RoundedCornerShape(999.dp))
+                    .clickable(onClick = actions.onCollage).padding(horizontal = 10.dp, vertical = 6.dp).testTag("composer_collage"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Dashboard, null, tint = feedAccent(), modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Layout", color = feedAccent(), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 

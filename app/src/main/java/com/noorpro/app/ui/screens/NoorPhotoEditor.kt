@@ -18,6 +18,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.EmojiEmotions
@@ -48,7 +52,12 @@ import com.noorpro.app.ui.components.*
  * the composer host decodes the photo and renders the result with PhotoRenderer.
  */
 
-enum class PhotoTab(val label: String) { CROP("Crop"), FILTERS("Filters"), ADJUST("Adjust"), TEXT("Text"), STICKERS("Stickers"), DRAW("Draw") }
+enum class PhotoTab(val label: String) {
+    CROP("Crop"), FILTERS("Filters"), ADJUST("Adjust"), TEXT("Text"), STICKERS("Stickers"), DRAW("Draw"),
+    BLUR("Blur"), LAYERS("Layers"), TEMPLATES("Templates")
+}
+
+enum class AdjustMode(val label: String) { LIGHT("Light & colour"), HSL("HSL"), CURVES("Curves") }
 
 @Stable
 class PhotoEditorState(initial: PhotoEdit = PhotoEdit(), tab: PhotoTab = PhotoTab.FILTERS) {
@@ -61,6 +70,14 @@ class PhotoEditorState(initial: PhotoEdit = PhotoEdit(), tab: PhotoTab = PhotoTa
     var brushWidth by mutableStateOf(0.012f)
     var brushGlow by mutableStateOf(true)
     var liveStroke by mutableStateOf<BrushStroke?>(null)
+    var adjustMode by mutableStateOf(AdjustMode.LIGHT)
+    var hslBand by mutableStateOf(HueBand.ORANGE)
+    var blurMode by mutableStateOf(if (initial.blurStrokes.isNotEmpty()) BlurMode.BRUSH else if (initial.tiltShift != null) BlurMode.TILT else BlurMode.OFF)
+    var blurWidth by mutableStateOf(0.07f)
+    var liveBlur by mutableStateOf<BrushStroke?>(null)
+    /** Open content picker in the sticker tab (ayah / du'a / hadith / countdown). */
+    var picker by mutableStateOf<StickerKind?>(null)
+    internal val snap = SnapState()
     private var rev by mutableIntStateOf(0)
     private var seq = 0
 
@@ -88,7 +105,9 @@ fun NoorPhotoEditor(
     modifier: Modifier = Modifier,
     positionLabel: String? = null,
     stickerLabels: Map<StickerKind, String> = emptyMap(),
-    saving: Boolean = false
+    saving: Boolean = false,
+    stickerSources: StickerSources = StickerSources(),
+    interactive: Boolean = false
 ) {
     val ctx = LocalContext.current
     val fonts = remember { EditorTypefaces.load(ctx) }
@@ -115,16 +134,35 @@ fun NoorPhotoEditor(
                     Text("${(state.edit.strength * 100).toInt()}", color = editorAccent(), fontSize = 12.sp, modifier = Modifier.width(32.dp))
                 }
             }
-            PhotoTab.ADJUST -> AdjustPanel(state.edit.adjust, state.adjustKind, { state.adjustKind = it }, { a -> state.live(state.edit.copy(adjust = a)) }, { state.commit() })
+            PhotoTab.ADJUST -> PhotoAdjustPanel(state, bitmap)
             PhotoTab.TEXT -> TextToolPanel(
                 layer = state.selectedLayer?.takeIf { it.isText },
                 onAdd = { val l = EditorLayer.text(state.newId("t"), "SubhanAllah", EditorFont.CLASSIC).copy(y = 0.42f); state.commit(state.edit.upsert(l)); state.selected = l.id },
                 onChange = { l, commit -> val e = state.edit.copy(layers = state.edit.layers.map { if (it.id == l.id) l else it }); if (commit) state.commit(e) else state.live(e) },
                 onDelete = { l -> state.commit(state.edit.remove(l.id)); state.selected = null }
             )
-            PhotoTab.STICKERS -> StickerTray(fonts, stickerLabels) { k ->
-                val l = EditorLayer(state.newId("s"), sticker = k, text = stickerLabels[k] ?: k.label, x = if (k.text != null || k.dynamic) 0.5f else 0.76f, y = if (k.text != null || k.dynamic) 0.78f else 0.3f, scale = if (k.text != null || k.dynamic) 1f else 0.8f)
-                state.commit(state.edit.upsert(l)); state.selected = l.id
+            PhotoTab.STICKERS -> {
+                val sel = state.selectedLayer?.takeIf { it.sticker?.let { k -> k.card || k.interactive || k.dynamic } == true }
+                val pk = state.picker
+                when {
+                    pk == StickerKind.COUNTDOWN -> CountdownPicker(stickerSources, { _, label ->
+                        val l = EditorLayer(state.newId("s"), sticker = StickerKind.COUNTDOWN, text = label, sub = "Prepare your heart", y = 0.5f)
+                        state.commit(state.edit.upsert(l)); state.selected = l.id; state.picker = null
+                    }) { state.picker = null }
+                    pk != null -> QuotePicker(pk, stickerSources, { q ->
+                        val l = quoteLayer(pk, state.newId("s"), q); state.commit(state.edit.upsert(l)); state.selected = l.id; state.picker = null
+                    }) { state.picker = null }
+                    sel != null -> Column {
+                        CardEditPanel(sel, { l, commit -> val e = state.edit.copy(layers = state.edit.layers.map { if (it.id == l.id) l else it }); if (commit) state.commit(e) else state.live(e) }) {
+                            state.commit(state.edit.remove(sel.id)); state.selected = null
+                        }
+                        EditorPanel { EditorChip("More stickers", false) { state.commit(); state.selected = null } }
+                    }
+                    else -> StickerTray(fonts, stickerLabels, interactive) { k ->
+                        if (k.needsPicker) state.picker = k
+                        else { val l = stickerLayer(k, state.newId("s"), stickerLabels, stickerSources); state.commit(state.edit.upsert(l)); state.selected = l.id }
+                    }
+                }
             }
             PhotoTab.DRAW -> EditorPanel(Modifier.testTag("editor_draw_panel")) {
                 EditorLabel("Brush", if (state.edit.strokes.isEmpty()) "Draw on the photo" else "${state.edit.strokes.size} stroke${if (state.edit.strokes.size == 1) "" else "s"}")
@@ -137,23 +175,38 @@ fun NoorPhotoEditor(
                     Switch(state.brushGlow, { state.brushGlow = it }, colors = SwitchDefaults.colors(checkedThumbColor = StitchGold, checkedTrackColor = editorAccent()))
                 }
             }
+            PhotoTab.BLUR -> BlurPanel(state.edit, state.blurMode, state.blurWidth, { state.blurMode = it }, { state.blurWidth = it }, { state.live(it) }, { state.commit(it) })
+            PhotoTab.LAYERS -> LayersPanel(
+                state.edit.layers, state.selected, { state.selected = it },
+                { id, d -> state.commit(state.edit.copy(layers = Layers.move(state.edit.layers, id, d))) },
+                { id -> state.commit(state.edit.copy(layers = Layers.toggleLock(state.edit.layers, id))) },
+                { id -> state.commit(state.edit.remove(id)); if (state.selected == id) state.selected = null }
+            )
+            PhotoTab.TEMPLATES -> TemplatesPanel { t ->
+                val (filter, layers) = t.build(templateData(stickerSources), state::newId)
+                var e = state.edit; if (filter != null && e.filter == NoorFilter.ORIGINAL) e = e.copy(filter = filter, strength = 0.85f)
+                layers.forEach { e = e.upsert(it) }
+                state.commit(e); state.selected = layers.firstOrNull()?.id
+            }
         }
         EditorTabBar(
             listOf(
                 EditorTabSpec(PhotoTab.CROP.name, "Crop", Icons.Default.Crop), EditorTabSpec(PhotoTab.FILTERS.name, "Filters", Icons.Default.AutoAwesome),
                 EditorTabSpec(PhotoTab.ADJUST.name, "Adjust", Icons.Default.Tune), EditorTabSpec(PhotoTab.TEXT.name, "Text", Icons.Default.TextFields),
-                EditorTabSpec(PhotoTab.STICKERS.name, "Stickers", Icons.Default.EmojiEmotions), EditorTabSpec(PhotoTab.DRAW.name, "Draw", Icons.Default.Brush)
+                EditorTabSpec(PhotoTab.STICKERS.name, "Stickers", Icons.Default.EmojiEmotions), EditorTabSpec(PhotoTab.DRAW.name, "Draw", Icons.Default.Brush),
+                EditorTabSpec(PhotoTab.BLUR.name, "Blur", Icons.Default.BlurOn), EditorTabSpec(PhotoTab.LAYERS.name, "Layers", Icons.Default.Layers),
+                EditorTabSpec(PhotoTab.TEMPLATES.name, "Templates", Icons.Default.Dashboard)
             ), state.tab.name
-        ) { state.tab = PhotoTab.valueOf(it) }
+        ) { state.tab = PhotoTab.valueOf(it); state.picker = null }
     }
 }
 
 @Composable
-internal fun AdjustPanel(a: Adjustments, kind: AdjustKind, onKind: (AdjustKind) -> Unit, onLive: (Adjustments) -> Unit, onCommit: () -> Unit) {
+internal fun AdjustPanel(a: Adjustments, kind: AdjustKind, onKind: (AdjustKind) -> Unit, onLive: (Adjustments) -> Unit, onCommit: () -> Unit, videoOnly: Boolean = false, header: @Composable ColumnScope.() -> Unit = { EditorLabel("Adjust", kind.label) }) {
     EditorPanel(Modifier.testTag("editor_adjust_panel")) {
-        EditorLabel("Adjust", kind.label)
+        header()
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AdjustKind.entries.forEach { k ->
+            AdjustKind.entries.filter { !videoOnly || it.video }.forEach { k ->
                 val v = a.value(k)
                 EditorChip(if (v == 0f) k.label else "${k.label} ${if (v > 0) "+" else ""}${(v * 100).toInt()}", k == kind, Modifier.testTag("editor_adjust_${k.name}")) { onKind(k) }
             }
@@ -161,6 +214,30 @@ internal fun AdjustPanel(a: Adjustments, kind: AdjustKind, onKind: (AdjustKind) 
         Row(verticalAlignment = Alignment.CenterVertically) {
             EditorSlider(a.value(kind), kind.min..1f, { onLive(a.with(kind, it)) }, onCommit, Modifier.weight(1f).testTag("editor_adjust_slider"))
             Text("${(a.value(kind) * 100).toInt()}", color = editorAccent(), fontSize = 12.sp, modifier = Modifier.width(36.dp))
+        }
+    }
+}
+
+/** Photo adjust: light & colour sliders, HSL per colour, tone curve and one-tap auto-enhance. */
+@Composable
+private fun PhotoAdjustPanel(state: PhotoEditorState, bitmap: Bitmap?) {
+    val modes = @Composable {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AdjustMode.entries.forEach { m -> EditorChip(m.label, m == state.adjustMode, Modifier.testTag("editor_adjust_mode_${m.name}")) { state.adjustMode = m } }
+            EditorChip("Auto", false, Modifier.testTag("editor_auto_enhance"), icon = Icons.Default.AutoFixHigh) {
+                if (bitmap != null) state.commit(state.edit.copy(adjust = PhotoRenderer.autoEnhance(bitmap, state.edit.adjust)))
+            }
+        }
+    }
+    when (state.adjustMode) {
+        AdjustMode.LIGHT -> AdjustPanel(state.edit.adjust, state.adjustKind, { state.adjustKind = it }, { a -> state.live(state.edit.copy(adjust = a)) }, { state.commit() }) { modes() }
+        AdjustMode.HSL -> EditorPanel(Modifier.testTag("editor_adjust_panel")) {
+            modes()
+            HslPanel(state.edit.hsl, state.hslBand, { state.hslBand = it }, { state.live(state.edit.copy(hsl = it)) }, { state.commit() })
+        }
+        AdjustMode.CURVES -> EditorPanel(Modifier.testTag("editor_adjust_panel")) {
+            modes()
+            CurvesPanel(state.edit.curve, { state.live(state.edit.copy(curve = it)) }, { state.commit() })
         }
     }
 }
@@ -188,19 +265,30 @@ private fun PhotoCanvas(bitmap: Bitmap, s: PhotoEditorState, fonts: EditorTypefa
     val rotated = remember(bitmap, e.quarterTurns) {
         if (e.quarterTurns == 0) bitmap else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(90f * e.quarterTurns) }, true)
     }
+    // Pixel pass (curves / HSL / highlights / shadows / sharpen / grain) on a preview-sized copy.
+    val preview = remember(rotated) {
+        val long = maxOf(rotated.width, rotated.height)
+        if (long <= 900) rotated else Bitmap.createScaledBitmap(rotated, (rotated.width * 900f / long).toInt().coerceAtLeast(1), (rotated.height * 900f / long).toInt().coerceAtLeast(1), true)
+    }
+    val img = remember(preview, e.adjust, e.curve, e.hsl) { if (e.needsPixels) PhotoRenderer.pixels(preview, e) else rotated }
+    val blurred = remember(img, e.blurAmount, e.hasBlur || s.tab == PhotoTab.BLUR) { if (e.hasBlur || s.tab == PhotoTab.BLUR) BlurTools.blur(img, e.blurAmount) else null }
     val cropMode = s.tab == PhotoTab.CROP
     val aspect = if (cropMode) rotated.width.toFloat() / rotated.height else e.crop.pixelAspect(rotated.width, rotated.height)
     val paint = remember(e.filter, e.strength, e.adjust) { e.matrix.paint() }
+    val buzz = rememberSnapBuzz()
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val density = LocalDensity.current
         val maxW = constraints.maxWidth.toFloat(); val maxH = constraints.maxHeight.toFloat()
         val (wPx, hPx) = if (maxW / maxH > aspect) (maxH * aspect) to maxH else maxW to (maxW / aspect)
         val wDp = with(density) { wPx.toDp() }; val hDp = with(density) { hPx.toDp() }
+        val mask = remember(wPx.toInt(), hPx.toInt(), e.tiltShift, e.blurStrokes, s.liveBlur) {
+            if (e.tiltShift != null || e.blurStrokes.isNotEmpty() || s.liveBlur != null) BlurTools.mask(wPx.toInt(), hPx.toInt(), e.tiltShift, e.blurStrokes + listOfNotNull(s.liveBlur)) else null
+        }
         Canvas(
             Modifier.size(wDp, hDp).clip(RoundedCornerShape(if (cropMode) 4.dp else 16.dp)).testTag("photo_canvas")
-                .pointerInput(s.tab, rotated) {
-                    when (s.tab) {
-                        PhotoTab.CROP -> awaitEachGesture {
+                .pointerInput(s.tab, rotated, s.blurMode) {
+                    when {
+                        s.tab == PhotoTab.CROP -> awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
                             var changed = false
                             do {
@@ -215,36 +303,57 @@ private fun PhotoCanvas(bitmap: Bitmap, s: PhotoEditorState, fonts: EditorTypefa
                             } while (ev.changes.any { it.pressed })
                             if (changed) s.commit()
                         }
-                        PhotoTab.DRAW -> awaitEachGesture {
+                        s.tab == PhotoTab.DRAW || (s.tab == PhotoTab.BLUR && s.blurMode == BlurMode.BRUSH) -> awaitEachGesture {
+                            val blur = s.tab == PhotoTab.BLUR
+                            fun stroke(pts: List<Pair<Float, Float>>) = if (blur) BrushStroke(pts, 0xFFFFFFFF, s.blurWidth, false) else BrushStroke(pts, s.brushColor, s.brushWidth, s.brushGlow)
+                            fun show(st: BrushStroke?) { if (blur) s.liveBlur = st else s.liveStroke = st }
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val pts = mutableListOf(down.position.x / size.width to down.position.y / size.height)
-                            s.liveStroke = BrushStroke(pts.toList(), s.brushColor, s.brushWidth, s.brushGlow)
+                            show(stroke(pts.toList()))
                             do {
                                 val ev = awaitPointerEvent()
                                 ev.changes.firstOrNull()?.let { ch ->
                                     pts += (ch.position.x / size.width).coerceIn(0f, 1f) to (ch.position.y / size.height).coerceIn(0f, 1f); ch.consume()
                                 }
-                                s.liveStroke = BrushStroke(pts.toList(), s.brushColor, s.brushWidth, s.brushGlow)
+                                show(stroke(pts.toList()))
                             } while (ev.changes.any { it.pressed })
-                            s.liveStroke = null
-                            s.commit(s.edit.copy(strokes = s.edit.strokes + BrushStroke(pts.toList(), s.brushColor, s.brushWidth, s.brushGlow)))
+                            show(null)
+                            s.commit(if (blur) s.edit.copy(blurStrokes = s.edit.blurStrokes + stroke(pts.toList())) else s.edit.copy(strokes = s.edit.strokes + stroke(pts.toList())))
+                        }
+                        s.tab == PhotoTab.BLUR -> awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            var moved = false
+                            do {
+                                val ev = awaitPointerEvent()
+                                val pan = ev.calculatePan()
+                                val t = s.edit.tiltShift
+                                if (t != null && pan != Offset.Zero) {
+                                    moved = true; s.live(s.edit.copy(tiltShift = t.copy(centerY = (t.centerY + pan.y / size.height).coerceIn(0.05f, 0.95f)))); ev.changes.forEach { it.consume() }
+                                }
+                            } while (ev.changes.any { it.pressed })
+                            if (moved) s.commit()
                         }
                         else -> awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val hit = LayerPainter.hit(s.edit.layers, down.position.x, down.position.y, size.width, size.height, fonts)
                             s.selected = hit?.id
-                            if (hit != null && hit.isText) s.tab = PhotoTab.TEXT
-                            if (hit == null) return@awaitEachGesture
+                            if (hit != null && hit.isText && s.tab != PhotoTab.LAYERS) s.tab = PhotoTab.TEXT
+                            if (hit != null && !hit.isText && (hit.sticker?.card == true || hit.sticker?.dynamic == true) && s.tab != PhotoTab.LAYERS) s.tab = PhotoTab.STICKERS
+                            if (hit == null || hit.locked) return@awaitEachGesture
                             var moved = false
+                            var raw: EditorLayer = hit
                             do {
                                 val ev = awaitPointerEvent()
                                 val pan = ev.calculatePan(); val zoom = ev.calculateZoom(); val rot = ev.calculateRotation()
                                 if (pan != Offset.Zero || zoom != 1f || rot != 0f) {
                                     moved = true
-                                    s.live(s.edit.copy(layers = s.edit.layers.map { if (it.id == hit.id) it.dragBy(pan.x / size.width, pan.y / size.height).transform(zoom, rot) else it }))
+                                    raw = raw.dragBy(pan.x / size.width, pan.y / size.height).transform(zoom, rot)
+                                    val shown = s.snap.apply(raw, buzz)
+                                    s.live(s.edit.copy(layers = s.edit.layers.map { if (it.id == hit.id) shown else it }))
                                     ev.changes.forEach { it.consume() }
                                 }
                             } while (ev.changes.any { it.pressed })
+                            s.snap.clear()
                             if (moved) s.commit()
                         }
                     }
@@ -253,7 +362,7 @@ private fun PhotoCanvas(bitmap: Bitmap, s: PhotoEditorState, fonts: EditorTypefa
             drawIntoCanvas { cv ->
                 val c = cv.nativeCanvas; val w = size.width; val h = size.height
                 if (cropMode) {
-                    c.drawBitmap(rotated, null, RectF(0f, 0f, w, h), paint)
+                    c.drawBitmap(img, null, RectF(0f, 0f, w, h), paint)
                     val r = RectF(e.crop.left * w, e.crop.top * h, e.crop.right * w, e.crop.bottom * h)
                     val dim = Paint().apply { color = 0x99000000.toInt() }
                     c.drawRect(0f, 0f, w, r.top, dim); c.drawRect(0f, r.bottom, w, h, dim)
@@ -272,13 +381,24 @@ private fun PhotoCanvas(bitmap: Bitmap, s: PhotoEditorState, fonts: EditorTypefa
                     }
                 } else {
                     val src = android.graphics.Rect(
-                        (e.crop.left * rotated.width).toInt(), (e.crop.top * rotated.height).toInt(),
-                        (e.crop.right * rotated.width).toInt(), (e.crop.bottom * rotated.height).toInt()
+                        (e.crop.left * img.width).toInt(), (e.crop.top * img.height).toInt(),
+                        (e.crop.right * img.width).toInt(), (e.crop.bottom * img.height).toInt()
                     )
-                    c.drawBitmap(rotated, src, RectF(0f, 0f, w, h), paint)
+                    val dst = RectF(0f, 0f, w, h)
+                    c.drawBitmap(img, src, dst, paint)
+                    if (blurred != null && mask != null) BlurTools.drawBlurred(c, blurred, src, dst, mask, paint)
+                    if (s.tab == PhotoTab.BLUR && e.tiltShift != null) {
+                        val t = e.tiltShift; val cy = t.centerY * h
+                        val guide = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCCF3D98B.toInt(); strokeWidth = 2.5f; style = Paint.Style.STROKE; pathEffect = android.graphics.DashPathEffect(floatArrayOf(14f, 10f), 0f) }
+                        c.save(); c.rotate(t.angleDeg, w / 2, cy)
+                        c.drawLine(-w, cy - t.band * h, 2 * w, cy - t.band * h, guide); c.drawLine(-w, cy + t.band * h, 2 * w, cy + t.band * h, guide)
+                        c.restore()
+                    }
                     LayerPainter.drawVignette(c, w.toInt(), h.toInt(), e.adjust.vignette)
                     LayerPainter.drawStrokes(c, e.strokes + listOfNotNull(s.liveStroke), w.toInt(), h.toInt())
-                    LayerPainter.drawAll(c, e.layers, w.toInt(), h.toInt(), fonts, selected = if (s.tab == PhotoTab.TEXT || s.tab == PhotoTab.STICKERS) s.selected else null)
+                    val sel = if (s.tab == PhotoTab.TEXT || s.tab == PhotoTab.STICKERS || s.tab == PhotoTab.LAYERS) s.selected else null
+                    LayerPainter.drawAll(c, e.layers, w.toInt(), h.toInt(), fonts, selected = sel)
+                    LayerPainter.drawGuides(c, w.toInt(), h.toInt(), s.snap.vertical, s.snap.horizontal)
                 }
             }
         }

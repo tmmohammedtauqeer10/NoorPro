@@ -200,6 +200,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     // 1.1.3 in-app editors (shown over the composer; they only replace the media file).
     var editingPhoto by remember { mutableStateOf<Int?>(null) }
     var editingVideo by remember { mutableStateOf(false) }
+    var editingCollage by remember { mutableStateOf(false) }
 
     BackHandler(enabled = state.draftsOpen || (state.hasContent && !state.submitting)) {
         if (state.draftsOpen) state.draftsOpen = false else confirmLeave = true
@@ -226,7 +227,8 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
             onDeleteDraft = { d -> store.delete(d.id); drafts = store.all(); if (state.draftId == d.id) state.draftId = null },
             onPost = { post() },
             onEditPhoto = { i -> if (!state.submitting) editingPhoto = i },
-            onEditVideo = { if (!state.submitting && state.video != null) editingVideo = true }
+            onEditVideo = { if (!state.submitting && state.video != null) editingVideo = true },
+            onCollage = { if (!state.submitting && state.photos.size >= 2) editingCollage = true }
         ),
         userName = viewModel.userDisplayName,
         userPhotoUrl = viewModel.userPhotoUrl,
@@ -235,6 +237,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     )
     editingPhoto?.let { i -> PhotoEditorHost(state, i) { editingPhoto = null } }
     if (editingVideo) ReelEditorHost(state) { editingVideo = false }
+    if (editingCollage) CollageEditorHost(state) { editingCollage = false }
     }
 
     if (confirmLeave) AlertDialog(

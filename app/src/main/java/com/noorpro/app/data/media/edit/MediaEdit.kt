@@ -82,6 +82,10 @@ class ColorMatrix5(val m: FloatArray = IDENTITY.copyOf()) {
             0f, 1 - amount, 0f, 0f, g * amount,
             0f, 0f, 1 - amount, 0f, b * amount,
             0f, 0f, 0f, 1f, 0f))
+        /** t>0 magenta, t<0 green. */
+        fun greenMagenta(t: Float) = scale(1 + 0.06f * t, 1 - 0.09f * t, 1 + 0.06f * t)
+        /** Matte fade: lifts blacks and lowers whites (f in 0..1). */
+        fun fade(f: Float): ColorMatrix5 { val k = f.coerceIn(0f, 1f); return offset(0.11f * k, 0.11f * k, 0.11f * k) * scale(1 - 0.2f * k, 1 - 0.2f * k, 1 - 0.2f * k) }
         fun chain(vararg ms: ColorMatrix5): ColorMatrix5 = ms.fold(ColorMatrix5()) { acc, x -> x * acc }
     }
 }
@@ -113,36 +117,64 @@ enum class NoorFilter(val label: String, val note: String) {
     }
 }
 
-/** Adjust sliders, each in -1..1 (vignette 0..1). 0 = untouched. */
+/**
+ * Adjust sliders, each in -1..1 (vignette / sharpen / fade / grain 0..1). 0 = untouched.
+ * Brightness, contrast, warmth, saturation, tint and fade are one colour matrix (photo + video);
+ * highlights, shadows, sharpen and grain run per pixel (photo only, see ProPixels).
+ */
 data class Adjustments(
     val brightness: Float = 0f,
     val contrast: Float = 0f,
     val warmth: Float = 0f,
     val saturation: Float = 0f,
-    val vignette: Float = 0f
+    val vignette: Float = 0f,
+    val highlights: Float = 0f,
+    val shadows: Float = 0f,
+    val sharpen: Float = 0f,
+    val fade: Float = 0f,
+    val grain: Float = 0f,
+    val tint: Float = 0f
 ) {
-    val isNeutral get() = brightness == 0f && contrast == 0f && warmth == 0f && saturation == 0f && vignette == 0f
+    val isNeutral get() = AdjustKind.entries.all { value(it) == 0f }
+    /** Needs the per-pixel pass (highlights / shadows / sharpen / grain). */
+    val needsPixels get() = highlights != 0f || shadows != 0f || sharpen > 0f || grain > 0f
     fun matrix(): ColorMatrix5 = ColorMatrix5.chain(
         ColorMatrix5.brightness(brightness * 0.25f),
         ColorMatrix5.contrast(1f + contrast * 0.5f),
         ColorMatrix5.warmth(warmth),
-        ColorMatrix5.saturation(1f + saturation)
+        ColorMatrix5.greenMagenta(tint),
+        ColorMatrix5.saturation(1f + saturation),
+        ColorMatrix5.fade(fade)
     )
-    fun with(kind: AdjustKind, v: Float): Adjustments = when (kind) {
-        AdjustKind.BRIGHTNESS -> copy(brightness = v.coerceIn(-1f, 1f))
-        AdjustKind.CONTRAST -> copy(contrast = v.coerceIn(-1f, 1f))
-        AdjustKind.WARMTH -> copy(warmth = v.coerceIn(-1f, 1f))
-        AdjustKind.SATURATION -> copy(saturation = v.coerceIn(-1f, 1f))
-        AdjustKind.VIGNETTE -> copy(vignette = v.coerceIn(0f, 1f))
+    fun with(kind: AdjustKind, v: Float): Adjustments {
+        val x = v.coerceIn(kind.min, 1f)
+        return when (kind) {
+            AdjustKind.BRIGHTNESS -> copy(brightness = x)
+            AdjustKind.CONTRAST -> copy(contrast = x)
+            AdjustKind.WARMTH -> copy(warmth = x)
+            AdjustKind.SATURATION -> copy(saturation = x)
+            AdjustKind.VIGNETTE -> copy(vignette = x)
+            AdjustKind.HIGHLIGHTS -> copy(highlights = x)
+            AdjustKind.SHADOWS -> copy(shadows = x)
+            AdjustKind.SHARPEN -> copy(sharpen = x)
+            AdjustKind.FADE -> copy(fade = x)
+            AdjustKind.GRAIN -> copy(grain = x)
+            AdjustKind.TINT -> copy(tint = x)
+        }
     }
     fun value(kind: AdjustKind): Float = when (kind) {
         AdjustKind.BRIGHTNESS -> brightness; AdjustKind.CONTRAST -> contrast; AdjustKind.WARMTH -> warmth
         AdjustKind.SATURATION -> saturation; AdjustKind.VIGNETTE -> vignette
+        AdjustKind.HIGHLIGHTS -> highlights; AdjustKind.SHADOWS -> shadows; AdjustKind.SHARPEN -> sharpen
+        AdjustKind.FADE -> fade; AdjustKind.GRAIN -> grain; AdjustKind.TINT -> tint
     }
 }
 
-enum class AdjustKind(val label: String, val min: Float) {
-    BRIGHTNESS("Brightness", -1f), CONTRAST("Contrast", -1f), WARMTH("Warmth", -1f), SATURATION("Saturation", -1f), VIGNETTE("Vignette", 0f)
+/** [video] = also available on reels (matrix / overlay based). */
+enum class AdjustKind(val label: String, val min: Float, val video: Boolean = true) {
+    BRIGHTNESS("Brightness", -1f), CONTRAST("Contrast", -1f), WARMTH("Warmth", -1f), SATURATION("Saturation", -1f), VIGNETTE("Vignette", 0f),
+    HIGHLIGHTS("Highlights", -1f, video = false), SHADOWS("Shadows", -1f, video = false), SHARPEN("Sharpen", 0f, video = false),
+    FADE("Fade", 0f), GRAIN("Grain", 0f, video = false), TINT("Tint", -1f)
 }
 
 /** Filter (at strength) followed by the adjust sliders — one matrix for preview, photo render and video export. */
@@ -191,8 +223,46 @@ object Crop {
 
 // ---------------------------------------------------------------- overlays
 
+/** Bundled (res/font) + Android system families — no new font files. */
 enum class EditorFont(val label: String, val arabic: Boolean = false) {
-    CLASSIC("Classic"), MODERN("Modern"), STRONG("Strong"), NASKH("Naskh", arabic = true)
+    CLASSIC("Classic"), MODERN("Modern"), STRONG("Strong"), NASKH("Naskh", arabic = true),
+    ITALIC("Italic"), LIGHT("Light"), SERIF("Serif"), MONO("Mono"), SCRIPT("Script"), CONDENSED("Condensed")
+}
+
+/** Text looks on top of the pill choice. */
+enum class TextLook(val label: String) { PLAIN("Plain"), OUTLINE("Outline"), SHADOW("Shadow"), NEON("Neon"), GRADIENT("Gradient") }
+
+enum class TextAlignment(val label: String) { LEFT("Left"), CENTER("Centre"), RIGHT("Right") }
+
+/** Entrance animation at the layer's start (reels and story motion). */
+enum class TextAnim(val label: String) {
+    NONE("None"), TYPEWRITER("Typewriter"), FADE("Fade"), POP("Pop"), SLIDE("Slide up");
+
+    fun durationMs(chars: Int): Long = when (this) {
+        NONE -> 0L
+        TYPEWRITER -> (chars * 45L).coerceIn(400L, 2000L)
+        FADE, SLIDE -> 500L
+        POP -> 450L
+    }
+
+    /** State [elapsedMs] after the layer appears. [dy] is a fraction of the frame's short side. */
+    fun frame(elapsedMs: Long, chars: Int): AnimFrame {
+        val d = durationMs(chars)
+        if (this == NONE || d <= 0 || elapsedMs >= d) return AnimFrame.DONE
+        val p = (elapsedMs.coerceAtLeast(0).toFloat() / d).coerceIn(0f, 1f)
+        val ease = 1f - (1f - p) * (1f - p) * (1f - p)
+        return when (this) {
+            TYPEWRITER -> AnimFrame(chars = kotlin.math.ceil(chars * p).toInt().coerceIn(0, chars))
+            FADE -> AnimFrame(alpha = ease)
+            POP -> { val c1 = 1.70158f; val c3 = c1 + 1; val q = p - 1; AnimFrame(alpha = (p * 3).coerceAtMost(1f), scale = 0.4f + 0.6f * (1 + c3 * q * q * q + c1 * q * q)) }
+            SLIDE -> AnimFrame(alpha = ease, dy = (1f - ease) * 0.12f)
+            NONE -> AnimFrame.DONE
+        }
+    }
+}
+
+data class AnimFrame(val alpha: Float = 1f, val scale: Float = 1f, val dy: Float = 0f, val chars: Int? = null) {
+    companion object { val DONE = AnimFrame() }
 }
 
 enum class TextPill(val label: String) { NONE("Plain"), SOLID("Pill"), SOFT("Soft") }
@@ -207,11 +277,18 @@ object EditorPalette {
     }
 }
 
-enum class StickerKind(val label: String, val text: String? = null, val dynamic: Boolean = false) {
+/**
+ * [dynamic] = one-line info pill whose text comes from the layer; [card] = multi-line card (quote / countdown);
+ * [interactive] = story poll / question / quiz (needs the backend flag, see StoryInteractive).
+ */
+enum class StickerKind(val label: String, val text: String? = null, val dynamic: Boolean = false, val card: Boolean = false, val interactive: Boolean = false) {
     CRESCENT("Crescent"), LANTERN("Lantern"), MOSQUE("Mosque"),
     JUMUAH("Jumu'ah Mubarak", "Jumu'ah Mubarak"), RAMADAN("Ramadan Kareem", "Ramadan Kareem"),
     ALHAMDULILLAH("Alhamdulillah", "Alhamdulillah"), SUBHANALLAH("SubhanAllah", "SubhanAllah"),
-    LOCATION("Location", dynamic = true), TIME("Time", dynamic = true), HASHTAG("Hashtag", dynamic = true)
+    LOCATION("Location", dynamic = true), TIME("Time", dynamic = true), HASHTAG("Hashtag", dynamic = true),
+    MENTION("Mention", dynamic = true), HIJRI("Hijri date", dynamic = true), PRAYER("Prayer time", dynamic = true),
+    AYAH("Ayah", card = true), DUA("Du'a", card = true), HADITH("Hadith", card = true), COUNTDOWN("Countdown", card = true),
+    POLL("Poll", card = true, interactive = true), QUESTION("Question", card = true, interactive = true), QUIZ("Quiz", card = true, interactive = true)
 }
 
 /** Text or sticker on top of the photo / video. Position = centre, normalised 0..1. Times in output ms (video only). */
@@ -228,18 +305,32 @@ data class EditorLayer(
     val scale: Float = 1f,
     val rotation: Float = 0f,
     val startMs: Long = 0L,
-    val endMs: Long = Long.MAX_VALUE
+    val endMs: Long = Long.MAX_VALUE,
+    val look: TextLook = TextLook.PLAIN,
+    val align: TextAlignment = TextAlignment.CENTER,
+    val anim: TextAnim = TextAnim.NONE,
+    val locked: Boolean = false,
+    /** Card stickers: reference / caption line (e.g. "Al-Baqarah 2:286"). */
+    val sub: String = "",
+    /** Poll / quiz options (2–4). */
+    val options: List<String> = emptyList(),
+    /** Quiz: index of the right option. */
+    val answer: Int = -1
 ) {
     val isText get() = sticker == null
+    val isCard get() = sticker?.card == true
+    /** Animation state at output time [atMs] (null = still photo → final state). */
+    fun animAt(atMs: Long?): AnimFrame = if (atMs == null || anim == TextAnim.NONE) AnimFrame.DONE else anim.frame(atMs - startMs, label.length)
     /** What a sticker or text layer says (dynamic stickers carry their label in [text]). */
     val label get() = when {
         sticker == null -> text
+        sticker.card -> text.ifBlank { sticker.label }
         !sticker.dynamic -> sticker.text ?: ""
         else -> text.ifBlank { sticker.label }
     }
 
-    fun dragBy(dx: Float, dy: Float) = copy(x = (x + dx).coerceIn(0.02f, 0.98f), y = (y + dy).coerceIn(0.02f, 0.98f))
-    fun transform(zoom: Float, rotateDeg: Float) = copy(scale = (scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE), rotation = normaliseDeg(rotation + rotateDeg))
+    fun dragBy(dx: Float, dy: Float) = if (locked) this else copy(x = (x + dx).coerceIn(0.02f, 0.98f), y = (y + dy).coerceIn(0.02f, 0.98f))
+    fun transform(zoom: Float, rotateDeg: Float) = if (locked) this else copy(scale = (scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE), rotation = normaliseDeg(rotation + rotateDeg))
     fun visibleAt(ms: Long) = ms >= startMs && ms < endMs
     fun timed(start: Long, end: Long, total: Long): EditorLayer {
         val s = start.coerceIn(0, max(0, total - MIN_ON_SCREEN_MS)); val e = end.coerceIn(s + MIN_ON_SCREEN_MS, max(s + MIN_ON_SCREEN_MS, total))
@@ -274,17 +365,56 @@ data class PhotoEdit(
     val strength: Float = 1f,
     val adjust: Adjustments = Adjustments(),
     val layers: List<EditorLayer> = emptyList(),
-    val strokes: List<BrushStroke> = emptyList()
+    val strokes: List<BrushStroke> = emptyList(),
+    val curve: ToneCurve = ToneCurve(),
+    val hsl: HslAdjust = HslAdjust(),
+    val tiltShift: TiltShift? = null,
+    /** Blur brush mask strokes (normalised like [strokes]). */
+    val blurStrokes: List<BrushStroke> = emptyList(),
+    val blurAmount: Float = 0.6f
 ) {
     val isUntouched get() = this == PhotoEdit()
     val matrix get() = colorMatrixFor(filter, strength, adjust)
+    /** Per-pixel pass needed (tone curve, HSL, highlights / shadows / sharpen / grain). */
+    val needsPixels get() = adjust.needsPixels || !curve.isIdentity || !hsl.isNeutral
+    val hasBlur get() = tiltShift != null || blurStrokes.isNotEmpty()
     fun rotate() = copy(quarterTurns = (quarterTurns + 1) % 4, crop = CropRect(), aspect = CropAspect.FREE)
     fun withAspect(a: CropAspect, imgW: Int, imgH: Int): PhotoEdit {
         val (w, h) = Crop.rotatedSize(imgW, imgH, quarterTurns)
         return copy(aspect = a, crop = Crop.fit(w, h, a))
     }
-    fun upsert(l: EditorLayer) = copy(layers = layers.filterNot { it.id == l.id } + l)
+    fun upsert(l: EditorLayer) = copy(layers = Layers.upsert(layers, l))
     fun remove(id: String) = copy(layers = layers.filterNot { it.id == id })
+}
+
+/** Layer list ops shared by photo + reel (list order = draw order, last on top). */
+object Layers {
+    /** Replace in place (keeps the stacking order) or add on top. */
+    fun upsert(list: List<EditorLayer>, l: EditorLayer): List<EditorLayer> =
+        if (list.any { it.id == l.id }) list.map { if (it.id == l.id) l else it } else list + l
+    /** Move a layer [delta] steps up (+ = towards the top). */
+    fun move(list: List<EditorLayer>, id: String, delta: Int): List<EditorLayer> {
+        val i = list.indexOfFirst { it.id == id }; if (i < 0) return list
+        val j = (i + delta).coerceIn(0, list.lastIndex); if (i == j) return list
+        return list.toMutableList().apply { add(j, removeAt(i)) }
+    }
+    fun toggleLock(list: List<EditorLayer>, id: String) = list.map { if (it.id == id) it.copy(locked = !it.locked) else it }
+}
+
+/** Snapping while dragging: centre lines and 0 / 90 / 180° rotation. Returns which guides to draw. */
+object Snap {
+    const val POS = 0.022f
+    const val DEG = 4f
+    data class Result(val layer: EditorLayer, val vertical: Boolean, val horizontal: Boolean, val angle: Boolean) {
+        val any get() = vertical || horizontal || angle
+    }
+    fun apply(l: EditorLayer): Result {
+        val v = kotlin.math.abs(l.x - 0.5f) < POS; val h = kotlin.math.abs(l.y - 0.5f) < POS
+        val target = listOf(0f, 90f, -90f, 180f, -180f).firstOrNull { kotlin.math.abs(l.rotation - it) < DEG }
+        val snapped = l.copy(x = if (v) 0.5f else l.x, y = if (h) 0.5f else l.y,
+            rotation = if (target != null) EditorLayer.normaliseDeg(target) else l.rotation)
+        return Result(snapped, v, h, target != null && l.rotation != 0f)
+    }
 }
 
 /** Undo / redo with a cap. Commit on gesture end, not every frame. */

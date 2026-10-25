@@ -147,7 +147,9 @@ data class ComposerDraft(
     val trimStartMs: Long = 0L,
     val trimEndMs: Long = 0L,
     val coverMs: Long = 0L,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** 1.1.3 editor pro: editing steps (EditCodec JSON) so the editors reopen where you left off. */
+    val editJson: String = ""
 ) {
     val preview get() = text.ifBlank { arabicText }.ifBlank { if (media.isNotEmpty()) (if (isVideo) "Video" else "${media.size} photo(s)") else "Empty draft" }
 
@@ -156,7 +158,7 @@ data class ComposerDraft(
         put("arabicText", arabicText); put("reference", reference); put("media", JSONArray(media)); put("isVideo", isVideo)
         put("pollOptions", JSONArray(pollOptions)); put("pollHours", pollHours); put("aiLabel", aiLabel); put("location", location)
         put("followersOnly", followersOnly); put("trimStartMs", trimStartMs); put("trimEndMs", trimEndMs); put("coverMs", coverMs)
-        put("updatedAt", updatedAt)
+        put("updatedAt", updatedAt); if (editJson.isNotEmpty()) put("editJson", editJson)
     }
 
     companion object {
@@ -170,7 +172,7 @@ data class ComposerDraft(
                 isVideo = o.optBoolean("isVideo"), pollOptions = list("pollOptions"), pollHours = o.optInt("pollHours", 24),
                 aiLabel = o.optBoolean("aiLabel"), location = o.optString("location"), followersOnly = o.optBoolean("followersOnly"),
                 trimStartMs = o.optLong("trimStartMs"), trimEndMs = o.optLong("trimEndMs"), coverMs = o.optLong("coverMs"),
-                updatedAt = o.optLong("updatedAt")
+                updatedAt = o.optLong("updatedAt"), editJson = o.optString("editJson")
             )
         }.getOrNull()
     }
@@ -190,17 +192,26 @@ class ComposerDraftStore(context: Context) {
     /** Saves (or replaces) a draft, copying content:// media into private storage. Call off the main thread. */
     fun save(draft: ComposerDraft): ComposerDraft {
         val dir = File(root, draft.id).apply { mkdirs() }
-        val kept = draft.media.mapIndexedNotNull { i, s ->
-            val uri = Uri.parse(s)
-            if (uri.scheme == "file" && uri.path?.startsWith(dir.absolutePath) == true) return@mapIndexedNotNull s
-            runCatching {
-                val out = File(dir, "m_${System.nanoTime()}_$i" + if (draft.isVideo) ".mp4" else ".jpg")
-                app.contentResolver.openInputStream(uri)!!.use { input -> out.outputStream().use { input.copyTo(it) } }
-                Uri.fromFile(out).toString()
+        fun inDir(s: String) = Uri.parse(s).let { it.scheme == "file" && it.path?.startsWith(dir.absolutePath) == true } || s.startsWith(dir.absolutePath)
+        fun copy(s: String, tag: String, ext: String): String? {
+            if (inDir(s)) return s
+            return runCatching {
+                val out = File(dir, "${tag}_${System.nanoTime()}$ext")
+                val input = if (s.startsWith("/")) File(s).inputStream() else app.contentResolver.openInputStream(Uri.parse(s))!!
+                input.use { i -> out.outputStream().use { i.copyTo(it) } }
+                if (s.startsWith("/")) out.absolutePath else Uri.fromFile(out).toString()
             }.getOrNull()
         }
-        val saved = draft.copy(media = kept, updatedAt = System.currentTimeMillis())
-        dir.listFiles()?.filter { f -> kept.none { it.endsWith(f.name) } }?.forEach { it.delete() }
+        val moved = mutableMapOf<String, String>()
+        val kept = draft.media.mapIndexedNotNull { i, s -> copy(s, "m_$i", if (draft.isVideo) ".mp4" else ".jpg")?.also { moved[s] = it } }
+        // Editing steps: originals, extra reel clips and voiceover takes travel with the draft.
+        val edits = com.noorpro.app.data.media.edit.EditCodec.draft(draft.editJson)
+        val editJson = if (edits.isEmpty) "" else com.noorpro.app.data.media.edit.EditCodec.draft(edits.mapFiles { f ->
+            moved.getOrPut(f) { copy(f, "e", when { f.endsWith(".wav") -> ".wav"; draft.isVideo -> ".mp4"; else -> ".jpg" }) ?: f }
+        })
+        val saved = draft.copy(media = kept, updatedAt = System.currentTimeMillis(), editJson = editJson)
+        val keep = (kept + moved.values).map { it.substringAfterLast('/') }.toSet()
+        dir.listFiles()?.filter { f -> f.name !in keep }?.forEach { it.delete() }
         write(all().filter { it.id != draft.id } + saved)
         return saved
     }

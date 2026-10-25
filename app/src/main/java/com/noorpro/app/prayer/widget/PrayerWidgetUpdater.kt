@@ -53,7 +53,7 @@ object PrayerWidgetUpdater {
         val targetMs: Long = 0L,
     )
 
-    private suspend fun loadSnapshot(context: Context): Snapshot {
+    internal suspend fun loadSnapshot(context: Context): Snapshot {
         val hijri = PrayerDisplay.hijriLabel(context, short = true)
         val location = UserPreferencesRepository(context).locationFlow.first()
         if (!location.isAvailable) {

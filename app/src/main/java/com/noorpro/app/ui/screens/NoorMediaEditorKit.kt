@@ -59,10 +59,20 @@ import com.noorpro.app.ui.theme.PlusJakarta
 
 internal val NaskhFamily = FontFamily(Font(R.font.noto_naskh_arabic))
 
+private val ItalicFamily = FontFamily(Font(R.font.librecaslontext_italic))
+private val LightFamily = FontFamily(Font(R.font.plusjakartasans_regular))
+
 internal fun EditorFont.family(): FontFamily = when (this) {
     EditorFont.CLASSIC -> LibreCaslon; EditorFont.MODERN, EditorFont.STRONG -> PlusJakarta; EditorFont.NASKH -> NaskhFamily
+    EditorFont.ITALIC -> ItalicFamily; EditorFont.LIGHT -> LightFamily
+    EditorFont.SERIF -> FontFamily.Serif; EditorFont.MONO -> FontFamily.Monospace; EditorFont.SCRIPT -> FontFamily.Cursive
+    EditorFont.CONDENSED -> FontFamily(androidx.compose.ui.text.font.Typeface(EditorTypefaces.system(EditorFont.CONDENSED)))
 }
-internal fun EditorFont.weight(): FontWeight = when (this) { EditorFont.STRONG -> FontWeight.ExtraBold; EditorFont.CLASSIC -> FontWeight.Bold; else -> FontWeight.SemiBold }
+internal fun EditorFont.weight(): FontWeight = when (this) {
+    EditorFont.STRONG -> FontWeight.ExtraBold; EditorFont.CLASSIC -> FontWeight.Bold
+    EditorFont.ITALIC, EditorFont.LIGHT, EditorFont.SERIF, EditorFont.MONO, EditorFont.SCRIPT -> FontWeight.Normal
+    else -> FontWeight.SemiBold
+}
 
 /** Stage behind the media: warm parchment in light, near-black green in dark. */
 @Composable internal fun editorStage(): Color = if (isStitchLight()) Color(0xFFEDE4CF) else Color(0xFF07110D)
@@ -107,15 +117,16 @@ data class EditorTabSpec(val key: String, val label: String, val icon: ImageVect
 
 @Composable
 internal fun EditorTabBar(tabs: List<EditorTabSpec>, selected: String, onSelect: (String) -> Unit) {
+    val scroll = tabs.size > 7
     Row(
-        Modifier.fillMaxWidth().background(stitchSurface())
+        Modifier.fillMaxWidth().background(stitchSurface()).then(if (scroll) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
             .padding(horizontal = 6.dp, vertical = 6.dp).testTag("editor_tabs"),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         tabs.forEach { t ->
             val on = t.key == selected
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (on) feedMint() else Color.Transparent)
+                (if (scroll) Modifier.width(60.dp) else Modifier.weight(1f)).clip(RoundedCornerShape(14.dp)).background(if (on) feedMint() else Color.Transparent)
                     .clickable { onSelect(t.key) }.padding(horizontal = 2.dp, vertical = 7.dp).testTag("editor_tab_${t.key}"),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -214,6 +225,7 @@ internal fun TextToolPanel(
     onAdd: () -> Unit,
     onChange: (EditorLayer, commit: Boolean) -> Unit,
     onDelete: (EditorLayer) -> Unit,
+    showAnim: Boolean = false,
     extra: @Composable ColumnScope.() -> Unit = {}
 ) {
     EditorPanel(Modifier.testTag("editor_text_panel")) {
@@ -247,7 +259,9 @@ internal fun TextToolPanel(
             }
         }
         ColorDots(layer.color) { onChange(layer.copy(color = it), true) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextLookRow(layer) { onChange(it, true) }
+        if (showAnim) TextAnimRow(layer) { onChange(it, true) }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextPill.entries.forEach { p -> EditorChip(p.label, p == layer.pill) { onChange(layer.copy(pill = p, pillColor = if (p != TextPill.NONE && layer.color == layer.pillColor) 0xFF111111 else layer.pillColor), true) } }
             if (layer.pill != TextPill.NONE) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(0xFF0B6243, 0xFF111111, 0xFFD4AF37, 0xFFFDF6E3).forEach { c ->
@@ -274,36 +288,67 @@ internal fun ColorDots(selected: Long, onPick: (Long) -> Unit) {
     }
 }
 
-/** Sticker tray: original Islamic art + word badges + location / time / hashtag. */
+/** Sticker tray: original Islamic art, word badges, Islamic cards / dates and info pills (+ interactive when enabled). */
 @Composable
-internal fun StickerTray(fonts: EditorTypefaces, labels: Map<StickerKind, String>, onPick: (StickerKind) -> Unit) {
+internal fun StickerTray(
+    fonts: EditorTypefaces,
+    labels: Map<StickerKind, String>,
+    interactive: Boolean = false,
+    onPick: (StickerKind) -> Unit
+) {
     EditorPanel(Modifier.testTag("editor_stickers")) {
         EditorLabel("Stickers", "Made for NoorPro")
-        val rows = StickerKind.entries.chunked(5)
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { k ->
-                    val preview = remember(k, labels[k]) { EditorLayer("p_$k", sticker = k, text = labels[k] ?: k.label, scale = 1f) }
-                    Box(
-                        Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(14.dp)).background(stitchSurface())
-                            .border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).clickable { onPick(k) }.testTag("editor_sticker_${k.name}"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
-                            drawIntoCanvas { c ->
-                                val w = size.width.toInt(); val h = size.height.toInt()
-                                val u = LayerPainter.unit(w, h)
-                                val b = LayerPainter.localBounds(preview, u, fonts)
-                                val k2 = minOf(size.width * 0.92f / b.width(), size.height * 0.84f / b.height(), 2.2f)
-                                LayerPainter.draw(c.nativeCanvas, preview.copy(scale = k2), w, h, fonts)
-                            }
-                        }
-                    }
-                }
-                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+        val groups = listOf(
+            "Art & words" to StickerKind.entries.filter { !it.dynamic && !it.card },
+            "Qur'an, du'a & dates" to listOf(StickerKind.AYAH, StickerKind.DUA, StickerKind.HADITH, StickerKind.HIJRI, StickerKind.PRAYER, StickerKind.COUNTDOWN),
+            "Info" to listOf(StickerKind.LOCATION, StickerKind.TIME, StickerKind.HASHTAG, StickerKind.MENTION),
+        ) + (if (interactive) listOf("Interactive" to StickerKind.entries.filter { it.interactive }) else emptyList())
+        groups.forEach { (title, kinds) ->
+            Text(title, color = stitchMutedText(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                kinds.forEach { k -> StickerTile(k, labels, fonts, onPick) }
             }
         }
     }
+}
+
+@Composable
+private fun StickerTile(k: StickerKind, labels: Map<StickerKind, String>, fonts: EditorTypefaces, onPick: (StickerKind) -> Unit) {
+    val preview = remember(k, labels[k]) { stickerPreview(k, labels[k]) }
+    val wide = k.card || k.dynamic
+    Box(
+        Modifier.size(width = if (wide) 96.dp else 64.dp, height = 58.dp).clip(RoundedCornerShape(14.dp)).background(stitchSurface())
+            .border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).clickable { onPick(k) }.testTag("editor_sticker_${k.name}"),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+            drawIntoCanvas { c ->
+                val w = size.width.toInt(); val h = size.height.toInt()
+                // cards are laid out on a larger virtual frame so their text stays legible when shrunk
+                val vw = if (k.card) w * 3 else w; val vh = if (k.card) h * 3 else h
+                val u = LayerPainter.unit(vw, vh)
+                val b = LayerPainter.localBounds(preview, u, fonts)
+                val k2 = minOf(size.width * 0.94f / b.width(), size.height * 0.86f / b.height(), 2.2f)
+                c.nativeCanvas.save()
+                c.nativeCanvas.translate(size.width / 2 - vw / 2f * 1f, size.height / 2 - vh / 2f)
+                LayerPainter.draw(c.nativeCanvas, preview.copy(scale = k2), vw, vh, fonts)
+                c.nativeCanvas.restore()
+            }
+        }
+        if (k.card) Text(k.label, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp)
+            .clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 5.dp))
+    }
+}
+
+internal fun stickerPreview(k: StickerKind, label: String?): EditorLayer = when (k) {
+    StickerKind.AYAH -> EditorLayer("p_$k", sticker = k, text = "With hardship comes ease", sub = "94:6")
+    StickerKind.DUA -> EditorLayer("p_$k", sticker = k, text = "Rabbi zidni 'ilma", sub = "20:114")
+    StickerKind.HADITH -> EditorLayer("p_$k", sticker = k, text = "Actions are by intentions", sub = "Bukhari 1")
+    StickerKind.COUNTDOWN -> EditorLayer("p_$k", sticker = k, text = label ?: "Ramadan soon")
+    StickerKind.POLL -> EditorLayer("p_$k", sticker = k, text = "Poll", options = listOf("Yes", "No"))
+    StickerKind.QUIZ -> EditorLayer("p_$k", sticker = k, text = "Quiz", options = listOf("A", "B"))
+    StickerKind.QUESTION -> EditorLayer("p_$k", sticker = k, text = "Ask me")
+    else -> EditorLayer("p_$k", sticker = k, text = label ?: k.label, scale = 1f)
 }
 
 /** Small timing bar for a layer on the reel timeline. */
