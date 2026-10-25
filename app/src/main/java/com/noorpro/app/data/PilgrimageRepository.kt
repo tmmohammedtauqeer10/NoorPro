@@ -68,7 +68,7 @@ class NoorPilgrimageRepository(context: Context) : PilgrimageRepository {
             lastSyncedAt = System.currentTimeMillis()
         )
         writeProgressLocal(normalized)
-        val firebaseUser = FirebaseAuth.getInstance().currentUser ?: return
+        val firebaseUser = FirebaseGate.currentUser ?: return
         if (firebaseUser.uid != userId) return
         firestore.collection("users").document(userId)
             .collection("journeys").document(journeyType.name.lowercase())
@@ -76,7 +76,7 @@ class NoorPilgrimageRepository(context: Context) : PilgrimageRepository {
     }
 
     override fun syncJourneyProgress(userId: String, journeyType: JourneyType, onMerged: (JourneyProgress) -> Unit) {
-        val firebaseUser = FirebaseAuth.getInstance().currentUser ?: return
+        val firebaseUser = FirebaseGate.currentUser ?: return
         if (firebaseUser.uid != userId) return
         val local = getJourneyProgress(userId, journeyType)
         firestore.collection("users").document(userId)
@@ -113,7 +113,7 @@ class NoorPilgrimageRepository(context: Context) : PilgrimageRepository {
             .putString("place_${safeKey(userId)}_${safeKey(place.id)}", encodePlace(normalized))
             .putStringSet("places_${safeKey(userId)}", getSavedPlaceIds(userId) + place.id)
             .apply()
-        val firebaseUser = FirebaseAuth.getInstance().currentUser ?: return
+        val firebaseUser = FirebaseGate.currentUser ?: return
         if (firebaseUser.uid != userId) return
         firestore.collection("users").document(userId)
             .collection("savedPilgrimPlaces").document(place.id)
@@ -183,7 +183,7 @@ class NoorPilgrimageRepository(context: Context) : PilgrimageRepository {
             .putString("${p}_meeting", normalized.familyMeetingPoint)
             .putLong("${p}_updated", normalized.updatedAt)
             .apply()
-        val firebaseUser = FirebaseAuth.getInstance().currentUser ?: return
+        val firebaseUser = FirebaseGate.currentUser ?: return
         if (firebaseUser.uid != userId) return
         firestore.collection("users").document(userId)
             .collection("journeys").document("planner")

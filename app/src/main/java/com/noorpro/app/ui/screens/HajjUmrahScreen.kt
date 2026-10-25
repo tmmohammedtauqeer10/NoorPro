@@ -76,7 +76,7 @@ fun HajjUmrahScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
     val repository = remember { NoorPilgrimageRepository(context) }
     val mapProvider = remember { GoogleMapsIntentProvider() }
-    val userId = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest_local" }
+    val userId = remember { com.noorpro.app.data.FirebaseGate.currentUser?.uid ?: "guest_local" }
     var journeyTypeName by rememberSaveable { mutableStateOf(JourneyType.UMRAH.name) }
     var languageName by rememberSaveable { mutableStateOf(PilgrimageLanguage.ENGLISH.name) }
     var madhhabName by rememberSaveable { mutableStateOf(Madhhab.GENERAL.name) }

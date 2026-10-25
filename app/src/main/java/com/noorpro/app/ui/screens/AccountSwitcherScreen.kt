@@ -81,8 +81,9 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
-    val auth = remember { FirebaseAuth.getInstance() }
-    val currentUid = auth.currentUser?.uid.orEmpty()
+    // Lazy: only touch FirebaseAuth when the user actually switches/signs out (screen must render without Firebase).
+    val auth by remember { lazy { FirebaseAuth.getInstance() } }
+    val currentUid = com.noorpro.app.data.FirebaseGate.currentUser?.uid.orEmpty()
     val accounts = viewModel.savedAuthAccounts
     var switchingUid by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }

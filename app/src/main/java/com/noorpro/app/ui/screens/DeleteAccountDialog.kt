@@ -50,7 +50,7 @@ const val DELETE_ACCOUNT_URL = "https://noor-pro-d87e3.web.app/delete-account"
 fun DeleteAccountDialog(viewModel: DeenViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val user = remember { FirebaseAuth.getInstance().currentUser }
+    val user = remember { com.noorpro.app.data.FirebaseGate.currentUser }
     val needsPassword = remember { AccountDeletionService.usesPassword() }
     var password by remember { mutableStateOf("") }
     var confirmText by remember { mutableStateOf("") }

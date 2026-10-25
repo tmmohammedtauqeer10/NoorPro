@@ -566,8 +566,8 @@ private fun CountryPicker(onPick: (DialCountry) -> Unit, onDismiss: () -> Unit) 
 fun PhoneLinkRow(row: @Composable (title: String, subtitle: String, onClick: () -> Unit) -> Unit) {
     val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
-    var phone by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser?.phoneNumber.orEmpty()) }
-    if (FirebaseAuth.getInstance().currentUser == null) return
+    var phone by remember { mutableStateOf(com.noorpro.app.data.FirebaseGate.currentUser?.phoneNumber.orEmpty()) }
+    if (com.noorpro.app.data.FirebaseGate.currentUser == null) return
     row(
         "Phone number",
         if (phone.isNotBlank()) "Verified $phone" else "Add a mobile number for calls and account recovery"

@@ -53,14 +53,14 @@ internal fun groupStories(stories: List<UmmahStory>, myUid: String?, now: Long =
         .sortedWith(compareByDescending<UmmahStoryGroup> { it.authorUid == myUid }.thenByDescending { it.stories.last().createdAt })
 
 class StoryRepository {
-    private val db = FirebaseFirestore.getInstance()
+    private val db by lazy { FirebaseFirestore.getInstance() }
     private val main = Handler(Looper.getMainLooper())
 
-    fun currentUid(): String? = FirebaseAuth.getInstance().currentUser?.uid
+    fun currentUid(): String? = FirebaseGate.currentUser?.uid
 
     /** Live, signed-in-only listener for unexpired stories. Expired ones are hidden client-side too. */
     fun observeActive(onResult: (List<UmmahStory>) -> Unit): ListenerRegistration? {
-        if (FirebaseAuth.getInstance().currentUser == null) { onResult(emptyList()); return null }
+        if (FirebaseGate.currentUser == null) { onResult(emptyList()); return null }
         return db.collection("ummah_stories")
             .whereGreaterThan("expiresAt", Timestamp.now())
             .orderBy("expiresAt", Query.Direction.ASCENDING)
@@ -95,7 +95,7 @@ class StoryRepository {
         context: Context, uri: Uri, caption: String, name: String, handle: String, avatarUrl: String,
         onProgress: (Float) -> Unit, onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to add a story.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to add a story.")
         val file = ImageCompressor.compress(context, uri, maxSide = 1600)
         val path = "ummah_stories/${user.uid}/${System.currentTimeMillis()}.jpg"
         val ref = FirebaseStorage.getInstance().reference.child(path)
@@ -131,7 +131,7 @@ class StoryRepository {
         context: Context, uri: Uri, caption: String, name: String, handle: String, avatarUrl: String,
         onProgress: (Float) -> Unit, onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to add a story.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to add a story.")
         val ts = System.currentTimeMillis()
         val out = java.io.File(context.cacheDir, "story_$ts.mp4")
         StoryVideo.compress(context, uri, out, onProgress = { onProgress(it * 0.5f) }) { ok ->
@@ -174,7 +174,7 @@ class StoryRepository {
         postId: String, mediaUrl: String, thumbUrl: String, durationMs: Long, caption: String,
         name: String, handle: String, avatarUrl: String, onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to add a story.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to add a story.")
         if (!mediaUrl.startsWith("https://") || postId.isBlank()) return onResult(false, "This reel can't be added to a story.")
         db.collection("ummah_stories").add(
             mapOf(

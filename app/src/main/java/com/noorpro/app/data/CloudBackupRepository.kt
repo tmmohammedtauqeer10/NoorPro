@@ -1,6 +1,5 @@
 package com.noorpro.app.data
 
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -12,11 +11,13 @@ data class CloudBackupSnapshot(
 )
 
 class CloudBackupRepository {
-    private val auth = FirebaseAuth.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
+    // Lazy + gated: SettingsScreen remembers this on first composition, which must not throw when
+    // Firebase is not configured (that crash froze ThemeSweepScreenshotTest at SETTINGS).
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
+    private val currentUser get() = FirebaseGate.currentUser
 
     fun backupSettings(settingsJson: String, appVersion: String, onResult: (Boolean, String?) -> Unit) {
-        val user = auth.currentUser ?: return onResult(false, "Please sign in to back up settings to cloud.")
+        val user = currentUser ?: return onResult(false, "Please sign in to back up settings to cloud.")
         val payload = mapOf(
             "settingsJson" to settingsJson,
             "appVersion" to appVersion,
@@ -30,7 +31,7 @@ class CloudBackupRepository {
     }
 
     fun restoreSettings(onResult: (CloudBackupSnapshot?, String?) -> Unit) {
-        val user = auth.currentUser ?: return onResult(null, "Please sign in to restore cloud backup.")
+        val user = currentUser ?: return onResult(null, "Please sign in to restore cloud backup.")
         firestore.collection("user_backups").document(user.uid)
             .get()
             .addOnSuccessListener { document ->

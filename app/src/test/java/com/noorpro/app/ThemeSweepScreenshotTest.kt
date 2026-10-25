@@ -55,12 +55,23 @@ class ThemeSweepScreenshotTest {
             LaunchedEffect(target.value, dark.value) { vm.navigateTo(target.value) }
             MyApplicationTheme(darkTheme = dark.value) { MainLayout() }
         }
-        for (s in screens) for (d in listOf(false, true)) {
+        // A screen that throws during composition (e.g. eager Firebase access when it is not
+        // configured) leaves Compose permanently "not idle": every later screen then burned a
+        // 60 s idle timeout (~80 min total, looked like a hang). Fail fast and name the screen.
+        val failures = mutableListOf<String>()
+        var stuck = 0
+        loop@ for (s in screens) for (d in listOf(false, true)) {
             runCatching {
                 target.value = s; dark.value = d
                 rule.waitForIdle(); rule.mainClock.advanceTimeBy(1500); rule.waitForIdle()
                 rule.onRoot().captureRoboImage(filePath = "build/sweep/${s.name}_${if (d) "dark" else "light"}.png")
-            }.onFailure { println("SWEEP_FAIL ${s.name} $d ${it.message?.take(200)}") }
+                stuck = 0
+            }.onFailure {
+                println("SWEEP_FAIL ${s.name} $d ${it.message?.take(200)}")
+                failures += "${s.name}/${if (d) "dark" else "light"}: ${it.javaClass.simpleName} ${it.message?.take(160)}"
+                if (++stuck >= 2) break@loop
+            }
         }
+        org.junit.Assert.assertTrue("Theme sweep failed:\n" + failures.joinToString("\n"), failures.isEmpty())
     }
 }
