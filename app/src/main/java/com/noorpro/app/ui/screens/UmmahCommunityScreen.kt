@@ -1795,11 +1795,12 @@ private fun UmmahCreatePageDialog(
                 TextField(value = name, onValueChange = { name = it }, label = { Text("Page name") }, singleLine = true)
                 TextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, singleLine = true)
                 TextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, minLines = 3)
+                HalalTextWarning("$name $description".trim(), Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             Button(
-                enabled = name.isNotBlank(),
+                enabled = name.isNotBlank() && !halalBlocks("$name $description"),
                 onClick = { onCreate(UmmahPageDraft(name.trim(), category.ifBlank { "Community" }.trim(), description.ifBlank { "A beneficial Ummah page." }.trim())) }
             ) {
                 Text("Create")
@@ -3032,9 +3033,10 @@ private fun CommentComposer(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("${text.length}/500", color = TextSecondary, fontSize = 10.sp, modifier = Modifier.align(Alignment.End))
+                HalalTextWarning(text, Modifier.fillMaxWidth())
             }
         },
-        confirmButton = { Button(onClick = { onSubmit(text) }, enabled = text.isNotBlank()) { Text("Submit") } },
+        confirmButton = { Button(onClick = { onSubmit(text) }, enabled = text.isNotBlank() && !halalBlocks(text)) { Text("Submit") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

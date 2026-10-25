@@ -170,6 +170,9 @@ class MainActivity : ComponentActivity() {
         runCatching { com.noorpro.app.ads.ConsentManager.gatherConsent(this) }
         // App Link (https://noor-pro-d87e3.web.app/reel?id=… or /u?uid=…) that launched us.
         val appLink = intent?.data
+        // 1.1.5 Halal Guard: Remote Config flags + on-device word list (off the main thread).
+        runCatching { com.noorpro.app.data.halal.HalalFlags.load() }
+        Thread { runCatching { com.noorpro.app.data.halal.HalalTextFilter.ensureLoaded(applicationContext) } }.start()
         setContent {
             val viewModel: DeenViewModel = viewModel()
             // 1.0.78: start presence + incoming-call ringing as soon as the member signs in.
@@ -242,6 +245,8 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(1100); showSplash = false }
                 androidx.compose.foundation.layout.Box {
                     MainLayout()
+                    // 1.1.5: "your post wasn't published" / warning notices from Halal Guard.
+                    if (viewModel.isLoggedIn) com.noorpro.app.ui.screens.HalalNoticeHost()
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showSplash,
                         enter = androidx.compose.animation.EnterTransition.None,
@@ -428,6 +433,9 @@ fun MainLayout() {
                 DeenScreen.PDF_LIBRARY -> com.noorpro.app.ui.screens.PdfLibraryHubScreen(viewModel = viewModel)
                 DeenScreen.HAJJ_UMRAH -> com.noorpro.app.ui.screens.HajjUmrahScreen(viewModel = viewModel)
                 DeenScreen.CREATOR_STUDIO -> StitchCreatorStudioScreen(viewModel = viewModel)
+                DeenScreen.HALAL_GUIDELINES -> com.noorpro.app.ui.screens.HalalGuidelinesScreen(onBack = { viewModel.goBack() })
+                DeenScreen.SAFETY_SETTINGS -> com.noorpro.app.ui.screens.SafetySettingsScreen(viewModel = viewModel)
+                DeenScreen.MODERATOR_PANEL -> com.noorpro.app.ui.screens.ModeratorPanelScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FOLLOWERS -> StitchFollowersScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_FOLLOWING -> StitchFollowingScreen(viewModel = viewModel)
                 DeenScreen.DEEN_POINTS -> StitchDeenPointsScreen(viewModel = viewModel)

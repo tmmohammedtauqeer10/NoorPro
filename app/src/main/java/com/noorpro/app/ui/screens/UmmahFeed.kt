@@ -995,6 +995,8 @@ private fun UmmahPostMedia(post: UmmahPost, onOpen: () -> Unit, onDoubleTapLike:
             .testTag("ummah_media_${post.id}"),
         contentAlignment = Alignment.Center
     ) {
+        // 1.1.5 Halal Guard: moderator-marked sensitive media stays blurred until tapped.
+        SensitiveMedia(post.sensitive, post.id, Modifier.fillMaxSize()) {
         if (!isVideo && urls.size > 1) {
             val previews = urls.map { UmmahFeedPreview.images[it] }
             PhotoCarousel(urls, post.caption, onDoubleTap = onDoubleTapLike, modifier = Modifier.fillMaxSize(),
@@ -1005,6 +1007,7 @@ private fun UmmahPostMedia(post: UmmahPost, onOpen: () -> Unit, onDoubleTapLike:
             if (preview != null) Image(preview.asImageBitmap(), post.caption, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else AsyncImage(post.previewModel(), post.caption.ifBlank { if (isVideo) "Video" else "Post image" },
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
         }
         if (isVideo) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)))))

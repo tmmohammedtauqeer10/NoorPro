@@ -18,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +58,12 @@ object UgcTerms {
 
     /** Report reasons offered on every surface (stored verbatim in `ummah_reports.reason`). */
     val REPORT_REASONS = listOf(
+        // 1.1.5 Halal Guard reasons first: these route to Islamic-content reviewers.
+        "Immodest / indecent",
+        "Haram content",
+        "Wrong Quran / hadith",
+        "Sectarian hate / takfir",
+        "Scam / fake charity",
         "Spam or scam",
         "Hate speech or harassment",
         "Nudity or sexual content",
@@ -89,6 +97,8 @@ fun rememberUgcTermsGate(): UgcTermsGate {
     val gate = remember { UgcTermsGate(context) }
     if (gate.showing) {
         var agreed by remember { mutableStateOf(false) }
+        var showGuidelines by remember { mutableStateOf(false) }
+        if (showGuidelines) HalalGuidelinesDialog { showGuidelines = false }
         AlertDialog(
             onDismissRequest = { gate.showing = false },
             title = { Text("Community terms") },
@@ -108,6 +118,8 @@ fun rememberUgcTermsGate(): UgcTermsGate {
                         Text("Privacy Policy", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) })
                     }
+                    Text("Halal community guidelines", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showGuidelines = true }.testTag("terms_guidelines"))
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { agreed = !agreed }) {
                         Checkbox(checked = agreed, onCheckedChange = { agreed = it })
                         Text("I agree to the Terms of Service and community rules.", fontSize = 14.sp)
@@ -148,6 +160,23 @@ data class ReportTarget(
     val snippet: String = ""
 )
 
+/** Stateless reason list (also used by the render tests). */
+@Composable
+fun UgcReportReasonList(selected: String, onSelect: (String) -> Unit) {
+    Column(Modifier.testTag("report_reasons")) {
+        UgcTerms.REPORT_REASONS.forEachIndexed { i, option ->
+            if (i == 5) HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { onSelect(option) }.testTag("reason_$i")
+            ) {
+                RadioButton(selected = selected == option, onClick = { onSelect(option) })
+                Text(option, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
 /** Reason picker + optional "also block this user". Self-contained (own repository, no listeners). */
 @Composable
 fun UgcReportDialog(target: ReportTarget, onDismiss: () -> Unit) {
@@ -164,15 +193,7 @@ fun UgcReportDialog(target: ReportTarget, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Why are you reporting this? We review every report within 24 hours.", fontSize = 13.sp)
-                UgcTerms.REPORT_REASONS.forEach { option ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { reason = option }
-                    ) {
-                        RadioButton(selected = reason == option, onClick = { reason = option })
-                        Text(option, fontSize = 14.sp)
-                    }
-                }
+                UgcReportReasonList(reason) { reason = it }
                 if (canBlock) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

@@ -48,6 +48,12 @@ fun SettingsScreen(viewModel: DeenViewModel) {
     var showDeleteAccount by remember { mutableStateOf(false) }
     val showAdPrivacy = com.noorpro.app.ads.ConsentManager.privacyOptionsRequired.value
     val signedIn = viewModel.isLoggedIn
+    // 1.1.5 Halal Guard: moderator entry only for admins, and only when the panel flag is on.
+    var isModerator by remember { mutableStateOf(false) }
+    LaunchedEffect(signedIn) {
+        if (signedIn && com.noorpro.app.data.halal.HalalFlags.moderatorPanel)
+            runCatching { com.noorpro.app.data.halal.ModeratorRepository().checkModerator { isModerator = it } }
+    }
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val cloudBackupRepository = remember { CloudBackupRepository() }
     var cloudBusy by remember { mutableStateOf(false) }
@@ -178,6 +184,11 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 SettingsGroup("Privacy & Data", Icons.Default.Shield, index = 6) {
                     GroupRow("Profile visibility", "Who can see your Ummah profile", Icons.Default.Visibility) { viewModel.navigateTo(DeenScreen.UMMAH_PRIVACY) }
                     GroupRow("Blocked accounts", "Manage people you blocked", Icons.Default.Block) { viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED) }
+                    if (signedIn && com.noorpro.app.data.halal.HalalFlags.safety)
+                        GroupRow("Safety", "Message requests, comment filter, blur flagged media", Icons.Default.HealthAndSafety) { viewModel.navigateTo(DeenScreen.SAFETY_SETTINGS) }
+                    GroupRow("Community guidelines", "Halal rules for posting, commenting and chat", Icons.Default.Gavel) { viewModel.navigateTo(DeenScreen.HALAL_GUIDELINES) }
+                    if (com.noorpro.app.data.halal.ModeratorAccess.showPanel(signedIn, isModerator, com.noorpro.app.data.halal.HalalFlags.moderatorPanel))
+                        GroupRow("Moderation", "Review queue, reports and audit log", Icons.Default.AdminPanelSettings) { viewModel.navigateTo(DeenScreen.MODERATOR_PANEL) }
                     GroupRow("Data safety", "What Noor Pro stores and why", Icons.Default.PrivacyTip) { showPrivacy = true }
                     if (showAdPrivacy) GroupRow("Ad consent", "Review or change your ad privacy choices", Icons.Default.AdsClick) {
                         (context as? android.app.Activity)?.let { com.noorpro.app.ads.ConsentManager.showPrivacyOptions(it) }

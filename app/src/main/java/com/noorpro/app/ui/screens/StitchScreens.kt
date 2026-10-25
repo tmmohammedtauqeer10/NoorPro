@@ -7332,6 +7332,16 @@ internal fun StitchCommentSheet(
         }
         onDispose { registration.remove() }
     }
+    // 1.1.5 Halal Guard: the post owner may hide comments from people who don't follow them.
+    var ownerLimits by remember(post.id) { mutableStateOf(false) }
+    var ownerFollowers by remember(post.id) { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(post.id) {
+        if (com.noorpro.app.data.halal.HalalFlags.safety)
+            runCatching { com.noorpro.app.data.halal.CommentAudience.load(post.creatorUid) { l, f -> ownerLimits = l; ownerFollowers = f } }
+    }
+    val visibleComments = remember(comments, ownerLimits, ownerFollowers, currentCommentUid) {
+        com.noorpro.app.data.halal.SafetyRules.visibleComments(comments, { it.creatorUid }, post.creatorUid, currentCommentUid, ownerFollowers, ownerLimits)
+    }
 
     BackHandler(onBack = onDismiss)
 
@@ -7378,7 +7388,7 @@ internal fun StitchCommentSheet(
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
                             )
                             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                items(comments.filter { it.creatorUid !in blockedUids }, key = { it.id }) { c ->
+                                items(visibleComments.filter { it.creatorUid !in blockedUids }, key = { it.id }) { c ->
                                     StitchCommentRow(
                                         comment = c,
                                         photoUrl = liveProfiles[c.creatorUid]?.photoUrl.orEmpty(),
@@ -7439,6 +7449,7 @@ internal fun StitchCommentSheet(
                                 )
                             }
                         }
+                        HalalTextWarning(draft, Modifier.fillMaxWidth().padding(bottom = 6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.Bottom
@@ -7453,7 +7464,7 @@ internal fun StitchCommentSheet(
                             )
                             Spacer(Modifier.width(8.dp))
                             Button(
-                                enabled = !sending && draft.trim().isNotBlank(),
+                                enabled = !sending && draft.trim().isNotBlank() && !halalBlocks(draft),
                                 onClick = {
                                     if (!isLoggedIn) {
                                         Toast.makeText(context, "Sign in to comment", Toast.LENGTH_SHORT).show()
@@ -9089,6 +9100,7 @@ fun StitchUmmahProfileEditScreen(viewModel: DeenViewModel) {
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        HalalTextWarning("$displayName $username $bio".trim(), Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -9138,7 +9150,7 @@ fun StitchUmmahProfileEditScreen(viewModel: DeenViewModel) {
 
             item {
                 Button(
-                    enabled = !saving,
+                    enabled = !saving && !halalBlocks("$displayName $username $bio"),
                     onClick = {
                         saving = true
                         error = null
@@ -9589,6 +9601,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
     val groupTermsGate = rememberUgcTermsGate()
     var groupName by remember { mutableStateOf("") }
     var groupDescription by remember { mutableStateOf("") }
+    var groupAudience by remember { mutableStateOf(com.noorpro.app.data.halal.CircleAudience.ALL) }
     var creatingGroup by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<UmmahGroup?>(null) }
     var profiles by remember { mutableStateOf<Map<String, com.noorpro.app.data.UmmahProfile>>(emptyMap()) }
@@ -9610,6 +9623,20 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 )
             }
     }
+    // 1.1.5 Halal Guard safety: "Only people I follow" moves stranger chats into a Requests folder.
+    var safety by remember { mutableStateOf(com.noorpro.app.data.halal.SafetySettings()) }
+    DisposableEffect(viewModel.isLoggedIn) {
+        val reg = if (viewModel.isLoggedIn && com.noorpro.app.data.halal.HalalFlags.safety)
+            runCatching { com.noorpro.app.data.halal.SafetyStore().observe { safety = it } }.getOrNull() else null
+        onDispose { reg?.remove() }
+    }
+    var showRequests by remember { mutableStateOf(false) }
+    val (inboxChats, requestChats) = remember(chats, followingUsers, safety.messageRequests, currentUid) {
+        com.noorpro.app.data.halal.SafetyRules.splitRequests(
+            chats, { c -> c.participantUids.firstOrNull { it != currentUid }.orEmpty() },
+            { false }, followingUsers.map { it.uid }.toSet(), safety.messageRequests)
+    }
+    val shownChats = if (showRequests) requestChats else inboxChats
     val filteredPeople = remember(people, peopleQuery) {
         val q = peopleQuery.trim().lowercase()
         if (q.isBlank()) people else people.filter {
@@ -9724,6 +9751,9 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                 selectedTab == "Chats" && error != null -> item {
                     StitchUmmahEmptyCard(title = "Messages unavailable", message = error.orEmpty(), action = "Find people", onAction = { selectedTab = "People" })
                 }
+                selectedTab == "Chats" && (requestChats.isNotEmpty() || showRequests) && shownChats.isEmpty() -> item {
+                    StitchMessageRequestsRow(showRequests, requestChats.size) { showRequests = !showRequests }
+                }
                 selectedTab == "Chats" && chats.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = "No conversations yet",
@@ -9732,7 +9762,11 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         onAction = { selectedTab = "People" }
                     )
                 }
-                selectedTab == "Chats" -> items(chats, key = { it.id }) { chat ->
+                selectedTab == "Chats" -> {
+                if (requestChats.isNotEmpty() || showRequests) item(key = "msg_requests") {
+                    StitchMessageRequestsRow(showRequests, requestChats.size) { showRequests = !showRequests }
+                }
+                items(shownChats, key = { it.id }) { chat ->
                     val otherUid = chat.participantUids.firstOrNull { it != currentUid }.orEmpty()
                     val profile = profiles[otherUid]
                     val otherName = profile?.name?.ifBlank { null }
@@ -9754,6 +9788,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                             viewModel.openCreatorChat(otherUid, otherName)
                         }
                     )
+                }
                 }
                 selectedTab == "People" -> {
                     item {
@@ -9871,6 +9906,9 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         maxLines = 3,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    HalalTextWarning("$groupName $groupDescription".trim(), Modifier.fillMaxWidth())
+                    if (com.noorpro.app.data.halal.HalalFlags.circles)
+                        CircleAudiencePicker(groupAudience, com.noorpro.app.data.halal.HalalPrefs.gender) { groupAudience = it }
                     Text(
                         "Groups must follow the Noor Pro Constitution: beneficial, clean, Islamic adab, no harmful or haram content.",
                         color = stitchMutedText(),
@@ -9880,11 +9918,12 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
             },
             confirmButton = {
                 TextButton(
-                    enabled = !creatingGroup,
+                    enabled = !creatingGroup && !halalBlocks("$groupName $groupDescription"),
                     onClick = {
                         if (!groupTermsGate.check()) return@TextButton
                         creatingGroup = true
-                        repository.createGroup(groupName, groupDescription) { ok, message ->
+                        val audience = if (com.noorpro.app.data.halal.HalalFlags.circles) groupAudience.name.lowercase() else "all"
+                        repository.createGroup(groupName, groupDescription, audience) { ok, message ->
                             creatingGroup = false
                             if (ok) {
                                 groupName = ""

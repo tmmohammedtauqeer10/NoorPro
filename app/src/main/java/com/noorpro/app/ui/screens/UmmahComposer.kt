@@ -202,9 +202,12 @@ fun NoorComposer(
     modifier: Modifier = Modifier
 ) {
     val blocker = state.blocker(features)
+    // 1.1.5 Halal Guard: severe words block Post until edited (the server re-checks everything).
+    val halalText = state.text.text + if (state.verseOpen) " " + state.arabic else ""
+    val halalBlocked = halalBlocks(halalText)
     Box(modifier.fillMaxSize().background(stitchBackground()).testTag("composer")) {
         Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
-            ComposerTopBar(state, actions, drafts.size, canPost = blocker == null && !state.submitting)
+            ComposerTopBar(state, actions, drafts.size, canPost = blocker == null && !halalBlocked && !state.submitting)
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 16.dp).testTag("composer_scroll"),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -216,6 +219,7 @@ fun NoorComposer(
                     if (d == ComposerDestination.STORY && state.photos.size > 1) state.photos = state.photos.take(1)
                 }
                 ComposerEditorCard(state, userName, userPhotoUrl, people, features)
+                HalalTextWarning(halalText, Modifier.padding(horizontal = 16.dp).fillMaxWidth())
                 ComposerMediaSection(state, actions)
                 if (state.verseOpen) VerseBlock(state)
                 if (state.pollOpen && features.polls && state.destination == ComposerDestination.FEED) PollEditor(state)

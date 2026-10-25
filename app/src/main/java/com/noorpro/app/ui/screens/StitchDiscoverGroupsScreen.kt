@@ -160,6 +160,11 @@ fun StitchDiscoverGroupsScreen(viewModel: DeenViewModel) {
                                     Toast.makeText(context, "Sign in to join groups", Toast.LENGTH_SHORT).show()
                                 } else if (!termsGate.check()) {
                                     // The terms dialog is showing; the user can tap Join again after accepting.
+                                } else if (com.noorpro.app.data.halal.HalalFlags.circles && !com.noorpro.app.data.halal.SafetyRules.canJoin(
+                                        com.noorpro.app.data.halal.CircleAudience.of(group.audience), com.noorpro.app.data.halal.HalalPrefs.gender)) {
+                                    // 1.1.5 sisters-/brothers-only circle (client-enforced; see docs/HALAL_GUARD_1.1.5.md).
+                                    Toast.makeText(context, com.noorpro.app.data.halal.SafetyRules.joinBlockedReason(
+                                        com.noorpro.app.data.halal.CircleAudience.of(group.audience), com.noorpro.app.data.halal.HalalPrefs.gender), Toast.LENGTH_LONG).show()
                                 } else {
                                     joining = joining + group.id
                                     repository.joinGroup(group.id) { ok, err ->
