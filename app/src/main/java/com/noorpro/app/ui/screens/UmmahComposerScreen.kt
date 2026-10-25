@@ -43,6 +43,9 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     val scope = rememberCoroutineScope()
     // 1.1.2: "Your story" + in the Ummah stories row preselects Story (consumed once).
     val launchDestination = remember { ComposerLaunch.consume() }
+    // 1.1.4 Creator Studio hand-offs (consumed once): AI text to prefill, or a draft to reopen.
+    val launchPrefill = remember { ComposerLaunch.consumePrefill() }
+    val launchDraft = remember { ComposerLaunch.consumeDraft() }
     if (!viewModel.isLoggedIn) {
         StitchSignInRequiredScreen(
             title = when { launchDestination == ComposerDestination.STORY -> "New story"; reelMode -> "New reel"; else -> "New post" },
@@ -57,6 +60,11 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     val repository = remember { UmmahRepository() }
     val store = remember { ComposerDraftStore(context) }
     var drafts by remember { mutableStateOf(store.all()) }
+    var aiHelperOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        launchDraft?.let { id -> drafts.firstOrNull { it.id == id }?.let { state.load(it) } }
+        launchPrefill?.takeIf { it.isNotBlank() }?.let { t -> state.text = androidx.compose.ui.text.input.TextFieldValue(t, androidx.compose.ui.text.TextRange(t.length)) }
+    }
     val termsGate = rememberUgcTermsGate()
     var confirmLeave by remember { mutableStateOf(false) }
 
@@ -228,7 +236,8 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
             onPost = { post() },
             onEditPhoto = { i -> if (!state.submitting) editingPhoto = i },
             onEditVideo = { if (!state.submitting && state.video != null) editingVideo = true },
-            onCollage = { if (!state.submitting && state.photos.size >= 2) editingCollage = true }
+            onCollage = { if (!state.submitting && state.photos.size >= 2) editingCollage = true },
+            onAiHelper = { if (!state.submitting) aiHelperOpen = true }
         ),
         userName = viewModel.userDisplayName,
         userPhotoUrl = viewModel.userPhotoUrl,
@@ -238,6 +247,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     editingPhoto?.let { i -> PhotoEditorHost(state, i) { editingPhoto = null } }
     if (editingVideo) ReelEditorHost(state) { editingVideo = false }
     if (editingCollage) CollageEditorHost(state) { editingCollage = false }
+    if (aiHelperOpen) CreatorAiSheet(initialText = state.text.text, topic = state.topic, onInsert = { t -> state.text = insertAiText(state.text, t) }, onDismiss = { aiHelperOpen = false })
     }
 
     if (confirmLeave) AlertDialog(
@@ -247,4 +257,20 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
         confirmButton = { TextButton(onClick = { confirmLeave = false; saveDraft { viewModel.goBack() } }) { Text("Save draft") } },
         dismissButton = { TextButton(onClick = { confirmLeave = false; viewModel.goBack() }) { Text("Discard") } }
     )
+}
+
+/** 1.1.4: inserts AI text at the cursor; hashtags append, a full caption replaces an empty or selected draft. */
+internal fun insertAiText(current: androidx.compose.ui.text.input.TextFieldValue, insert: String): androidx.compose.ui.text.input.TextFieldValue {
+    val t = insert.trim()
+    if (t.isEmpty()) return current
+    val text = current.text
+    if (text.isBlank()) return androidx.compose.ui.text.input.TextFieldValue(t, androidx.compose.ui.text.TextRange(t.length))
+    val sel = current.selection
+    val start = sel.min.coerceIn(0, text.length); val end = sel.max.coerceIn(0, text.length)
+    val before = text.substring(0, start); val after = text.substring(end)
+    val sepBefore = if (before.isEmpty() || before.endsWith(" ") || before.endsWith("\n")) "" else if (t.startsWith("#")) " " else "\n\n"
+    val sepAfter = if (after.isEmpty() || after.startsWith(" ") || after.startsWith("\n")) "" else " "
+    val out = before + sepBefore + t + sepAfter + after
+    val cursor = (before + sepBefore + t).length
+    return androidx.compose.ui.text.input.TextFieldValue(out, androidx.compose.ui.text.TextRange(cursor))
 }

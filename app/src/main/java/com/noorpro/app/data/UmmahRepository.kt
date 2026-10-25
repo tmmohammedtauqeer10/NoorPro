@@ -44,7 +44,11 @@ data class UmmahPost(
     val pollEndsAt: Long = 0L,
     val aiLabel: Boolean = false,
     val locationName: String = "",
-    val visibility: String = "everyone"
+    val visibility: String = "everyone",
+    /** 1.1.4 Creator Studio (additive; written only when the creator edit flag + rules are live). */
+    val pinnedToProfile: Boolean = false,
+    val archived: Boolean = false,
+    val pinnedCommentId: String = ""
 )
 
 /** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
@@ -132,7 +136,9 @@ data class UmmahComment(
     val createdAt: Long,
     val parentCommentId: String = "",
     val replyToName: String = "",
-    val likeCount: Long = 0
+    val likeCount: Long = 0,
+    /** 1.1.4: "hidden" = hidden by the post owner (Creator Studio). */
+    val status: String = "published"
 )
 
 data class UmmahSavedCollection(
@@ -297,6 +303,8 @@ class UmmahRepository {
                     if (document.contains("approved") && document.getBoolean("approved") != true) {
                         return@mapNotNull null
                     }
+                    // 1.1.4 Creator Studio: archived posts leave the feed (only the creator sees them, in the Studio).
+                    if (document.getBoolean("archived") == true) return@mapNotNull null
                     document.toUmmahPost()
                 }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                 emit()
@@ -425,7 +433,10 @@ class UmmahRepository {
         pollEndsAt = ((get("poll") as? Map<*, *>)?.get("endsAt") as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L,
         aiLabel = getBoolean("aiLabel") == true,
         locationName = getString("locationName").orEmpty().take(80),
-        visibility = if (getString("visibility") == "followers") "followers" else "everyone"
+        visibility = if (getString("visibility") == "followers") "followers" else "everyone",
+        pinnedToProfile = getBoolean("pinnedToProfile") == true,
+        archived = getBoolean("archived") == true,
+        pinnedCommentId = getString("pinnedCommentId").orEmpty()
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
@@ -1163,8 +1174,11 @@ class UmmahRepository {
         return firestore.collection("ummah_comments")
             .whereEqualTo("postId", postId)
             .addSnapshotListener { snapshot, _ ->
+                val me = FirebaseAuth.getInstance().currentUser?.uid
                 val comments = snapshot?.documents.orEmpty().mapNotNull { document ->
                     if (document.getString("status") == "removed") return@mapNotNull null
+                    // 1.1.4: comments the post owner hid stay visible only to their author (Instagram-style hide).
+                    if (document.getString("status") == "hidden" && document.getString("creatorUid") != me) return@mapNotNull null
                     UmmahComment(
                         id = document.id,
                         postId = postId,
@@ -1245,6 +1259,83 @@ class UmmahRepository {
                 }.sortedByDescending { it.createdAt }
                 onResult(comments)
             }
+    }
+
+    // ------------------------------------------------------------------ 1.1.4 Creator Studio
+
+    /** The signed-in creator's published posts and reels (one-shot, equality filters only — no new index). */
+    fun fetchMyPosts(limit: Long = 300, onResult: (List<UmmahPost>) -> Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_posts")
+            .whereEqualTo("approved", true).whereEqualTo("status", "published").whereEqualTo("creatorUid", uid)
+            .limit(limit).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.toUmmahPost() }.sortedByDescending { it.publishedAt }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
+    /** Comments on the given posts (most recent posts first; ≤ 60 posts, whereIn in chunks of 30). */
+    fun fetchCommentsForPosts(postIds: List<String>, onResult: (List<UmmahComment>) -> Unit) {
+        val ids = postIds.filter { it.isNotBlank() }.distinct().take(60)
+        if (ids.isEmpty()) return onResult(emptyList())
+        val chunks = ids.chunked(30)
+        val out = java.util.Collections.synchronizedList(mutableListOf<UmmahComment>())
+        var pending = chunks.size
+        chunks.forEach { chunk ->
+            firestore.collection("ummah_comments").whereIn("postId", chunk).limit(400).get()
+                .addOnSuccessListener { snap ->
+                    out += snap.documents.mapNotNull { d ->
+                        if (d.getString("status") == "removed") return@mapNotNull null
+                        UmmahComment(
+                            id = d.id, postId = d.getString("postId").orEmpty(), text = d.getString("text").orEmpty(),
+                            creatorUid = d.getString("creatorUid").orEmpty(), creatorName = d.getString("creatorName") ?: "Community member",
+                            createdAt = d.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                            parentCommentId = d.getString("parentCommentId").orEmpty(), replyToName = d.getString("replyToName").orEmpty(),
+                            likeCount = d.getLong("likeCount") ?: 0L, status = d.getString("status") ?: "published"
+                        )
+                    }
+                }
+                .addOnCompleteListener { if (--pending == 0) mainHandler.post { onResult(out.toList()) } }
+        }
+    }
+
+    /**
+     * Creator edits on their own post: caption, pinnedToProfile, archived, pinnedCommentId only.
+     * Needs the additive 1.1.4 rule (flag creator_studio_edit_enabled); otherwise the write is denied.
+     */
+    fun updateMyPost(postId: String, fields: Map<String, Any>, onResult: (Boolean) -> Unit) {
+        val allowed = setOf("caption", "pinnedToProfile", "archived", "pinnedCommentId")
+        val clean = fields.filterKeys { it in allowed }.toMutableMap<String, Any>()
+        if (clean.isEmpty() || FirebaseAuth.getInstance().currentUser == null) return onResult(false)
+        (clean["caption"] as? String)?.let { clean["caption"] = it.trim().take(2200); clean["captionEditedAt"] = com.google.firebase.firestore.FieldValue.serverTimestamp() }
+        firestore.collection("ummah_posts").document(postId).update(clean).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** Post owner hides / unhides a comment on their post (status hidden ↔ published; flagged rule). */
+    fun setCommentHidden(commentId: String, hidden: Boolean, onResult: (Boolean) -> Unit) {
+        firestore.collection("ummah_comments").document(commentId)
+            .update("status", if (hidden) "hidden" else "published").addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** Post owner deletes someone's comment on their post (flagged rule; the existing trigger fixes commentCount). */
+    fun deleteCommentOnMyPost(comment: UmmahComment, onResult: (Boolean) -> Unit) {
+        firestore.collection("ummah_comments").document(comment.id).delete().addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** When each follower followed (for follower growth). Followers are readable by signed-in members. */
+    fun fetchFollowerTimes(uid: String? = null, onResult: (List<Long>) -> Unit) {
+        val target = uid ?: FirebaseAuth.getInstance().currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_users").document(target).collection("followers").limit(5000).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.getTimestamp("createdAt")?.toDate()?.time ?: 0L }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
+    /** Daily totals written by the flagged creatorDailySnapshot function: (yyyyMMdd, views) oldest first. */
+    fun fetchDailyStats(onResult: (List<Pair<String, Long>>) -> Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_creator_stats").document(uid).collection("days")
+            .orderBy(com.google.firebase.firestore.FieldPath.documentId(), com.google.firebase.firestore.Query.Direction.DESCENDING).limit(91).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.id to (it.getLong("views") ?: 0L) }.reversed()) }
+            .addOnFailureListener { onResult(emptyList()) }
     }
 
     /** Delete a post the signed-in user owns, plus best-effort removal of its uploaded media. */

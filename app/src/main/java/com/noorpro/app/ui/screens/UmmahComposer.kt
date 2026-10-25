@@ -180,7 +180,9 @@ class ComposerActions(
     val onEditPhoto: (Int) -> Unit = {},
     val onEditVideo: () -> Unit = {},
     /** 1.1.3 editor pro: lay 2–6 photos out as one collage. */
-    val onCollage: () -> Unit = {}
+    val onCollage: () -> Unit = {},
+    /** 1.1.4: open the Noor AI creator helper (captions, hashtags, reference check, translate). */
+    val onAiHelper: (() -> Unit)? = null
 )
 
 /** Render-test hook: Uri string -> bitmap (tests can't load content:// images). */
@@ -730,6 +732,7 @@ private fun ComposerToolbar(state: ComposerUiState, actions: ComposerActions, fe
                 val (t, c) = ComposerText.insertSymbol(state.text.text, state.text.selection.end, '@'); state.text = TextFieldValue(t, TextRange(c))
             }
             if (state.destination != ComposerDestination.STORY) ToolIcon(Icons.Default.MenuBook, "Verse", on = state.verseOpen) { state.verseOpen = !state.verseOpen }
+            actions.onAiHelper?.let { ai -> ToolIcon(Icons.Default.AutoAwesome, "Noor AI", on = false, onClick = ai) }
             Spacer(Modifier.weight(1f))
             Text("Save draft", color = feedAccent(), fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable(enabled = state.hasContent, onClick = actions.onSaveDraft)

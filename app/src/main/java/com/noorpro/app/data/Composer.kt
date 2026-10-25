@@ -326,6 +326,14 @@ fun formatClock(ms: Long): String {
  */
 object ComposerLaunch {
     @Volatile private var pending: ComposerDestination? = null
+    @Volatile private var pendingText: String? = null
+    @Volatile private var pendingDraft: String? = null
     fun open(destination: ComposerDestination) { pending = destination }
     fun consume(): ComposerDestination? = pending.also { pending = null }
+    /** 1.1.4 Creator Studio: text (AI caption / hashtags) to drop into the next composer, consumed once. */
+    fun prefill(text: String) { pendingText = text }
+    fun consumePrefill(): String? = pendingText.also { pendingText = null }
+    /** 1.1.4 Creator Studio: open a saved draft in the composer, consumed once. */
+    fun openDraft(id: String, destination: ComposerDestination) { pendingDraft = id; pending = destination }
+    fun consumeDraft(): String? = pendingDraft.also { pendingDraft = null }
 }
