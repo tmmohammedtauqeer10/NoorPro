@@ -172,6 +172,8 @@ class MainActivity : ComponentActivity() {
         val appLink = intent?.data
         // 1.1.5 Halal Guard: Remote Config flags + on-device word list (off the main thread).
         runCatching { com.noorpro.app.data.halal.HalalFlags.load() }
+        // 1.1.5 Reels v2 / Profile v2 kill-switches (default ON) + backend feature flags (default OFF).
+        runCatching { com.noorpro.app.ui.screens.Reels2Flags.load() }
         Thread { runCatching { com.noorpro.app.data.halal.HalalTextFilter.ensureLoaded(applicationContext) } }.start()
         setContent {
             val viewModel: DeenViewModel = viewModel()
@@ -363,7 +365,7 @@ fun MainLayout() {
                 DeenScreen.LOGIN -> com.noorpro.app.ui.screens.LoginScreen(viewModel = viewModel)
                 DeenScreen.DASHBOARD -> StitchHomeScreen(viewModel = viewModel)
                 DeenScreen.QURAN -> StitchQuranScreen(viewModel = viewModel)
-                DeenScreen.REELS -> StitchReelsScreen(viewModel = viewModel)
+                DeenScreen.REELS -> if (com.noorpro.app.ui.screens.Reels2Flags.isOn(com.noorpro.app.ui.screens.Reels2Flags.REELS_V2)) com.noorpro.app.ui.screens.NoorReels2Screen(viewModel) else StitchReelsScreen(viewModel = viewModel)
                 DeenScreen.REELS_EXPLORE -> com.noorpro.app.ui.screens.ReelsExploreScreen(viewModel = viewModel)
                 DeenScreen.NOW_PLAYING -> com.noorpro.app.ui.screens.AlNoorNowPlayingScreen(viewModel)
                 DeenScreen.PRAYER_TIMES -> PrayerTimesScreen(viewModel = viewModel)
@@ -409,8 +411,8 @@ fun MainLayout() {
                 DeenScreen.UMMAH_FULL -> StitchUmmahHubScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_CREATE_POST -> StitchUmmahCreateScreen(viewModel = viewModel, reelMode = false)
                 DeenScreen.UMMAH_CREATE_REEL -> StitchUmmahCreateScreen(viewModel = viewModel, reelMode = true)
-                DeenScreen.UMMAH_PROFILE -> StitchUmmahProfileScreen(viewModel = viewModel)
-                DeenScreen.UMMAH_PROFILE_EDIT -> StitchUmmahProfileEditScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_PROFILE -> if (com.noorpro.app.ui.screens.Reels2Flags.isOn(com.noorpro.app.ui.screens.Reels2Flags.PROFILE_V2)) com.noorpro.app.ui.screens.NoorProfile2Screen(viewModel) else StitchUmmahProfileScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_PROFILE_EDIT -> if (com.noorpro.app.ui.screens.Reels2Flags.isOn(com.noorpro.app.ui.screens.Reels2Flags.PROFILE_V2)) com.noorpro.app.ui.screens.NoorProfile2EditScreen(viewModel) else StitchUmmahProfileEditScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_SEARCH -> StitchUmmahSearchScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_SAVED -> StitchUmmahSavedScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_ACTIVITY -> StitchUmmahActivityScreen(viewModel = viewModel)
