@@ -212,7 +212,9 @@ internal data class UmmahFeedUi(
     val liked: Set<String> = emptySet(),
     val saved: Set<String> = emptySet(),
     val serverLiked: Set<String> = liked,
-    val serverSaved: Set<String> = saved
+    val serverSaved: Set<String> = saved,
+    /** 1.1.4: "Recommended for you" people cards (For You only); empty = row hidden. */
+    val suggestions: List<com.noorpro.app.data.recs.PersonSuggestion> = emptyList()
 )
 
 internal class UmmahFeedActions(
@@ -233,7 +235,11 @@ internal class UmmahFeedActions(
     val onSave: (UmmahPost) -> Unit = {},
     val onTag: (String) -> Unit = {},
     val onRetry: () -> Unit = {},
-    val onFindPeople: () -> Unit = {}
+    val onFindPeople: () -> Unit = {},
+    val onSuggestionFollow: (com.noorpro.app.data.recs.PersonSuggestion) -> Unit = {},
+    val onSuggestionDismiss: (com.noorpro.app.data.recs.PersonSuggestion) -> Unit = {},
+    val onSuggestionsHide: () -> Unit = {},
+    val onSuggestionOpen: (com.noorpro.app.data.recs.PersonSuggestion) -> Unit = {}
 )
 
 // ---------------------------------------------------------------- screen (wired to Firestore)
@@ -280,6 +286,34 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
         if (com.noorpro.app.data.ComposerFlags.visibility && viewModel.isLoggedIn && following.isNotEmpty())
             UmmahRepository().fetchFollowerPosts(following) { followerPosts = it }
     }
+    // 1.1.4: "Recommended for you" — computed on the phone from readable data (no new backend).
+    val recPrefs = remember { com.noorpro.app.data.recs.SuggestionPrefs(context) }
+    var recDismissed by remember { mutableStateOf(recPrefs.dismissed()) }
+    var recRowHidden by remember { mutableStateOf(recPrefs.isRowHidden()) }
+    val recProfiles = rememberStitchProfiles()
+    val recBlocked = rememberBlockedUids()
+    var friendsOf by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var followerCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    // Cards followed from the row stay visible (showing "Following") until the next load.
+    var recFollowedNow by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(following, viewModel.isLoggedIn) {
+        if (viewModel.isLoggedIn && following.isNotEmpty()) repo.fetchFollowingOf(following.shuffled(java.util.Random(following.hashCode().toLong()))) { friendsOf = it }
+    }
+    val suggestions = remember(feedState.posts, following, recBlocked, recDismissed, recProfiles, friendsOf, followerCounts, interactions, currentUid, recRowHidden, recFollowedNow) {
+        if (recRowHidden || !viewModel.isLoggedIn) emptyList() else com.noorpro.app.data.recs.PeopleRecommender.recommend(
+            com.noorpro.app.data.recs.RecommendationInput(
+                me = currentUid, following = following - recFollowedNow, blocked = recBlocked, dismissed = recDismissed,
+                profiles = recProfiles, followingOfFollowed = friendsOf, posts = feedState.posts,
+                liked = interactions.liked, saved = interactions.saved,
+                myLocation = com.noorpro.app.data.recs.PeopleRecommender.myLocation(currentUid, feedState.posts),
+                followerCounts = followerCounts
+            ), limit = 18
+        )
+    }
+    LaunchedEffect(suggestions.take(10).map { it.uid }) {
+        val need = suggestions.take(10).map { it.uid }.filter { it !in followerCounts }
+        if (need.isNotEmpty()) repo.fetchFollowerCounts(need) { got -> if (got.isNotEmpty()) followerCounts = followerCounts + got }
+    }
     val reels = remember(feedState.posts, following, interactions) {
         rankUmmahPosts(feedState.posts.filter { it.isReelLike() }, following, interactions.liked, interactions.saved).take(10)
     }
@@ -289,7 +323,8 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
         reels = reels, loading = feedState.loading, error = feedState.error,
         isLoggedIn = viewModel.isLoggedIn, currentUid = currentUid, displayName = displayName,
         photoUrl = viewModel.userPhotoUrl, following = effectiveFollowing, liked = liked, saved = saved,
-        serverLiked = interactions.liked, serverSaved = interactions.saved
+        serverLiked = interactions.liked, serverSaved = interactions.saved,
+        suggestions = suggestions
     )
     val actions = UmmahFeedActions(
         onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
@@ -346,7 +381,18 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
             } else { UmmahSearchLaunch.open(tag); viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) }
         },
         onRetry = { refreshKey++ },
-        onFindPeople = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) }
+        onFindPeople = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
+        onSuggestionFollow = { s ->
+            val next = s.uid !in effectiveFollowing
+            if (next) recFollowedNow = recFollowedNow + s.uid
+            optimisticFollows = optimisticFollows + (s.uid to next)
+            repo.setFollowing(s.uid, s.name, s.handle, next) { ok ->
+                if (!ok) { optimisticFollows = optimisticFollows - s.uid; toast("Unable to update follow") }
+            }
+        },
+        onSuggestionDismiss = { s -> recPrefs.dismiss(s.uid); recDismissed = recDismissed + s.uid },
+        onSuggestionsHide = { recPrefs.hideRow(); recRowHidden = true; toast("Recommendations hidden for 30 days") },
+        onSuggestionOpen = { s -> viewModel.openCreatorProfile(s.uid, s.name, s.handle) }
     )
 
     StitchScreen {
@@ -479,8 +525,17 @@ internal fun NoorUmmahFeed(
                     }
                 }
                 else -> {
+                    val recAt = if (tab == UmmahFeedTab.FOR_YOU && ui.suggestions.isNotEmpty())
+                        com.noorpro.app.data.recs.PeopleRecommender.insertionPoints(posts.size) else emptyList()
                     itemsIndexed(posts.take(visible), key = { _, p -> p.id }) { index, post ->
                         Column {
+                            val slot = recAt.indexOf(index)
+                            if (slot >= 0) {
+                                // Later rows show the next people so the feed never repeats the same cards.
+                                val chunk = ui.suggestions.drop(slot * 6).ifEmpty { ui.suggestions }.take(8)
+                                UmmahSuggestionsRow(chunk, ui.following, actions.onSuggestionFollow, actions.onSuggestionDismiss,
+                                    actions.onSuggestionsHide, actions.onSuggestionOpen, actions.onFindPeople)
+                            }
                             if (ad != null && shouldShowUmmahFeedAd(index)) {
                                 Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { ad() }
                             }
@@ -500,6 +555,10 @@ internal fun NoorUmmahFeed(
                                 actions = actions
                             )
                         }
+                    }
+                    if (recAt.firstOrNull() == posts.size && posts.size <= visible) item(key = "suggestions-end") {
+                        UmmahSuggestionsRow(ui.suggestions.take(8), ui.following, actions.onSuggestionFollow, actions.onSuggestionDismiss,
+                            actions.onSuggestionsHide, actions.onSuggestionOpen, actions.onFindPeople)
                     }
                     if (posts.size > visible) item(key = "more-$visible") {
                         LaunchedEffect(visible) { kotlinx.coroutines.delay(250); visible += 10 }

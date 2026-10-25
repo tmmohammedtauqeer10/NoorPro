@@ -68,7 +68,9 @@ data class UmmahProfile(
     val bio: String = "",
     // Privacy flags, published so other clients can respect them.
     val isPrivate: Boolean = false,
-    val hideCounts: Boolean = false
+    val hideCounts: Boolean = false,
+    /** 1.1.4: optional admin-set badge (read only; absent = false). */
+    val verified: Boolean = false
 )
 
 data class UmmahChat(
@@ -648,7 +650,8 @@ class UmmahRepository {
                         photoUrl = doc.getString("photoUrl").orEmpty(),
                         bio = doc.getString("bio").orEmpty(),
                         isPrivate = doc.getBoolean("isPrivate") ?: false,
-                        hideCounts = doc.getBoolean("hideCounts") ?: false
+                        hideCounts = doc.getBoolean("hideCounts") ?: false,
+                        verified = doc.getBoolean("verified") ?: false
                     )
                 }
                 onResult(profiles)
@@ -748,6 +751,37 @@ class UmmahRepository {
                     )
                 })
             }
+    }
+
+    /** 1.1.4 recommendations: one-shot read of who each of [uids] follows (public lists). Capped. */
+    fun fetchFollowingOf(uids: Collection<String>, perUser: Long = 60, onResult: (Map<String, Set<String>>) -> Unit) {
+        val targets = uids.filter { it.isNotBlank() }.take(15)
+        if (FirebaseAuth.getInstance().currentUser == null || targets.isEmpty()) return onResult(emptyMap())
+        val out = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+        val left = java.util.concurrent.atomic.AtomicInteger(targets.size)
+        targets.forEach { uid ->
+            firestore.collection("ummah_users").document(uid).collection("following").limit(perUser).get()
+                .addOnCompleteListener { t ->
+                    if (t.isSuccessful) out[uid] = t.result?.documents.orEmpty().map { it.getString("uid") ?: it.id }.toSet()
+                    if (left.decrementAndGet() == 0) onResult(out.toMap())
+                }
+        }
+    }
+
+    /** 1.1.4: follower counts via aggregate count() on the public followers lists (top suggestions only). */
+    fun fetchFollowerCounts(uids: Collection<String>, onResult: (Map<String, Int>) -> Unit) {
+        val targets = uids.filter { it.isNotBlank() }.take(12)
+        if (FirebaseAuth.getInstance().currentUser == null || targets.isEmpty()) return onResult(emptyMap())
+        val out = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val left = java.util.concurrent.atomic.AtomicInteger(targets.size)
+        targets.forEach { uid ->
+            firestore.collection("ummah_users").document(uid).collection("followers").count()
+                .get(com.google.firebase.firestore.AggregateSource.SERVER)
+                .addOnCompleteListener { t ->
+                    if (t.isSuccessful) t.result?.count?.let { out[uid] = it.toInt() }
+                    if (left.decrementAndGet() == 0) onResult(out.toMap())
+                }
+        }
     }
 
     fun setFollowing(
