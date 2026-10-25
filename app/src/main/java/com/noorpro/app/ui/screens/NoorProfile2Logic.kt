@@ -56,11 +56,11 @@ fun canSeeProfileContent(profile: UmmahProfile?, own: Boolean, iFollow: Boolean)
     own || profile == null || !profile.isPrivate || iFollow
 
 fun profilePosts(all: List<UmmahPost>, uid: String, viewerIsOwner: Boolean): List<UmmahPost> =
-    all.filter { it.creatorUid == uid && it.type != "reel" && (viewerIsOwner || !it.archived) }
+    all.filter { it.creatorUid == uid && !it.isReelLike() && (viewerIsOwner || !it.archived) }
         .sortedWith(compareByDescending<UmmahPost> { it.pinnedToProfile }.thenByDescending { it.publishedAt })
 
 fun profileReels(all: List<UmmahPost>, uid: String, viewerIsOwner: Boolean): List<UmmahPost> =
-    all.filter { it.creatorUid == uid && it.type == "reel" && (viewerIsOwner || !it.archived) }
+    all.filter { it.creatorUid == uid && it.isReelLike() && (viewerIsOwner || !it.archived) }
         .sortedWith(compareByDescending<UmmahPost> { it.pinnedToProfile }.thenByDescending { it.publishedAt })
 
 /** Posts by others that mention @handle in the caption. */

@@ -404,7 +404,7 @@ private fun GridTile(p: UmmahPost, bmp: ImageBitmap?, modifier: Modifier, onClic
                 Text(p.caption.take(80), color = R2Green, fontFamily = LibreCaslon, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
             }
         } else Reels2Thumb(p, bmp, Modifier.matchParentSize())
-        if (p.type == "reel") Row(Modifier.align(Alignment.BottomStart).padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (p.isReelLike()) Row(Modifier.align(Alignment.BottomStart).padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(14.dp))
             Text(reelCount(p.viewCount), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
