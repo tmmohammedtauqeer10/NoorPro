@@ -40,7 +40,7 @@ import com.noorpro.app.ui.theme.LibreCaslon
 
 // ============================================ shared chat bits ==============================
 
-enum class MsgLineType { TEXT, VOICE, IMAGE, DAY, SYSTEM, DUA }
+enum class MsgLineType { TEXT, VOICE, IMAGE, DAY, SYSTEM, DUA, SHARED }
 
 data class MsgLine(
     val id: String,
@@ -57,6 +57,8 @@ data class MsgLine(
     val reactions: String = "",
     val durationMs: Long = 0,
     val imageUrl: String = "",
+    /** 1.1.3: shared reel/post card (maps 1:1 to the live "post_share" message fields). */
+    val shared: MsgShared? = null,
 )
 
 private val nameColors = listOf(Color(0xFF0B6243), Color(0xFFA9842A), Color(0xFF7A4E9E), Color(0xFF1F6FA3), Color(0xFFB0503A))
@@ -66,7 +68,7 @@ private val nameColors = listOf(Color(0xFF0B6243), Color(0xFFA9842A), Color(0xFF
 }
 
 @Composable
-private fun MsgLineView(m: MsgLine, group: Boolean) {
+private fun MsgLineView(m: MsgLine, group: Boolean, onOpenShared: (MsgShared) -> Unit = {}) {
     when (m.type) {
         MsgLineType.DAY -> Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
             Text(m.text, color = msgGold(), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
@@ -78,12 +80,12 @@ private fun MsgLineView(m: MsgLine, group: Boolean) {
                 Text(m.text, color = msgGreen(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        else -> MsgBubbleRow(m, group)
+        else -> MsgBubbleRow(m, group, onOpenShared)
     }
 }
 
 @Composable
-private fun MsgBubbleRow(m: MsgLine, group: Boolean) {
+private fun MsgBubbleRow(m: MsgLine, group: Boolean, onOpenShared: (MsgShared) -> Unit = {}) {
     val shape = if (m.mine) RoundedCornerShape(20.dp, 20.dp, if (m.firstInRun) 6.dp else 20.dp, 20.dp)
     else RoundedCornerShape(20.dp, 20.dp, 20.dp, if (m.firstInRun) 6.dp else 20.dp)
     val content = if (m.mine) MsgCream else stitchText()
@@ -121,6 +123,10 @@ private fun MsgBubbleRow(m: MsgLine, group: Boolean) {
                             Icon(Icons.Default.Image, null, tint = msgGreen())
                         }
                         if (m.text.isNotBlank()) Text(m.text, color = content, fontSize = 15.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                    MsgLineType.SHARED -> {
+                        m.shared?.let { MsgSharedCard(it, m.mine, Modifier.padding(top = 2.dp)) { onOpenShared(it) } }
+                        if (m.text.isNotBlank()) Text(m.text, color = content, fontSize = 15.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp).widthIn(max = 208.dp))
                     }
                     MsgLineType.DUA -> Column(Modifier.padding(vertical = 2.dp)) {
                         Text("DUA", color = StitchGold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
@@ -235,7 +241,7 @@ data class DirectChatState(
 )
 
 @Composable
-fun NoorDirectChat(state: DirectChatState) {
+fun NoorDirectChat(state: DirectChatState, onOpenShared: (MsgShared) -> Unit = {}) {
     val lastIncoming = state.lines.lastOrNull { !it.mine && it.type == MsgLineType.TEXT }?.text.orEmpty()
     Column(Modifier.fillMaxSize().background(msgBg()).testTag("msg_direct_chat")) {
         MsgChatHeader(
@@ -252,7 +258,7 @@ fun NoorDirectChat(state: DirectChatState) {
                 Icon(Icons.Default.Shield, null, tint = msgGold(), modifier = Modifier.size(16.dp)); Spacer(Modifier.width(8.dp))
                 Text("Be kind — say salam. You can report or block from the menu at any time.", color = stitchMutedText(), fontSize = 11.5.sp, lineHeight = 15.sp)
             }
-            state.lines.forEach { MsgLineView(it, group = false) }
+            state.lines.forEach { MsgLineView(it, group = false, onOpenShared) }
             if (state.salahHint.isNotBlank()) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
                 Row(Modifier.clip(RoundedCornerShape(999.dp)).background(MsgGreen).padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Mosque, null, tint = StitchGold, modifier = Modifier.size(13.dp)); Spacer(Modifier.width(6.dp))
@@ -270,7 +276,7 @@ fun NoorDirectChat(state: DirectChatState) {
 data class GroupChatState(val group: NoorGroup, val lines: List<MsgLine>, val draft: String = "", val typingNames: List<String> = emptyList())
 
 @Composable
-fun NoorGroupChat(state: GroupChatState) {
+fun NoorGroupChat(state: GroupChatState, onOpenShared: (MsgShared) -> Unit = {}) {
     val g = state.group
     Column(Modifier.fillMaxSize().background(msgBg()).testTag("msg_group_chat")) {
         MsgChatHeader(
@@ -288,7 +294,7 @@ fun NoorGroupChat(state: GroupChatState) {
             Icon(Icons.Default.PushPin, null, tint = msgGold(), modifier = Modifier.size(17.dp))
         }
         Column(Modifier.weight(1f).fillMaxWidth().msgWallpaper(isStitchLight()).verticalScroll(rememberScrollState(), reverseScrolling = true).padding(vertical = 6.dp)) {
-            state.lines.forEach { MsgLineView(it, group = true) }
+            state.lines.forEach { MsgLineView(it, group = true, onOpenShared) }
         }
         MsgQuickReplies(listOf("Ameen", "JazakAllahu khayran", "In sha Allah", "SubhanAllah"))
         MsgComposer(state.draft, "Message the circle…")

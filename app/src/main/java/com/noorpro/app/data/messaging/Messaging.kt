@@ -196,6 +196,7 @@ object IslamicTouches {
 object MessagingFlags {
     const val GROUPS_V2 = "messaging_groups_v2_enabled"   // admins, leave, join requests, invite codes, admin delete
     const val DISCOVER = "messaging_discover_enabled"      // public directory + topic browse
+    const val GROUP_SHARE = "messaging_group_share_enabled" // send reels/posts into circles (needs group post_share rule)
     val override = mutableMapOf<String, Boolean>()
     fun enabled(key: String): Boolean = override[key] ?: runCatching {
         com.google.firebase.remoteconfig.FirebaseRemoteConfig.getInstance().getBoolean(key)
@@ -206,4 +207,46 @@ internal fun formatCount(n: Int): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
     n >= 1_000 -> "%.1fK".format(n / 1_000.0).replace(".0K", "K")
     else -> n.toString()
+}
+
+// ------------------------------------------------------------------ 1.1.3 reel / post sharing
+
+/** Someone (1:1 chat) or a circle (group) a reel/post can be sent to. */
+data class ShareTarget(
+    val id: String, val kind: Kind, val name: String, val subtitle: String = "", val photoUrl: String = "",
+    val lastAt: Long = 0, val sharesSent: Int = 0, val online: Boolean = false, val group: NoorGroup? = null,
+) {
+    enum class Kind { PERSON, GROUP }
+}
+
+/**
+ * Share sheet ordering and send planning. Uses the live 1.0.82 "post_share" model:
+ * person targets go through UmmahRepository.sendPostShare (already allowed by the rules);
+ * circle targets need the group post_share rule (rules v2) and stay behind [MessagingFlags.GROUP_SHARE].
+ */
+object ShareTargets {
+    /** Frequent first (shares you've sent), then most recent chat; query = exact > prefix > contains > fuzzy. */
+    fun rank(targets: List<ShareTarget>, query: String = "", groupsEnabled: Boolean = true): List<ShareTarget> {
+        val q = query.trim().trimStart('@')
+        return targets.asSequence()
+            .filter { groupsEnabled || it.kind == ShareTarget.Kind.PERSON }
+            .map { t -> t to if (q.isEmpty()) AudioSearchEngine.EXACT else AudioSearchEngine.tier(q, listOf(t.name, t.subtitle.removePrefix("@"))) }
+            .filter { it.second > AudioSearchEngine.NONE }
+            .sortedWith(compareByDescending<Pair<ShareTarget, Int>> { it.second }
+                .thenByDescending { it.first.sharesSent }.thenByDescending { it.first.lastAt })
+            .map { it.first }.toList()
+    }
+
+    data class Plan(val personUids: List<String>, val groupIds: List<String>, val note: String) {
+        val count get() = personUids.size + groupIds.size
+    }
+
+    /** Max 15 recipients per share (same cap as sendPostShare); note trimmed to the rule's 500 chars. */
+    fun plan(selected: List<ShareTarget>, note: String): Plan {
+        val picked = selected.distinctBy { it.kind to it.id }.take(15)
+        return Plan(picked.filter { it.kind == ShareTarget.Kind.PERSON }.map { it.id },
+            picked.filter { it.kind == ShareTarget.Kind.GROUP }.map { it.id }, note.trim().take(500))
+    }
+
+    fun sendLabel(count: Int) = when (count) { 0 -> "Send"; 1 -> "Send"; else -> "Send to $count" }
 }

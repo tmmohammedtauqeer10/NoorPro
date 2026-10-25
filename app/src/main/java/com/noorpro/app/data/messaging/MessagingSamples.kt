@@ -64,4 +64,12 @@ object MessagingSamples {
         MsgMember("u5", "Khadija Rahman", "khadija.r", "", GroupRole.MEMBER),
         MsgMember("u8", "Hafsa Noor", "hafsa.noor", "img://p3", GroupRole.MEMBER),
     )
+
+    /** 1.1.3 share sheet: people from recent chats (with share counts) + circles I'm in. */
+    fun shareTargets(now: Long = this.now): List<ShareTarget> {
+        val sent = mapOf("u1" to 9, "u2" to 4, "u3" to 1)
+        val ppl = chats(now).map { c -> ShareTarget(c.otherUid, ShareTarget.Kind.PERSON, c.name, "@${c.handle}", c.photoUrl, c.updatedAt, sent[c.otherUid] ?: 0, c.online) }
+        val gs = groups(now).map { g -> ShareTarget(g.id, ShareTarget.Kind.GROUP, g.name, "${formatCount(g.memberCount)} members", g.photoUrl, g.updatedAt, if (g.id == "g1") 6 else 0, group = g) }
+        return ppl + gs
+    }
 }

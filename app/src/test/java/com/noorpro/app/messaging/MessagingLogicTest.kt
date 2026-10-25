@@ -63,3 +63,16 @@ class MessagingLogicTest {
         assertEquals("842", formatCount(842)); assertEquals("12.4K", formatCount(12_400)); assertEquals("2K", formatCount(2_000))
     }
 }
+
+class ShareTargetsTest {
+    private val t = MessagingSamples.shareTargets(1_000_000_000L)
+    @Test fun frequentFirst() = assertEquals(listOf("u1", "g1", "u2"), ShareTargets.rank(t).take(3).map { it.id })
+    @Test fun groupsHiddenWhenFlagOff() = assertTrue(ShareTargets.rank(t, groupsEnabled = false).none { it.kind == ShareTarget.Kind.GROUP })
+    @Test fun exactBeatsPrefix() = assertEquals("u2", ShareTargets.rank(t, "@bilal.h").first().id)
+    @Test fun planSplitsAndCaps() {
+        val p = ShareTargets.plan(t + t, "  hi ".padEnd(800, 'x'))
+        assertEquals(t.count { it.kind == ShareTarget.Kind.PERSON }, p.personUids.size)
+        assertEquals(3, p.groupIds.size); assertEquals(500, p.note.length)
+        assertEquals("Send to 3", ShareTargets.sendLabel(3)); assertEquals("Send", ShareTargets.sendLabel(1))
+    }
+}

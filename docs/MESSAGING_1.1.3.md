@@ -35,3 +35,21 @@ produces the renders.
 7. Optional: a Cloud Function for group-message FCM, plus a client handler for `kind=group`.
 
 All rules changes have to be **additive**, with emulator tests in `tools/rules-tests/`, and deployed only after review.
+
+## Sharing reels and posts into Messages (sample)
+- `NoorShareSheet` (`ui/screens/NoorMessagingShare.kt`) is what a reel's share button would open. It has:
+  - search;
+  - a recent & frequent row covering people and circles, with check marks for multi-select;
+  - an optional note (500 characters max, matching the rule);
+  - "Send to N";
+  - Add to story / Copy link / Share out (Android share) / Save.
+- `MsgSharedCard` is the reel/post card bubble for 1:1 and group chats: a cover with a play icon, the creator, the caption, and the sender's note below it. Tapping it calls `onOpenShared`. Replies quote the reel ("Reel · Creator"), and reactions work as usual.
+  - `MsgShared.from(UmmahMessage)` maps the live 1.0.82 `post_share` fields: sharedPostId, Kind, Thumb, CreatorUid/Name/Photo and Caption.
+- Ordering and send plan: `ShareTargets.rank` puts the people you share with most first, then the most recent, and an exact match beats a prefix match. `ShareTargets.plan` splits the selection into people and circles and caps it at 15 recipients.
+
+### Deploy status
+- **People (1:1): already live.** It uses the existing `UmmahRepository.sendPostShare` and the 1.0.82 `post_share` rule on `ummah_chats/*/messages`.
+- **Circles (groups): need an additive rules deploy.** The `ummah_groups/{gid}/messages` create rule only allows
+  `text, image, video, audio, location, file, pdf`, and it requires a non-empty `mediaUrl` for anything that isn't text. A `post_share` sent to a group is refused today.
+  - Proposed additive rule: for the new type only, allow `post_share` in group messages when the sender is a member. Validate the same `shared*` fields as the 1:1 rule (post exists; kind is reel or post; size limits; text ≤ 500; mediaUrl ""), with no `sharedTo`.
+  - Also needed: a client `sendPostShareToGroup` that updates the group's lastMessage, and emulator tests. Keep it gated by `messaging_group_share_enabled` (default off); circles are hidden from the sheet until it's deployed.
