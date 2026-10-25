@@ -11811,7 +11811,7 @@ private fun StitchChatAvatar(name: String, mine: Boolean) {
     }
 }
 
-private const val REEL_VIEW_THRESHOLD_MS = 2_500L
+internal const val REEL_VIEW_THRESHOLD_MS = 2_500L
 
 @Composable
 private fun StitchSharedMediaCard(
