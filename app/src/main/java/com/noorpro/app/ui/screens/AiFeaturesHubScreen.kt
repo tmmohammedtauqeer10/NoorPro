@@ -36,7 +36,11 @@ data class NoorAiChatItem(
 )
 
 /** A saved Noor AI conversation (local only). */
-data class NoorAiConversation(val id: Long, val mode: NoorAiMode, val title: String, val updated: Long)
+data class NoorAiConversation(
+    val id: Long, val mode: NoorAiMode, val title: String, val updated: Long,
+    /** 1.1.4: pinned chats stay on top; customTitle = renamed by the user (not overwritten by auto-title). */
+    val pinned: Boolean = false, val customTitle: Boolean = false,
+)
 
 /** Local-only chat history (SharedPreferences): many conversations, each with its own messages. */
 internal object NoorAiChatStore {
@@ -83,14 +87,15 @@ internal object NoorAiChatStore {
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
                 val mode = runCatching { NoorAiMode.valueOf(o.getString("m")) }.getOrNull() ?: return@mapNotNull null
-                NoorAiConversation(o.getLong("id"), mode, o.optString("t", "New chat"), o.optLong("u"))
-            }.sortedByDescending { it.updated }
+                NoorAiConversation(o.getLong("id"), mode, o.optString("t", "New chat"), o.optLong("u"), o.optBoolean("p"), o.optBoolean("ct"))
+            }.sortedWith(compareByDescending<NoorAiConversation> { it.pinned }.thenByDescending { it.updated })
         }.getOrDefault(emptyList())
     }
 
     private fun writeConvs(ctx: Context, list: List<NoorAiConversation>) {
         val arr = JSONArray()
-        list.sortedByDescending { it.updated }.take(100).forEach { arr.put(JSONObject().put("id", it.id).put("m", it.mode.name).put("t", it.title).put("u", it.updated)) }
+        list.sortedWith(compareByDescending<NoorAiConversation> { it.pinned }.thenByDescending { it.updated }).take(100)
+            .forEach { arr.put(JSONObject().put("id", it.id).put("m", it.mode.name).put("t", it.title).put("u", it.updated).put("p", it.pinned).put("ct", it.customTitle)) }
         prefs(ctx).edit().putString("convs", arr.toString()).apply()
     }
 
@@ -102,9 +107,12 @@ internal object NoorAiChatStore {
     /** Saves messages; creates the conversation entry the first time it has content. */
     fun save(ctx: Context, mode: NoorAiMode, id: Long, items: List<NoorAiChatItem>) {
         prefs(ctx).edit().putString("c_$id", itemsJson(items)).apply()
-        val rest = conversations(ctx).filterNot { it.id == id }
+        val all = conversations(ctx)
+        val old = all.firstOrNull { it.id == id }
+        val rest = all.filterNot { it.id == id }
         if (items.isEmpty()) { writeConvs(ctx, rest); return }
-        writeConvs(ctx, rest + NoorAiConversation(id, mode, titleOf(items), System.currentTimeMillis()))
+        val title = if (old?.customTitle == true) old.title else titleOf(items)
+        writeConvs(ctx, rest + NoorAiConversation(id, mode, title, System.currentTimeMillis(), old?.pinned ?: false, old?.customTitle ?: false))
         setCurrent(ctx, mode, id)
     }
 
@@ -113,6 +121,27 @@ internal object NoorAiChatStore {
         writeConvs(ctx, conversations(ctx).filterNot { it.id == id })
         NoorAiMode.values().forEach { if (currentId(ctx, it) == id) setCurrent(ctx, it, null) }
     }
+
+    fun rename(ctx: Context, id: Long, title: String) {
+        val clean = title.replace("\n", " ").trim().take(60)
+        writeConvs(ctx, conversations(ctx).map { if (it.id == id) (if (clean.isBlank()) it.copy(title = titleOf(load(ctx, id)), customTitle = false) else it.copy(title = clean, customTitle = true)) else it })
+    }
+
+    fun setPinned(ctx: Context, id: Long, pinned: Boolean) =
+        writeConvs(ctx, conversations(ctx).map { if (it.id == id) it.copy(pinned = pinned) else it })
+
+    /** Title or message text match (case-insensitive); pinned first, then newest. */
+    fun search(ctx: Context, query: String): List<NoorAiConversation> {
+        val q = query.trim()
+        val all = conversations(ctx)
+        if (q.isEmpty()) return all
+        return all.filter { c -> c.title.contains(q, true) || load(ctx, c.id).any { it.text.contains(q, true) } }
+    }
+
+    fun autoRead(ctx: Context) = prefs(ctx).getBoolean("auto_read", false)
+    fun setAutoRead(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("auto_read", on).apply()
+    fun voiceLanguage(ctx: Context): String = prefs(ctx).getString("voice_lang", null) ?: language(ctx).takeIf { l -> NOOR_VOICE_LANGUAGES.any { it.first == l } } ?: "en"
+    fun setVoiceLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("voice_lang", code).apply()
 
     fun language(ctx: Context): String = prefs(ctx).getString("lang", "en") ?: "en"
     fun setLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("lang", code).apply()
@@ -164,6 +193,18 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
     var revealId by remember { mutableStateOf<Long?>(null) }
     var showTip by remember { mutableStateOf(!NoorAiChatStore.tipDismissed(context)) }
     AiFeatureService.answerLanguage = language
+    // 1.1.4 voice + spoken answers
+    var voice by remember { mutableStateOf(NoorVoiceState(language = NoorAiChatStore.voiceLanguage(context))) }
+    var speakingId by remember { mutableStateOf<Long?>(null) }
+    var autoRead by remember { mutableStateOf(NoorAiChatStore.autoRead(context)) }
+    val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+    val voiceInput = remember { NoorVoiceInput(context) { e -> mainHandler.post { voice = reduceVoice(voice, e) } } }
+    val speaker = remember { NoorAiSpeaker(context) { id -> mainHandler.post { speakingId = id } } }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceInput.stop(); speaker.shutdown() } }
+    fun speakItem(item: NoorAiChatItem) {
+        val plain = NoorAiMarkdown.parse(AiFeatureService.splitFollowups(item.text).first).joinToString("\n") { plainOf(it) }
+        speaker.speak(item.id, plain, language)
+    }
 
     fun update(list: List<NoorAiChatItem>) {
         messages = list
@@ -188,6 +229,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
                 val reply = NoorAiChatItem(answer, false)
                 revealId = reply.id
                 update(base + reply)
+                if (autoRead && answer != AiFeatureService.UNAVAILABLE_MESSAGE) speakItem(reply)
             }
             isTyping = false
         }
@@ -204,15 +246,31 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
     }
 
     fun newChat() {
-        job?.cancel(); isTyping = false; revealId = null
+        job?.cancel(); isTyping = false; revealId = null; speaker.stop()
         convId = System.currentTimeMillis()
         messages = emptyList()
         NoorAiChatStore.setCurrent(context, mode, null)
     }
 
-    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+    val voiceFallback = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val heard = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
         if (r.resultCode == Activity.RESULT_OK && !heard.isNullOrBlank()) send(heard)
+    }
+
+    fun launchFallback() {
+        runCatching { voiceFallback.launch(NoorVoiceInput.recognizerIntent(voice.language)) }.onFailure {
+            android.widget.Toast.makeText(context, "Voice input isn't available on this phone.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun startListening() {
+        speaker.stop()
+        if (voiceInput.isAvailable()) voiceInput.start(voice.language) else launchFallback()
+    }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startListening() else voice = reduceVoice(voice, VoiceEvent.PermissionDenied)
+    }
+    androidx.compose.runtime.LaunchedEffect(voice.finalText) {
+        voice.finalText?.let { heard -> voice = reduceVoice(voice, VoiceEvent.Consumed); send(heard) }
     }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -279,14 +337,31 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
             if (c.id == convId) newChat()
         },
         onVoice = {
-            val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechTag(language))
-                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask Noor AI")
-            runCatching { voice.launch(i) }.onFailure {
-                android.widget.Toast.makeText(context, "Voice input isn't available on this phone.", android.widget.Toast.LENGTH_SHORT).show()
+            // RECORD_AUDIO is requested only now, when the mic is tapped.
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            when {
+                granted -> startListening()
+                !voiceInput.isAvailable() -> launchFallback() // the system dialog handles its own mic permission
+                else -> micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
             }
         },
+        voice = voice,
+        onVoiceDone = { voiceInput.finish() },
+        onVoiceCancel = { voiceInput.stop(); voice = reduceVoice(voice, VoiceEvent.Cancel) },
+        onVoiceLanguage = { code ->
+            NoorAiChatStore.setVoiceLanguage(context, code)
+            val wasListening = voice.active
+            voice = voice.copy(language = code)
+            if (wasListening) voiceInput.start(code)
+        },
+        speakingId = speakingId,
+        onSpeak = { item -> if (speakingId == item.id) speaker.stop() else speakItem(item) },
+        autoRead = autoRead,
+        onAutoRead = { autoRead = it; NoorAiChatStore.setAutoRead(context, it); if (!it) speaker.stop() },
+        onRenameConversation = { c, t -> NoorAiChatStore.rename(context, c.id, t); conversations = NoorAiChatStore.conversations(context) },
+        onPinConversation = { c -> NoorAiChatStore.setPinned(context, c.id, !c.pinned); conversations = NoorAiChatStore.conversations(context) },
+        searchConversations = { q -> NoorAiChatStore.search(context, q) },
         dailyTip = noorDailyTip(),
     )
 }
