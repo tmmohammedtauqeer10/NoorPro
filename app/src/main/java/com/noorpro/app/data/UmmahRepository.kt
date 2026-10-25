@@ -48,7 +48,9 @@ data class UmmahPost(
     /** 1.1.4 Creator Studio (additive; written only when the creator edit flag + rules are live). */
     val pinnedToProfile: Boolean = false,
     val archived: Boolean = false,
-    val pinnedCommentId: String = ""
+    val pinnedCommentId: String = "",
+    /** 1.1.5 Halal Guard: a moderator approved this but marked it sensitive (viewers can keep it blurred). */
+    val sensitive: Boolean = false
 )
 
 /** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
@@ -97,7 +99,9 @@ data class UmmahGroup(
     val memberUids: List<String>,
     val memberNames: Map<String, String> = emptyMap(),
     val lastMessage: String,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** 1.1.5: "all" | "sisters" | "brothers" (client-enforced circles, flagged). */
+    val audience: String = "all"
 )
 
 data class UmmahMessage(
@@ -323,10 +327,15 @@ class UmmahRepository {
                         return@addSnapshotListener
                     }
                     submissionError = null
+                    // 1.1.5 Halal Guard: tell the creator when the server rejected or queued a post.
+                    snapshot?.documents.orEmpty().forEach { d ->
+                        com.noorpro.app.data.halal.HalalNotices.onSubmission(
+                            d.id, d.getString("status").orEmpty(), d.getString("moderationReason").orEmpty(), d.getBoolean("guardBlocked") == true)
+                    }
                     val visibleSubmissions = snapshot?.documents.orEmpty()
                         .filter { it.getString("status") !in setOf("rejected", "removed") }
                     visibleSubmissions
-                        .filter { it.getString("status") != "published" }
+                        .filter { it.getString("status") !in setOf("published", "in_review") }
                         .forEach { document ->
                             recoverPendingPublication(document.id)
                         }
@@ -436,7 +445,8 @@ class UmmahRepository {
         visibility = if (getString("visibility") == "followers") "followers" else "everyone",
         pinnedToProfile = getBoolean("pinnedToProfile") == true,
         archived = getBoolean("archived") == true,
-        pinnedCommentId = getString("pinnedCommentId").orEmpty()
+        pinnedCommentId = getString("pinnedCommentId").orEmpty(),
+        sensitive = getBoolean("sensitive") == true
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
@@ -1447,7 +1457,8 @@ class UmmahRepository {
                         memberUids = document.get("memberUids") as? List<String> ?: emptyList(),
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
-                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }.sortedByDescending { it.updatedAt }
                 onResult(groups, null)
@@ -1455,7 +1466,11 @@ class UmmahRepository {
         chatListeners += registration
     }
 
-    fun createGroup(name: String, description: String, onResult: (Boolean, String?) -> Unit) {
+    fun createGroup(name: String, description: String, onResult: (Boolean, String?) -> Unit) =
+        createGroup(name, description, "all", onResult)
+
+    /** 1.1.5: [audience] other than "all" is written only when the circles flag is on (rules allow extra keys). */
+    fun createGroup(name: String, description: String, audience: String, onResult: (Boolean, String?) -> Unit) {
         val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to create a group.")
         val cleanName = name.trim().take(60)
         if (cleanName.isBlank()) return onResult(false, "Add a group name.")
@@ -1469,7 +1484,7 @@ class UmmahRepository {
                 "lastMessage" to "Group created",
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                 "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-            )
+            ) + (if (audience == "sisters" || audience == "brothers") mapOf("audience" to audience) else emptyMap())
         ).addOnCompleteListener { task ->
             onResult(task.isSuccessful, task.exception?.localizedMessage)
         }
@@ -1495,7 +1510,8 @@ class UmmahRepository {
                         memberUids = document.get("memberUids") as? List<String> ?: emptyList(),
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
-                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }
                 onResult(groups, null)
