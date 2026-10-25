@@ -71,6 +71,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
 
     fun setVideo(uri: Uri) {
         state.video = uri; state.photos = emptyList(); state.coverFrame = null
+        state.reelSource = null; state.reelEdit = null; state.photoOrigins = emptyMap()
         state.trimStartMs = 0; state.trimEndMs = 0; state.coverMs = 0; state.coverTouched = false
         scope.launch {
             val d = withContext(Dispatchers.IO) { ReelEditor.durationMs(context, uri) }
@@ -83,7 +84,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
         val max = if (state.destination == ComposerDestination.STORY) 1 else ComposerLimits.MAX_PHOTOS
         if (state.photos.size + uris.size > max) Toast.makeText(context, "Up to $max photo${if (max == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
         state.photos = (state.photos + uris).distinct().take(max)
-        state.video = null; state.coverFrame = null
+        state.video = null; state.coverFrame = null; state.reelSource = null; state.reelEdit = null
     }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) setVideo(uri) }
     var pendingCapture by remember { mutableStateOf<Uri?>(null) }
@@ -196,10 +197,15 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
         }
     }
 
+    // 1.1.3 in-app editors (shown over the composer; they only replace the media file).
+    var editingPhoto by remember { mutableStateOf<Int?>(null) }
+    var editingVideo by remember { mutableStateOf(false) }
+
     BackHandler(enabled = state.draftsOpen || (state.hasContent && !state.submitting)) {
         if (state.draftsOpen) state.draftsOpen = false else confirmLeave = true
     }
 
+    androidx.compose.foundation.layout.Box {
     NoorComposer(
         state = state,
         actions = ComposerActions(
@@ -218,13 +224,18 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
                 }
             },
             onDeleteDraft = { d -> store.delete(d.id); drafts = store.all(); if (state.draftId == d.id) state.draftId = null },
-            onPost = { post() }
+            onPost = { post() },
+            onEditPhoto = { i -> if (!state.submitting) editingPhoto = i },
+            onEditVideo = { if (!state.submitting && state.video != null) editingVideo = true }
         ),
         userName = viewModel.userDisplayName,
         userPhotoUrl = viewModel.userPhotoUrl,
         people = people,
         drafts = drafts
     )
+    editingPhoto?.let { i -> PhotoEditorHost(state, i) { editingPhoto = null } }
+    if (editingVideo) ReelEditorHost(state) { editingVideo = false }
+    }
 
     if (confirmLeave) AlertDialog(
         onDismissRequest = { confirmLeave = false },

@@ -107,6 +107,11 @@ class ComposerUiState(destination: ComposerDestination) {
     var coverMs by mutableStateOf(0L)
     var coverTouched by mutableStateOf(false)
     var coverFrame by mutableStateOf<Bitmap?>(null)
+    /** 1.1.3 editor: edited photo uri -> (original uri, edit) so re-editing starts from the original. */
+    var photoOrigins by mutableStateOf<Map<Uri, Pair<Uri, com.noorpro.app.data.media.edit.PhotoEdit>>>(emptyMap())
+    /** 1.1.3 editor: original clip when [video] is an exported edit; the edit that produced it. */
+    var reelSource by mutableStateOf<Uri?>(null)
+    var reelEdit by mutableStateOf<com.noorpro.app.data.media.edit.ReelEdit?>(null)
     var verseOpen by mutableStateOf(false)
     var arabic by mutableStateOf("")
     var reference by mutableStateOf("")
@@ -149,6 +154,7 @@ class ComposerUiState(destination: ComposerDestination) {
         pollOpen = d.pollOptions.isNotEmpty(); poll = ComposerPoll(d.pollOptions.ifEmpty { listOf("", "") }, d.pollHours)
         aiLabel = d.aiLabel; location = d.location; followersOnly = d.followersOnly
         trimStartMs = d.trimStartMs; trimEndMs = d.trimEndMs; coverMs = d.coverMs; coverTouched = d.coverMs > 0
+        photoOrigins = emptyMap(); reelSource = null; reelEdit = null
         error = null
     }
 }
@@ -161,7 +167,10 @@ class ComposerActions(
     val onSaveDraft: () -> Unit = {},
     val onOpenDraft: (ComposerDraft) -> Unit = {},
     val onDeleteDraft: (ComposerDraft) -> Unit = {},
-    val onPost: () -> Unit = {}
+    val onPost: () -> Unit = {},
+    /** 1.1.3: open the photo editor for photo #index / the reel editor for the video. */
+    val onEditPhoto: (Int) -> Unit = {},
+    val onEditVideo: () -> Unit = {}
 )
 
 /** Render-test hook: Uri string -> bitmap (tests can't load content:// images). */
@@ -415,8 +424,9 @@ private fun PhotoStrip(state: ComposerUiState, actions: ComposerActions) {
                     Text("${i + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 7.dp, vertical = 2.dp))
                     RoundIcon(Icons.Default.Close, "Remove photo", Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-                        state.photos = state.photos - uri
+                        state.photos = state.photos - uri; state.photoOrigins = state.photoOrigins - uri
                     }
+                    EditBadge(uri in state.photoOrigins, Modifier.align(Alignment.BottomEnd).padding(6.dp).testTag("composer_edit_photo_$i")) { actions.onEditPhoto(i) }
                     if (i > 0) RoundIcon(Icons.Default.ChevronLeft, "Move earlier", Modifier.align(Alignment.BottomStart).padding(6.dp)) {
                         state.photos = state.photos.toMutableList().apply { add(i - 1, removeAt(i)) }
                     }
@@ -441,6 +451,19 @@ private fun PhotoStrip(state: ComposerUiState, actions: ComposerActions) {
 }
 
 @Composable
+private fun EditBadge(edited: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.clip(RoundedCornerShape(999.dp)).background(if (edited) StitchGold else Color.Black.copy(alpha = 0.6f))
+            .clickable(onClick = onClick).padding(horizontal = 9.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.AutoAwesome, null, tint = if (edited) StitchEmeraldDeep else Color.White, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(if (edited) "Edited" else "Edit", color = if (edited) StitchEmeraldDeep else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun RoundIcon(icon: ImageVector, desc: String, modifier: Modifier, onClick: () -> Unit) {
     Box(modifier.size(28.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, desc, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -457,7 +480,7 @@ private fun MediaEmptyCard(state: ComposerUiState, actions: ComposerActions) {
     ) {
         Icon(if (reel) Icons.Default.Movie else Icons.Default.AddCircle, null, tint = feedAccent(), modifier = Modifier.size(34.dp))
         Text(if (reel) "Start your reel" else "Add to your story", color = stitchText(), fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-        Text(if (reel) "Pick a vertical video or record one. Trim it and choose a cover next." else "A photo or a short video, shared for 24 hours.",
+        Text(if (reel) "Pick a vertical video or record one. Edit it and choose a cover next." else "A photo or a short video, shared for 24 hours.",
             color = stitchMutedText(), fontSize = 13.sp, textAlign = TextAlign.Center)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PillButton(Icons.Default.Videocam, "Record", filled = true, onClick = actions.onRecordVideo)
@@ -497,18 +520,22 @@ private fun VideoEditor(state: ComposerUiState, actions: ComposerActions) {
                 }
                 if (dur > 0) Text(formatClock(clipLength(state)), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 7.dp, vertical = 2.dp))
+                if (!reel) EditBadge(state.reelEdit != null, Modifier.align(Alignment.BottomStart).padding(6.dp).testTag("composer_edit_video")) { actions.onEditVideo() }
                 RoundIcon(Icons.Default.Close, "Remove video", Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                    state.reelSource = null; state.reelEdit = null
                     state.video = null; state.coverFrame = null; state.videoDurationMs = 0; state.trimStartMs = 0; state.trimEndMs = 0; state.coverMs = 0; state.coverTouched = false
                 }
             }
             if (reel) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Your reel")
-                Text("Vertical 9:16 looks best. Trim the clip and pick a cover frame below.", color = stitchMutedText(), fontSize = 12.5.sp, lineHeight = 18.sp)
+                Text(if (state.reelEdit != null) "Edited · ${formatClock(state.videoDurationMs)}. Open the editor again any time — it starts from your original clip."
+                    else "Vertical 9:16 looks best. Edit it — trim, speed, filters, text, stickers, sound — then pick a cover.", color = stitchMutedText(), fontSize = 12.5.sp, lineHeight = 18.sp)
+                Box(Modifier.testTag("composer_edit_video")) { PillButton(Icons.Default.AutoAwesome, if (state.reelEdit != null) "Edit again" else "Edit reel", filled = true, onClick = actions.onEditVideo) }
                 PillButton(Icons.Default.Movie, "Replace", filled = false, onClick = actions.onPickVideo)
                 PillButton(Icons.Default.Videocam, "Re-record", filled = false, onClick = actions.onRecordVideo)
             }
         }
-        if (reel && dur > 1000) {
+        if (reel && dur > 1000 && state.reelSource == null) {
             Column(composerCard().padding(horizontal = 16.dp, vertical = 12.dp).testTag("composer_trim")) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SectionLabel("Trim", Modifier.weight(1f))
