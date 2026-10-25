@@ -108,7 +108,8 @@ fun splitBioLink(bio: String): BioParts {
 
 fun linkHref(link: String): String = if (link.startsWith("http", true)) link else "https://$link"
 
-fun profileShareUrl(handle: String): String = "https://noorpro.app/u/${normalizeUsername(handle)}"
+/** The working public profile link (same host the old profile share used; opens the app via App Links). */
+fun profileShareUrl(uid: String): String = "https://noor-pro-d87e3.web.app/u?uid=" + java.net.URLEncoder.encode(uid, "UTF-8")
 
 // ---------------------------------------------------------------- AI bio helper (askNoorAi, AskNoor mode)
 

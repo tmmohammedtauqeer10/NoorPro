@@ -2344,7 +2344,7 @@ private fun StitchGuestProfileScreen(
 }
 
 @Composable
-private fun StitchGuestSignInProfileCard(
+internal fun StitchGuestSignInProfileCard(
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -3229,7 +3229,7 @@ internal fun rememberStitchFollowing(isLoggedIn: Boolean): Set<String> {
 }
 
 @Composable
-private fun rememberStitchFollowingUsers(isLoggedIn: Boolean, targetUid: String? = null): List<UmmahFollowUser> {
+internal fun rememberStitchFollowingUsers(isLoggedIn: Boolean, targetUid: String? = null): List<UmmahFollowUser> {
     val repository = remember(isLoggedIn, targetUid) { UmmahRepository() }
     var users by remember(isLoggedIn, targetUid) { mutableStateOf<List<UmmahFollowUser>>(emptyList()) }
     DisposableEffect(repository, isLoggedIn, targetUid) {
@@ -3240,7 +3240,7 @@ private fun rememberStitchFollowingUsers(isLoggedIn: Boolean, targetUid: String?
 }
 
 @Composable
-private fun rememberStitchFollowers(isLoggedIn: Boolean, targetUid: String? = null): List<UmmahFollowUser> {
+internal fun rememberStitchFollowers(isLoggedIn: Boolean, targetUid: String? = null): List<UmmahFollowUser> {
     val repository = remember(isLoggedIn, targetUid) { UmmahRepository() }
     var users by remember(isLoggedIn, targetUid) { mutableStateOf<List<UmmahFollowUser>>(emptyList()) }
     DisposableEffect(repository, isLoggedIn, targetUid) {
