@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
-const {onRequest} = require("firebase-functions/v2/https");
-const {onDocumentCreated, onDocumentDeleted, onDocumentWritten} = require("firebase-functions/v2/firestore");
+const {onRequest, onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onDocumentCreated, onDocumentDeleted, onDocumentWritten, onDocumentUpdated} = require("firebase-functions/v2/firestore");
+const halal = require("./halal");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {defineSecret} = require("firebase-functions/params");
 const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
@@ -742,19 +743,22 @@ const {composerFields} = require("./composer");
 // authenticated recovery endpoint use this function, so tester uploads created before the trigger
 // was deployed can still be promoted. The operation is idempotent because the public post keeps the
 // submission ID.
-async function promoteUmmahSubmission(submission, submissionId) {
+async function promoteUmmahSubmission(submission, submissionId, opts = {}) {
   if (!submission || !submission.exists) return {published: false, status: "missing"};
 
   const data = submission.data() || {};
   if (["rejected", "removed"].includes(data.status)) {
     return {published: false, status: data.status};
   }
+  // 1.1.5 Halal Guard: queued items wait for a moderator; the recovery endpoint must not bypass it.
+  const moderatorApproved = opts.moderatorApproved === true;
+  if (data.status === "in_review" && !moderatorApproved) return {published: false, status: "in_review"};
 
   const type = cleanString(data.type, "text").toLowerCase();
   const allowedTypes = new Set(["text", "image", "reel", "video"]);
   const creatorUid = cleanString(data.creatorUid, "").slice(0, 128);
-  const caption = cleanString(data.caption, "").slice(0, 2000);
-  const arabicText = cleanString(data.arabicText, "").slice(0, 2000);
+  let caption = cleanString(data.caption, "").slice(0, 2000);
+  let arabicText = cleanString(data.arabicText, "").slice(0, 2000);
   const mediaUrl = cleanString(data.mediaUrl, "").slice(0, 2000);
   const hasValidMedia = type === "text" || /^https:\/\//i.test(mediaUrl);
 
@@ -766,6 +770,44 @@ async function promoteUmmahSubmission(submission, submissionId) {
       reviewedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     return {published: false, status: "rejected"};
+  }
+
+  // 1.1.5 Halal Guard (flagged; with every flag off only an existing suspension/ban is enforced).
+  let guard = null;
+  if (!moderatorApproved) {
+    guard = await guardSubmission(data, submissionId, {type, creatorUid, caption, arabicText, mediaUrl});
+    if (guard.decision === "reject") {
+      await submission.ref.update({
+        status: "rejected",
+        approved: false,
+        moderationReason: guard.userReason,
+        guardBlocked: true,
+        moderation: guardSummary(guard),
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await addModerationNotice(creatorUid, {kind: "post", targetId: submissionId, reason: guard.userReason});
+      return {published: false, status: "rejected", reason: guard.userReason};
+    }
+    if (guard.decision === "queue") {
+      await admin.firestore().collection("moderation_queue").doc(submissionId).set({
+        kind: "post", targetId: submissionId, creatorUid,
+        creatorName: cleanString(data.creatorName, "Community member").slice(0, 60),
+        type, caption: caption.slice(0, 600), arabicText: arabicText.slice(0, 300), mediaUrl,
+        thumbnailUrl: cleanString(data.thumbnailUrl, "").slice(0, 2000),
+        mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls.filter((u) => typeof u === "string").slice(0, 10) : [],
+        reasons: guard.reasons, userReason: guard.userReason, scan: guard.scan || null,
+        status: "open", createdAt: admin.firestore.FieldValue.serverTimestamp()
+      }, {merge: true});
+      await submission.ref.update({
+        status: "in_review",
+        moderationReason: guard.userReason,
+        moderation: guardSummary(guard),
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return {published: false, status: "in_review"};
+    }
+    if (guard.masked.caption) caption = guard.masked.caption;
+    if (guard.masked.arabicText) arabicText = guard.masked.arabicText;
   }
 
   // Likes and comments can be added while the uploader sees the pending reel. Carry those totals
@@ -817,6 +859,12 @@ async function promoteUmmahSubmission(submission, submissionId) {
     ...carouselField(type, mediaUrl, data.mediaUrls),
     publishedAt: admin.firestore.FieldValue.serverTimestamp()
   };
+  // 1.1.5 decision fields (only when the guard actually ran or a moderator approved).
+  if (moderatorApproved || (guard && guard.ran)) {
+    publishedPost.moderation = {...guardSummary(guard || {decision: "approve", reasons: []}),
+      status: moderatorApproved ? "approved_by_moderator" : "auto_approved"};
+    publishedPost.sensitive = opts.sensitive === true;
+  }
   Object.assign(publishedPost, reelSearchFields({...publishedPost, soundTitle: data.soundTitle || data.audioTitle || ""}));
   // 1.1.1 composer fields (optional, validated). Followers-only posts go to their own collection.
   const extra = composerFields(type, data);
@@ -923,8 +971,9 @@ exports.publishUmmahSubmission = onDocumentCreated(
   {
     document: "ummah_submissions/{submissionId}",
     region: REGION,
-    timeoutSeconds: 60,
-    memory: "256MiB"
+    // 1.1.5: room for the (flagged) Halal Guard media scan.
+    timeoutSeconds: 300,
+    memory: "512MiB"
   },
   async (event) => {
     if (!event.data) return;
@@ -1442,5 +1491,389 @@ exports.creatorDailySnapshot = onSchedule(
     }
     if (ops) await batch.commit();
     console.log(`creatorDailySnapshot ${day}: ${totals.size} creators from ${all.length} posts`);
+  }
+);
+
+// =====================================================================================
+// 1.1.5 Halal Guard. Pure logic lives in halal.js. Every check below is behind an env flag that
+// defaults OFF (functions/.env): HALAL_GUARD_SCAN, HALAL_GUARD_VIDEO, HALAL_TEXT_FILTER,
+// HALAL_NEW_ACCOUNT_QUEUE. Vision / Video Intelligence use the functions' default service account
+// (no API key); the client libraries are required lazily so nothing loads while the flags are off.
+// =====================================================================================
+// Trigger functions are only exported when their flag is on at deploy time (.env is read during
+// deploy), so with the defaults they don't exist and cost nothing. Flip a flag -> redeploy.
+const HG = halal.guardFlags();
+let visionSingleton = null;
+let videoSingleton = null;
+function guardDeps(flags) {
+  return {
+    flags,
+    fetchBytes: guardFetchBytes,
+    get vision() {
+      if (!visionSingleton) {
+        const {ImageAnnotatorClient} = require("@google-cloud/vision");
+        visionSingleton = new ImageAnnotatorClient();
+      }
+      return visionSingleton;
+    },
+    get video() {
+      if (!videoSingleton) {
+        const {VideoIntelligenceServiceClient} = require("@google-cloud/video-intelligence");
+        videoSingleton = new VideoIntelligenceServiceClient();
+      }
+      return videoSingleton;
+    }
+  };
+}
+
+// Only our own media hosts are fetched (no SSRF to arbitrary URLs); anything else is queued.
+function guardHostAllowed(url) {
+  let host = "";
+  try { host = new URL(url).hostname.toLowerCase(); } catch (e) { return false; }
+  const cdn = String(process.env.NOOR_CDN_DOMAIN || "").toLowerCase();
+  return host === "firebasestorage.googleapis.com" || host === "storage.googleapis.com" ||
+    host.endsWith(".firebasestorage.app") || host.endsWith(".cloudfront.net") || (cdn && host === cdn);
+}
+async function guardFetchBytes(url, max) {
+  if (!/^https:\/\//i.test(String(url || "")) || !guardHostAllowed(url)) return null;
+  const res = await fetch(url, {redirect: "follow"});
+  if (!res.ok) throw new Error(`media fetch ${res.status}`);
+  const len = Number(res.headers.get("content-length") || 0);
+  if (len && len > max) return null;
+  const buf = Buffer.from(await res.arrayBuffer());
+  return buf.length > max ? null : buf;
+}
+
+function guardSummary(g) {
+  return {
+    decision: g.decision || "approve",
+    reasons: Array.isArray(g.reasons) ? g.reasons.slice(0, 10) : [],
+    scan: g.scan || null,
+    text: g.text || {},
+    checkedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+async function addModerationNotice(uid, {kind, targetId, reason}) {
+  if (!uid) return;
+  await admin.firestore().collection("moderation_notices").doc(uid).collection("items").add({
+    kind: String(kind || "post"), targetId: String(targetId || "").slice(0, 200),
+    reason: String(reason || "").slice(0, 500), seen: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }).catch((e) => console.warn("notice failed", uid, e));
+}
+
+async function loadStrikes(uid) {
+  if (!uid) return null;
+  try {
+    const snap = await admin.firestore().collection("user_strikes").doc(uid).get();
+    return snap.exists ? snap.data() : null;
+  } catch (e) {
+    console.warn("strikes read failed", uid, e);
+    return null;
+  }
+}
+
+async function guardSubmission(data, submissionId, ctx) {
+  const flags = halal.guardFlags();
+  const anyFlag = flags.scan || flags.text || flags.newAccount;
+  const strikes = await loadStrikes(ctx.creatorUid);
+  if (!anyFlag) {
+    if (halal.isRestricted(strikes, Date.now())) return {...(await halal.guardContent({strikes}, {flags: {}})), ran: true};
+    return {decision: "approve", reasons: [], masked: {}, ran: false};
+  }
+  try {
+    const images = [];
+    const video = (ctx.type === "reel" || ctx.type === "video") ? {
+      gsUri: cleanString(data.storageProvider, "firebase") === "firebase" && cleanString(data.mediaPath, "") ?
+        `gs://${admin.storage().bucket().name}/${cleanString(data.mediaPath, "")}` : "",
+      url: ctx.mediaUrl
+    } : null;
+    if (ctx.type === "image") {
+      const urls = Array.isArray(data.mediaUrls) ? data.mediaUrls.filter((u) => typeof u === "string") : [];
+      images.push(...(urls.length ? urls : [ctx.mediaUrl]));
+    } else if (video) {
+      const thumb = cleanString(data.thumbnailUrl, "");
+      if (thumb) images.push(thumb);
+    }
+    let createdMs = 0;
+    let priorPublished = 0;
+    if (flags.newAccount) {
+      const user = await admin.auth().getUser(ctx.creatorUid);
+      createdMs = Date.parse(user.metadata.creationTime) || 0;
+      priorPublished = (await admin.firestore().collection("ummah_posts")
+        .where("creatorUid", "==", ctx.creatorUid).count().get()).data().count;
+    }
+    const result = await halal.guardContent({
+      texts: {caption: ctx.caption, arabicText: ctx.arabicText}, images, video, createdMs, priorPublished, strikes
+    }, guardDeps(flags));
+    return {...result, ran: true};
+  } catch (error) {
+    console.error("Halal Guard failed; queueing", submissionId, error);
+    return {decision: "queue", reasons: ["guard_error"], userReason: halal.USER_REASON.review, masked: {}, scan: null, ran: true};
+  }
+}
+
+async function enqueue(id, item) {
+  await admin.firestore().collection("moderation_queue").doc(id).set({
+    ...item, status: "open", createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }, {merge: true});
+}
+
+// Stories are written by the client straight into ummah_stories, so they are checked after create.
+if (HG.scan || HG.text) exports.halalGuardStory = onDocumentCreated(
+  {document: "ummah_stories/{storyId}", region: REGION, timeoutSeconds: 300, memory: "512MiB"},
+  async (event) => {
+    const flags = halal.guardFlags();
+    if (!event.data || !(flags.scan || flags.text)) return;
+    const d = event.data.data() || {};
+    if (cleanString(d.sharedPostId, "")) return; // re-share of an already-moderated post
+    const uid = cleanString(d.authorUid, "");
+    const type = cleanString(d.type, "image");
+    const mediaUrl = cleanString(d.mediaUrl, "");
+    const mediaPath = cleanString(d.mediaPath, "");
+    const images = type === "video" ? [cleanString(d.thumbUrl, "")].filter(Boolean) : [mediaUrl].filter(Boolean);
+    const video = type === "video" ? {gsUri: mediaPath ? `gs://${admin.storage().bucket().name}/${mediaPath}` : "", url: mediaUrl} : null;
+    let g;
+    try {
+      g = await halal.guardContent({texts: {caption: cleanString(d.caption, "")}, images, video, strikes: await loadStrikes(uid)}, guardDeps(flags));
+    } catch (e) {
+      g = {decision: "queue", reasons: ["guard_error"], userReason: halal.USER_REASON.review, masked: {}};
+    }
+    if (g.decision === "reject") {
+      const bucket = admin.storage().bucket();
+      for (const field of ["mediaPath", "thumbPath"]) {
+        const path = cleanString(d[field], "");
+        if (path.startsWith("ummah_stories/")) await bucket.file(path).delete().catch(() => {});
+      }
+      await event.data.ref.delete();
+      await addModerationNotice(uid, {kind: "story", targetId: event.params.storyId, reason: g.userReason});
+      return;
+    }
+    const update = {moderation: guardSummary(g)};
+    if (g.masked.caption) update.caption = g.masked.caption;
+    if (g.decision === "queue") {
+      update.inReview = true;
+      await enqueue(`story_${event.params.storyId}`, {kind: "story", targetId: event.params.storyId, creatorUid: uid,
+        creatorName: cleanString(d.authorName, ""), type, caption: cleanString(d.caption, "").slice(0, 300),
+        mediaUrl, thumbnailUrl: cleanString(d.thumbUrl, ""), reasons: g.reasons, scan: g.scan || null});
+    }
+    await event.data.ref.update(update);
+  }
+);
+
+async function textGuard(value) {
+  const r = halal.scanText(value || "");
+  return {r, masked: r.action === "mask" ? halal.maskText(value, r) : "", reason: halal.textUserReason(r)};
+}
+
+// Comments: severe -> removed (deleted, which also decrements the post's count), hate/scam ->
+// hidden pending review, mild -> masked. Suspended/banned accounts' comments are removed.
+if (HG.text || HG.scan || HG.newAccount) exports.halalGuardComment = onDocumentCreated(
+  {document: "ummah_comments/{commentId}", region: REGION, timeoutSeconds: 30, memory: "256MiB"},
+  async (event) => {
+    const flags = halal.guardFlags();
+    if (!event.data || !(flags.text || flags.scan || flags.newAccount)) return;
+    const d = event.data.data() || {};
+    const uid = cleanString(d.creatorUid, "");
+    const text = cleanString(d.text, "");
+    if (halal.isRestricted(await loadStrikes(uid), Date.now())) {
+      await event.data.ref.delete();
+      await addModerationNotice(uid, {kind: "comment", targetId: event.params.commentId, reason: halal.USER_REASON.restricted});
+      return;
+    }
+    if (!flags.text) return;
+    const {r, masked, reason} = await textGuard(text);
+    if (r.action === "block") {
+      await event.data.ref.delete();
+      await addModerationNotice(uid, {kind: "comment", targetId: event.params.commentId, reason});
+      await admin.firestore().collection("moderation_audit").add({actorUid: "system", action: "auto_remove", target: "comment",
+        id: event.params.commentId, subjectUid: uid, reason: r.categories.join(","), at: admin.firestore.FieldValue.serverTimestamp()});
+    } else if (r.action === "queue") {
+      await event.data.ref.update({status: "in_review"});
+      await enqueue(`comment_${event.params.commentId}`, {kind: "comment", targetId: event.params.commentId, creatorUid: uid,
+        creatorName: cleanString(d.creatorName, ""), type: "comment", caption: text.slice(0, 600), postId: cleanString(d.postId, ""),
+        reasons: r.categories.map((c) => `text_${c}`)});
+    } else if (r.action === "mask") {
+      await event.data.ref.update({text: masked});
+    }
+  }
+);
+
+// Caption edits (Creator Studio) skip the publisher, so re-check them here.
+if (HG.text) exports.halalGuardCaptionEdit = onDocumentUpdated(
+  {document: "ummah_posts/{postId}", region: REGION, timeoutSeconds: 30, memory: "256MiB"},
+  async (event) => {
+    if (!halal.guardFlags().text || !event.data) return;
+    const before = event.data.before.data() || {};
+    const after = event.data.after.data() || {};
+    if ((before.caption || "") === (after.caption || "")) return;
+    const {r, masked, reason} = await textGuard(after.caption || "");
+    if (r.action === "block") {
+      await event.data.after.ref.update({caption: before.caption || ""});
+      await addModerationNotice(after.creatorUid, {kind: "caption", targetId: event.params.postId, reason});
+    } else if (r.action === "mask") {
+      await event.data.after.ref.update({caption: masked});
+    } else if (r.action === "queue") {
+      await enqueue(`edit_${event.params.postId}`, {kind: "post_edit", targetId: event.params.postId, creatorUid: after.creatorUid || "",
+        creatorName: after.creatorName || "", type: after.type || "text", caption: String(after.caption || "").slice(0, 600),
+        mediaUrl: after.mediaUrl || "", thumbnailUrl: after.thumbnailUrl || "", reasons: r.categories.map((c) => `text_${c}`)});
+    }
+  }
+);
+
+// Profiles: avatar SafeSearch + name/bio text filter.
+if (HG.scan || HG.text) exports.halalGuardProfile = onDocumentWritten(
+  {document: "ummah_profiles/{uid}", region: REGION, timeoutSeconds: 60, memory: "256MiB"},
+  async (event) => {
+    const flags = halal.guardFlags();
+    if (!event.data || !event.data.after.exists || !(flags.scan || flags.text)) return;
+    const before = event.data.before.exists ? event.data.before.data() : {};
+    const after = event.data.after.data() || {};
+    const uid = event.params.uid;
+    const update = {};
+    if (flags.text) {
+      for (const field of ["name", "bio"]) {
+        if ((before[field] || "") === (after[field] || "") || !after[field]) continue;
+        const {r, masked, reason} = await textGuard(after[field]);
+        if (r.action === "block") {
+          update[field] = field === "name" ? (before.name || "Community member") : (before.bio || "");
+          await addModerationNotice(uid, {kind: `profile_${field}`, targetId: uid, reason});
+        } else if (r.action === "mask") update[field] = masked;
+      }
+    }
+    const photo = cleanString(after.photoUrl, "");
+    if (flags.scan && photo && photo !== cleanString(before.photoUrl, "")) {
+      const s = await halal.scanMedia({images: [photo]}, guardDeps(flags));
+      if (s.decision === "reject") {
+        update.photoUrl = "";
+        await addModerationNotice(uid, {kind: "avatar", targetId: uid, reason: s.userReason});
+      } else if (s.decision === "queue") {
+        await enqueue(`avatar_${uid}`, {kind: "avatar", targetId: uid, creatorUid: uid, creatorName: after.name || "",
+          type: "image", caption: "", mediaUrl: photo, reasons: [s.reason]});
+      }
+    }
+    if (Object.keys(update).length) await event.data.after.ref.update(update);
+  }
+);
+
+// Group names / descriptions (server side; the app also warns while typing).
+if (HG.text) exports.halalGuardGroup = onDocumentCreated(
+  {document: "ummah_groups/{groupId}", region: REGION, timeoutSeconds: 30, memory: "256MiB"},
+  async (event) => {
+    if (!halal.guardFlags().text || !event.data) return;
+    const d = event.data.data() || {};
+    const update = {};
+    for (const field of ["name", "description"]) {
+      const {r, masked, reason} = await textGuard(d[field] || "");
+      if (r.action === "block") {
+        update[field] = field === "name" ? "Group" : "";
+        await addModerationNotice(d.ownerUid, {kind: "group", targetId: event.params.groupId, reason});
+      } else if (r.action === "mask") update[field] = masked;
+    }
+    if (Object.keys(update).length) await event.data.ref.update(update);
+  }
+);
+
+async function isModeratorUid(auth) {
+  if (!auth || !auth.uid) return false;
+  if (auth.token && auth.token.admin === true) return true;
+  return (await admin.firestore().collection("admins").doc(auth.uid).get()).exists;
+}
+
+async function removeContent(kind, targetId, subjectUid) {
+  const db = admin.firestore();
+  switch (kind) {
+  case "post": case "post_edit": {
+    await db.collection("ummah_submissions").doc(targetId).update({status: "removed", approved: false}).catch(() => {});
+    await db.collection("ummah_posts").doc(targetId).delete().catch(() => {});
+    await db.collection("ummah_follower_posts").doc(targetId).delete().catch(() => {});
+    return;
+  }
+  case "comment": await db.collection("ummah_comments").doc(targetId).delete().catch(() => {}); return;
+  case "story": await db.recursiveDelete(db.collection("ummah_stories").doc(targetId)).catch(() => {}); return;
+  case "avatar": case "user": case "profile":
+    await db.collection("ummah_profiles").doc(subjectUid || targetId).update({photoUrl: ""}).catch(() => {}); return;
+  default: return; // messages etc.: reported content is kept; the account action is what applies
+  }
+}
+
+async function approveContent(kind, targetId, sensitive) {
+  const db = admin.firestore();
+  if (kind === "post") {
+    const ref = db.collection("ummah_submissions").doc(targetId);
+    const snap = await ref.get();
+    if (snap.exists) return promoteUmmahSubmission(snap, targetId, {moderatorApproved: true, sensitive});
+  } else if (kind === "comment") {
+    await db.collection("ummah_comments").doc(targetId).update({status: "published"}).catch(() => {});
+  } else if (kind === "story") {
+    await db.collection("ummah_stories").doc(targetId).update({inReview: false, sensitive}).catch(() => {});
+  }
+  return null;
+}
+
+// Admin-only moderation decisions (queue items, reports, or a user directly). Caller must have the
+// `admin` custom claim or an admins/{uid} document. Every call is written to moderation_audit.
+exports.setModerationDecision = onCall(
+  {region: REGION, timeoutSeconds: 300, memory: "512MiB", maxInstances: 5},
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+    if (!(await isModeratorUid(request.auth))) throw new HttpsError("permission-denied", "Moderators only.");
+    const v = halal.validateDecision(request.data);
+    if (!v.ok) throw new HttpsError("invalid-argument", v.error);
+    const {action, target, id, reason, days, sensitive, strike} = v.value;
+    const db = admin.firestore();
+    let docRef = null;
+    let item = {};
+    if (target === "queue") docRef = db.collection("moderation_queue").doc(id);
+    if (target === "report") docRef = db.collection("ummah_reports").doc(id);
+    if (docRef) {
+      const snap = await docRef.get();
+      if (!snap.exists) throw new HttpsError("not-found", "Item not found.");
+      item = snap.data() || {};
+    }
+    const kind = target === "user" ? "user" : (target === "report" ? String(item.targetType || "post") : String(item.kind || "post"));
+    const targetId = target === "user" ? id : String(item.targetId || item.postId || "");
+    const subjectUid = target === "user" ? id : String(item.creatorUid || item.targetUid || "");
+    const now = Date.now();
+    const effects = halal.decisionEffects(action, strike);
+    let strikes = null;
+    for (const effect of effects) {
+      if (effect === "publish") await approveContent(kind, targetId, sensitive);
+      if (effect === "remove_content" && targetId) await removeContent(kind, targetId, subjectUid);
+      if (["strike", "suspend", "ban", "unban"].includes(effect) && subjectUid) {
+        const ref = db.collection("user_strikes").doc(subjectUid);
+        strikes = await db.runTransaction(async (tx) => {
+          const cur = (await tx.get(ref)).data() || {};
+          let next = {...cur};
+          if (effect === "strike") next = {...cur, ...halal.applyStrike(cur, now, days)};
+          if (effect === "suspend") next = {...cur, suspendedUntilMs: now + days * halal.DAY_MS};
+          if (effect === "ban") next = {...cur, banned: true};
+          if (effect === "unban") next = {...cur, banned: false, suspendedUntilMs: 0};
+          next.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+          tx.set(ref, next, {merge: true});
+          return next;
+        });
+        if (effect === "ban") {
+          await admin.auth().updateUser(subjectUid, {disabled: true}).catch((e) => console.warn("disable failed", e));
+          await admin.auth().revokeRefreshTokens(subjectUid).catch(() => {});
+        }
+        if (effect === "unban") await admin.auth().updateUser(subjectUid, {disabled: false}).catch(() => {});
+      }
+      if (effect === "notify" && subjectUid) {
+        const until = strikes && strikes.suspendedUntilMs > now ? ` Your account is suspended until ${new Date(strikes.suspendedUntilMs).toISOString().slice(0, 10)}.` : "";
+        await addModerationNotice(subjectUid, {kind: action, targetId,
+          reason: `${reason || "A moderator reviewed your content under the Halal community guidelines."}${until}`});
+      }
+      if (effect === "close" && docRef) {
+        await docRef.update({status: "resolved", resolution: action, resolvedBy: request.auth.uid,
+          resolvedAt: admin.firestore.FieldValue.serverTimestamp()});
+      }
+    }
+    await db.collection("moderation_audit").add({
+      actorUid: request.auth.uid, action, target, id, kind, targetId, subjectUid, reason, days, sensitive,
+      effects, strikeCount: strikes ? Number(strikes.count) || 0 : null, at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return {ok: true, effects, strikes: strikes ? {count: Number(strikes.count) || 0, suspendedUntilMs: Number(strikes.suspendedUntilMs) || 0, banned: strikes.banned === true} : null};
   }
 );
