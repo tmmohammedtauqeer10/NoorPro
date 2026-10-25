@@ -9,6 +9,13 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // 1.1.5 Halal Guard (additive): moderators are admin-claim holders OR have an admins/{uid} doc.
+    // isAdmin() keeps its original meaning for the pilgrimage collections.
+    function isModerator() {
+      return isAdmin()
+        || (request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
     // Per-account private data. Account switching is safe because all reads/writes under
     // users/{uid} require the active Firebase Auth uid to match the path uid.
     match /users/{userId} {
@@ -436,6 +443,33 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.reporterUid == request.auth.uid;
       allow read, update, delete: if false;
+      // 1.1.5 (additive): moderators can read reports; decisions go through setModerationDecision.
+      allow read: if isModerator();
+    }
+
+    // 1.1.5 Halal Guard collections. Only Cloud Functions (Admin SDK) write them.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /moderation_queue/{itemId} {
+      allow read: if isModerator();
+      allow write: if false;
+    }
+    match /moderation_audit/{entryId} {
+      allow read: if isModerator();
+      allow write: if false;
+    }
+    match /user_strikes/{uid} {
+      allow read: if isModerator() || (request.auth != null && request.auth.uid == uid);
+      allow write: if false;
+    }
+    match /moderation_notices/{uid}/items/{noticeId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["seen"])
+        && request.resource.data.seen == true;
+      allow create, delete: if false;
     }
 
     match /user_backups/{userId} {
