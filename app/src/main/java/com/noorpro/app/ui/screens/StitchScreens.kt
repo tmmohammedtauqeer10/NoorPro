@@ -7789,7 +7789,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
     val userPosts = feedState.posts.filter { post ->
         // Names and handles are editable and are not proof of post ownership.
         profileUid.isNotBlank() && post.creatorUid == profileUid
-    }
+    }.sortedByDescending { it.pinnedToProfile } // 1.1.4: pinned from Creator Studio first (stable sort keeps the rest in order)
     val visiblePosts = userPosts.filter { !it.isReelLike() }
     val userReels = userPosts.filter { it.isReelLike() }
     val profileTotalViews = userPosts.sumOf { it.viewCount }
@@ -8054,7 +8054,7 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Creator Studio", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("Private analytics dashboard", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                                Text("Insights, content, comments & Noor AI helper", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                             }
                             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White)
                         }

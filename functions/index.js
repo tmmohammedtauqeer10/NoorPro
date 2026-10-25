@@ -1413,3 +1413,34 @@ exports.backfillPeopleSearch = onRequest(
     return res.json({scanned: snap.size, updated, last, done: snap.size < 400});
   }
 );
+
+// 1.1.4 Creator Studio: nightly per-creator totals so the app can chart per-day views/likes.
+// OFF unless CREATOR_DAILY_STATS=true is set in functions/.env (and the app flag
+// creator_daily_stats_enabled is on). Cost: one read per published post per day + one write per creator.
+const creatorStats = require("./creator");
+exports.creatorDailySnapshot = onSchedule(
+  {schedule: "every day 23:55", timeZone: "Asia/Kolkata", region: REGION, timeoutSeconds: 540, memory: "512MiB"},
+  async () => {
+    if (!creatorStats.dailyStatsEnabled(process.env)) return console.log("creatorDailySnapshot disabled");
+    const db = admin.firestore();
+    const day = creatorStats.dayId(new Date());
+    const all = [];
+    let last = null;
+    for (;;) {
+      let q = db.collection("ummah_posts").orderBy(admin.firestore.FieldPath.documentId()).limit(1000);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      snap.docs.forEach((d) => all.push(d.data()));
+      if (snap.size < 1000) break;
+      last = snap.docs[snap.docs.length - 1];
+    }
+    const totals = creatorStats.aggregateCreatorTotals(all);
+    let batch = db.batch(); let ops = 0;
+    for (const [uid, t] of totals) {
+      batch.set(db.doc(`ummah_creator_stats/${uid}/days/${day}`), {...t, day, at: admin.firestore.FieldValue.serverTimestamp()});
+      if (++ops === 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+    }
+    if (ops) await batch.commit();
+    console.log(`creatorDailySnapshot ${day}: ${totals.size} creators from ${all.length} posts`);
+  }
+);

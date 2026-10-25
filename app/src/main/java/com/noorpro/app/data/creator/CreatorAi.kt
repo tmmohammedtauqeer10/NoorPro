@@ -99,7 +99,8 @@ object ReferenceChecker {
         val out = mutableListOf<RefCheck>()
         val quran = Regex("(?:(?:surah|surat|sura)\\s+)?([A-Za-z'’-]{2,20}(?:\\s[A-Za-z'’-]{2,12})?)?\\s*[(\\[]?\\b(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-–]\\s*(\\d{1,3}))?", RegexOption.IGNORE_CASE)
         quran.findAll(text).forEach { m ->
-            val name = m.groupValues[1].trim()
+            // "and Al-Ikhlas 2:255" → try the whole name, then just its last word.
+            val name = m.groupValues[1].trim().let { n -> if (surahByName(n) != null) n else n.substringAfterLast(' ').takeIf { surahByName(it) != null } ?: n }
             val s = m.groupValues[2].toInt(); val a = m.groupValues[3].toInt(); val e = m.groupValues[4].toIntOrNull() ?: a
             out += checkAyah(m.value.trim(), name.takeIf { it.isNotBlank() && !it.equals("surah", true) }, s, a, e)
         }
