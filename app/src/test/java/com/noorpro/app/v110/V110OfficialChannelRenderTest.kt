@@ -47,12 +47,31 @@ class V110OfficialChannelRenderTest {
      * REAL YouTube thumbnails (i.ytimg.com/vi/<id>/hqdefault.jpg) downloaded into app/build/v110-thumbs before
      * the run (build dir only - never bundled). A missing file renders the in-app fallback placeholder.
      */
-    private val art = videos.associate { v ->
+    private val realArt = videos.associate { v ->
         v.id to java.io.File("build/v110-thumbs/${v.id}.jpg").takeIf { it.length() > 1000 }
             ?.let { android.graphics.BitmapFactory.decodeFile(it.path) }?.asImageBitmap()
     }
+    /**
+     * When the build dir has no downloaded thumbnails (clean checkout / CI / offline) every video gets a
+     * locally drawn stand-in (emerald gradient + lattice, no network), so the tests still exercise
+     * "thumbnail present" vs "thumbnail missing" deterministically instead of depending on the cache.
+     */
+    private val art = videos.associate { v -> v.id to (realArt[v.id] ?: standIn(v.id)) }
 
-    @Before fun setUp() { officialPreviewArt = { art[it] }; println("v110 real thumbnails loaded: " + art.values.count { it != null } + "/" + art.size) }
+    private fun standIn(id: String): androidx.compose.ui.graphics.ImageBitmap {
+        val w = 480; val h = 360
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val hue = (id.hashCode() and 0x7fffffff) % 40
+        val top = android.graphics.Color.HSVToColor(floatArrayOf(150f + hue, 0.78f, 0.42f))
+        val bottom = android.graphics.Color.HSVToColor(floatArrayOf(160f + hue, 0.85f, 0.18f))
+        c.drawPaint(android.graphics.Paint().apply { shader = android.graphics.LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), top, bottom, android.graphics.Shader.TileMode.CLAMP) })
+        val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 2f; color = 0x33D4AF37 }
+        var y = 0f; while (y < h + 60) { var x = 0f; while (x < w + 60) { c.drawRect(x - 18, y - 18, x + 18, y + 18, line); c.save(); c.rotate(45f, x, y); c.drawRect(x - 18, y - 18, x + 18, y + 18, line); c.restore(); x += 60f }; y += 60f }
+        return bmp.asImageBitmap()
+    }
+
+    @Before fun setUp() { officialPreviewArt = { art[it] }; println("v110 real thumbnails loaded: " + realArt.values.count { it != null } + "/" + realArt.size + " (others use local stand-ins)") }
     @After fun tearDown() { officialPreviewArt = null; OfficialChannelFlags.override = null }
 
     private fun show(dark: Boolean, content: @Composable () -> Unit) = rule.setContent { MyApplicationTheme(darkTheme = dark) { content() } }
