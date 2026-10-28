@@ -472,6 +472,9 @@ fun MainLayout() {
                 DeenScreen.UMMAH_HALAQA -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS)) com.noorpro.app.ui.islamic.HalaqaScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_CHALLENGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CHALLENGES)) com.noorpro.app.ui.islamic.ChallengesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_SHARE_CARDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.SHARE_CARDS)) com.noorpro.app.ui.islamic.ShareCardsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.QURAN_OFFLINE -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.QURAN_OFFLINE)) com.noorpro.app.ui.islamic.OfflineQuranScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.AUDIO_ROUTINES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.AUDIO_ROUTINES)) com.noorpro.app.ui.islamic.AudioRoutinesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.ADHAN_VOICES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ADHAN_VOICES)) com.noorpro.app.ui.islamic.AdhanVoicesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_ASK_SCHOLAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR)) com.noorpro.app.ui.islamic.AskScholarScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }

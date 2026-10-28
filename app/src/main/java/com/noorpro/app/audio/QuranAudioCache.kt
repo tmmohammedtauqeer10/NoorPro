@@ -15,7 +15,8 @@ object QuranAudioCache {
         OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
     }
 
-    private fun reciterDir(context: Context, prefixUrl: String): File {
+    /** Folder holding one reciter's saved ayahs (filesDir/quran_audio/<folder>). */
+    fun reciterDir(context: Context, prefixUrl: String): File {
         val folder = prefixUrl.trimEnd('/').substringAfterLast('/').ifBlank { "reciter" }
             .replace(Regex("[^A-Za-z0-9_.-]"), "_")
         return File(File(context.filesDir, "quran_audio"), folder)
@@ -55,5 +56,10 @@ object QuranAudioCache {
     fun deleteSurah(context: Context, prefixUrl: String, surah: Int) {
         reciterDir(context, prefixUrl).listFiles()?.filter { it.name.startsWith(String.format(java.util.Locale.US, "%03d", surah)) }
             ?.forEach { it.delete() }
+    }
+
+    /** 1.1.6: removes every saved ayah of one reciter. */
+    fun deleteReciter(context: Context, prefixUrl: String) {
+        reciterDir(context, prefixUrl).deleteRecursively()
     }
 }

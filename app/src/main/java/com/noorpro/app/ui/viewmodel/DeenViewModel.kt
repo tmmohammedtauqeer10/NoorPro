@@ -117,6 +117,9 @@ enum class DeenScreen {
     UMMAH_ASK_SCHOLAR,
     UMMAH_CHALLENGES,
     UMMAH_SHARE_CARDS,
+    QURAN_OFFLINE,
+    AUDIO_ROUTINES,
+    ADHAN_VOICES,
 
 }
 
@@ -2104,13 +2107,22 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                     if (!playbackGeneration.isCurrent(gen)) return@setOnCompletionListener
                     val surah = _playingSurah.value ?: _selectedSurah.value
                     if (surah != null) {
-                        if (_isRepeatEnabled.value) {
+                        val playKey = surah.id * 1000 + ayahIndex
+                        if (ayahPlaysKey != playKey) { ayahPlaysKey = playKey; ayahPlays = 0 }
+                        ayahPlays++
+                        if (_isRepeatEnabled.value || (_ayahRepeatTimes.value != 1 &&
+                                com.noorpro.app.islamic.audio.ListeningLogic.shouldRepeat(_ayahRepeatTimes.value, ayahPlays))) {
                             playAyahAudioFromUrl(surah.id, ayahIndex)
                         } else if (_isShuffleEnabled.value && surah.verses.isNotEmpty()) {
                             val randomIndex = (0 until surah.verses.size).random()
                             selectAyahToPlay(randomIndex)
                         } else if (ayahIndex + 1 < surah.verses.size) {
                             selectAyahToPlay(ayahIndex + 1)
+                        } else if (_sleepAtSurahEnd.value) {
+                            // 1.1.6 sleep timer "end of surah": stop here instead of moving on.
+                            _sleepAtSurahEnd.value = false
+                            _isAudioPlaying.value = false
+                            _audioProgress.value = 0f
                         } else if (audioQueueActive()) {
                             // In a playlist: advance to the next track, or stop after the last one.
                             if (!advanceAudioQueue()) {
@@ -2388,6 +2400,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     private var sleepTimerJob: kotlinx.coroutines.Job? = null
     fun setSleepTimer(minutes: Int?) {
         sleepTimerJob?.cancel()
+        if (minutes != null && minutes > 0) _sleepAtSurahEnd.value = false
         if (minutes == null || minutes <= 0) { _sleepTimerEndsAt.value = null; return }
         _sleepTimerEndsAt.value = System.currentTimeMillis() + minutes * 60_000L
         sleepTimerJob = viewModelScope.launch {
@@ -2395,6 +2408,20 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
             if (_isAudioPlaying.value) toggleAudioPlayback()
             _sleepTimerEndsAt.value = null
         }
+    }
+
+    // 1.1.6 listening tools: repeat each ayah N times (0 = forever) and "stop at the end of this surah".
+    private val _ayahRepeatTimes = MutableStateFlow(1)
+    val ayahRepeatTimes = _ayahRepeatTimes.asStateFlow()
+    private var ayahPlays = 0
+    private var ayahPlaysKey = -1
+    fun setAyahRepeatTimes(times: Int) { _ayahRepeatTimes.value = times.coerceIn(0, 99); ayahPlays = 0 }
+
+    private val _sleepAtSurahEnd = MutableStateFlow(false)
+    val sleepAtSurahEnd = _sleepAtSurahEnd.asStateFlow()
+    fun setSleepAtSurahEnd(on: Boolean) {
+        if (on) { sleepTimerJob?.cancel(); _sleepTimerEndsAt.value = null }
+        _sleepAtSurahEnd.value = on
     }
 
     fun toggleRepeatMode() {
