@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Ask a Scholar (Remote Config ask_scholar_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste these blocks inside `match /databases/{database}/documents { ... }` in firestore.rules
+// (they use isAdmin()/isModerator() from the base file), run
+// tools/rules-tests/ask-scholar-1.1.6.test.js against the emulator, add the indexes from
+// firestore-social-1.1.6.indexes.json, then deploy.
+// Data: scholars/{uid}                    {name, title, verified} — written by admins only
+//       scholar_questions/{id}            question; private (asker + scholars) until answered
+//       scholar_question_owners/{id}      {uid} — private ownership (anonymous askers stay anonymous)
+// ─────────────────────────────────────────────────────────────────────────────
+    function isScholar() {
+      return request.auth != null && exists(/databases/$(database)/documents/scholars/$(request.auth.uid))
+        && get(/databases/$(database)/documents/scholars/$(request.auth.uid)).data.verified == true;
+    }
+
+    match /scholars/{uid} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /scholar_questions/{qid} {
+      function ownerDoc() { return /databases/$(database)/documents/scholar_question_owners/$(qid); }
+      function asker() { return request.auth != null && exists(ownerDoc()) && get(ownerDoc()).data.uid == request.auth.uid; }
+      function newQ(d) {
+        return d.keys().hasOnly(['text', 'category', 'anonymous', 'name', 'status', 'createdAt'])
+          && d.keys().hasAll(['text', 'category', 'anonymous', 'name', 'status', 'createdAt'])
+          && d.text is string && d.text.size() >= 20 && d.text.size() <= 1000
+          && d.category in ['AQEEDAH', 'SALAH', 'FASTING', 'ZAKAT', 'FAMILY', 'FINANCE', 'QURAN', 'MANNERS', 'OTHER']
+          && d.anonymous is bool && d.name is string && d.name.size() <= 40 && (!d.anonymous || d.name == '')
+          && d.status == 'open' && d.createdAt == request.time;
+      }
+      function scholarAnswer() {
+        let d = request.resource.data;
+        let s = get(/databases/$(database)/documents/scholars/$(request.auth.uid)).data;
+        return isScholar()
+          && d.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'scholarUid', 'scholarName', 'scholarTitle', 'answeredAt'])
+          && d.status == 'answered' && d.answer is string && d.answer.size() >= 40 && d.answer.size() <= 4000
+          && d.scholarUid == request.auth.uid && d.scholarName == s.name && d.scholarTitle is string && d.scholarTitle.size() <= 60
+          && d.answeredAt == request.time
+          // First answer, or the same scholar refining their own answer.
+          && (resource.data.status == 'open' || resource.data.scholarUid == request.auth.uid);
+      }
+
+      allow read: if resource.data.status == 'answered' || isScholar() || asker() || isModerator();
+      allow create: if request.auth != null && newQ(request.resource.data)
+        && getAfter(ownerDoc()).data.uid == request.auth.uid;
+      allow update: if request.auth != null && scholarAnswer();
+      // The asker may withdraw an unanswered question; moderators may remove anything.
+      allow delete: if (asker() && resource.data.status == 'open') || isModerator();
+    }
+
+    match /scholar_question_owners/{qid} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time
+        && !exists(/databases/$(database)/documents/scholar_questions/$(qid))
+        && existsAfter(/databases/$(database)/documents/scholar_questions/$(qid));
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow update: if false;
+    }

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.VolunteerActivism
 import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.ContactSupport
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
@@ -106,6 +107,8 @@ object UmmahCommunityLinks {
             com.noorpro.app.ui.viewmodel.DeenScreen.UMMAH_DUA_REQUESTS),
         UmmahLink(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS, "Halaqa rooms", "Listen live", androidx.compose.material.icons.Icons.Outlined.RecordVoiceOver,
             com.noorpro.app.ui.viewmodel.DeenScreen.UMMAH_HALAQA),
+        UmmahLink(com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR, "Ask a Scholar", "Verified answers", Icons.Outlined.ContactSupport,
+            com.noorpro.app.ui.viewmodel.DeenScreen.UMMAH_ASK_SCHOLAR),
     )
     internal fun enabled() = all.filter { com.noorpro.app.islamic.IslamicFlags.isOn(it.flag) }
     fun any() = enabled().isNotEmpty()
