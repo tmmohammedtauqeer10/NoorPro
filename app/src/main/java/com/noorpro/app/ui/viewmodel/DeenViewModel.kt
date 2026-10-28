@@ -109,6 +109,7 @@ enum class DeenScreen {
     GROUP_KHATM,
     HIFZ_COACH,
     MASJID_PAGES,
+    FAMILY_KIDS,
 
 }
 

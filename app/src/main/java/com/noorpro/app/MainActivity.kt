@@ -352,6 +352,10 @@ fun MainLayout() {
         // + scales 0.96->1 over 210ms). Bottom-nav tabs use a plain crossfade. Instant for the
         // full player, and when the system "Remove animations" setting is on.
         val motionOn = com.noorpro.app.ui.components.animationsEnabled()
+        remember { com.noorpro.app.islamic.kids.KidsMode.init(context) }
+        LaunchedEffect(currentScreen, com.noorpro.app.islamic.kids.KidsMode.enforced) {
+            if (com.noorpro.app.islamic.kids.KidsMode.redirect(currentScreen) != currentScreen) viewModel.navigateTo(DeenScreen.FAMILY_KIDS)
+        }
         androidx.compose.animation.AnimatedContent(
             targetState = currentScreen,
             transitionSpec = {
@@ -368,7 +372,9 @@ fun MainLayout() {
                 }
             },
             label = "ScreenTransition"
-        ) { screen ->
+        ) { rawScreen ->
+            // 1.1.6 Kids mode: social / messaging screens land on Noor Kids instead (parent PIN to leave).
+            val screen = com.noorpro.app.islamic.kids.KidsMode.redirect(rawScreen)
             when (screen) {
                 DeenScreen.LOGIN -> com.noorpro.app.ui.screens.LoginScreen(viewModel = viewModel)
                 DeenScreen.DASHBOARD -> StitchHomeScreen(viewModel = viewModel)
@@ -457,6 +463,7 @@ fun MainLayout() {
                 DeenScreen.GROUP_KHATM -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM)) com.noorpro.app.ui.islamic.GroupKhatmScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.HIFZ_COACH -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH)) com.noorpro.app.ui.islamic.HifzCoachScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.MASJID_PAGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) com.noorpro.app.ui.islamic.MasjidPagesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }
 
@@ -592,7 +599,7 @@ fun FloatingBottomNavigationBar(
                 onClick = { onNavSelected(DeenScreen.QURAN) }
             )
 
-            NavBarItem(
+            if (!com.noorpro.app.islamic.kids.KidsMode.enforced) NavBarItem(
                 screen = DeenScreen.REELS,
                 icon = Icons.Default.SmartDisplay,
                 label = "Reels",
@@ -601,7 +608,7 @@ fun FloatingBottomNavigationBar(
                 onClick = { onNavSelected(DeenScreen.REELS) }
             )
 
-            NavBarItem(
+            if (!com.noorpro.app.islamic.kids.KidsMode.enforced) NavBarItem(
                 screen = DeenScreen.UMMAH,
                 icon = Icons.Default.Groups,
                 label = "Ummah",

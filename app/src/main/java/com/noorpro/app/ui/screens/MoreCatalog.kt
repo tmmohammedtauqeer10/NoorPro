@@ -44,7 +44,8 @@ import com.noorpro.app.ui.viewmodel.DeenScreen
 /** One destination in the "More" / "See All" catalog. Each screen appears exactly once. */
 data class MoreItem(val title: String, val keywords: String, val icon: ImageVector, val screen: DeenScreen, val flag: String? = null) {
     /** 1.1.6: items with a Remote Config [flag] only appear when it is on. */
-    val visible: Boolean get() = flag == null || com.noorpro.app.islamic.IslamicFlags.isOn(flag)
+    val visible: Boolean get() = (flag == null || com.noorpro.app.islamic.IslamicFlags.isOn(flag)) &&
+        !(com.noorpro.app.islamic.kids.KidsMode.enforced && com.noorpro.app.islamic.kids.KidsMode.blocks(screen))
 }
 data class MoreCategory(val title: String, val icon: ImageVector, val items: List<MoreItem>)
 
@@ -64,6 +65,7 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Quran", "read surah translation", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.QURAN),
         MoreItem("Indo-Pak Quran", "mushaf 15 line", Icons.Default.ImportContacts, DeenScreen.INDOPAK_QURAN),
         MoreItem("Bookmarks", "saved verses", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
+        MoreItem("Family & Kids", "kids children family prayer tracker stories prophets duas manners", Icons.Default.FamilyRestroom, DeenScreen.FAMILY_KIDS, com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS),
         MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
         MoreItem("Hifz Coach", "hifz memorise memorize revision recite", Icons.Default.Psychology, DeenScreen.HIFZ_COACH, com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH),
