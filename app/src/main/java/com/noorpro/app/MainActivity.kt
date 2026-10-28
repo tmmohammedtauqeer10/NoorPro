@@ -470,6 +470,8 @@ fun MainLayout() {
                 // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md)
                 DeenScreen.UMMAH_DUA_REQUESTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS)) com.noorpro.app.ui.islamic.DuaRequestsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_HALAQA -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS)) com.noorpro.app.ui.islamic.HalaqaScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.UMMAH_CHALLENGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CHALLENGES)) com.noorpro.app.ui.islamic.ChallengesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.UMMAH_SHARE_CARDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.SHARE_CARDS)) com.noorpro.app.ui.islamic.ShareCardsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_ASK_SCHOLAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR)) com.noorpro.app.ui.islamic.AskScholarScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }

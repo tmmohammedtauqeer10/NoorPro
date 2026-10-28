@@ -115,6 +115,8 @@ enum class DeenScreen {
     UMMAH_DUA_REQUESTS,
     UMMAH_HALAQA,
     UMMAH_ASK_SCHOLAR,
+    UMMAH_CHALLENGES,
+    UMMAH_SHARE_CARDS,
 
 }
 
