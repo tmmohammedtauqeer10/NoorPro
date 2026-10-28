@@ -65,6 +65,7 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Bookmarks", "saved verses", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
         MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
+        MoreItem("Hifz Coach", "hifz memorise memorize revision recite", Icons.Default.Psychology, DeenScreen.HIFZ_COACH, com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH),
         MoreItem("Hadith", "bukhari muslim", Icons.Default.LibraryBooks, DeenScreen.HADITH_LIBRARY),
         MoreItem("Islamic Library", "books", Icons.Default.LocalLibrary, DeenScreen.LIBRARY_DASHBOARD),
         MoreItem("PDF Library", "pdf books", Icons.Default.PictureAsPdf, DeenScreen.PDF_LIBRARY),

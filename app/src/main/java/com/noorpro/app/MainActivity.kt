@@ -455,6 +455,7 @@ fun MainLayout() {
                 // 1.1.6 Islamic features: flag OFF falls back to the closest existing screen.
                 DeenScreen.ISLAMIC_CALENDAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CALENDAR)) com.noorpro.app.ui.islamic.IslamicCalendarScreen(viewModel) else com.noorpro.app.ui.screens.HijriCalendarScreen(viewModel = viewModel)
                 DeenScreen.GROUP_KHATM -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM)) com.noorpro.app.ui.islamic.GroupKhatmScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.HIFZ_COACH -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH)) com.noorpro.app.ui.islamic.HifzCoachScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }
 

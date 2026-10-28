@@ -50,6 +50,16 @@ class HifzStore(context: Context) {
         val s = when (t - last) { 0L -> p.getInt("streak", 1); 1L -> p.getInt("streak", 0) + 1; else -> 1 }
         p.edit().putLong("streak_last", t).putInt("streak", s).putInt("best", maxOf(s, p.getInt("best", 0))).apply()
     }
+    /** 1.1.6 Hifz coach: every practised ayah (surah, ayah) -> card, for the revision plan. */
+    fun allCards(): Map<Pair<Int, Int>, HifzCard> = p.all.mapNotNull { (k, _) ->
+        val parts = k.split('_')
+        if (parts.size != 3 || parts[0] != "c") return@mapNotNull null
+        val s = parts[1].toIntOrNull() ?: return@mapNotNull null
+        val a = parts[2].toIntOrNull() ?: return@mapNotNull null
+        card(s, a)?.let { (s to a) to it }
+    }.toMap()
+    fun todayEpochDay(): Long = today()
+
     fun streak(): Int = if (today() - p.getLong("streak_last", -10) <= 1) p.getInt("streak", 0) else 0
     fun bestStreak(): Int = p.getInt("best", 0)
 }
