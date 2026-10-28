@@ -82,6 +82,8 @@
                 <data android:scheme="https" android:host="noor-pro-d87e3.web.app" android:path="/reel" />
                 <data android:scheme="https" android:host="noor-pro-d87e3.web.app" android:path="/u" />
                 <data android:scheme="https" android:host="noor-pro-d87e3.web.app" android:path="/g" />
+                <!-- 1.1.6 Group Khatm invite links (/k?c=CODE); hosting/k.html fallback page still to be deployed. -->
+                <data android:scheme="https" android:host="noor-pro-d87e3.web.app" android:path="/k" />
             </intent-filter>
         </activity>
         <activity

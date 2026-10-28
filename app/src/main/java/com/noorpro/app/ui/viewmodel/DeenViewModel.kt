@@ -106,6 +106,7 @@ enum class DeenScreen {
     MODERATOR_PANEL,
     // 1.1.6 Islamic features (each behind its own Remote Config flag, default OFF)
     ISLAMIC_CALENDAR,
+    GROUP_KHATM,
 
 }
 

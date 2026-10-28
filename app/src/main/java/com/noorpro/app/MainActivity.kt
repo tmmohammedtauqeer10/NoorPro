@@ -197,6 +197,12 @@ class MainActivity : ComponentActivity() {
                     "/g" -> link.getQueryParameter("id")?.takeIf { it.isNotBlank() }?.let { id ->
                         viewModel.openGroupInvite(id)
                     }
+                    // 1.1.6 Group Khatm invite (https://noor-pro-d87e3.web.app/k?c=CODE), only when the flag is ON.
+                    "/k" -> com.noorpro.app.islamic.khatm.KhatmLogic.parseInvite(link.toString())
+                        ?.takeIf { com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM) }?.let { code ->
+                            com.noorpro.app.islamic.khatm.KhatmNav.pendingCode.value = code
+                            viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.GROUP_KHATM)
+                        }
                 }
             }
             if (intent?.getBooleanExtra("OPEN_PRAYER", false) == true) {
@@ -448,6 +454,7 @@ fun MainLayout() {
                 DeenScreen.DISCOVER_GROUPS -> com.noorpro.app.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
                 // 1.1.6 Islamic features: flag OFF falls back to the closest existing screen.
                 DeenScreen.ISLAMIC_CALENDAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CALENDAR)) com.noorpro.app.ui.islamic.IslamicCalendarScreen(viewModel) else com.noorpro.app.ui.screens.HijriCalendarScreen(viewModel = viewModel)
+                DeenScreen.GROUP_KHATM -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM)) com.noorpro.app.ui.islamic.GroupKhatmScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }
 

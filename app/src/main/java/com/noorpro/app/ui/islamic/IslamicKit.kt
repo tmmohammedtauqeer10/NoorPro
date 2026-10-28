@@ -204,3 +204,25 @@ internal fun IkIconTile(icon: ImageVector, modifier: Modifier = Modifier, size: 
 
 /** Screen scaffold background. */
 @Composable internal fun Modifier.ikScreen(): Modifier = this.fillMaxSize().background(stitchBackground())
+
+/** Rounded text field in the kit's colours. */
+@Composable
+internal fun IkField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier, tag: String? = null, singleLine: Boolean = true, maxLen: Int = 200) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value, onValueChange = { onChange(it.take(maxLen)) }, label = { Text(label) }, singleLine = singleLine,
+        shape = RoundedCornerShape(14.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = IkGreen, unfocusedBorderColor = stitchLine(), focusedLabelColor = ikAccentText(),
+            unfocusedLabelColor = stitchMutedText(), focusedTextColor = stitchText(), unfocusedTextColor = stitchText(), cursorColor = IkGreen,
+            focusedContainerColor = ikCard(), unfocusedContainerColor = ikCard(),
+        ),
+        modifier = modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag) else it },
+    )
+}
+
+/** Route reached while its Remote Config flag is OFF (stale deep link / notification): quietly step back. */
+@Composable
+fun IslamicFeatureOff(onBack: () -> Unit) {
+    androidx.compose.runtime.LaunchedEffect(Unit) { onBack() }
+    Box(Modifier.ikScreen())
+}
