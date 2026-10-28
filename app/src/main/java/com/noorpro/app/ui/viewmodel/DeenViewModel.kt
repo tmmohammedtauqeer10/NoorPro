@@ -120,6 +120,8 @@ enum class DeenScreen {
     QURAN_OFFLINE,
     AUDIO_ROUTINES,
     ADHAN_VOICES,
+    CAR_MODE,
+    BAYAN_PODCASTS,
 
 }
 

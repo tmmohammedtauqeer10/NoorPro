@@ -195,6 +195,23 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- 1.1.6 Car mode (car_mode_enabled): Android Auto media browser. Disabled here; CarComponents.sync
+             enables it only while the flag is on, so cars do not list NoorPro until then. -->
+        <service
+            android:name="com.noorpro.app.audio.session.NoorCarLibraryService"
+            android:enabled="false"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
     </application>
 
 </manifest>

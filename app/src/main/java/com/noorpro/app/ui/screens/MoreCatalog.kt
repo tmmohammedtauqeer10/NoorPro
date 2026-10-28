@@ -74,6 +74,8 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Ayah & Hadith Cards", "share card image ayah verse hadith quote story post design wallpaper", Icons.Default.Style, DeenScreen.UMMAH_SHARE_CARDS, com.noorpro.app.islamic.IslamicFlags.SHARE_CARDS),
         MoreItem("Offline Quran", "offline download save quran audio recitation reciter storage sleep timer repeat ayah memorise no internet", Icons.Default.DownloadForOffline, DeenScreen.QURAN_OFFLINE, com.noorpro.app.islamic.IslamicFlags.QURAN_OFFLINE),
         MoreItem("Audio Routines", "routine schedule kahf friday mulk night listen habit reminder quran audio daily", Icons.Default.EventRepeat, DeenScreen.AUDIO_ROUTINES, com.noorpro.app.islamic.IslamicFlags.AUDIO_ROUTINES),
+        MoreItem("Bayan Podcasts", "bayan lecture podcast talk tafsir seerah episode resume chapters scholar listen", Icons.Default.Podcasts, DeenScreen.BAYAN_PODCASTS, com.noorpro.app.islamic.IslamicFlags.BAYAN_PODCASTS),
+        MoreItem("Car Mode", "car drive driving android auto big buttons quran audio travel journey", Icons.Default.DirectionsCar, DeenScreen.CAR_MODE, com.noorpro.app.islamic.IslamicFlags.CAR_MODE),
         MoreItem("Family & Kids", "kids children family prayer tracker stories prophets duas manners", Icons.Default.FamilyRestroom, DeenScreen.FAMILY_KIDS, com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS),
         MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),

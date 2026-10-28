@@ -176,7 +176,10 @@ class MainActivity : ComponentActivity() {
         // 1.1.5 Halal Guard: Remote Config flags + on-device word list (off the main thread).
         runCatching { com.noorpro.app.data.halal.HalalFlags.load() }
         // 1.1.5 Reels v2 / Profile v2 kill-switches (default ON) + backend feature flags (default OFF).
+        // 1.1.6 car mode: Android Auto browser component follows car_mode_enabled.
+        runCatching { val app = applicationContext; com.noorpro.app.ui.screens.Reels2Flags.onApplied { com.noorpro.app.islamic.audio.CarComponents.sync(app) } }
         runCatching { com.noorpro.app.ui.screens.Reels2Flags.load() }
+        runCatching { com.noorpro.app.islamic.audio.CarComponents.sync(applicationContext) }
         runCatching { com.noorpro.app.audio.catalog.OfficialChannelFlags.load() }
         Thread { runCatching { com.noorpro.app.data.halal.HalalTextFilter.ensureLoaded(applicationContext) } }.start()
         setContent {
@@ -475,6 +478,8 @@ fun MainLayout() {
                 DeenScreen.QURAN_OFFLINE -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.QURAN_OFFLINE)) com.noorpro.app.ui.islamic.OfflineQuranScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.AUDIO_ROUTINES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.AUDIO_ROUTINES)) com.noorpro.app.ui.islamic.AudioRoutinesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.ADHAN_VOICES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ADHAN_VOICES)) com.noorpro.app.ui.islamic.AdhanVoicesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.CAR_MODE -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CAR_MODE)) com.noorpro.app.ui.islamic.CarModeScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.BAYAN_PODCASTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.BAYAN_PODCASTS)) com.noorpro.app.ui.islamic.BayanPodcastsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_ASK_SCHOLAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR)) com.noorpro.app.ui.islamic.AskScholarScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }

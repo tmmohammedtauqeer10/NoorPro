@@ -41,7 +41,16 @@ data class Episode(
     val pubDateMs: Long,
     val durationMs: Long,
     val imageUrl: String?,
+    /** 1.1.6: plain-text show notes (HTML stripped, capped) — timestamps here become chapters. */
+    val notes: String = "",
+    /** 1.1.6: Podcasting 2.0 `<podcast:chapters url=…>` JSON, fetched only when the episode is opened. */
+    val chaptersUrl: String? = null,
+    /** 1.1.6: inline Podlove Simple Chapters (`<psc:chapter start title>`). */
+    val chapters: List<EpisodeChapter> = emptyList(),
 )
+
+/** One chapter marker inside an episode. */
+data class EpisodeChapter(val startMs: Long, val title: String)
 
 data class FeedResult(val artwork: String?, val episodes: List<Episode>, val fromCache: Boolean, val error: String? = null)
 
@@ -146,11 +155,12 @@ object PodcastRepository {
         val eps = ArrayList<Episode>()
         var inItem = false
         var title = ""; var guid = ""; var audio = ""; var date = 0L; var dur = 0L; var img: String? = null
+        var notes = ""; var chUrl: String? = null; var chapters = ArrayList<EpisodeChapter>()
         var ev = xp.eventType
         while (ev != XmlPullParser.END_DOCUMENT && eps.size < MAX_EPISODES) {
             if (ev == XmlPullParser.START_TAG) {
                 when (xp.name) {
-                    "item" -> { inItem = true; title = ""; guid = ""; audio = ""; date = 0L; dur = 0L; img = null }
+                    "item" -> { inItem = true; title = ""; guid = ""; audio = ""; date = 0L; dur = 0L; img = null; notes = ""; chUrl = null; chapters = ArrayList() }
                     "itunes:image", "googleplay:image" -> { val h = xp.getAttributeValue(null, "href")?.trim()?.ifBlank { null }
                         if (h != null) { if (inItem) { if (img == null) img = h } else if (artwork == null) artwork = h } }
                     // 1.0.90: also media:thumbnail / media:content images (channel and episode level).
@@ -169,15 +179,33 @@ object PodcastRepository {
                     "guid" -> if (inItem) guid = xp.nextText().trim()
                     "pubDate" -> if (inItem) date = parseDate(xp.nextText().trim())
                     "itunes:duration" -> if (inItem) dur = parseDuration(xp.nextText().trim())
+                    // 1.1.6 bayan podcasts: show notes + chapter markers.
+                    "description", "itunes:summary", "content:encoded" -> if (inItem) {
+                        val t = runCatching { plainNotes(xp.nextText()) }.getOrDefault("")
+                        if (t.length > notes.length) notes = t
+                    }
+                    "podcast:chapters" -> if (inItem) chUrl = xp.getAttributeValue(null, "url")?.trim()?.ifBlank { null }
+                    "psc:chapter" -> if (inItem) {
+                        val st = parseDuration(xp.getAttributeValue(null, "start").orEmpty().substringBefore('.').trim())
+                        val ct = xp.getAttributeValue(null, "title").orEmpty().trim()
+                        if (ct.isNotBlank()) chapters += EpisodeChapter(st, ct)
+                    }
                 }
             } else if (ev == XmlPullParser.END_TAG && xp.name == "item") {
                 inItem = false
-                if (audio.isNotBlank() && title.isNotBlank()) eps += Episode(guid.ifBlank { audio }, title, audio, date, dur, img)
+                if (audio.isNotBlank() && title.isNotBlank()) eps += Episode(guid.ifBlank { audio }, title, audio, date, dur, img, notes, chUrl, chapters.sortedBy { it.startMs })
             }
             ev = xp.next()
         }
         return FeedResult(artwork, eps, false)
     }
+
+    /** HTML show notes → plain text with line breaks kept (timestamps sit at line starts). */
+    internal fun plainNotes(html: String): String = html
+        .replace(Regex("(?i)<br\\s*/?>|</p>|</li>|</div>"), "\n")
+        .replace(Regex("<[^>]+>"), "")
+        .replace("&amp;", "&").replace("&nbsp;", " ").replace("&#39;", "'").replace("&quot;", "\"").replace("&lt;", "<").replace("&gt;", ">")
+        .lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n").take(4000)
 
     internal fun parseDuration(s: String): Long {
         if (s.isBlank()) return 0L
@@ -196,7 +224,9 @@ object PodcastRepository {
 
     private fun writeCache(ctx: Context, p: Podcast, r: FeedResult) = runCatching {
         val arr = JSONArray()
-        r.episodes.forEach { e -> arr.put(JSONObject().put("g", e.guid).put("t", e.title).put("u", e.audioUrl).put("d", e.pubDateMs).put("l", e.durationMs).put("i", e.imageUrl ?: "")) }
+        r.episodes.forEach { e -> arr.put(JSONObject().put("g", e.guid).put("t", e.title).put("u", e.audioUrl).put("d", e.pubDateMs).put("l", e.durationMs).put("i", e.imageUrl ?: "")
+            .put("n", e.notes).put("cu", e.chaptersUrl ?: "")
+            .put("ch", JSONArray().apply { e.chapters.forEach { c -> put(JSONObject().put("s", c.startMs).put("t", c.title)) } })) }
         cacheFile(ctx, p).writeText(JSONObject().put("art", r.artwork ?: "").put("eps", arr).toString())
     }
 
@@ -204,6 +234,8 @@ object PodcastRepository {
         val f = cacheFile(ctx, p); if (!f.exists()) return null
         val o = JSONObject(f.readText()); val a = o.getJSONArray("eps")
         FeedResult(o.optString("art").ifBlank { null }, (0 until a.length()).map { i -> a.getJSONObject(i).let {
-            Episode(it.getString("g"), it.getString("t"), it.getString("u"), it.optLong("d"), it.optLong("l"), it.optString("i").ifBlank { null }) } }, true)
+            Episode(it.getString("g"), it.getString("t"), it.getString("u"), it.optLong("d"), it.optLong("l"), it.optString("i").ifBlank { null },
+                it.optString("n"), it.optString("cu").ifBlank { null },
+                it.optJSONArray("ch")?.let { ch -> (0 until ch.length()).map { j -> ch.getJSONObject(j).let { c -> EpisodeChapter(c.optLong("s"), c.optString("t")) } } }.orEmpty()) } }, true)
     }.getOrNull()
 }

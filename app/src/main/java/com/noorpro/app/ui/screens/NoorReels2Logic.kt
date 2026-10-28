@@ -53,6 +53,9 @@ object Reels2Flags {
     @Volatile private var loaded: Map<String, Boolean> = emptyMap()
     @Volatile private var started = false
     fun isOn(key: String) = override?.get(key) ?: loaded[key] ?: DEFAULTS[key] ?: false
+    /** 1.1.6: called after Remote Config values are (re)applied, e.g. to enable/disable flag-gated components. */
+    private val appliedListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+    fun onApplied(listener: () -> Unit) { appliedListeners += listener }
 
     fun load() {
         if (started) return
@@ -65,6 +68,7 @@ object Reels2Flags {
                     val v = rc.getValue(k)
                     if (v.source == com.google.firebase.remoteconfig.FirebaseRemoteConfig.VALUE_SOURCE_STATIC) null else k to v.asBoolean()
                 }.toMap()
+                appliedListeners.forEach { l -> runCatching { l() } }
             }
             apply()
             rc.fetchAndActivate().addOnCompleteListener { runCatching { apply() } }
