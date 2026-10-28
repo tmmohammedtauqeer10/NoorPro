@@ -139,6 +139,16 @@ fun PrayerTimesScreen(
                 Text(todayHijri.ifBlank { todayGregorian }, color = stitchMutedText(), fontSize = 15.sp)
             }
 
+            // 1.1.6 Masjid pages: the followed masjid's jamaat times (flag-gated, cached locally so it works offline).
+            if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val followedMasjid by com.noorpro.app.islamic.masjid.FollowedMasjid.flow(ctx).collectAsState()
+                followedMasjid?.takeIf { it.jamaat.isNotEmpty() || it.jummahTime.isNotBlank() }?.let { m ->
+                    Spacer(modifier = Modifier.height(14.dp))
+                    com.noorpro.app.ui.islamic.FollowedMasjidJamaatCard(m, onOpen = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.MASJID_PAGES) })
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // 3. Vertical Timeline

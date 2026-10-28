@@ -108,6 +108,7 @@ enum class DeenScreen {
     ISLAMIC_CALENDAR,
     GROUP_KHATM,
     HIFZ_COACH,
+    MASJID_PAGES,
 
 }
 

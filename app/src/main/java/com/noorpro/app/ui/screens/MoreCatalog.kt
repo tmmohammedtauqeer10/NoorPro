@@ -53,6 +53,7 @@ val moreCatalog: List<MoreCategory> = listOf(
     MoreCategory("Worship", Icons.Default.Mosque, listOf(
         MoreItem("Prayer Times", "salah namaz adhan", Icons.Default.AccessTime, DeenScreen.PRAYER_TIMES),
         MoreItem("Qibla", "direction kaaba compass", Icons.Default.Explore, DeenScreen.QIBLA_MORE),
+        MoreItem("Masjid Pages", "masjid mosque jamaat jummah iqamah bayan announcements", Icons.Default.Mosque, DeenScreen.MASJID_PAGES, com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES),
         MoreItem("Prayer Tracker", "qaza missed", Icons.Default.CheckCircle, DeenScreen.QAZA_TRACKER),
         MoreItem("Tasbih", "dhikr counter", Icons.Default.Fingerprint, DeenScreen.TASBIH),
         MoreItem("Azkar", "morning evening adhkar", Icons.Default.WbTwilight, DeenScreen.AZKAR),
