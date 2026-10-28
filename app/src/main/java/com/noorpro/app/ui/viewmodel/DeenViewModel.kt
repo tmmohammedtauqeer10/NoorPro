@@ -113,6 +113,7 @@ enum class DeenScreen {
     DEEN_GOALS,
     // 1.1.6 social & audio (flags default OFF). UMMAH_* names are blocked by kids mode.
     UMMAH_DUA_REQUESTS,
+    UMMAH_HALAQA,
 
 }
 

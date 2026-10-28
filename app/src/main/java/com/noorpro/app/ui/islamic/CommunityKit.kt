@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.VolunteerActivism
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
@@ -103,6 +104,8 @@ object UmmahCommunityLinks {
     internal val all: List<UmmahLink> get() = listOf(
         UmmahLink(com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS, "Dua requests", "Say Ameen", androidx.compose.material.icons.Icons.Outlined.VolunteerActivism,
             com.noorpro.app.ui.viewmodel.DeenScreen.UMMAH_DUA_REQUESTS),
+        UmmahLink(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS, "Halaqa rooms", "Listen live", androidx.compose.material.icons.Icons.Outlined.RecordVoiceOver,
+            com.noorpro.app.ui.viewmodel.DeenScreen.UMMAH_HALAQA),
     )
     internal fun enabled() = all.filter { com.noorpro.app.islamic.IslamicFlags.isOn(it.flag) }
     fun any() = enabled().isNotEmpty()

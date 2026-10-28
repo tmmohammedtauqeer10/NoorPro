@@ -67,6 +67,7 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Bookmarks", "saved verses", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
         MoreItem("Daily Deen Goals", "goals checklist habits streak salah adhkar sadaqah dua daily routine", Icons.Default.TaskAlt, DeenScreen.DEEN_GOALS, com.noorpro.app.islamic.IslamicFlags.DEEN_GOALS),
         MoreItem("Dua Requests", "dua request ameen pray for me prayed ummah community anonymous", Icons.Default.VolunteerActivism, DeenScreen.UMMAH_DUA_REQUESTS, com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS),
+        MoreItem("Halaqa Rooms", "halaqa live audio room voice quran circle dars naat dhikr talk listen raise hand", Icons.Default.RecordVoiceOver, DeenScreen.UMMAH_HALAQA, com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS),
         MoreItem("Family & Kids", "kids children family prayer tracker stories prophets duas manners", Icons.Default.FamilyRestroom, DeenScreen.FAMILY_KIDS, com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS),
         MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),

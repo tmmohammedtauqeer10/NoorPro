@@ -45,7 +45,8 @@ class CallSession(
     companion object {
         val egl: EglBase by lazy { EglBase.create() }
         @Volatile private var initialized = false
-        private fun ensureInit(context: Context) {
+        /** 1.1.6: shared with HalaqaRtc (audio rooms). */
+        internal fun ensureInit(context: Context) {
             if (initialized) return
             PeerConnectionFactory.initialize(
                 PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions()
@@ -309,4 +310,7 @@ object CallConfig {
         }
         return list
     }
+
+    /** 1.1.6: true only when a TURN relay is configured in Remote Config (none is set up yet). */
+    fun hasTurn(): Boolean = iceServers().any { s -> s.urls.any { it.startsWith("turn") } }
 }

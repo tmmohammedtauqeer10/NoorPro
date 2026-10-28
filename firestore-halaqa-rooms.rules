@@ -1,0 +1,79 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Halaqa rooms (Remote Config halaqa_rooms_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste these blocks inside `match /databases/{database}/documents { ... }` in firestore.rules
+// (they use isModerator() from the base file), run
+// tools/rules-tests/halaqa-rooms-1.1.6.test.js against the emulator, then deploy rules.
+// Data: halaqa_rooms/{id}                         title, topic, host, status, scheduledAt
+//       halaqa_rooms/{id}/members/{uid}           role (host|speaker|listener), hand, muted
+//       halaqa_rooms/{id}/links/{lowUid_highUid}  WebRTC offer/answer between two members
+//       …/links/{id}/fromCandidates|toCandidates  ICE candidates (same shape as ummah_calls)
+// Audio needs a TURN relay for strict NATs; none is configured (Remote Config call_turn_*).
+// ─────────────────────────────────────────────────────────────────────────────
+    match /halaqa_rooms/{roomId} {
+      function room() { return get(/databases/$(database)/documents/halaqa_rooms/$(roomId)).data; }
+      function isHost() { return request.auth != null && room().hostUid == request.auth.uid; }
+      function memberPath(uid) { return /databases/$(database)/documents/halaqa_rooms/$(roomId)/members/$(uid); }
+      function isMember() { return request.auth != null && exists(memberPath(request.auth.uid)); }
+      function roomOk(d) {
+        return d.keys().hasOnly(['title', 'topic', 'description', 'hostUid', 'hostName', 'status', 'scheduledAt', 'createdAt'])
+          && d.keys().hasAll(['title', 'topic', 'description', 'hostUid', 'hostName', 'status', 'scheduledAt'])
+          && d.title is string && d.title.size() >= 4 && d.title.size() <= 80
+          && d.description is string && d.description.size() <= 280
+          && d.topic in ['QURAN', 'DARS', 'NAAT', 'DHIKR', 'QA'] && d.hostName is string && d.hostName.size() <= 40
+          && d.scheduledAt is timestamp && d.status in ['scheduled', 'live', 'ended'];
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null && roomOk(request.resource.data) && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.status in ['scheduled', 'live'] && request.resource.data.createdAt == request.time
+        && request.resource.data.scheduledAt < request.time + duration.value(60, 'd');
+      allow update: if request.auth != null && resource.data.hostUid == request.auth.uid && roomOk(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'status', 'scheduledAt'])
+        && resource.data.status != 'ended';
+      allow delete: if (request.auth != null && resource.data.hostUid == request.auth.uid) || isModerator();
+
+      match /members/{uid} {
+        function memberOk(d) {
+          return d.keys().hasOnly(['name', 'role', 'hand', 'muted', 'joinedAt']) && d.name is string && d.name.size() <= 40
+            && d.role in ['host', 'speaker', 'listener'] && d.hand is bool && d.muted is bool;
+        }
+        allow read: if true;
+        // Join yourself, only into a room that isn't over; only the room's host may join as host.
+        allow create: if request.auth != null && request.auth.uid == uid && memberOk(request.resource.data)
+          && room().status != 'ended' && request.resource.data.joinedAt == request.time && request.resource.data.muted == true
+          && (request.resource.data.role == 'listener' || (request.resource.data.role == 'host' && room().hostUid == uid))
+          && request.resource.data.hand == false;
+        // Yourself: raise/lower hand, mute/unmute, step down from stage. Host: invite, move down, mute anyone.
+        allow update: if request.auth != null && memberOk(request.resource.data)
+          && request.resource.data.name == resource.data.name && request.resource.data.joinedAt == resource.data.joinedAt
+          && (
+            (request.auth.uid == uid && (request.resource.data.role == resource.data.role
+               || (resource.data.role == 'speaker' && request.resource.data.role == 'listener'))
+               && (request.resource.data.role != 'listener' || request.resource.data.muted == true))
+            || (isHost() && uid != request.auth.uid && request.resource.data.role in ['speaker', 'listener']
+               && (request.resource.data.role == resource.data.role || request.resource.data.muted == true)
+               && (request.resource.data.muted == true || request.resource.data.muted == resource.data.muted))
+          );
+        allow delete: if request.auth != null && (request.auth.uid == uid || isHost()) || isModerator();
+      }
+
+      match /links/{linkId} {
+        function linkOk(d) {
+          return d.keys().hasOnly(['from', 'to', 'offer', 'answer', 'at']) && d.from is string && d.to is string
+            && d.from < d.to && linkId == d.from + '_' + d.to;
+        }
+        allow read: if request.auth != null && (resource == null || request.auth.uid in [resource.data.from, resource.data.to]);
+        allow create, update: if request.auth != null && linkOk(request.resource.data) && isMember()
+          && exists(memberPath(request.resource.data.to)) && exists(memberPath(request.resource.data.from))
+          && ((request.auth.uid == request.resource.data.from && (resource == null || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer', 'answer', 'at'])))
+              || (resource != null && request.auth.uid == resource.data.to && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer'])));
+        allow delete: if request.auth != null && (request.auth.uid in [resource.data.from, resource.data.to] || isHost());
+
+        match /{side}/{cid} {
+          function link() { return get(/databases/$(database)/documents/halaqa_rooms/$(roomId)/links/$(linkId)).data; }
+          allow read: if request.auth != null && request.auth.uid in [link().from, link().to];
+          allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
+            && ((side == 'fromCandidates' && link().from == request.auth.uid) || (side == 'toCandidates' && link().to == request.auth.uid));
+        }
+      }
+    }
