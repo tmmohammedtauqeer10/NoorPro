@@ -174,6 +174,7 @@ class MainActivity : ComponentActivity() {
         runCatching { com.noorpro.app.data.halal.HalalFlags.load() }
         // 1.1.5 Reels v2 / Profile v2 kill-switches (default ON) + backend feature flags (default OFF).
         runCatching { com.noorpro.app.ui.screens.Reels2Flags.load() }
+        runCatching { com.noorpro.app.audio.catalog.OfficialChannelFlags.load() }
         Thread { runCatching { com.noorpro.app.data.halal.HalalTextFilter.ensureLoaded(applicationContext) } }.start()
         setContent {
             val viewModel: DeenViewModel = viewModel()

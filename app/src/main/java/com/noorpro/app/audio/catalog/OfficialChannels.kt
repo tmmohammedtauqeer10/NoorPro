@@ -21,6 +21,8 @@ data class OfficialChannel(
     val category: String,
     /** Extra search terms (alternate spellings, script variants). */
     val keywords: List<String> = emptyList(),
+    /** 1.1.6: public YouTube channel id (UC…) — used only for the public RSS feed of latest uploads. */
+    val channelId: String = "",
 ) {
     val initials: String get() = name.split(' ').filter { it.firstOrNull()?.isLetter() == true }.let { w ->
         ((w.getOrNull(1) ?: w.firstOrNull())?.take(1).orEmpty() + (w.getOrNull(2) ?: w.lastOrNull())?.take(1).orEmpty()).uppercase()
@@ -40,6 +42,8 @@ object OfficialChannels {
             category = "Bayan",
             keywords = listOf("Ajmal Raza Qadri", "Ajmal Raza", "Ajmal Qadri", "Ajmal", "Qadri", "Peer Ajmal Raza Qadri", "Pir Ajmal Raza Qadri",
                 "Idara Islah-e-Muashra", "اجمل رضا قادری", "محمد اجمل رضا قادری"),
+            // Canonical id of @MuhammdAjmalRazaQadriOfficial (verified from the channel page, Oct 2026).
+            channelId = "UCxhWp1FeSSx6qbb2f4ohoBg",
         ),
     )
 

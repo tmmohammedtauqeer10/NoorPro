@@ -9,6 +9,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.testTag
+import com.noorpro.app.audio.catalog.OfficialChannelEmbed
+import com.noorpro.app.audio.catalog.OfficialChannelFlags
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,9 +65,14 @@ internal fun ChannelInitials(ch: OfficialChannel, size: Dp) {
 internal fun OfficialChannelCard(
     ch: OfficialChannel, bg: Color, text: Color, muted: Color, modifier: Modifier = Modifier,
     onOpen: ((String) -> Unit)? = null,
+    /** null = follow Remote Config; tests force it. */
+    embedEnabled: Boolean? = null,
 ) {
     val ctx = LocalContext.current
     val open = { onOpen?.invoke(ch.url) ?: OfficialChannels.open(ctx, ch.url) }
+    // 1.1.6: in-app official-player videos, only when Remote Config official_channel_embed_enabled is ON.
+    val embed = embedEnabled ?: (OfficialChannelFlags.embedEnabled && OfficialChannelEmbed.isChannelId(ch.channelId))
+    var showVideos by remember { mutableStateOf(false) }
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg).border(1.dp, muted.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
             .clickable(onClick = open).padding(14.dp)
@@ -78,6 +91,17 @@ internal fun OfficialChannelCard(
             }
         }
         Spacer(Modifier.height(12.dp))
+        if (embed) {
+            Row(
+                Modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(noorLogoGreen).clickable { showVideos = true }.testTag("oc_watch_in_app"),
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = noorLogoCream, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Watch latest videos", color = noorLogoCream, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         Row(
             Modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(YtRed).clickable(onClick = open),
             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
@@ -89,8 +113,10 @@ internal fun OfficialChannelCard(
             Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.height(6.dp))
-        Text("Opens the official channel on YouTube. Noor Pro does not host this content.", color = muted, fontSize = 11.sp)
+        Text(if (embed) "Videos play in YouTube's official player. Noor Pro does not host this content."
+            else "Opens the official channel on YouTube. Noor Pro does not host this content.", color = muted, fontSize = 11.sp)
     }
+    if (showVideos) OfficialChannelVideosDialog(ch) { showVideos = false }
 }
 
 /** Section block: header + one card per official channel. */
