@@ -19,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -40,6 +39,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import com.noorpro.app.audio.catalog.OfficialChannel
 import com.noorpro.app.audio.catalog.OfficialChannelEmbed
 import com.noorpro.app.audio.catalog.OfficialChannelRepository
@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
  * Any player error -> opens the video in YouTube. Subscribe / Open on YouTube always visible.
  */
 private val OcYtRed = Color(0xFFFF0033)
+private val MatteGoldOc = Color(0xFFD4AF37)
 
 /** Screenshot tests: local thumbnails instead of network images. */
 internal var officialPreviewArt: ((String) -> ImageBitmap?)? = null
@@ -64,12 +65,28 @@ internal sealed interface OfficialFeedState {
     data object Failed : OfficialFeedState
 }
 
+/**
+ * YouTube's thumbnail with premium placeholders: shimmer while loading, pattern card if it fails.
+ * In screenshot tests [officialPreviewArt] supplies a local file; a null result renders the fallback.
+ */
 @Composable
-internal fun OfficialVideoThumb(v: OfficialVideo, modifier: Modifier) {
-    val pa = remember(v.id) { officialPreviewArt?.invoke(v.id) }
-    Box(modifier.background(Color(0xFF1A1A1A))) {
-        if (pa != null) Image(pa, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else AsyncImage(v.thumb, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+internal fun OfficialVideoThumb(v: OfficialVideo, light: Boolean, modifier: Modifier, glyph: Boolean = true) {
+    val hook = officialPreviewArt
+    val pa = remember(v.id, hook) { hook?.invoke(v.id) }
+    Box(modifier) {
+        when {
+            pa != null -> Image(pa, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            hook != null -> OcThumbFallback(light, Modifier.fillMaxSize(), showGlyph = glyph)
+            else -> {
+                var st by remember(v.id) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+                when (st) {
+                    is AsyncImagePainter.State.Error -> OcThumbFallback(light, Modifier.fillMaxSize(), showGlyph = glyph)
+                    is AsyncImagePainter.State.Success -> {}
+                    else -> OcShimmer(light, Modifier.fillMaxSize())
+                }
+                AsyncImage(v.thumb, v.title, contentScale = ContentScale.Crop, onState = { st = it }, modifier = Modifier.fillMaxSize())
+            }
+        }
     }
 }
 
@@ -112,7 +129,7 @@ internal fun OfficialEmbedPlayer(v: OfficialVideo, preview: Boolean, onError: (I
     }
     Box(modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black).testTag("oc_player")) {
         if (preview) {
-            OfficialVideoThumb(v, Modifier.fillMaxSize())
+            OfficialVideoThumb(v, false, Modifier.fillMaxSize(), glyph = false)
             Box(Modifier.align(Alignment.Center)) { YouTubeGlyph(34.dp) }
         } else key(v.id) {
             AndroidView(factory = { c ->
@@ -143,7 +160,7 @@ private fun OcVideoRow(t: SpTheme, v: OfficialVideo, selected: Boolean, onClick:
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (selected) noorLogoGreen.copy(alpha = if (t.light) 0.08f else 0.22f) else Color.Transparent)
         .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp).testTag("oc_video_${v.id}"), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(132.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-            OfficialVideoThumb(v, Modifier.fillMaxSize())
+            OfficialVideoThumb(v, t.light, Modifier.fillMaxSize(), glyph = false)
             Box(Modifier.size(30.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -182,15 +199,17 @@ internal fun OfficialChannelVideosScreen(
         if (playing != null) {
             if (errorCode != null) {
                 // Not embeddable (or any player error): explain + open in YouTube.
-                Column(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF111111)).padding(20.dp).testTag("oc_fallback"),
-                    verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    YouTubeGlyph(26.dp); Spacer(Modifier.height(10.dp))
-                    Text(OfficialChannelEmbed.errorMessage(errorCode), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.height(40.dp).clip(CircleShape).background(OcYtRed).clickable { OfficialChannels.open(ctx, playing.watchUrl) }.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text("Watch on YouTube", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); Spacer(Modifier.width(6.dp))
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).testTag("oc_fallback"), contentAlignment = Alignment.Center) {
+                    OcPatternBackdrop(false, Modifier.matchParentSize())
+                    Column(Modifier.padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        OcPlayGlyph(false, 40.dp); Spacer(Modifier.height(12.dp))
+                        Text(OfficialChannelEmbed.errorMessage(errorCode), color = noorLogoCream, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, lineHeight = 19.sp)
+                        Spacer(Modifier.height(14.dp))
+                        Row(Modifier.height(40.dp).clip(CircleShape).background(OcYtRed).clickable { OfficialChannels.open(ctx, playing.watchUrl) }.padding(horizontal = 18.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            YouTubeGlyph(12.dp, tint = Color.White, play = OcYtRed); Spacer(Modifier.width(7.dp))
+                            Text("Watch on YouTube", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
                 }
             } else OfficialEmbedPlayer(playing, preview, onError, onFullscreen)
@@ -221,16 +240,23 @@ internal fun OfficialChannelVideosScreen(
         }
         Text("Latest videos", color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp))
         when (state) {
-            OfficialFeedState.Loading -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = noorLogoGreen, modifier = Modifier.testTag("oc_loading"))
+            OfficialFeedState.Loading -> Column(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 4.dp).testTag("oc_loading")) {
+                repeat(6) { OcSkeletonRow(t.light) }
             }
-            OfficialFeedState.Failed -> Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp).testTag("oc_failed"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("Couldn't load the latest videos.", color = t.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("You can still watch everything on the official channel.", color = t.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.height(40.dp).clip(CircleShape).background(noorLogoGreen).clickable(onClick = onRetry).padding(horizontal = 18.dp).testTag("oc_retry"), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Refresh, null, tint = noorLogoCream, modifier = Modifier.size(17.dp)); Spacer(Modifier.width(6.dp))
-                    Text("Try again", color = noorLogoCream, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            OfficialFeedState.Failed -> Box(Modifier.fillMaxWidth().weight(1f).padding(16.dp), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).border(1.dp, (if (t.light) noorLogoGreen else MatteGoldOc).copy(alpha = 0.18f), RoundedCornerShape(18.dp)).testTag("oc_failed")) {
+                    OcPatternBackdrop(t.light, Modifier.matchParentSize())
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        OcPlayGlyph(t.light, 44.dp); Spacer(Modifier.height(14.dp))
+                        Text("Couldn't load the latest videos", color = if (t.light) Color(0xFF0D1C2F) else noorLogoCream, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Check your connection, or watch everything on the official channel.", color = if (t.light) Color(0xFF404944) else noorLogoCream.copy(alpha = 0.7f),
+                            fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Row(Modifier.height(40.dp).clip(CircleShape).background(if (t.light) noorLogoGreen else noorLogoCream).clickable(onClick = onRetry).padding(horizontal = 18.dp).testTag("oc_retry"), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Refresh, null, tint = if (t.light) noorLogoCream else noorLogoGreen, modifier = Modifier.size(17.dp)); Spacer(Modifier.width(6.dp))
+                            Text("Try again", color = if (t.light) noorLogoCream else noorLogoGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
                 }
             }
             is OfficialFeedState.Ready -> LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("oc_list"), contentPadding = PaddingValues(start = 4.dp, end = 4.dp, bottom = 12.dp)) {

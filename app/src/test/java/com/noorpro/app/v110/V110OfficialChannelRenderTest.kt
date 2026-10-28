@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -15,7 +17,6 @@ import com.noorpro.app.audio.catalog.OfficialChannels
 import com.noorpro.app.audio.catalog.OfficialVideo
 import com.noorpro.app.ui.screens.*
 import com.noorpro.app.ui.theme.MyApplicationTheme
-import com.noorpro.app.v109.frame
 import com.noorpro.app.v109.shot
 import org.junit.After
 import org.junit.Before
@@ -42,10 +43,16 @@ class V110OfficialChannelRenderTest {
         OfficialVideo("pzo0RzZ_szI", "Allah Tak Poohanchny Ka Wahid Rasta | Complete Lecture", "2026-10-08T18:00:00+00:00", 12_450),
         OfficialVideo("6l8tgjmFUfY", "What to Do When Life Gets Difficult | Complete Khutba e Jumma", "2026-10-03T09:00:00+00:00", 52_300),
     )
-    private val cols = listOf(0xFF0E5A42 to 0xFF0A1F33, 0xFF1B3A5C to 0xFF0B6243, 0xFF4A3B2A to 0xFF0B6243, 0xFF3D2B1F to 0xFF1B3A5C, 0xFF5B3A70 to 0xFF0B6243, 0xFF26473A to 0xFF0A1F33)
-    private val art = videos.mapIndexed { i, v -> v.id to frame(480, 270, cols[i].first.toInt(), cols[i].second.toInt(), "Bayan ${i + 1}").asImageBitmap() }.toMap()
+    /**
+     * REAL YouTube thumbnails (i.ytimg.com/vi/<id>/hqdefault.jpg) downloaded into app/build/v110-thumbs before
+     * the run (build dir only - never bundled). A missing file renders the in-app fallback placeholder.
+     */
+    private val art = videos.associate { v ->
+        v.id to java.io.File("build/v110-thumbs/${v.id}.jpg").takeIf { it.length() > 1000 }
+            ?.let { android.graphics.BitmapFactory.decodeFile(it.path) }?.asImageBitmap()
+    }
 
-    @Before fun setUp() { officialPreviewArt = { art[it] } }
+    @Before fun setUp() { officialPreviewArt = { art[it] }; println("v110 real thumbnails loaded: " + art.values.count { it != null } + "/" + art.size) }
     @After fun tearDown() { officialPreviewArt = null; OfficialChannelFlags.override = null }
 
     private fun show(dark: Boolean, content: @Composable () -> Unit) = rule.setContent { MyApplicationTheme(darkTheme = dark) { content() } }
@@ -106,5 +113,38 @@ class V110OfficialChannelRenderTest {
         rule.onNodeWithTag("oc_failed").assertExists(); rule.onNodeWithTag("oc_retry").assertExists(); rule.onNodeWithTag("oc_open_youtube").assertExists()
         rule.shot("v110_failed_light")
     }
-    @Test fun loadingDark() { screen(true, OfficialFeedState.Loading); rule.onNodeWithTag("oc_loading").assertExists(); rule.shot("v110_loading_dark") }
+    @Test fun loadingDark() { screen(true, OfficialFeedState.Loading); rule.onNodeWithTag("oc_loading").assertExists(); rule.onAllNodesWithTag("oc_shimmer", useUnmergedTree = true).assertCountEquals(24); rule.shot("v110_loading_dark") }
+    @Test fun loadingLight() { screen(false, OfficialFeedState.Loading); rule.onNodeWithTag("oc_loading").assertExists(); rule.shot("v110_loading_light") }
+    @Test fun failedDark() { screen(true, OfficialFeedState.Failed); rule.onNodeWithTag("oc_failed").assertExists(); rule.shot("v110_failed_dark") }
+
+    /** A thumbnail that can't load shows the pattern placeholder (no cartoon art). */
+    @Test fun missingThumbFallbackLight() {
+        officialPreviewArt = { id -> if (id == "AGdiNcLIRrg" || id == "B8-JkZC3p9I") null else art[id] }
+        screen(false, OfficialFeedState.Ready(videos))
+        rule.onAllNodesWithTag("oc_thumb_fallback", useUnmergedTree = true).assertCountEquals(2)
+        rule.shot("v110_thumb_fallback_light")
+    }
+    @Test fun missingThumbFallbackDark() {
+        officialPreviewArt = { id -> if (id == "AGdiNcLIRrg" || id == "B8-JkZC3p9I") null else art[id] }
+        screen(true, OfficialFeedState.Ready(videos))
+        rule.onAllNodesWithTag("oc_thumb_fallback", useUnmergedTree = true).assertCountEquals(2)
+        rule.shot("v110_thumb_fallback_dark")
+    }
+
+    /** Placeholder close-ups: shimmer + pattern card, light and dark. */
+    @Test fun placeholderCloseups() {
+        show(false) {
+            Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFF4F1EA)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                listOf(true, false).forEach { light ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OcShimmer(light, Modifier.weight(1f).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)))
+                        OcThumbFallback(light, Modifier.weight(1f).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)), glyph = 40.dp)
+                    }
+                }
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))) { OcPatternBackdrop(false, Modifier.matchParentSize()) }
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp))) { OcPatternBackdrop(true, Modifier.matchParentSize()) }
+            }
+        }
+        rule.shot("v110_placeholders")
+    }
 }
