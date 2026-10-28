@@ -40,6 +40,11 @@ object Reels2Flags {
         // 1.1.6 Islamic features (see com.noorpro.app.islamic.IslamicFlags), all default OFF.
         "islamic_calendar_enabled" to false, "group_khatm_enabled" to false, "hifz_coach_enabled" to false,
         "masjid_pages_enabled" to false, "family_kids_enabled" to false, "daily_deen_goals_enabled" to false,
+        // 1.1.6 social & audio features, all default OFF.
+        "dua_requests_enabled" to false, "halaqa_rooms_enabled" to false, "ask_scholar_enabled" to false,
+        "challenges_enabled" to false, "share_cards_enabled" to false, "quran_offline_enabled" to false,
+        "audio_routines_enabled" to false, "adhan_voices_enabled" to false, "car_mode_enabled" to false,
+        "bayan_podcasts_enabled" to false,
     )
     val ALL_KEYS get() = DEFAULTS.keys
     fun default(key: String) = DEFAULTS[key] ?: false

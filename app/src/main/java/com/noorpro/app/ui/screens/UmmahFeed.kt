@@ -420,7 +420,8 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
                         }
                     )
                 },
-                ad = { StitchSponsoredPostCard() }
+                ad = { StitchSponsoredPostCard() },
+                community = if (com.noorpro.app.ui.islamic.UmmahCommunityLinks.any()) ({ com.noorpro.app.ui.islamic.UmmahCommunityShortcuts { viewModel.navigateTo(it) } }) else null
             )
         }
     }
@@ -467,7 +468,8 @@ internal fun NoorUmmahFeed(
     listState: LazyListState = rememberLazyListState(),
     stories: (@Composable () -> Unit)? = null,
     ad: (@Composable () -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    community: (@Composable () -> Unit)? = null,
 ) {
     val posts = remember(ui.posts, tab, topic, ui.following, ui.serverLiked, ui.serverSaved) {
         ummahTabPosts(tab, ui.posts, ui.following, ui.serverLiked, ui.serverSaved, topic)
@@ -493,6 +495,8 @@ internal fun NoorUmmahFeed(
                 UmmahTabBar(tab, onTab)
             }
             item(key = "topics") { UmmahTopicRow(topic, onTopic) }
+            // 1.1.6: Dua requests / Halaqa / Ask a Scholar / Challenges shortcuts (each behind its own flag).
+            if (community != null && tab == UmmahFeedTab.FOR_YOU) item(key = "community") { community() }
             if (tab == UmmahFeedTab.FOR_YOU) item(key = "composer") {
                 UmmahComposerBar(ui.displayName, ui.photoUrl, actions)
             }

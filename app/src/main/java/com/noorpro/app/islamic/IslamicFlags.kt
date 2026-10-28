@@ -17,5 +17,19 @@ object IslamicFlags {
 
     val ALL = listOf(CALENDAR, GROUP_KHATM, HIFZ_COACH, MASJID_PAGES, FAMILY_KIDS, DEEN_GOALS)
 
+    // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md), all default OFF.
+    const val DUA_REQUESTS = "dua_requests_enabled"
+    const val HALAQA_ROOMS = "halaqa_rooms_enabled"
+    const val ASK_SCHOLAR = "ask_scholar_enabled"
+    const val CHALLENGES = "challenges_enabled"
+    const val SHARE_CARDS = "share_cards_enabled"
+    const val QURAN_OFFLINE = "quran_offline_enabled"
+    const val AUDIO_ROUTINES = "audio_routines_enabled"
+    const val ADHAN_VOICES = "adhan_voices_enabled"
+    const val CAR_MODE = "car_mode_enabled"
+    const val BAYAN_PODCASTS = "bayan_podcasts_enabled"
+
+    val SOCIAL_AUDIO = listOf(DUA_REQUESTS, HALAQA_ROOMS, ASK_SCHOLAR, CHALLENGES, SHARE_CARDS, QURAN_OFFLINE, AUDIO_ROUTINES, ADHAN_VOICES, CAR_MODE, BAYAN_PODCASTS)
+
     fun isOn(key: String): Boolean = Reels2Flags.isOn(key)
 }

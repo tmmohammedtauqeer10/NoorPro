@@ -126,6 +126,8 @@ class MainActivity : ComponentActivity() {
         i.getBooleanExtra("OPEN_QIBLA", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QIBLA_MORE
         i.getBooleanExtra("OPEN_QURAN", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QURAN
         i.getBooleanExtra("OPEN_ISLAMIC_CALENDAR", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.ISLAMIC_CALENDAR
+        // 1.1.6: local reminders (dua requests, halaqa, challenges, routines) name their screen directly.
+        i.getStringExtra("OPEN_SCREEN") != null -> runCatching { com.noorpro.app.ui.viewmodel.DeenScreen.valueOf(i.getStringExtra("OPEN_SCREEN")!!) }.getOrNull()
         includePrayer && i.getBooleanExtra("OPEN_PRAYER", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES
         else -> null
     }
@@ -465,6 +467,8 @@ fun MainLayout() {
                 DeenScreen.MASJID_PAGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) com.noorpro.app.ui.islamic.MasjidPagesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.DEEN_GOALS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DEEN_GOALS)) com.noorpro.app.ui.islamic.DeenGoalsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md)
+                DeenScreen.UMMAH_DUA_REQUESTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS)) com.noorpro.app.ui.islamic.DuaRequestsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }
 
