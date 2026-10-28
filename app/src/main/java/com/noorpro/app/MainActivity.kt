@@ -464,6 +464,7 @@ fun MainLayout() {
                 DeenScreen.HIFZ_COACH -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH)) com.noorpro.app.ui.islamic.HifzCoachScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.MASJID_PAGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) com.noorpro.app.ui.islamic.MasjidPagesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.DEEN_GOALS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DEEN_GOALS)) com.noorpro.app.ui.islamic.DeenGoalsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
             }
         }
 

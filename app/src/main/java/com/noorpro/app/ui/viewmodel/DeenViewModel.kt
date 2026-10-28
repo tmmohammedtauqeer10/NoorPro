@@ -110,6 +110,7 @@ enum class DeenScreen {
     HIFZ_COACH,
     MASJID_PAGES,
     FAMILY_KIDS,
+    DEEN_GOALS,
 
 }
 
