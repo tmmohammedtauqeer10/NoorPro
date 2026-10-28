@@ -37,6 +37,9 @@ object Reels2Flags {
         SERIES to false, SOUND_PAGES to false, VOICE_COMMENTS to false, REACTIONS to false, CREATOR_LIKED to false,
         LIVE to false, MINI_PLAYER to false, AI_TRANSCRIPTS to false, DEEN_CARD to false, PROFILE_FIELDS to false,
         HIGHLIGHTS to false, CLOSE_FRIENDS to false, AI_RECAP to false,
+        // 1.1.6 Islamic features (see com.noorpro.app.islamic.IslamicFlags), all default OFF.
+        "islamic_calendar_enabled" to false, "group_khatm_enabled" to false, "hifz_coach_enabled" to false,
+        "masjid_pages_enabled" to false, "family_kids_enabled" to false, "daily_deen_goals_enabled" to false,
     )
     val ALL_KEYS get() = DEFAULTS.keys
     fun default(key: String) = DEFAULTS[key] ?: false

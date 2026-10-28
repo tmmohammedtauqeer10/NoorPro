@@ -42,7 +42,10 @@ import com.noorpro.app.ui.theme.LibreCaslon
 import com.noorpro.app.ui.viewmodel.DeenScreen
 
 /** One destination in the "More" / "See All" catalog. Each screen appears exactly once. */
-data class MoreItem(val title: String, val keywords: String, val icon: ImageVector, val screen: DeenScreen)
+data class MoreItem(val title: String, val keywords: String, val icon: ImageVector, val screen: DeenScreen, val flag: String? = null) {
+    /** 1.1.6: items with a Remote Config [flag] only appear when it is on. */
+    val visible: Boolean get() = flag == null || com.noorpro.app.islamic.IslamicFlags.isOn(flag)
+}
 data class MoreCategory(val title: String, val icon: ImageVector, val items: List<MoreItem>)
 
 /** Single source of truth for More tab + Home "See All" (1.0.73). Umrah Essentials Kit stays hidden. */
@@ -80,6 +83,7 @@ val moreCatalog: List<MoreCategory> = listOf(
     MoreCategory("Tools", Icons.Default.Construction, listOf(
         MoreItem("Zakat", "calculator", Icons.Default.Calculate, DeenScreen.ZAKAT),
         MoreItem("Hijri Calendar", "islamic dates events", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
+        MoreItem("Islamic Events", "calendar ramadan eid ashura reminders", Icons.Default.EventNote, DeenScreen.ISLAMIC_CALENDAR, com.noorpro.app.islamic.IslamicFlags.CALENDAR),
         MoreItem("Health", "fasting wellness", Icons.Default.HealthAndSafety, DeenScreen.HEALTH_WELLNESS),
         MoreItem("Progress", "spiritual streak", Icons.Default.AutoGraph, DeenScreen.SPIRITUAL_PROGRESS),
         MoreItem("DeenPoints", "points rewards", Icons.Default.Star, DeenScreen.DEEN_POINTS),
@@ -100,7 +104,7 @@ private val moreSeen = java.util.Collections.synchronizedSet(mutableSetOf<Int>()
 fun MoreCategoryGrid(onOpen: (DeenScreen) -> Unit, query: String = "", modifier: Modifier = Modifier) {
     val q = query.trim()
     val cats = moreCatalog.map { c ->
-        c to c.items.filter { q.isEmpty() || it.title.contains(q, true) || it.keywords.contains(q, true) || c.title.contains(q, true) }
+        c to c.items.filter { it.visible }.filter { q.isEmpty() || it.title.contains(q, true) || it.keywords.contains(q, true) || c.title.contains(q, true) }
     }.filter { it.second.isNotEmpty() }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (cats.isEmpty()) Text("Nothing matches \"$q\".", color = stitchMutedText(), fontSize = 14.sp)

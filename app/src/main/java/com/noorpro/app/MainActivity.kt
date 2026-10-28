@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
         i == null -> null
         i.getBooleanExtra("OPEN_QIBLA", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QIBLA_MORE
         i.getBooleanExtra("OPEN_QURAN", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QURAN
+        i.getBooleanExtra("OPEN_ISLAMIC_CALENDAR", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.ISLAMIC_CALENDAR
         includePrayer && i.getBooleanExtra("OPEN_PRAYER", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES
         else -> null
     }
@@ -445,6 +446,8 @@ fun MainLayout() {
                 DeenScreen.AUDIO_LIBRARY -> com.noorpro.app.ui.screens.StitchAudioLibraryScreen(viewModel = viewModel)
                 DeenScreen.AUDIO_PLAYLIST -> com.noorpro.app.ui.screens.AlNoorAudioScreen(viewModel = viewModel, startRoute = "mix:" + viewModel.audioPlaylistKey.ifBlank { "morning" })
                 DeenScreen.DISCOVER_GROUPS -> com.noorpro.app.ui.screens.StitchDiscoverGroupsScreen(viewModel = viewModel)
+                // 1.1.6 Islamic features: flag OFF falls back to the closest existing screen.
+                DeenScreen.ISLAMIC_CALENDAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CALENDAR)) com.noorpro.app.ui.islamic.IslamicCalendarScreen(viewModel) else com.noorpro.app.ui.screens.HijriCalendarScreen(viewModel = viewModel)
             }
         }
 
