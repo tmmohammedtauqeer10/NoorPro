@@ -33,7 +33,7 @@ class HalaqaRtc(private val context: Context, private val roomId: String, privat
     private val db = FirebaseFirestore.getInstance()
     private val linksRef = db.collection("halaqa_rooms").document(roomId).collection("links")
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val hasTurn = CallConfig.hasTurn()
+    private val hasTurn get() = CallConfig.hasTurn()
     private var factory: PeerConnectionFactory? = null
     private var mic: AudioTrack? = null
     private val peers = mutableMapOf<String, Peer>()
@@ -56,6 +56,7 @@ class HalaqaRtc(private val context: Context, private val roomId: String, privat
 
     private fun start() {
         if (factory != null) return
+        Thread({ CallConfig.refreshTurnCredentials() }, "halaqa-turn").start()
         CallSession.ensureInit(context)
         val f = PeerConnectionFactory.builder().setAudioDeviceModule(JavaAudioDeviceModule.builder(context).createAudioDeviceModule()).createPeerConnectionFactory()
         factory = f

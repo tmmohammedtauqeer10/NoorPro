@@ -290,27 +290,50 @@ class CallSession(
     }
 }
 
-/** STUN is always on; TURN is optional and pluggable via Remote Config so relay credentials are
- *  never compiled into the app. Keys: call_turn_urls (comma-separated), call_turn_username,
- *  call_turn_credential. */
+/** ICE servers come from Remote Config ([IceConfig.KEY_ICE_SERVERS], default STUN only). TURN uses
+ *  short-lived credentials fetched from [IceConfig.KEY_TURN_URL] with the user's Firebase ID token, so
+ *  no relay secret is compiled into the app or stored long-term in Remote Config. Legacy static keys
+ *  call_turn_urls/username/credential are still honoured for 1:1 calls but should stay empty. */
 object CallConfig {
-    fun iceServers(): List<PeerConnection.IceServer> {
-        val list = mutableListOf(
-            PeerConnection.IceServer.builder(listOf("stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302")).createIceServer()
-        )
+    @Volatile private var creds: TurnCreds? = null
+
+    private fun rc() = com.google.firebase.remoteconfig.FirebaseRemoteConfig.getInstance()
+
+    fun specs(): List<IceSpec> {
+        val now = System.currentTimeMillis()
+        val json = runCatching { rc().getString(IceConfig.KEY_ICE_SERVERS) }.getOrNull()
+        val list = IceConfig.merge(json, creds, now).toMutableList()
         runCatching {
-            val rc = com.google.firebase.remoteconfig.FirebaseRemoteConfig.getInstance()
-            val urls = rc.getString("call_turn_urls").split(',').map { it.trim() }.filter { it.startsWith("turn") }
-            if (urls.isNotEmpty()) {
-                list += PeerConnection.IceServer.builder(urls)
-                    .setUsername(rc.getString("call_turn_username"))
-                    .setPassword(rc.getString("call_turn_credential"))
-                    .createIceServer()
-            }
+            val urls = rc().getString("call_turn_urls").split(',').map { it.trim() }.filter { it.startsWith("turn") }
+            if (urls.isNotEmpty()) list += IceSpec(urls, rc().getString("call_turn_username"), rc().getString("call_turn_credential"))
         }
         return list
     }
 
-    /** 1.1.6: true only when a TURN relay is configured in Remote Config (none is set up yet). */
-    fun hasTurn(): Boolean = iceServers().any { s -> s.urls.any { it.startsWith("turn") } }
+    fun iceServers(): List<PeerConnection.IceServer> = specs().map { s ->
+        PeerConnection.IceServer.builder(s.urls).apply {
+            s.username?.let { setUsername(it) }
+            s.credential?.let { setPassword(it) }
+        }.createIceServer()
+    }
+
+    /** Blocking; call off the main thread. Fetches short-lived TURN creds if an endpoint is configured. */
+    fun refreshTurnCredentials() {
+        if (creds?.valid(System.currentTimeMillis()) == true) return
+        runCatching {
+            val url = rc().getString(IceConfig.KEY_TURN_URL).trim()
+            if (!url.startsWith("https://")) return
+            val user = FirebaseAuth.getInstance().currentUser ?: return
+            val token = com.google.android.gms.tasks.Tasks.await(user.getIdToken(false)).token ?: return
+            val req = okhttp3.Request.Builder().url(url).header("Authorization", "Bearer $token")
+                .post(ByteArray(0).let { okhttp3.RequestBody.create(null, it) }).build()
+            okhttp3.OkHttpClient.Builder().callTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+                .newCall(req).execute().use { r ->
+                    if (r.isSuccessful) IceConfig.parseCreds(r.body?.string(), System.currentTimeMillis())?.let { creds = it }
+                }
+        }
+    }
+
+    /** True when a TURN relay is available (static config or fetched short-lived creds). */
+    fun hasTurn(): Boolean = specs().any { it.isTurn }
 }
