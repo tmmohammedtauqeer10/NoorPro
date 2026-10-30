@@ -129,7 +129,7 @@ fun CollageEditorHost(state: ComposerUiState, onClose: () -> Unit) {
     }, saving)
 }
 
-/** Al-Noor tracks whose licence allows reuse in a new video (public domain / CC BY); 1.1.9 shared sound library. */
+/** Al-Noor tracks whose licence allows reuse in a new video (public domain / Pixabay; no CC); 1.1.9 shared sound library. */
 internal fun reelSoundsFrom(ctx: android.content.Context, limit: Int = 120): List<ReelSound> =
     com.noorpro.app.data.media.edit.ReelSoundLibrary.load(ctx).map { it.sound }.take(limit)
 

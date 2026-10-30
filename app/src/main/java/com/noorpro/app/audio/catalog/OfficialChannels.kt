@@ -31,21 +31,10 @@ data class OfficialChannel(
 }
 
 object OfficialChannels {
-    val all: List<OfficialChannel> = listOf(
-        // Idara Islah-e-Muashra asked us to promote the official channel instead of hosting bayans.
-        OfficialChannel(
-            id = "ajmal-raza-qadri",
-            name = "Muhammad Ajmal Raza Qadri",
-            subtitle = "Official YouTube channel",
-            url = "https://www.youtube.com/@MuhammdAjmalRazaQadriOfficial",
-            language = "Urdu",
-            category = "Bayan",
-            keywords = listOf("Ajmal Raza Qadri", "Ajmal Raza", "Ajmal Qadri", "Ajmal", "Qadri", "Peer Ajmal Raza Qadri", "Pir Ajmal Raza Qadri",
-                "Idara Islah-e-Muashra", "اجمل رضا قادری", "محمد اجمل رضا قادری"),
-            // Canonical id of @MuhammdAjmalRazaQadriOfficial (verified from the channel page, Oct 2026).
-            channelId = "UCxhWp1FeSSx6qbb2f4ohoBg",
-        ),
-    )
+    // 1.1.9: owner request — the Peer Ajmal Raza Qadri channel was removed (no link-out, no embed).
+    // Scholars appear here only after they grant written permission; their audio then goes into
+    // assets/al_noor_free_audio.txt as G rows (see FreeAudioCatalog.permittedBayans), never YouTube.
+    val all: List<OfficialChannel> = emptyList()
 
     /** Opens [url] in the YouTube app when installed, otherwise in the browser. Never plays in-app. */
     fun open(context: Context, url: String) {

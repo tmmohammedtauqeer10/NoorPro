@@ -64,11 +64,6 @@ object FreeAudioCatalog {
         "quranic_duas", "Quranic Duas (Arabic + Urdu, Kanzul Eemaan) — Internet Archive", "Hajveri Apps",
         LicenseType.PUBLIC_DOMAIN, "Public Domain Mark 1.0", PD_MARK, "https://archive.org/details/quranic-duas",
     )
-    val ubaid = AudioSource(
-        "ubaid", "Tafseer-ul-Quran (Urdu) — Internet Archive", "Dr. Ubaid ur Rahman (ISLAMFORT / MIRC)",
-        LicenseType.CC_BY, "CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/",
-        "https://archive.org/search?query=uploader%3Awebsites%40mirc.org.pk",
-    )
     val wahid = AudioSource(
         "wahiduddin", "English Commentary on Al-Baqarah — Internet Archive", "Maulana Wahiduddin Khan",
         LicenseType.PUBLIC_DOMAIN, "Public Domain Mark 1.0", PD_MARK, "https://archive.org/details/Eng_Commentary_AlBaqarah1-286",
@@ -80,7 +75,7 @@ object FreeAudioCatalog {
         LicenseType.PIXABAY, "Pixabay Content License", "https://pixabay.com/service/license-summary/", "https://pixabay.com/sound-effects/",
     )
 
-    val sources = listOf(hisn, quranicDuas, islamicNetwork, ubaid, wahid)
+    val sources = listOf(hisn, quranicDuas, islamicNetwork, wahid)
 
     private fun track(id: String, title: String, artist: String, url: String, src: AudioSource, lang: String?, durMs: Long = 0L) = Track(
         id = "free-$id", title = title, artistId = src.key, artistName = artist, audioUrl = url, durationMs = durMs,
@@ -134,6 +129,19 @@ object FreeAudioCatalog {
                 tags = r.getOrNull(7)?.split(',')?.map { it.trim() }?.filter { it.isNotBlank() }.orEmpty())
     }
 
+    /**
+     * 1.1.9: scholars' audio shared WITH WRITTEN PERMISSION only (e.g. Peer Ajmal Raza Qadri, if he agrees).
+     * Asset row: G|speaker|title|https audio url|durationMs|permission evidence url|source page url
+     * Rows without an https audio URL or an evidence reference are ignored. No entries today.
+     */
+    fun permittedBayans(ctx: Context): List<Track> = rows(ctx).filter { it[0] == "G" && it.size >= 6 }
+        .filter { it[3].startsWith("https://") && it[5].isNotBlank() }.mapIndexed { i, r ->
+            Track(id = "free-perm-$i", title = r[2], artistId = "permitted", artistName = r[1], audioUrl = r[3],
+                durationMs = r[4].toLongOrNull() ?: 0L, license = LicenseType.PERMISSION_LETTER,
+                attributionText = "${r[1]} · shared with permission", sourceUrl = r.getOrNull(6)?.takeIf { it.startsWith("https://") } ?: r[5],
+                licenseUrl = r[5], language = null)
+        }
+
     /** Tafsir by scholar, then surah, then part (by starting ayah). */
     fun scholars(ctx: Context): List<Scholar> {
         val r = rows(ctx)
@@ -146,7 +154,6 @@ object FreeAudioCatalog {
                 })
             }
         return listOf(
-            Scholar("Dr. Ubaid ur Rahman", "Urdu", ubaid, build("U", ubaid, "ur")),
             Scholar("Maulana Wahiduddin Khan", "English", wahid, build("W", wahid, "en")),
         )
     }

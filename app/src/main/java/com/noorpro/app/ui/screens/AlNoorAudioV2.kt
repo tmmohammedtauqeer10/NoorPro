@@ -400,20 +400,17 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
                 }
             }
         }
-        if ((all || chip == "Nasheeds") && d.nasheeds.isNotEmpty()) item(key = "nasheeds") {
-            SpShelf(t, "Nasheeds & Naats", action = "Show all", onAction = { open("browse:Nasheeds") }) {
-                items(d.nasheeds, key = { "n${it.id}" }) { p -> SpCard(t, p.name, "${p.publisher} · ${p.language}", onClick = { open("podcast:${p.id}") }) { mod -> SpArt(mod, url = d.artFor(p), tint = coverColor(p.id.hashCode()), label = p.name) } }
-            }
-        }
+        // 1.1.9: Nasheeds & Naats = the owner's own MAF Nasheed channel only.
+        if (all || chip == "Nasheeds") item(key = "nasheeds") { MafNasheedShelf(t) }
         if ((all || chip == "Podcasts") && d.podcasts.isNotEmpty()) item(key = "podcasts") {
             SpShelf(t, "Islamic podcasts", action = "Show all", onAction = { open("browse:Podcasts") }) {
                 items(d.podcasts, key = { "p${it.id}" }) { p -> SpCard(t, p.name, "${p.publisher} · ${p.category}", onClick = { open("podcast:${p.id}") }) { mod -> SpArt(mod, url = d.artFor(p), tint = coverColor(p.id.hashCode() + 3), label = p.name, corner = 10.dp) } }
             }
         }
-        // 1.0.95: CC BY bayans from official channels (YouTube's embedded player only).
-        if (all || chip == "Podcasts" || chip == "Bayans") item(key = "bayans") { BayansShelf(t) { open("browse:Bayans") } }
+        // Bayans shelf: only bayans shared with permission (none today).
+        if ((all || chip == "Podcasts" || chip == "Bayans") && com.noorpro.app.audio.catalog.CcBayans.all.isNotEmpty()) item(key = "bayans") { BayansShelf(t) { open("browse:Bayans") } }
         // 1.0.93: official scholar channels (link-out only — not hosted).
-        if (all || chip == "Podcasts" || chip == "Bayans") item(key = "official") {
+        if ((all || chip == "Podcasts" || chip == "Bayans") && com.noorpro.app.audio.catalog.OfficialChannels.all.isNotEmpty()) item(key = "official") {
             OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
         }
         if (all || chip == "Duas") item(key = "duas") {
@@ -802,12 +799,12 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                 rt == "browse:Bayans" -> {
                     var playing by remember { mutableStateOf<com.noorpro.app.audio.catalog.CcBayan?>(null) }
                     val col = Color(0xFF0F5D46)
-                    SpDetailPage(t, SpDetailHeader("Bayans", "Creative Commons (CC BY) bayans from official channels · YouTube's official player",
+                    SpDetailPage(t, SpDetailHeader("Bayans", "Bayans shared with NoorPro by permission",
                         "${com.noorpro.app.audio.catalog.CcBayans.all.size} bayans · ${com.noorpro.app.audio.catalog.CcBayans.channels.size} channels", col) { m -> SpArt(m, tint = col, label = "Bayans") },
                         false, false, null, null, back, null, {}, {}, {}) {
                         bayanBrowseItems(t) { if (!openBayanAudio(ctx, it)) playing = it }
                         item(key = "official") { OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 8.dp)) }
-                        item { Text("Videos are shared by each channel under the Creative Commons Attribution licence and play in YouTube's official player. NoorPro doesn't download or host them.",
+                        item { Text(if (com.noorpro.app.audio.catalog.CcBayans.all.isEmpty()) "No bayans yet. Scholars' audio is added only after they give NoorPro written permission." else "Shared by permission of each speaker.",
                             color = t.muted, fontSize = 11.sp, modifier = Modifier.padding(16.dp)) }
                     }
                     playing?.let { b -> BayanPlayerDialog(t, b) { playing = null } }

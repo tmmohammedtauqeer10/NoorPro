@@ -148,16 +148,6 @@ object GithubApiService {
             )
         ),
         AudioCategory(
-            categoryId = "naat",
-            categoryTitle = "Naat",
-            description = "Respectful praise and love for the Prophet",
-            items = listOf(
-                AudioItem("naat_01", "Selected Naat Collection", "Noor Audio", "Urdu", "Playlist", "Curated devotional listening."),
-                AudioItem("naat_02", "Madani Naat Series", "Noor Audio", "Urdu", "Series", "A respectful naat series."),
-                AudioItem("naat_03", "English Praise Collection", "Noor Audio", "English", "Playlist", "English vocal praise and reflection.")
-            )
-        ),
-        AudioCategory(
             categoryId = "hamd",
             categoryTitle = "Hamd",
             description = "Praise of Allah with calm, spiritual audio",

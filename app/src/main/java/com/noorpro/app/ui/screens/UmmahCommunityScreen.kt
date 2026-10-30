@@ -2488,6 +2488,8 @@ private fun UmmahCreatorDashboard(
     onReport: (UmmahPost) -> Unit
 ) {
     val context = LocalContext.current
+    var channelFilter by remember { mutableStateOf("all") }
+    val shownPosts = remember(posts, channelFilter) { if (channelFilter == "all") posts else posts.filter { it.type == channelFilter } }
     val firstPost = posts.firstOrNull()
     val creatorName = firstPost?.creatorName ?: handle.ifBlank { "Ummah channel" }
     val reelCount = posts.count { it.type == "reel" }
@@ -2573,18 +2575,19 @@ private fun UmmahCreatorDashboard(
             )
         }
         item {
+            // 1.1.9 audit: these chips were dead buttons; they now filter the channel feed.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                AssistChip(onClick = {}, label = { Text("All") }, leadingIcon = { Icon(Icons.Default.GridView, null, Modifier.size(15.dp)) })
-                AssistChip(onClick = {}, label = { Text("Long videos") }, leadingIcon = { Icon(Icons.Default.OndemandVideo, null, Modifier.size(15.dp)) })
-                AssistChip(onClick = {}, label = { Text("Reels") }, leadingIcon = { Icon(Icons.Default.SmartDisplay, null, Modifier.size(15.dp)) })
+                FilterChip(selected = channelFilter == "all", onClick = { channelFilter = "all" }, label = { Text("All") }, leadingIcon = { Icon(Icons.Default.GridView, null, Modifier.size(15.dp)) })
+                FilterChip(selected = channelFilter == "video", onClick = { channelFilter = "video" }, label = { Text("Long videos") }, leadingIcon = { Icon(Icons.Default.OndemandVideo, null, Modifier.size(15.dp)) })
+                FilterChip(selected = channelFilter == "reel", onClick = { channelFilter = "reel" }, label = { Text("Reels") }, leadingIcon = { Icon(Icons.Default.SmartDisplay, null, Modifier.size(15.dp)) })
             }
         }
-        if (posts.isEmpty()) {
+        if (shownPosts.isEmpty()) {
             item {
                 UmmahEmptyState("No channel posts yet", "When this creator publishes, their feed, long videos, and reels will appear here.")
             }
         } else {
-            items(posts, key = { it.id }) { post ->
+            items(shownPosts, key = { it.id }) { post ->
                 UmmahPostCardCompact(
                     post = post,
                     isLiked = post.id in likedIds,

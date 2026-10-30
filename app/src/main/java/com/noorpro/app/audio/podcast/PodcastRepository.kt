@@ -78,10 +78,6 @@ object PodcastRepository {
         Podcast("nak-bangla", "নোমান আলী খান বাংলা (Nouman Ali Khan in Bangla)", "NAK Bangla Podcast", "Bengali", "Quran", "https://rss.buzzsprout.com/1933402.rss", "https://www.nakbanglapodcast.com"),
         Podcast("seerah-bangla", "Seerah in Bangla — Yasir Qadhi (translated)", "Shaer Hassan & team", "Bengali", "Seerah", "https://anchor.fm/s/1154b8320/podcast/rss", ""),
         // Nasheeds tab: artists' / publishers' own official podcast feeds only.
-        Podcast("nasheed-abu-hassan", "Abu Hassan Nasheeds", "Abu Hassan (self-written nasheeds)", "English", "Nasheed", "https://feeds.hubhopper.com/8b0cdd1331c87cd8e0f7810fc8cf0e42.rss", "https://www.abuhassanmedia.com", kind = "nasheed"),
-        Podcast("naat-moin", "Naat by Moin", "Moin (own recordings)", "Urdu", "Naat", "https://anchor.fm/s/46e6ca58/podcast/rss", "", kind = "nasheed"),
-        Podcast("nasheed-badsha-baitul", "Badsha Baitul Haque", "Badsha Baitul (official artist feed)", "Bengali", "Gojol / Nasheed", "https://feeds.hubhopper.com/15f6368ada81c93adebc162d410cd324.rss", "", kind = "nasheed"),
-        Podcast("naat-geceleri", "Naat Geceleri", "Çağlayan Dergisi", "Turkish", "Naat / İlahi", "https://www.spreaker.com/show/3290986/episodes/feed", "", kind = "nasheed"),
         Podcast("qc-urdu", "Urdu Translation — Al-Huthaify (Quran Central)", "Quran Central", "Urdu", "Quran", "https://rss.qurancentral.com/urdu-translation-ali-bin-abdur-rahman-al-huthaify.rss", "https://qurancentral.com"),
         Podcast("nadwi", "Jumma Bayan — Maulana Abdul Aleem Khateeb Nadwi", "QV Audio (Quranic Voice)", "Hindi", "Bayan", "https://anchor.fm/s/2d923ab0/podcast/rss", ""),
         Podcast("hindi-minshawi", "Quran with Hindi translation (Minshawi)", "qurantranslations.net", "Hindi", "Quran", "https://www.qurantranslations.net/podcast/Hindi/Holy_Quran_in_the_Hindi_Language_minshawi.rss", "https://www.qurantranslations.net"),

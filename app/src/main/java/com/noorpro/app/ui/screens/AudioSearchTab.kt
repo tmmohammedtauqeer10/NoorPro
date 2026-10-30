@@ -122,10 +122,14 @@ internal fun buildSearchIndex(ctx: android.content.Context, surahs: List<Surah>,
         out += SearchDoc("Official channels", ch.name, ch.subtitle, ch.searchFields, pop = 60, circle = true,
             art = { m -> ChannelInitials(ch, 48.dp) }) { com.noorpro.app.audio.catalog.OfficialChannels.open(ctx, ch.url) }
     }
-    // 1.0.95: CC BY bayans (YouTube's embedded player).
+    // Bayans: permission-only catalog (empty in 1.1.9).
     com.noorpro.app.audio.catalog.CcBayans.all.forEach { b ->
         out += SearchDoc("Bayans", b.title, "Bayan · ${b.channel.speaker} · ${b.topic}", b.searchFields, pop = 40,
             art = { m -> BayanThumb(b, m.clip(RoundedCornerShape(4.dp))) }) { if (!openBayanAudio(ctx, b)) bayanOpenRequest.value = b }
+    }
+    runCatching { FreeAudioCatalog.permittedBayans(ctx) }.getOrDefault(emptyList()).let { pb ->
+        pb.forEach { tr -> out += SearchDoc("Bayans", tr.title, "Bayan · ${tr.artistName}", listOf(tr.title, tr.artistName, "bayan"), pop = 40,
+            art = { m -> SpArt(m, tint = Color(0xFF0F5D46), label = "Bayan", corner = 4.dp) }) { play(tr, pb) } }
     }
     surahs.forEach { s -> out += SearchDoc("Surahs", s.nameEnglish, "Surah ${s.id} · ${s.englishTranslation}",
         listOf(s.nameEnglish, s.nameArabic, s.englishTranslation, s.id.toString(), "surah ${s.nameEnglish}"), pop = 120 - s.id,

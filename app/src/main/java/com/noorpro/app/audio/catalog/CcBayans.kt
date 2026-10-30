@@ -82,53 +82,12 @@ data class CcBayan(
 object CcBayans {
     const val VERIFIED_ON = "2026-10-24"
 
-    val channels: List<BayanChannel> = listOf(
-        BayanChannel(
-            key = "jalali", name = "Dr Muhammad Ashraf Asif Jalali",
-            credit = "Dr Muhammad Ashraf Asif Jalali • Official channel • CC BY",
-            channelUrl = "https://www.youtube.com/@TheDrJalali", speaker = "Dr Muhammad Ashraf Asif Jalali",
-            keywords = listOf("Jalali", "Dr Jalali", "Ashraf Asif Jalali", "Ashraf Jalali", "Asif Jalali", "ڈاکٹر محمد اشرف آصف جلالی", "اشرف آصف جلالی", "جلالی"),
-        ),
-        BayanChannel(
-            key = "madani", name = "Madani Channel (Dawat-e-Islami)",
-            credit = "Madani Channel (Dawat-e-Islami) • CC BY",
-            channelUrl = "https://www.youtube.com/@MadaniChannelOfficial", speaker = "Maulana Ilyas Qadri",
-            keywords = listOf("Madani Channel", "Madani", "Dawat-e-Islami", "Dawateislami", "Dawat e Islami", "Ilyas Qadri", "Ilyas Attar Qadri",
-                "Ameer-e-Ahle Sunnat", "مدنی چینل", "دعوت اسلامی", "الیاس قادری"),
-        ),
-    )
+    // 1.1.9: all Creative Commons bayans removed (owner request: no CC content).
+    val channels: List<BayanChannel> = emptyList()
 
     fun channel(key: String): BayanChannel = channels.first { it.key == key }
 
-    val all: List<CcBayan> = listOf(
-        // Dr Muhammad Ashraf Asif Jalali — youtube.com/@TheDrJalali (UCiQoMsK_mCObTvPjuKBcPzg)
-        CcBayan("9bKDpu61zu8", "Seerat-un-Nabi ﷺ · Episode 1", "jalali", "Seerat", 2971, keywords = listOf("seerat", "sirat", "seerah", "prophet", "mehboob e khuda")),
-        CcBayan("8zrNDJfP_xo", "Seerat-un-Nabi ﷺ · Episode 2", "jalali", "Seerat", 3410, keywords = listOf("seerat", "sirat", "seerah", "prophet")),
-        CcBayan("bloh5NIXCJY", "Seerat-un-Nabi ﷺ · Episode 3", "jalali", "Seerat", 3374, keywords = listOf("seerat", "sirat", "seerah", "prophet")),
-        CcBayan("sKTtpeeYytU", "Seerat-un-Nabi ﷺ · Episode 5", "jalali", "Seerat", 3414, keywords = listOf("seerat", "sirat", "seerah", "prophet")),
-        CcBayan("DNzogqzIIY0", "Fazilat-e-Ramzan ul Mubarak", "jalali", "Ramadan", 1626, keywords = listOf("ramzan", "ramadan", "fazilat", "sahaba")),
-        CcBayan("9tCZoyTMraw", "Nawazishat-e-Ramadan", "jalali", "Ramadan", 644, keywords = listOf("ramzan", "ramadan", "blessings")),
-        CcBayan("cQ7V1--VZOk", "Imtiazat-e-Namaz · Fahm-e-Deen Lecture 4", "jalali", "Namaz", 4433, keywords = listOf("namaz", "salah", "salat", "prayer", "fahm e deen")),
-        CcBayan("NfB4KV-Lxlw", "Walideen ki wafat ke baad 5 haqooq", "jalali", "Parents", 387, keywords = listOf("walidain", "walideen", "parents", "isal e sawab", "haqooq")),
-        CcBayan("GbPX9fnVNfI", "Al-Nabi ut-Tauba Conference 2025", "jalali", "Tawbah", 4298, keywords = listOf("tauba", "tawbah", "toba", "repentance", "istighfar")),
-        CcBayan("U3c4xzxB_9k", "Khatam-e-Quran ki dastan", "jalali", "Quran", 501, keywords = listOf("quran", "khatam", "hafiz", "hifz")),
-        CcBayan("d5SL180aTPc", "Roza-e-Rasool ﷺ par hazri ke adaab", "jalali", "Akhlaq", 1656, keywords = listOf("adab", "adaab", "madina", "akhlaq", "ziyarat")),
-        CcBayan("Ckq0QjWNKmM", "Maqam-e-Ibrahim aur Hajr-e-Aswad ki shan", "jalali", "Hajj", 292, keywords = listOf("hajj", "umrah", "kaaba", "maqam e ibrahim", "hajr e aswad")),
-
-        // Madani Channel (Dawat-e-Islami) — youtube.com/@MadaniChannelOfficial (UCfSmrkM_OGTFMR4kkFxrNDQ)
-        CcBayan("-3NlJrfVrFQ", "Sudharnay ka tareeqa", "madani", "Tawbah", 3706, keywords = listOf("islah", "tauba", "tawbah", "self improvement")),
-        CcBayan("0Xq86kmFqH8", "Companionship of pious people · Madani Guldasta", "madani", "Auliya", 312, keywords = listOf("auliya", "pious", "suhbat", "saleheen", "madani guldasta")),
-        CcBayan("09OFX69SKwU", "Jannati mehal ka soda", "madani", "Akhlaq", 2843, keywords = listOf("jannat", "akhlaq", "charity")),
-        CcBayan("woqcR5d6GcI", "Nafs kisey kehtay hain", "madani", "Akhlaq", 3270, keywords = listOf("nafs", "akhlaq", "self")),
-        CcBayan("QCMSWt0Qoe0", "Shaitan ke 4 kamiyab waar", "madani", "Tawbah", 3698, keywords = listOf("shaitan", "tauba", "tawbah", "english subtitles")),
-        CcBayan("rNMyuigf0oo", "Istiqbal-e-Ramadan", "madani", "Ramadan", 2894, keywords = listOf("ramzan", "ramadan", "istiqbal")),
-        CcBayan("AOIl8U9jWUE", "Fazail-e-Lailatul Qadr · Part 1", "madani", "Ramadan", 2386, keywords = listOf("laylatul qadr", "lailatul qadr", "shab e qadr", "ramzan", "ramadan")),
-        CcBayan("-bs-0gJuBa0", "Meraj-un-Nabi ﷺ · Madani Guldasta", "madani", "Seerat", 495, keywords = listOf("meraj", "miraj", "seerat", "prophet")),
-        CcBayan("eZVC5dyQEMo", "Muaf karnay ke fazail", "madani", "Akhlaq", 3022, keywords = listOf("forgiveness", "maaf", "muaf", "akhlaq", "english subtitles")),
-        CcBayan("xhpPTRk5hCU", "Ikhlas · Madani Muzakra", "madani", "Akhlaq", 3521, keywords = listOf("ikhlas", "sincerity", "madani muzakra", "akhlaq")),
-        CcBayan("CzK_W-j6RRM", "Namaz-e-Janaza ka tareeqa", "madani", "Namaz", 3336, keywords = listOf("namaz", "janaza", "salah", "funeral prayer")),
-        CcBayan("YmjzhMTGTM0", "Aulad ki tarbiyat · Madani Muzakra", "madani", "Parents", 262, keywords = listOf("aulad", "children", "tarbiyat", "parents", "walidain")),
-    )
+    val all: List<CcBayan> = emptyList()
 
     fun byChannel(key: String): List<CcBayan> = all.filter { it.channelKey == key }
 }

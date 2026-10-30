@@ -8,7 +8,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class OfficialChannelEmbedTest {
-    private val ch = OfficialChannels.all.first { it.id == "ajmal-raza-qadri" }
+    // 1.1.9: no real channel is listed any more; the generic embed helpers are tested with a fixture.
+    private val ch = com.noorpro.app.audio.catalog.OfficialChannel("fixture", "Fixture Channel", "Official YouTube channel", "https://www.youtube.com/@FixtureChannel", "Urdu", "Bayan", channelId = "UCaaaaaaaaaaaaaaaaaaaaaa")
 
     @After fun reset() { OfficialChannelFlags.override = null }
 
@@ -21,13 +22,13 @@ class OfficialChannelEmbedTest {
     }
 
     @Test fun channelIdAndUrls() {
-        assertEquals("UCxhWp1FeSSx6qbb2f4ohoBg", ch.channelId)
+        assertEquals("UCaaaaaaaaaaaaaaaaaaaaaa", ch.channelId)
         assertTrue(OfficialChannelEmbed.isChannelId(ch.channelId))
-        assertEquals("https://www.youtube.com/feeds/videos.xml?channel_id=UCxhWp1FeSSx6qbb2f4ohoBg", OfficialChannelEmbed.rssUrl(ch.channelId))
-        assertEquals("https://www.youtube.com/channel/UCxhWp1FeSSx6qbb2f4ohoBg?sub_confirmation=1", OfficialChannelEmbed.subscribeUrl(ch))
-        assertEquals("https://www.youtube.com/channel/UCxhWp1FeSSx6qbb2f4ohoBg", OfficialChannelEmbed.channelUrl(ch))
+        assertEquals("https://www.youtube.com/feeds/videos.xml?channel_id=UCaaaaaaaaaaaaaaaaaaaaaa", OfficialChannelEmbed.rssUrl(ch.channelId))
+        assertEquals("https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa?sub_confirmation=1", OfficialChannelEmbed.subscribeUrl(ch))
+        assertEquals("https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa", OfficialChannelEmbed.channelUrl(ch))
         // the 1.0.93 link-out is unchanged
-        assertEquals("https://www.youtube.com/@MuhammdAjmalRazaQadriOfficial", ch.url)
+        assertEquals("https://www.youtube.com/@FixtureChannel", ch.url)
         assertNull(OfficialChannelEmbed.rssUrl("not-a-channel"))
         assertNull(OfficialChannelEmbed.rssUrl(""))
     }
@@ -60,9 +61,9 @@ class OfficialChannelEmbedTest {
 
     private val rss = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
- <title>Muhammad Ajmal Raza Qadri</title>
+ <title>Fixture Channel</title>
  <entry>
-  <id>yt:video:AGdiNcLIRrg</id><yt:videoId>AGdiNcLIRrg</yt:videoId><yt:channelId>UCxhWp1FeSSx6qbb2f4ohoBg</yt:channelId>
+  <id>yt:video:AGdiNcLIRrg</id><yt:videoId>AGdiNcLIRrg</yt:videoId><yt:channelId>UCaaaaaaaaaaaaaaaaaaaaaa</yt:channelId>
   <title>Tune Har Shakhs Ki Qismat Mein Izzat Liki | Complete Lecture</title>
   <published>2026-10-20T15:00:00+00:00</published>
   <media:group><media:title>x</media:title><media:community><media:statistics views="1234"/></media:community></media:group>

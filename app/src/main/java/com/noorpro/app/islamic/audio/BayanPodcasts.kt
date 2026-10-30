@@ -43,7 +43,7 @@ object BayanLogic {
 
     /**
      * Never shown as podcasts, whatever a feed is called. Idara Islah-e-Muashra (Muhammad Ajmal Raza Qadri)
-     * told us audio bayans are not permissible; they keep their official-channel link-out card only.
+     * told us audio bayans are not permissible; 1.1.9 also removed their link-out card (owner request).
      */
     val EXCLUDED_TERMS = listOf("islahemuashra", "islahimuashra", "islahemuashara", "ajmalrazaqadri", "ajmalraza")
 

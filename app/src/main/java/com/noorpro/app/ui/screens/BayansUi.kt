@@ -142,12 +142,13 @@ internal fun openBayanAudio(ctx: android.content.Context, b: CcBayan): Boolean {
 /** Home shelf: one row of bayan cards per channel. */
 @Composable
 internal fun BayansShelf(t: SpTheme, onShowAll: (() -> Unit)? = null) {
+    if (CcBayans.all.isEmpty()) return
     var playing by remember { mutableStateOf<CcBayan?>(null) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
-                Text("Official channels · Creative Commons", color = t.muted, fontSize = 12.sp)
+                Text("Official channels · by permission", color = t.muted, fontSize = 12.sp)
                 Text("Bayans", color = t.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
             if (onShowAll != null) Text("Show all", color = t.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -162,7 +163,7 @@ internal fun BayansShelf(t: SpTheme, onShowAll: (() -> Unit)? = null) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("Shared by the channels under CC BY · played in YouTube's official player", color = t.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
+        Text("Shared by permission of each speaker", color = t.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
     }
     playing?.let { b -> BayanPlayerDialog(t, b) { playing = null } }
 }
