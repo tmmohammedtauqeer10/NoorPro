@@ -71,6 +71,34 @@ class ReelExperienceLogicTest {
     }
 
     @Test
+    fun profileOrNewUploadFocusStartsAFullScrollableSession() {
+        assertEquals(
+            listOf("new-upload", "older-a", "older-b"),
+            reelOrderWithFocus(
+                previousIds = listOf("older-a", "older-b"),
+                rankedIds = listOf("new-upload", "older-a", "older-b"),
+                focusedId = "new-upload"
+            )
+        )
+        assertEquals(
+            listOf("older-b", "older-a", "new-upload"),
+            reelOrderWithFocus(
+                previousIds = listOf("older-a", "new-upload", "older-b"),
+                rankedIds = listOf("new-upload", "older-a", "older-b"),
+                focusedId = "older-b"
+            )
+        )
+    }
+
+    @Test
+    fun optimisticEngagementDoesNotDropWhenInteractionSnapshotArrivesFirst() {
+        assertEquals(1L, displayedEngagementCount(remoteCount = 0, activeForCurrentUser = true, optimisticCount = 1))
+        assertEquals(1L, displayedEngagementCount(remoteCount = 0, activeForCurrentUser = true, optimisticCount = null))
+        assertEquals(8L, nextEngagementCount(currentCount = 7, activating = true))
+        assertEquals(0L, nextEngagementCount(currentCount = 0, activating = false))
+    }
+
+    @Test
     fun ummahAdsStayBetweenPostsAtAWideCadence() {
         assertFalse(shouldShowUmmahFeedAd(0))
         assertTrue(shouldShowUmmahFeedAd(1))
@@ -153,4 +181,16 @@ class ReelExperienceLogicTest {
         publishedAt = 0L,
         category = category
     )
+
+    @org.junit.Test
+    fun optimisticCountYieldsToLiveServerValue() {
+        // optimistic like on a post at 10 -> shows 11 until the snapshot moves
+        org.junit.Assert.assertEquals(11L, displayedEngagementCount(10L, true, 11L, 10L))
+        // our write landed
+        org.junit.Assert.assertEquals(11L, displayedEngagementCount(11L, true, 11L, 10L))
+        // others liked too -> live total, not stale 11
+        org.junit.Assert.assertEquals(15L, displayedEngagementCount(15L, true, 11L, 10L))
+        // comment deleted server-side -> count goes down
+        org.junit.Assert.assertEquals(4L, displayedEngagementCount(4L, false, 6L, 5L))
+    }
 }

@@ -143,6 +143,7 @@ class TranslationManager(private val context: Context) {
 
     fun isDownloaded(key: String): Boolean {
         if (key == "default") return true
+        if (key in OfflineQuranAssets.bundledTranslationKeys) return true
         val file = File(translationsDir, "$key.json")
         return file.exists() && file.length() > 1000
     }
@@ -158,6 +159,13 @@ class TranslationManager(private val context: Context) {
 
     suspend fun getTranslationText(key: String, surahId: Int, ayahId: Int): String? = withContext(Dispatchers.IO) {
         if (key == "default") return@withContext null
+        if (key in OfflineQuranAssets.bundledTranslationKeys && !File(translationsDir, "$key.json").exists()) {
+            return@withContext try {
+                OfflineQuranAssets.bundledTranslation(context, key, surahId, ayahId)
+            } catch (e: Exception) {
+                CrashReporter.report(e); null
+            }
+        }
         try {
             mutex.lock()
             try {

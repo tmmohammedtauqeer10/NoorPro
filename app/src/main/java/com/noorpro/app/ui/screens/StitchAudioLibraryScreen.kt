@@ -1,5 +1,12 @@
 package com.noorpro.app.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+
+import com.noorpro.app.ui.components.stitchLine
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -87,162 +94,36 @@ private data class AudioPlaylist(
  * them up automatically (no duplicate player is drawn here). The bottom navigation + mini-player
  * are provided by the app scaffold in MainActivity.
  */
+/** Local-only liked surahs + recently played (SharedPreferences). */
+internal object AudioLibraryStore {
+    private fun p(ctx: android.content.Context) = ctx.getSharedPreferences("noor_audio_lib", android.content.Context.MODE_PRIVATE)
+    fun liked(ctx: android.content.Context): Set<Int> = p(ctx).getString("liked", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toSet()
+    fun toggleLike(ctx: android.content.Context, id: Int): Set<Int> {
+        val cur = liked(ctx).toMutableSet(); if (!cur.add(id)) cur.remove(id)
+        p(ctx).edit().putString("liked", cur.joinToString(",")).apply(); return cur
+    }
+    fun recent(ctx: android.content.Context): List<Int> = p(ctx).getString("recent", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+    fun addRecent(ctx: android.content.Context, id: Int): List<Int> {
+        val list = (listOf(id) + recent(ctx).filter { it != id }).take(12)
+        p(ctx).edit().putString("recent", list.joinToString(",")).apply(); return list
+    }
+}
+
+/** 1.0.81: Al-Noor Audio is the Spotify / Amazon Music style [AlNoorAudioScreen]. */
 @Composable
-fun StitchAudioLibraryScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    val light = isStitchLight()
-    val surahs by viewModel.surahs.collectAsState()
-    val selectedReciter by viewModel.selectedReciter.collectAsState()
+fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String = "All") {
+    AlNoorAudioScreen(viewModel, startRoute = when (initialCategory) {
+        "Recitations" -> "recitations"; "Nasheeds" -> "browse:Nasheeds"; "Podcasts" -> "browse:Podcasts"
+        "Dua Audio", "Tafsir", "Tarjuma" -> "cat:$initialCategory"; else -> null
+    })
+}
 
-    // Featured recitation: Surah Ar-Rahman if present, else the first available surah.
-    val featured = remember(surahs) {
-        surahs.firstOrNull { it.id == 55 } ?: surahs.firstOrNull()
-    }
-
-    var selectedCategory by remember { mutableStateOf("Recitations") }
-    val categories = listOf("Recitations", "Nasheeds", "Podcasts", "Dua Audio", "Tafsir")
-
-    val reciters = IslamicData.reciters
-    // Portrait art for the first few reciters; the rest fall back to gradient initials.
-    val portraits = listOf(
-        R.drawable.audio_lib_reciter_1,
-        R.drawable.audio_lib_reciter_2,
-        R.drawable.audio_lib_reciter_3,
-        R.drawable.audio_lib_reciter_4
+@Composable
+internal fun AudioCredits(t: AudioTheme) {
+    Text(
+        "Credits: Qur'an recitations stream from EveryAyah.com; nasheeds and podcasts come from their publishers' official feeds; dua, tarjuma and tafsir audio is used under its free licences. Each section lists its source.",
+        color = t.muted, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 16.dp)
     )
-
-    fun openFullPlayer() {
-        featured?.let { viewModel.selectSurahForPlayback(it) }
-        viewModel.navigateTo(DeenScreen.NOW_PLAYING)
-    }
-
-    val playlists = listOf(
-        // Each card opens a Spotify-style playlist detail screen with a full, tappable track list.
-        AudioPlaylist("Morning Adhkar", "Ayatul Kursi · 3 Quls · 5 tracks", 5, R.drawable.audio_lib_playlist_adhkar) {
-            viewModel.openAudioPlaylist("morning")
-        },
-        AudioPlaylist("Sleep Supplications", "Al-Mulk · Ayatul Kursi · 6 tracks", 6, R.drawable.audio_lib_playlist_sleep) {
-            viewModel.openAudioPlaylist("sleep")
-        },
-        AudioPlaylist("Jumu'ah Favorites", "Al-Kahf · Ya-Sin · 4 tracks", 4, R.drawable.audio_lib_playlist_jumuah) {
-            viewModel.openAudioPlaylist("jumuah")
-        }
-    )
-
-    StitchScreen {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            // Generous bottom inset so the app's floating nav + mini-player never cover content.
-            contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 210.dp),
-            verticalArrangement = Arrangement.spacedBy(30.dp)
-        ) {
-            item {
-                AudioTopBar(
-                    photoUrl = viewModel.userPhotoUrl,
-                    onMenu = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
-                    onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }
-                )
-            }
-
-            // Featured Today
-            item {
-                Column {
-                    AudioSectionTitle("Featured Today")
-                    Spacer(Modifier.height(14.dp))
-                    AudioFeaturedCard(
-                        title = featured?.nameEnglish ?: "Surah Ar-Rahman",
-                        reciter = selectedReciter.name,
-                        onPlay = { featured?.let { viewModel.selectSurahForPlayback(it) } },
-                        onBookmark = {
-                            Toast.makeText(context, "Saved to your library", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                }
-            }
-
-            // Category chips
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(categories) { cat ->
-                        AudioCategoryChip(
-                            label = cat,
-                            selected = cat == selectedCategory,
-                            onClick = {
-                                selectedCategory = cat
-                                if (cat != "Recitations") {
-                                    Toast.makeText(context, "$cat coming soon", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Top Reciters
-            item {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AudioSectionTitle("Top Reciters", modifier = Modifier.weight(1f))
-                        Text(
-                            "SEE ALL",
-                            color = StitchGold,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.clickable { openFullPlayer() }
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                        items(reciters) { reciter ->
-                            val idx = reciters.indexOf(reciter)
-                            AudioReciterAvatar(
-                                reciter = reciter,
-                                portrait = portraits.getOrNull(idx),
-                                selected = reciter.id == selectedReciter.id,
-                                onClick = {
-                                    viewModel.selectReciter(reciter)
-                                    Toast.makeText(
-                                        context,
-                                        "Reciter set to ${reciter.name}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                        }
-                        item {
-                            AudioExploreMoreAvatar(onClick = { openFullPlayer() })
-                        }
-                    }
-                }
-            }
-
-            // Recent Playlists
-            item {
-                AudioSectionTitle("Recent Playlists")
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    AudioPlaylistCard(playlists[0], Modifier.weight(1f))
-                    AudioPlaylistCard(playlists[1], Modifier.weight(1f))
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    AudioPlaylistCard(playlists[2], Modifier.weight(1f))
-                    AudioCreatePlaylistCard(
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            Toast.makeText(context, "Create playlist coming soon", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -271,7 +152,7 @@ private fun AudioTopBar(photoUrl: String, onMenu: () -> Unit, onProfile: () -> U
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(stitchSoftSurface())
-                .border(1.dp, StitchLine, CircleShape)
+                .border(1.dp, stitchLine(), CircleShape)
                 .clickable(onClick = onProfile),
             contentAlignment = Alignment.Center
         ) {
@@ -426,7 +307,7 @@ private fun AudioReciterAvatar(
         val ringBrush = if (selected) {
             Brush.linearGradient(listOf(StitchGold, StitchEmerald))
         } else {
-            Brush.linearGradient(listOf(StitchLine, StitchLine))
+            Brush.linearGradient(listOf(stitchLine(), stitchLine()))
         }
         Box(
             modifier = Modifier
@@ -485,7 +366,7 @@ private fun AudioExploreMoreAvatar(onClick: () -> Unit) {
                 .size(70.dp)
                 .clip(CircleShape)
                 .background(stitchSoftSurface())
-                .border(1.dp, StitchLine, CircleShape),
+                .border(1.dp, stitchLine(), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Search, contentDescription = "Explore more", tint = stitchMutedText())
@@ -604,12 +485,15 @@ fun StitchAudioHubEntryCard(onOpen: () -> Unit) {
             .clickable(onClick = onOpen)
             .padding(22.dp)
     ) {
-        Icon(
-            Icons.Default.QueueMusic,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.07f),
-            modifier = Modifier.size(140.dp).align(Alignment.CenterEnd)
-        )
+        // Decorative watermark sized to the card (no longer drives the card height / gets clipped).
+        Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+            Icon(
+                Icons.Default.QueueMusic,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.08f),
+                modifier = Modifier.size(76.dp)
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier.size(46.dp).clip(CircleShape).background(StitchGold),

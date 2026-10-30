@@ -1,0 +1,84 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Masjid pages (Remote Config masjid_pages_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste these blocks inside `match /databases/{database}/documents { ... }` in firestore.rules
+// (they use isModerator() / isOwner() from the base file), run
+// tools/rules-tests/masjid-pages-1.1.6.test.js against the emulator, then deploy rules.
+// Data: masjids/{id}                      public listing; created by moderators (admins/{uid})
+//       masjids/{id}/announcements/{aid}  posted by the masjid's approved managers
+//       masjid_claims/{masjidId_uid}      "I'm the imam / committee" requests, approved by moderators
+//       users/{uid}/followed_masjids/{id} the user's follows (also cached on device)
+// ─────────────────────────────────────────────────────────────────────────────
+    match /masjids/{masjidId} {
+      function timeOk(t) { return t is string && t.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
+      function jamaatOk(j) {
+        return j is map && j.keys().hasOnly(['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'])
+          && (!('Fajr' in j) || timeOk(j.Fajr)) && (!('Dhuhr' in j) || timeOk(j.Dhuhr)) && (!('Asr' in j) || timeOk(j.Asr))
+          && (!('Maghrib' in j) || timeOk(j.Maghrib)) && (!('Isha' in j) || timeOk(j.Isha));
+      }
+      function timesOk(d) {
+        return jamaatOk(d.jamaat) && (d.jummahTime == '' || timeOk(d.jummahTime))
+          && d.jummahBayan is string && d.jummahBayan.size() <= 140;
+      }
+      function listingOk(d) {
+        return d.keys().hasOnly(['name', 'address', 'city', 'lat', 'lng', 'jamaat', 'jummahTime', 'jummahBayan', 'adminUids', 'updatedAt'])
+          && d.keys().hasAll(['name', 'jamaat', 'jummahTime', 'jummahBayan', 'adminUids'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+          && (!('address' in d) || (d.address is string && d.address.size() <= 160))
+          && (!('city' in d) || (d.city is string && d.city.size() <= 60))
+          && (!('lat' in d) || d.lat is number) && (!('lng' in d) || d.lng is number)
+          && d.adminUids is list && d.adminUids.size() <= 10 && timesOk(d);
+      }
+      function manager() { return request.auth != null && request.auth.uid in resource.data.adminUids; }
+
+      // Masjid info is public (shareable, readable before sign-in).
+      allow read: if true;
+      allow create: if isModerator() && listingOk(request.resource.data);
+      allow update: if
+        (isModerator() && listingOk(request.resource.data))
+        // Approved imam / committee: only times, Jummah and bayan topic.
+        || (manager()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['jamaat', 'jummahTime', 'jummahBayan', 'updatedAt'])
+          && timesOk(request.resource.data) && request.resource.data.updatedAt == request.time);
+      allow delete: if isModerator();
+
+      match /announcements/{aid} {
+        function canPost() {
+          return isModerator() || (request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/masjids/$(masjidId)).data.adminUids);
+        }
+        allow read: if true;
+        allow create: if canPost()
+          && request.resource.data.keys().hasOnly(['text', 'by', 'at'])
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+        allow update: if false;
+        allow delete: if canPost();
+      }
+    }
+
+    match /masjid_claims/{claimId} {
+      function claimOk(d) {
+        return d.keys().hasOnly(['masjidId', 'masjidName', 'uid', 'name', 'role', 'contact', 'note', 'status', 'at'])
+          && d.uid == request.auth.uid && claimId == d.masjidId + '_' + request.auth.uid
+          && exists(/databases/$(database)/documents/masjids/$(d.masjidId))
+          && d.masjidName is string && d.masjidName.size() <= 80
+          && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+          && d.role in ['Imam', 'Committee member', 'Volunteer admin']
+          && d.contact is string && d.contact.size() >= 5 && d.contact.size() <= 120
+          && d.note is string && d.note.size() <= 500
+          && d.status == 'pending' && d.at == request.time;
+      }
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow create: if request.auth != null && claimOk(request.resource.data);
+      // Re-apply after a decline.
+      allow update: if (request.auth != null && resource.data.uid == request.auth.uid && resource.data.status == 'rejected' && claimOk(request.resource.data))
+        // Moderator decision (approval also adds the uid to masjids/{id}.adminUids in the same batch).
+        || (isModerator()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedAt'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.decidedBy == request.auth.uid && request.resource.data.decidedAt == request.time);
+      // Withdraw your own pending request.
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid && resource.data.status == 'pending';
+    }
+
+    // users/{uid}/followed_masjids/{id} needs no new rule: the base users/{userId}/{document=**} owner rule covers it.

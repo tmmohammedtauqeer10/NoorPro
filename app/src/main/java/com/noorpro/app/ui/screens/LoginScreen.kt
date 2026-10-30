@@ -38,6 +38,11 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.ui.text.style.TextDecoration
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -56,18 +61,11 @@ fun LoginScreen(viewModel: DeenViewModel) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var googleErrorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var acceptedTerms by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
-    val spiritualSurface = Color(0xFFF4FAFD)
-    val sacredGreen = Color(0xFF0F4D32)
-    val sacredGreenDark = Color(0xFF0B3E28)
-    val sacredGold = Color(0xFFFED65B)
-    val sacredGoldDim = Color(0xFFE9C349)
-    val sacredText = Color(0xFF161D1F)
-    val sacredMuted = Color(0xFF707972)
-    val sacredLine = Color(0xFFC0C9C0)
 
     fun finishGoogleSignIn(idToken: String?, fallbackEmail: String?, fallbackName: String?) {
         if (idToken.isNullOrBlank()) {
@@ -137,125 +135,24 @@ fun LoginScreen(viewModel: DeenViewModel) {
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(spiritualSurface)
-    ) {
-        AuthStarPattern(
-            tint = sacredGreen.copy(alpha = 0.035f),
-            modifier = Modifier.fillMaxSize()
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 34.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(42.dp))
-
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "Noor Pro",
-                tint = sacredGold,
-                modifier = Modifier
-                    .size(76.dp)
-                    .padding(bottom = 14.dp)
-            )
-
-            Text(
-                text = if (isRegistering) "Create Your Account" else "Begin Your Journey",
-                color = sacredGoldDim,
-                fontSize = 34.sp,
-                lineHeight = 40.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = if (isRegistering) "Sign up to save your progress and join the ummah" else "Sign in to continue your journey",
-                color = sacredMuted,
-                fontSize = 18.sp,
-                lineHeight = 25.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp, bottom = 34.dp)
-            )
-
-            if (isRegistering) {
-                SpiritualAuthField(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = "Full Name",
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    sacredGreen = sacredGreen,
-                    sacredGold = sacredGold,
-                    sacredMuted = sacredMuted,
-                    modifier = Modifier.padding(bottom = 14.dp)
-                )
-            }
-
-            SpiritualAuthField(
-                value = email,
-                onValueChange = { email = it; errorMessage = null },
-                placeholder = "Email Address",
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                sacredGreen = sacredGreen,
-                sacredGold = sacredGold,
-                sacredMuted = sacredMuted,
-                modifier = Modifier.padding(bottom = 14.dp)
-            )
-
-            SpiritualAuthField(
-                value = password,
-                onValueChange = { password = it; errorMessage = null },
-                placeholder = "Password",
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                trailingIcon = {
-                    val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(imageVector = icon, contentDescription = "Toggle password visibility")
-                    }
-                },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                sacredGreen = sacredGreen,
-                sacredGold = sacredGold,
-                sacredMuted = sacredMuted,
-                modifier = Modifier.padding(bottom = 20.dp)
-            )
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage ?: "",
-                    color = Color(0xFFBA1A1A),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 14.dp),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Button(
-                onClick = {
+    fun submitEmail() {
                     googleErrorMessage = null
                     val normalizedEmail = email.trim()
                     if (normalizedEmail.isBlank() || password.isBlank() || (isRegistering && name.isBlank())) {
                         errorMessage = "Please fill in all fields."
-                        return@Button
+                        return
                     }
                     if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
                         errorMessage = "Enter a valid email address."
-                        return@Button
+                        return
+                    }
+                    if (isRegistering && !acceptedTerms) {
+                        errorMessage = "Please accept the Terms of Service to create an account."
+                        return
                     }
                     if (password.length < 6) {
                         errorMessage = "Password must contain at least 6 characters."
-                        return@Button
+                        return
                     }
                     isLoading = true
                     errorMessage = null
@@ -290,75 +187,17 @@ fun LoginScreen(viewModel: DeenViewModel) {
                         isLoading = false
                         errorMessage = "Authentication is not configured for this build. Continue as a guest."
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                enabled = !isLoading
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xFFFFDE72), sacredGoldDim)
-                            ),
-                            RoundedCornerShape(18.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = Color(0xFF574500), modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
-                    } else {
-                        Text(
-                            text = if (isRegistering) "Create Account" else "Sign In",
-                            color = Color(0xFF574500),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp
-                        )
-                    }
-                }
-            }
+    }
 
-            Spacer(modifier = Modifier.height(22.dp))
-            Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = if (isRegistering) "Already have an account? " else "Don't have an account? ",
-                    color = sacredMuted,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = if (isRegistering) "Sign In" else "Sign Up",
-                    color = sacredGoldDim,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable {
-                        isRegistering = !isRegistering
-                        errorMessage = null
-                        googleErrorMessage = null
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Forgot password?",
-                color = sacredText,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable {
+    fun forgotPassword() {
                     if (isRegistering) {
                         isRegistering = false
-                        return@clickable
+                        return
                     }
                     val normalizedEmail = email.trim()
                     if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
                         errorMessage = "Enter your email address first."
-                        return@clickable
+                        return
                     }
                     isLoading = true
                     errorMessage = null
@@ -372,90 +211,19 @@ fun LoginScreen(viewModel: DeenViewModel) {
                             }
                         isLoading = false
                     }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = sacredLine.copy(alpha = 0.55f))
-                Text(
-                    text = "OR CONTINUE WITH",
-                    color = sacredMuted.copy(alpha = 0.74f),
-                    fontSize = 13.sp,
-                    letterSpacing = 3.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 14.dp)
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = sacredLine.copy(alpha = 0.55f))
-            }
-
-            Spacer(modifier = Modifier.height(30.dp))
-
-            Text(
-                text = "Use your Google account without entering a password above.",
-                color = sacredMuted,
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-            )
-
-            Button(
-                onClick = {
-                    launchGoogleSignIn()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = sacredGreen, contentColor = Color.White),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                enabled = !isLoading
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text(
-                        text = "G",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 22.sp,
-                        color = sacredGold,
-                        modifier = Modifier.padding(end = 14.dp)
-                    )
-                    Text(
-                        "Continue with Google",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-
-            googleErrorMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = Color(0xFFBA1A1A),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(56.dp))
-
-            Text(
-                text = "Explore as a Guest",
-                color = sacredGoldDim,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable {
-                    viewModel.handleLogout()
-                    viewModel.navigateTo(DeenScreen.DASHBOARD)
-                }
-            )
-            Spacer(modifier = Modifier.height(28.dp))
-        }
     }
+
+    AuthContent(
+        isRegistering = isRegistering, name = name, email = email, password = password,
+        passwordVisible = passwordVisible, acceptedTerms = acceptedTerms, isLoading = isLoading,
+        errorMessage = errorMessage, googleErrorMessage = googleErrorMessage,
+        onName = { name = it }, onEmail = { email = it; errorMessage = null }, onPassword = { password = it; errorMessage = null },
+        onTogglePassword = { passwordVisible = !passwordVisible }, onAcceptTerms = { acceptedTerms = it; errorMessage = null },
+        onSubmit = { submitEmail() }, onForgot = { forgotPassword() }, onGoogle = { launchGoogleSignIn() },
+        onToggleMode = { isRegistering = !isRegistering; errorMessage = null; googleErrorMessage = null },
+        onGuest = { viewModel.handleLogout(); viewModel.navigateTo(DeenScreen.DASHBOARD) },
+        onTerms = { UgcTerms.openUrl(context, UgcTerms.TERMS_URL) }, onPrivacy = { UgcTerms.openUrl(context, UgcTerms.PRIVACY_URL) },
+    )
 }
 
 private fun friendlyEmailAuthError(exception: Exception?, registering: Boolean): String {
@@ -497,96 +265,158 @@ internal fun friendlyGoogleAuthError(exception: Exception?): String {
     }
 }
 
+
+
+/** Stateless sign-in / sign-up layout (auth logic lives in [LoginScreen]). */
 @Composable
-private fun AuthStarPattern(
-    tint: Color,
-    modifier: Modifier = Modifier
+fun AuthContent(
+    isRegistering: Boolean, name: String, email: String, password: String,
+    passwordVisible: Boolean, acceptedTerms: Boolean, isLoading: Boolean,
+    errorMessage: String?, googleErrorMessage: String?,
+    onName: (String) -> Unit, onEmail: (String) -> Unit, onPassword: (String) -> Unit,
+    onTogglePassword: () -> Unit, onAcceptTerms: (Boolean) -> Unit,
+    onSubmit: () -> Unit, onForgot: () -> Unit, onGoogle: () -> Unit,
+    onToggleMode: () -> Unit, onGuest: () -> Unit, onTerms: () -> Unit, onPrivacy: () -> Unit,
 ) {
-    Box(modifier = modifier) {
-        val positions = listOf(
-            0.14f to 0.10f,
-            0.50f to 0.12f,
-            0.86f to 0.10f,
-            0.25f to 0.32f,
-            0.72f to 0.34f,
-            0.12f to 0.58f,
-            0.52f to 0.62f,
-            0.88f to 0.58f,
-            0.30f to 0.84f,
-            0.76f to 0.86f
-        )
-        positions.forEach { (x, y) ->
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = (360 * x).dp, top = (760 * y).dp)
-                    .size(54.dp)
-            )
+    val scheme = MaterialTheme.colorScheme
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = scheme.surface, unfocusedContainerColor = scheme.surface,
+        focusedBorderColor = scheme.primary, unfocusedBorderColor = scheme.outlineVariant,
+        focusedLeadingIconColor = scheme.primary, unfocusedLeadingIconColor = scheme.onSurfaceVariant,
+    )
+    Box(Modifier.fillMaxSize().background(scheme.background)) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
+                .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(Modifier.height(36.dp))
+                NoorBrandMark(76.dp)
+                Spacer(Modifier.height(20.dp))
+                androidx.compose.animation.AnimatedContent(isRegistering, label = "title") { reg ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            if (reg) "Create your account" else "Welcome back", color = scheme.onBackground,
+                            fontSize = 30.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (reg) "Save your progress and join the ummah." else "Sign in to sync your progress, bookmarks and reels.",
+                            color = scheme.onSurfaceVariant, fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+
+                Button(
+                    onClick = onGoogle, enabled = !isLoading, shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Box(Modifier.size(26.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                        Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text("Continue with Google", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                googleErrorMessage?.let { InlineMessage(it, isError = true) }
+                Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+                    HorizontalDivider(Modifier.weight(1f), color = scheme.outlineVariant)
+                    Text("or continue with email", color = scheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                    HorizontalDivider(Modifier.weight(1f), color = scheme.outlineVariant)
+                }
+
+                androidx.compose.animation.AnimatedVisibility(isRegistering) {
+                    OutlinedTextField(
+                        value = name, onValueChange = onName, label = { Text("Full name") }, singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Person, null) }, shape = RoundedCornerShape(16.dp), colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    )
+                }
+                OutlinedTextField(
+                    value = email, onValueChange = onEmail, label = { Text("Email") }, singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Email, null) }, shape = RoundedCornerShape(16.dp), colors = fieldColors,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = androidx.compose.ui.text.input.ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                )
+                OutlinedTextField(
+                    value = password, onValueChange = onPassword, label = { Text("Password") }, singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Lock, null) },
+                    trailingIcon = {
+                        IconButton(onClick = onTogglePassword) {
+                            Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                if (passwordVisible) "Hide password" else "Show password")
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { focus.clearFocus(); onSubmit() }),
+                    supportingText = if (isRegistering) { { Text("At least 6 characters") } } else null,
+                    shape = RoundedCornerShape(16.dp), colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!isRegistering) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                        TextButton(onClick = onForgot, enabled = !isLoading) { Text("Forgot password?", fontWeight = FontWeight.SemiBold) }
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                        Checkbox(checked = acceptedTerms, onCheckedChange = onAcceptTerms)
+                        Text(
+                            "I agree to the Terms of Service and community rules (no objectionable content; reports reviewed within 24 hours).",
+                            color = scheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp
+                        )
+                    }
+                }
+                errorMessage?.let { InlineMessage(it, isError = !it.startsWith("Password reset email sent")) }
+                Spacer(Modifier.height(12.dp))
+                FilledTonalButton(
+                    onClick = { focus.clearFocus(); onSubmit() }, enabled = !isLoading, shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                ) {
+                    if (isLoading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
+                    else Text(if (isRegistering) "Create account" else "Sign in", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isRegistering) "Already have an account?" else "New to Noor Pro?", color = scheme.onSurfaceVariant, fontSize = 14.sp)
+                    TextButton(onClick = onToggleMode) { Text(if (isRegistering) "Sign in" else "Create account", fontWeight = FontWeight.Bold) }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onGuest, enabled = !isLoading, shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outline),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Icon(Icons.Default.Explore, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Continue as guest", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Text("By continuing you agree to our ", color = scheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text("Terms", color = scheme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onTerms))
+                    Text(" and ", color = scheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text("Privacy Policy", color = scheme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onPrivacy))
+                }
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun SpiritualAuthField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    leadingIcon: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-    trailingIcon: @Composable (() -> Unit)? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    sacredGreen: Color,
-    sacredGold: Color,
-    sacredMuted: Color
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = {
-            Text(
-                placeholder,
-                color = sacredMuted.copy(alpha = 0.9f),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium
-            )
-        },
-        leadingIcon = {
-            CompositionLocalProvider(LocalContentColor provides sacredGold) {
-                leadingIcon()
-            }
-        },
-        trailingIcon = trailingIcon?.let {
-            {
-                CompositionLocalProvider(LocalContentColor provides sacredMuted.copy(alpha = 0.92f)) {
-                    it()
-                }
-            }
-        },
-        visualTransformation = visualTransformation,
-        keyboardOptions = keyboardOptions,
-        singleLine = true,
-        shape = RoundedCornerShape(18.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = sacredGold,
-            unfocusedBorderColor = Color.White.copy(alpha = 0.24f),
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            cursorColor = sacredGold,
-            focusedContainerColor = sacredGreen,
-            unfocusedContainerColor = sacredGreen,
-            focusedPlaceholderColor = sacredMuted,
-            unfocusedPlaceholderColor = sacredMuted,
-            focusedLeadingIconColor = sacredGold,
-            unfocusedLeadingIconColor = sacredGold,
-            focusedTrailingIconColor = sacredMuted,
-            unfocusedTrailingIconColor = sacredMuted
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-    )
+private fun InlineMessage(text: String, isError: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (isError) scheme.errorContainer else scheme.primary.copy(alpha = 0.12f)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(if (isError) Icons.Default.ErrorOutline else Icons.Default.CheckCircle, null,
+            tint = if (isError) scheme.onErrorContainer else scheme.primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = if (isError) scheme.onErrorContainer else scheme.onSurface, fontSize = 13.sp, lineHeight = 18.sp)
+    }
 }

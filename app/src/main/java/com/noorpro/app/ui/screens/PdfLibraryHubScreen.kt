@@ -3,6 +3,7 @@ package com.noorpro.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,7 +66,11 @@ fun PdfLibraryHubScreen(viewModel: DeenViewModel) {
                 if (isLoading) {
                     CircularProgressIndicator(color = MatteGold, modifier = Modifier.align(Alignment.Center))
                 } else if (errorMessage != null) {
-                    Text(errorMessage ?: "Error", color = Color.Red, modifier = Modifier.align(Alignment.Center).padding(16.dp))
+                    androidx.compose.foundation.layout.Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                        androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
+                        Text(errorMessage ?: "Error", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),

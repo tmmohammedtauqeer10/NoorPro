@@ -1,5 +1,7 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
+import androidx.compose.material3.MaterialTheme
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -79,8 +81,9 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
-    val auth = remember { FirebaseAuth.getInstance() }
-    val currentUid = auth.currentUser?.uid.orEmpty()
+    // Lazy: only touch FirebaseAuth when the user actually switches/signs out (screen must render without Firebase).
+    val auth by remember { lazy { FirebaseAuth.getInstance() } }
+    val currentUid = com.noorpro.app.data.FirebaseGate.currentUser?.uid.orEmpty()
     val accounts = viewModel.savedAuthAccounts
     var switchingUid by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -207,7 +210,7 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
                         .background(stitchSoftSurface())
-                        .border(1.dp, StitchLine.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                        .border(1.dp, stitchLine().copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                         .padding(18.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -239,13 +242,13 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
                 item {
                     Text(
                         error.orEmpty(),
-                        color = Color(0xFFBA1A1A),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFFFDAD6))
+                            .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(14.dp)
                     )
                 }
@@ -257,7 +260,7 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White)
+                            .background(MaterialTheme.colorScheme.surface)
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -320,7 +323,7 @@ fun AccountSwitcherScreen(viewModel: DeenViewModel) {
                         removeTarget = null
                     }
                 ) {
-                    Text("Remove", color = Color(0xFFBA1A1A), fontWeight = FontWeight.Bold)
+                    Text("Remove", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -344,10 +347,10 @@ private fun AccountSwitcherRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .border(
                 1.dp,
-                if (isCurrent) stitchPrimary().copy(alpha = 0.45f) else StitchLine.copy(alpha = 0.65f),
+                if (isCurrent) stitchPrimary().copy(alpha = 0.45f) else stitchLine().copy(alpha = 0.65f),
                 RoundedCornerShape(22.dp)
             )
             .clickable(onClick = onSelect)
@@ -423,7 +426,7 @@ private fun AccountSwitcherRow(
                 TextButton(onClick = onRemove, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFBA1A1A), modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("Remove", color = Color(0xFFBA1A1A), fontSize = 11.sp)
+                    Text("Remove", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 11.sp)
                 }
             }
         }

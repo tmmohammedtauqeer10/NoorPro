@@ -10,4 +10,8 @@ enum class LicenseType {
     CC_BY,
     CC_BY_SA,
     PERMISSION_LETTER,
+    /** Source's published terms explicitly allow free streaming in apps (e.g. Islamic Network CDN). */
+    SOURCE_TERMS,
+    /** Public podcast RSS feed, streamed from the publisher's enclosure URL (never rehosted). */
+    PUBLISHER_RSS,
 }

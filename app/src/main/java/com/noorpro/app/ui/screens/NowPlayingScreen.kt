@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -473,7 +475,12 @@ fun NowPlayingScreen(
     val darkSlateBlue = if (isLight) Color(0xFFFFFFFF) else Color(0xFF152243) // dropdown surface
     val mutedSilver = if (isLight) Color(0xFF8A7079) else Color(0xFFB0B0B0)
     val textPrimary = if (isLight) Color(0xFF241019) else Color.White
-    val pageTop = if (isLight) Color(0xFFFFFFFF) else Color(0xFF152243)
+    val basePageTop = if (isLight) Color(0xFFFFFFFF) else Color(0xFF152243)
+    val npTint = coverColor(selectedSurah?.id ?: (currentAudioTrack?.title?.hashCode() ?: 0))
+    val pageTop by androidx.compose.animation.animateColorAsState(
+        androidx.compose.ui.graphics.lerp(basePageTop, npTint, if (isLight) 0.22f else 0.45f),
+        androidx.compose.animation.core.tween(700), label = "npTint"
+    )
     val pageBottom = if (isLight) Color(0xFFFCEDF2) else Color(0xFF0B132B)
     val selectorSurface = if (isLight) Color(0xFFFBF1F4) else Color(0xFF152243).copy(alpha = 0.6f)
     val chipActive = if (isLight) Color(0xFFF6DCE7) else Color(0xFF1E2F54)
@@ -528,6 +535,33 @@ fun NowPlayingScreen(
                 
                 Spacer(modifier = Modifier.weight(1f))
                 
+                // Sleep timer (1.0.80)
+                val sleepEndsAt by viewModel.sleepTimerEndsAt.collectAsState()
+                Box {
+                    var sleepOpen by remember { mutableStateOf(false) }
+                    IconButton(onClick = { sleepOpen = true }, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Default.Bedtime, contentDescription = "Sleep timer",
+                            tint = if (sleepEndsAt != null) metallicGold else mutedSilver)
+                    }
+                    DropdownMenu(expanded = sleepOpen, onDismissRequest = { sleepOpen = false }, modifier = Modifier.background(darkSlateBlue)) {
+                        listOf(15, 30, 45, 60).forEach { m ->
+                            DropdownMenuItem(text = { Text("$m minutes", color = textPrimary) }, onClick = { viewModel.setSleepTimer(m); sleepOpen = false })
+                        }
+                        if (sleepEndsAt != null) DropdownMenuItem(text = { Text("Turn off timer", color = metallicGold) }, onClick = { viewModel.setSleepTimer(null); sleepOpen = false })
+                    }
+                }
+                val shareCtx = androidx.compose.ui.platform.LocalContext.current
+                IconButton(onClick = {
+                    val title = currentAudioTrack?.title ?: selectedSurah?.let { "Surah ${it.nameEnglish} (${it.nameArabic})" } ?: "Al-Noor Audio"
+                    val by = if (currentAudioTrack != null) currentAudioTrack?.artist.orEmpty() else selectedReciter.name
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, "Listening to $title${if (by.isNotBlank()) " — $by" else ""} on Noor Pro")
+                    }
+                    runCatching { shareCtx.startActivity(android.content.Intent.createChooser(send, "Share")) }
+                }, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Default.Share, contentDescription = "Share", tint = mutedSilver)
+                }
                 // Playback Speed Selector (Always available in top corner)
                 val currentSpeed by viewModel.audioPlaybackSpeed.collectAsState()
                 val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)

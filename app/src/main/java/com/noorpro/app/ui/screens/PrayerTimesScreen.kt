@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -138,6 +139,16 @@ fun PrayerTimesScreen(
                 Text(todayHijri.ifBlank { todayGregorian }, color = stitchMutedText(), fontSize = 15.sp)
             }
 
+            // 1.1.6 Masjid pages: the followed masjid's jamaat times (flag-gated, cached locally so it works offline).
+            if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val followedMasjid by com.noorpro.app.islamic.masjid.FollowedMasjid.flow(ctx).collectAsState()
+                followedMasjid?.takeIf { it.jamaat.isNotEmpty() || it.jummahTime.isNotBlank() }?.let { m ->
+                    Spacer(modifier = Modifier.height(14.dp))
+                    com.noorpro.app.ui.islamic.FollowedMasjidJamaatCard(m, onOpen = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.MASJID_PAGES) })
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // 3. Vertical Timeline
@@ -147,6 +158,7 @@ fun PrayerTimesScreen(
                     .weight(1f)
             ) {
                 // Draw continuous line for vertical timeline
+                val timelineColor = stitchLine()
                 Canvas(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -154,7 +166,7 @@ fun PrayerTimesScreen(
                         .padding(vertical = 24.dp)
                 ) {
                     drawLine(
-                        color = StitchLine,
+                        color = timelineColor,
                         start = Offset(22.dp.toPx(), 0.0f),
                         end = Offset(22.dp.toPx(), size.height),
                         strokeWidth = 2.dp.toPx(),
@@ -219,7 +231,7 @@ fun PrayerTimesRowItem(
         label = "prayerGlyphBg",
     )
     val glyphBorder by animateColorAsState(
-        targetValue = if (isActive) StitchEmerald else StitchLine,
+        targetValue = if (isActive) StitchEmerald else stitchLine(),
         animationSpec = tween(380),
         label = "prayerGlyphBorder",
     )
@@ -287,7 +299,7 @@ fun PrayerTimesRowItem(
                 .clip(RoundedCornerShape(18.dp))
                 .background(cardBg)
                 .then(
-                    if (!isActive) Modifier.border(1.dp, StitchLine, RoundedCornerShape(18.dp))
+                    if (!isActive) Modifier.border(1.dp, if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.outlineVariant else StitchLine, RoundedCornerShape(18.dp))
                     else Modifier
                 )
         ) {

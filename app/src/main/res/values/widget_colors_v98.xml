@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98 home-screen widgets: NoorPro green / cream palette (light). -->
+<resources>
+    <color name="widget_green">#FF0B6243</color>
+    <color name="widget_green_deep">#FF084F36</color>
+    <color name="widget_on_green">#FFFDF9F0</color>
+    <color name="widget_on_green_muted">#C7FDF9F0</color>
+    <color name="widget_card_bg">#FFFDFCF8</color>
+    <color name="widget_card_stroke">#FFD5E6DA</color>
+    <color name="widget_ink">#FF0F1A15</color>
+    <color name="widget_ink_muted">#FF5C6A63</color>
+    <color name="widget_accent_text">#FF0B6243</color>
+    <color name="widget_mint_bg">#FFE5F2E9</color>
+    <color name="widget_mint_stroke">#FFCFE5D6</color>
+    <color name="widget_mint_pill">#FFDDEFE3</color>
+    <color name="widget_divider">#FFE2EAE5</color>
+    <color name="widget_pill_button">#FFFFFFFF</color>
+    <color name="widget_pill_button_text">#FF0B6243</color>
+    <color name="widget_progress_track">#40FDF9F0</color>
+</resources>

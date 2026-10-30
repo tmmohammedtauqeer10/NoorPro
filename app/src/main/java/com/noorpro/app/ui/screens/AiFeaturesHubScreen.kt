@@ -1,413 +1,393 @@
 package com.noorpro.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Mosque
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import android.app.Activity
+import android.content.Context
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.AnnotatedString
 import com.noorpro.app.data.AiFeatureService
 import com.noorpro.app.data.NoorAiMessage
 import com.noorpro.app.data.NoorAiMode
-import com.noorpro.app.ui.theme.GlassBorder
-import com.noorpro.app.ui.theme.GlassOverlay
-import com.noorpro.app.ui.theme.MatteGold
-import com.noorpro.app.ui.theme.TextPrimary
-import com.noorpro.app.ui.theme.TextSecondary
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** One chat bubble. feedback: 1 = helpful, -1 = not helpful, 0 = none (stored locally only). */
+data class NoorAiChatItem(
+    val text: String,
+    val isUser: Boolean,
+    val time: Long = System.currentTimeMillis(),
+    val feedback: Int = 0,
+    val id: Long = System.nanoTime(),
+)
+
+/** A saved Noor AI conversation (local only). */
+data class NoorAiConversation(
+    val id: Long, val mode: NoorAiMode, val title: String, val updated: Long,
+    /** 1.1.4: pinned chats stay on top; customTitle = renamed by the user (not overwritten by auto-title). */
+    val pinned: Boolean = false, val customTitle: Boolean = false,
+)
+
+/** Local-only chat history (SharedPreferences): many conversations, each with its own messages. */
+internal object NoorAiChatStore {
+    private const val PREFS = "noor_ai_chat"
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private fun parseItems(json: String?): List<NoorAiChatItem> = runCatching {
+        val arr = JSONArray(json ?: "[]")
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            NoorAiChatItem(o.getString("t"), o.getBoolean("u"), o.optLong("ts"), o.optInt("f"), o.optLong("id", i.toLong()))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun itemsJson(items: List<NoorAiChatItem>): String {
+        val arr = JSONArray()
+        items.takeLast(80).forEach { arr.put(JSONObject().put("t", it.text).put("u", it.isUser).put("ts", it.time).put("f", it.feedback).put("id", it.id)) }
+        return arr.toString()
+    }
+
+    /** One-time move of the old per-mode history into conversations. */
+    private fun migrate(ctx: Context) {
+        val p = prefs(ctx)
+        if (p.getBoolean("migrated_v79", false)) return
+        val convs = JSONArray()
+        NoorAiMode.values().forEach { m ->
+            val items = parseItems(p.getString("h_${m.name}", null))
+            if (items.isNotEmpty()) {
+                val id = items.first().time.takeIf { it > 0 } ?: System.currentTimeMillis()
+                p.edit().putString("c_$id", itemsJson(items)).putLong("cur_${m.name}", id).apply()
+                convs.put(JSONObject().put("id", id).put("m", m.name).put("t", titleOf(items)).put("u", items.last().time))
+            }
+        }
+        p.edit().putString("convs", convs.toString()).putBoolean("migrated_v79", true).apply()
+    }
+
+    fun titleOf(items: List<NoorAiChatItem>): String =
+        items.firstOrNull { it.isUser }?.text?.replace("\n", " ")?.trim()?.let { if (it.length > 48) it.take(47) + "…" else it } ?: "New chat"
+
+    fun conversations(ctx: Context): List<NoorAiConversation> {
+        migrate(ctx)
+        return runCatching {
+            val arr = JSONArray(prefs(ctx).getString("convs", "[]"))
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val mode = runCatching { NoorAiMode.valueOf(o.getString("m")) }.getOrNull() ?: return@mapNotNull null
+                NoorAiConversation(o.getLong("id"), mode, o.optString("t", "New chat"), o.optLong("u"), o.optBoolean("p"), o.optBoolean("ct"))
+            }.sortedWith(compareByDescending<NoorAiConversation> { it.pinned }.thenByDescending { it.updated })
+        }.getOrDefault(emptyList())
+    }
+
+    private fun writeConvs(ctx: Context, list: List<NoorAiConversation>) {
+        val arr = JSONArray()
+        list.sortedWith(compareByDescending<NoorAiConversation> { it.pinned }.thenByDescending { it.updated }).take(100)
+            .forEach { arr.put(JSONObject().put("id", it.id).put("m", it.mode.name).put("t", it.title).put("u", it.updated).put("p", it.pinned).put("ct", it.customTitle)) }
+        prefs(ctx).edit().putString("convs", arr.toString()).apply()
+    }
+
+    fun currentId(ctx: Context, mode: NoorAiMode): Long? { migrate(ctx); return prefs(ctx).getLong("cur_${mode.name}", 0L).takeIf { it != 0L } }
+    fun setCurrent(ctx: Context, mode: NoorAiMode, id: Long?) = prefs(ctx).edit().putLong("cur_${mode.name}", id ?: 0L).apply()
+
+    fun load(ctx: Context, id: Long?): List<NoorAiChatItem> = if (id == null) emptyList() else parseItems(prefs(ctx).getString("c_$id", null))
+
+    /** Saves messages; creates the conversation entry the first time it has content. */
+    fun save(ctx: Context, mode: NoorAiMode, id: Long, items: List<NoorAiChatItem>) {
+        prefs(ctx).edit().putString("c_$id", itemsJson(items)).apply()
+        val all = conversations(ctx)
+        val old = all.firstOrNull { it.id == id }
+        val rest = all.filterNot { it.id == id }
+        if (items.isEmpty()) { writeConvs(ctx, rest); return }
+        val title = if (old?.customTitle == true) old.title else titleOf(items)
+        writeConvs(ctx, rest + NoorAiConversation(id, mode, title, System.currentTimeMillis(), old?.pinned ?: false, old?.customTitle ?: false))
+        setCurrent(ctx, mode, id)
+    }
+
+    fun delete(ctx: Context, id: Long) {
+        prefs(ctx).edit().remove("c_$id").apply()
+        writeConvs(ctx, conversations(ctx).filterNot { it.id == id })
+        NoorAiMode.values().forEach { if (currentId(ctx, it) == id) setCurrent(ctx, it, null) }
+    }
+
+    fun rename(ctx: Context, id: Long, title: String) {
+        val clean = title.replace("\n", " ").trim().take(60)
+        writeConvs(ctx, conversations(ctx).map { if (it.id == id) (if (clean.isBlank()) it.copy(title = titleOf(load(ctx, id)), customTitle = false) else it.copy(title = clean, customTitle = true)) else it })
+    }
+
+    fun setPinned(ctx: Context, id: Long, pinned: Boolean) =
+        writeConvs(ctx, conversations(ctx).map { if (it.id == id) it.copy(pinned = pinned) else it })
+
+    /** Title or message text match (case-insensitive); pinned first, then newest. */
+    fun search(ctx: Context, query: String): List<NoorAiConversation> {
+        val q = query.trim()
+        val all = conversations(ctx)
+        if (q.isEmpty()) return all
+        return all.filter { c -> c.title.contains(q, true) || load(ctx, c.id).any { it.text.contains(q, true) } }
+    }
+
+    fun autoRead(ctx: Context) = prefs(ctx).getBoolean("auto_read", false)
+    fun setAutoRead(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("auto_read", on).apply()
+    fun voiceLanguage(ctx: Context): String = prefs(ctx).getString("voice_lang", null) ?: language(ctx).takeIf { l -> NOOR_VOICE_LANGUAGES.any { it.first == l } } ?: "en"
+    fun setVoiceLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("voice_lang", code).apply()
+
+    fun language(ctx: Context): String = prefs(ctx).getString("lang", "en") ?: "en"
+    fun setLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("lang", code).apply()
+
+    fun tipDismissed(ctx: Context) = prefs(ctx).getBoolean("tip_dismissed", false)
+    fun dismissTip(ctx: Context) = prefs(ctx).edit().putBoolean("tip_dismissed", true).apply()
+}
+
+/** Answer languages offered in Noor AI (roadmap: Urdu, Hindi, Bengali answers). */
+internal val NOOR_AI_LANGUAGES = listOf("en" to "English", "ur" to "اردو Urdu", "hi" to "हिन्दी Hindi", "bn" to "বাংলা Bengali", "ar" to "العربية Arabic")
+internal fun speechTag(code: String) = when (code) { "ur" -> "ur-PK"; "hi" -> "hi-IN"; "bn" -> "bn-BD"; "ar" -> "ar-SA"; else -> "en-IN" }
+
+/** Daily Islamic tip, rotated by day of year (bundled, offline). */
+data class NoorDailyTip(val text: String, val ref: String)
+internal val NOOR_DAILY_TIPS = listOf(
+    NoorDailyTip("Actions are judged by intentions — renew your niyyah before work, study and sleep.", "Sahih al-Bukhari 1"),
+    NoorDailyTip("Smiling at your brother is charity.", "Jami at-Tirmidhi 1956"),
+    NoorDailyTip("The most beloved deeds to Allah are those done consistently, even if small.", "Sahih al-Bukhari 6464"),
+    NoorDailyTip("Say SubhanAllahi wa bihamdihi 100 times; your sins are forgiven even if like the foam of the sea.", "Sahih al-Bukhari 6405"),
+    NoorDailyTip("Verily, with hardship comes ease.", "Qur'an 94:6"),
+    NoorDailyTip("Whoever believes in Allah and the Last Day, let him speak good or remain silent.", "Sahih al-Bukhari 6018"),
+    NoorDailyTip("Recite Ayat al-Kursi after every fard salah.", "Sunan an-Nasa'i al-Kubra 9928"),
+    NoorDailyTip("Remember Me; I will remember you.", "Qur'an 2:152"),
+    NoorDailyTip("None of you truly believes until he loves for his brother what he loves for himself.", "Sahih al-Bukhari 13"),
+    NoorDailyTip("Read Surah al-Kahf on Friday; it gives light between the two Fridays.", "Al-Mustadrak 3392"),
+    NoorDailyTip("The strong one is not the wrestler, but the one who controls himself when angry.", "Sahih al-Bukhari 6114"),
+    NoorDailyTip("Allah does not burden a soul beyond what it can bear.", "Qur'an 2:286"),
+    NoorDailyTip("Two blessings many people lose: health and free time.", "Sahih al-Bukhari 6412"),
+    NoorDailyTip("Make your tongue moist with the remembrance of Allah.", "Jami at-Tirmidhi 3375"),
+)
+internal fun noorDailyTip(dayOfYear: Int = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)) =
+    NOOR_DAILY_TIPS[Math.floorMod(dayOfYear, NOOR_DAILY_TIPS.size)]
 
 @Composable
 fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
-    val screenBrush = if (isLightTheme) {
-        Brush.verticalGradient(listOf(Color(0xFFFFF7FB), Color(0xFFFFFCFA), Color(0xFFFFF2EC)))
-    } else {
-        Brush.verticalGradient(listOf(Color(0xFF07110F), Color(0xFF0B1713), Color(0xFF101B18)))
-    }
+    val clipboard = LocalClipboardManager.current
 
-    var selectedMode by remember { mutableStateOf(NoorAiMode.AskNoor) }
+    var mode by remember { mutableStateOf(NoorAiMode.AskNoor) }
+    var convId by remember { mutableStateOf(NoorAiChatStore.currentId(context, NoorAiMode.AskNoor) ?: System.currentTimeMillis()) }
+    var messages by remember { mutableStateOf(NoorAiChatStore.load(context, convId)) }
+    var conversations by remember { mutableStateOf(NoorAiChatStore.conversations(context)) }
+    var language by remember { mutableStateOf(NoorAiChatStore.language(context)) }
     var input by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
-    var messages by remember {
-        mutableStateOf(
-            listOf(
-                NoorAiMessage(
-                    text = "Assalamu alaikum. I am Noor AI. Ask me for Islamic guidance, dua help, Quran reflection, Hadith explanation, Hajj & Umrah steps, or help using the Noor Pro app. I answer in a detailed step-by-step style.",
-                    isUser = false
-                )
-            )
-        )
+    var job by remember { mutableStateOf<Job?>(null) }
+    var revealId by remember { mutableStateOf<Long?>(null) }
+    var showTip by remember { mutableStateOf(!NoorAiChatStore.tipDismissed(context)) }
+    AiFeatureService.answerLanguage = language
+    // 1.1.4 voice + spoken answers
+    var voice by remember { mutableStateOf(NoorVoiceState(language = NoorAiChatStore.voiceLanguage(context))) }
+    var speakingId by remember { mutableStateOf<Long?>(null) }
+    var autoRead by remember { mutableStateOf(NoorAiChatStore.autoRead(context)) }
+    val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+    val voiceInput = remember { NoorVoiceInput(context) { e -> mainHandler.post { voice = reduceVoice(voice, e) } } }
+    val speaker = remember { NoorAiSpeaker(context) { id -> mainHandler.post { speakingId = id } } }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceInput.stop(); speaker.shutdown() } }
+    fun speakItem(item: NoorAiChatItem) {
+        val plain = NoorAiMarkdown.parse(AiFeatureService.splitFollowups(item.text).first).joinToString("\n") { plainOf(it) }
+        speaker.speak(item.id, plain, language)
     }
 
-    fun sendMessage(text: String) {
-        val clean = text.trim()
-        if (clean.isBlank() || isTyping) return
-        val previousMessages = messages
-        messages = previousMessages + NoorAiMessage(clean, true)
-        input = ""
+    fun update(list: List<NoorAiChatItem>) {
+        messages = list
+        NoorAiChatStore.save(context, mode, convId, list)
+        conversations = NoorAiChatStore.conversations(context)
+    }
+
+    fun ask(prompt: String, base: List<NoorAiChatItem>) {
+        val history = base.dropLast(1).map { NoorAiMessage(AiFeatureService.splitFollowups(it.text).first, it.isUser) }
+        val askedMode = mode
+        val askedConv = convId
         isTyping = true
-        focusManager.clearFocus()
-        scope.launch {
-            // Pass the running conversation before the new user turn so Noor AI has stable memory.
-            val answer = AiFeatureService.generateResponse(clean, selectedMode, previousMessages)
-            messages = messages + NoorAiMessage(answer, false)
+        job = scope.launch {
+            val answer = try {
+                AiFeatureService.generateResponse(prompt, askedMode, history)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                isTyping = false; throw e
+            } catch (_: Exception) {
+                AiFeatureService.UNAVAILABLE_MESSAGE
+            }
+            if (askedMode == mode && askedConv == convId) {
+                val reply = NoorAiChatItem(answer, false)
+                revealId = reply.id
+                update(base + reply)
+                if (autoRead && answer != AiFeatureService.UNAVAILABLE_MESSAGE) speakItem(reply)
+            }
             isTyping = false
         }
     }
 
-    Scaffold(
-        containerColor = Color.Transparent
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(screenBrush)
-                .padding(padding)
-                .padding(horizontal = 18.dp)
-        ) {
-            Spacer(modifier = Modifier.height(28.dp))
-            NoorAiHeader(
-                isLightTheme = isLightTheme,
-                onBack = { viewModel.navigateTo(DeenScreen.DASHBOARD) }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            NoorAiSafetyCard(isLightTheme = isLightTheme)
-            Spacer(modifier = Modifier.height(14.dp))
-            NoorAiModeSelector(
-                selectedMode = selectedMode,
-                onModeSelected = {
-                    selectedMode = it
-                    messages = listOf(
-                        NoorAiMessage(
-                            text = "${it.title} is ready. ${it.helperText}",
-                            isUser = false
-                        )
-                    )
-                }
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+    fun send(text: String) {
+        val clean = text.trim()
+        if (clean.isBlank() || isTyping) return
+        val next = messages + NoorAiChatItem(clean, true)
+        update(next)
+        input = ""
+        focusManager.clearFocus()
+        ask(clean, next)
+    }
 
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    NoorAiPromptSuggestions(
-                        mode = selectedMode,
-                        onSuggestion = { input = it }
-                    )
-                }
-                items(messages) { message ->
-                    NoorAiMessageBubble(message = message, isLightTheme = isLightTheme)
-                }
-                if (isTyping) {
-                    item { NoorAiTypingBubble(isLightTheme = isLightTheme) }
-                }
+    fun newChat() {
+        job?.cancel(); isTyping = false; revealId = null; speaker.stop()
+        convId = System.currentTimeMillis()
+        messages = emptyList()
+        NoorAiChatStore.setCurrent(context, mode, null)
+    }
+
+    val voiceFallback = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val heard = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+        if (r.resultCode == Activity.RESULT_OK && !heard.isNullOrBlank()) send(heard)
+    }
+
+    fun launchFallback() {
+        runCatching { voiceFallback.launch(NoorVoiceInput.recognizerIntent(voice.language)) }.onFailure {
+            android.widget.Toast.makeText(context, "Voice input isn't available on this phone.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun startListening() {
+        speaker.stop()
+        if (voiceInput.isAvailable()) voiceInput.start(voice.language) else launchFallback()
+    }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startListening() else voice = reduceVoice(voice, VoiceEvent.PermissionDenied)
+    }
+    androidx.compose.runtime.LaunchedEffect(voice.finalText) {
+        voice.finalText?.let { heard -> voice = reduceVoice(voice, VoiceEvent.Consumed); send(heard) }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        NoorAiLaunch.pending?.let { q ->
+            NoorAiLaunch.pending = null
+            if (mode == NoorAiMode.AskNoor) { if (messages.isNotEmpty()) newChat(); send(q) }
+        }
+    }
+
+    NoorAiChatContent(
+        mode = mode,
+        messages = messages,
+        input = input,
+        isTyping = isTyping,
+        showTip = showTip,
+        revealId = revealId,
+        onBack = { viewModel.navigateTo(DeenScreen.DASHBOARD) },
+        onInput = { input = it },
+        onSend = { send(input) },
+        onSuggestion = { send(it) },
+        onStop = { job?.cancel(); isTyping = false },
+        onModeChange = {
+            if (it != mode) {
+                job?.cancel(); isTyping = false
+                mode = it
+                convId = NoorAiChatStore.currentId(context, it) ?: System.currentTimeMillis()
+                messages = NoorAiChatStore.load(context, convId)
             }
-
-            NoorAiInputBar(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = selectedMode.promptHint,
-                isTyping = isTyping,
-                onSend = { sendMessage(input) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun NoorAiHeader(
-    isLightTheme: Boolean,
-    onBack: () -> Unit
-) {
-    val card = if (isLightTheme) Color.White.copy(alpha = 0.94f) else Color(0xFF101B18).copy(alpha = 0.96f)
-    val border = if (isLightTheme) Color(0xFFF1C8D8) else Color(0xFF2B3C35)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-        }
-        Spacer(modifier = Modifier.width(6.dp))
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Brush.verticalGradient(listOf(MatteGold, Color(0xFFE58E10))))
-                .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(18.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF050C18), modifier = Modifier.size(28.dp))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Noor AI", color = TextPrimary, fontSize = 30.sp, fontWeight = FontWeight.Black)
-            Text("Fast help, longer answers, app guidance", color = TextSecondary, fontSize = 13.sp)
-        }
-        Card(
-            colors = CardDefaults.cardColors(containerColor = card),
-            border = BorderStroke(1.dp, border),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Shield, contentDescription = null, tint = MatteGold, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(5.dp))
-                Text("Safe", color = MatteGold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        },
+        onClearChat = { job?.cancel(); isTyping = false; update(emptyList()) },
+        onDismissTip = { showTip = false; NoorAiChatStore.dismissTip(context) },
+        onCopy = { clipboard.setText(AnnotatedString(NoorAiMarkdown.parse(it.text).joinToString("\n") { b -> plainOf(b) })) },
+        onShare = { item ->
+            val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, NoorAiMarkdown.parse(item.text).joinToString("\n") { plainOf(it) } + "\n\n— via Noor AI (Noor Pro)")
+            runCatching { context.startActivity(Intent.createChooser(send, "Share answer")) }
+        },
+        onRegenerate = { item ->
+            if (!isTyping) {
+                val idx = messages.indexOfFirst { it.id == item.id }
+                val base = if (idx > 0) messages.subList(0, idx) else emptyList()
+                val prompt = base.lastOrNull { it.isUser }?.text
+                if (prompt != null) { update(base); ask(prompt, base) }
             }
-        }
-    }
-}
-
-@Composable
-private fun NoorAiSafetyCard(isLightTheme: Boolean) {
-    val container = if (isLightTheme) Color.White.copy(alpha = 0.96f) else Color(0xFF101B18).copy(alpha = 0.96f)
-    Card(
-        colors = CardDefaults.cardColors(containerColor = container),
-        border = BorderStroke(1.dp, if (isLightTheme) Color(0xFFF1C8D8) else Color(0xFF2B3C35)),
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Default.Info, contentDescription = null, tint = MatteGold, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "AI can make mistakes. For fatwa, divorce, inheritance, medical, legal, or serious personal issues, ask a qualified scholar.",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                lineHeight = 17.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun NoorAiModeSelector(
-    selectedMode: NoorAiMode,
-    onModeSelected: (NoorAiMode) -> Unit
-) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(NoorAiMode.entries) { mode ->
-            val selected = selectedMode == mode
-            Surface(
-                modifier = Modifier.clickable { onModeSelected(mode) },
-                color = if (selected) MatteGold else MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                contentColor = if (selected) Color(0xFF050C18) else TextPrimary,
-                shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.dp, if (selected) MatteGold else GlassBorder)
-            ) {
-                Row(modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(noorAiModeIcon(mode), contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(7.dp))
-                    Text(mode.shortTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+        },
+        onFeedback = { item, value ->
+            update(messages.map { if (it.id == item.id) it.copy(feedback = if (it.feedback == value) 0 else value) else it })
+        },
+        onRevealDone = { revealId = null },
+        language = language,
+        onLanguage = { language = it; NoorAiChatStore.setLanguage(context, it); AiFeatureService.answerLanguage = it },
+        conversations = conversations,
+        currentConversation = convId,
+        onNewChat = { newChat() },
+        onOpenConversation = { c ->
+            job?.cancel(); isTyping = false; revealId = null
+            mode = c.mode; convId = c.id
+            messages = NoorAiChatStore.load(context, c.id)
+            NoorAiChatStore.setCurrent(context, c.mode, c.id)
+        },
+        onDeleteConversation = { c ->
+            NoorAiChatStore.delete(context, c.id)
+            conversations = NoorAiChatStore.conversations(context)
+            if (c.id == convId) newChat()
+        },
+        onVoice = {
+            // RECORD_AUDIO is requested only now, when the mic is tapped.
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            when {
+                granted -> startListening()
+                !voiceInput.isAvailable() -> launchFallback() // the system dialog handles its own mic permission
+                else -> micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
             }
-        }
-    }
+        },
+        voice = voice,
+        onVoiceDone = { voiceInput.finish() },
+        onVoiceCancel = { voiceInput.stop(); voice = reduceVoice(voice, VoiceEvent.Cancel) },
+        onVoiceLanguage = { code ->
+            NoorAiChatStore.setVoiceLanguage(context, code)
+            val wasListening = voice.active
+            voice = voice.copy(language = code)
+            if (wasListening) voiceInput.start(code)
+        },
+        speakingId = speakingId,
+        onSpeak = { item -> if (speakingId == item.id) speaker.stop() else speakItem(item) },
+        autoRead = autoRead,
+        onAutoRead = { autoRead = it; NoorAiChatStore.setAutoRead(context, it); if (!it) speaker.stop() },
+        onRenameConversation = { c, t -> NoorAiChatStore.rename(context, c.id, t); conversations = NoorAiChatStore.conversations(context) },
+        onPinConversation = { c -> NoorAiChatStore.setPinned(context, c.id, !c.pinned); conversations = NoorAiChatStore.conversations(context) },
+        searchConversations = { q -> NoorAiChatStore.search(context, q) },
+        dailyTip = noorDailyTip(),
+    )
 }
 
-@Composable
-private fun NoorAiPromptSuggestions(
-    mode: NoorAiMode,
-    onSuggestion: (String) -> Unit
-) {
-    val suggestions = remember(mode) {
-        when (mode) {
-            NoorAiMode.AskNoor -> listOf("How can I improve my salah?", "How to build daily Quran habit?", "What should I ask a scholar?")
-            NoorAiMode.DuaGenerator -> listOf("Dua for exam stress", "Dua for parents health", "Dua for forgiveness")
-            NoorAiMode.QuranHelper -> listOf("Explain mercy in Quran simply", "What lesson from Surah Fatiha?", "How to reflect on an ayah?")
-            NoorAiMode.HadithExplainer -> listOf("Explain hadith about intentions", "Daily action from this hadith", "How to check hadith authenticity?")
-            NoorAiMode.HajjUmrahGuide -> listOf("Umrah steps in order", "What after Tawaf?", "Packing list for Umrah")
-            NoorAiMode.AppGuide -> listOf("How do I upload a reel?", "How to change my username?", "How do group chats work?")
-        }
-    }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(suggestions) { suggestion ->
-            Surface(
-                modifier = Modifier.clickable { onSuggestion(suggestion) },
-                color = MatteGold.copy(alpha = 0.12f),
-                contentColor = MatteGold,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MatteGold.copy(alpha = 0.25f))
-            ) {
-                Text(suggestion, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
+internal fun plainOf(b: MdBlock): String = when (b) {
+    is MdBlock.Heading -> NoorAiMarkdown.stripInline(b.text)
+    is MdBlock.Paragraph -> NoorAiMarkdown.stripInline(b.text)
+    is MdBlock.Bullet -> "• " + NoorAiMarkdown.stripInline(b.text)
+    is MdBlock.Numbered -> "${b.number}. " + NoorAiMarkdown.stripInline(b.text)
+    is MdBlock.Quote -> "“" + NoorAiMarkdown.stripInline(b.text) + "”"
+    is MdBlock.Sources -> "Sources: " + b.refs.joinToString("; ")
+    MdBlock.Rule -> ""
+    is MdBlock.Table -> (listOf(b.header) + b.rows).joinToString("\n") { it.joinToString(" | ") { c -> NoorAiMarkdown.stripInline(c) } }
+    is MdBlock.Code -> b.text
+    is MdBlock.Evidence -> b.title + "\n" + b.blocks.joinToString("\n") { plainOf(it) }
 }
 
-@Composable
-private fun NoorAiMessageBubble(
-    message: NoorAiMessage,
-    isLightTheme: Boolean
-) {
-    val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val bubbleColor = when {
-        message.isUser -> MatteGold
-        isLightTheme -> Color.White.copy(alpha = 0.96f)
-        else -> Color(0xFF101B18).copy(alpha = 0.98f)
-    }
-    val textColor = if (message.isUser) Color(0xFF050C18) else TextPrimary
-
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(0.88f)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 22.dp,
-                        topEnd = 22.dp,
-                        bottomStart = if (message.isUser) 22.dp else 6.dp,
-                        bottomEnd = if (message.isUser) 6.dp else 22.dp
-                    )
-                )
-                .background(bubbleColor)
-                .border(1.dp, if (message.isUser) MatteGold else GlassBorder, RoundedCornerShape(22.dp))
-                .padding(14.dp)
-        ) {
-            Text(
-                text = message.text,
-                color = textColor,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
-        }
-    }
+internal fun noorAiSuggestions(mode: NoorAiMode): List<String> = when (mode) {
+    NoorAiMode.AskNoor -> listOf("How can I improve focus in salah?", "How do I build a daily Quran habit?", "What breaks wudu?", "How to make sincere tawbah?", "Rights of parents in Islam")
+    NoorAiMode.DuaGenerator -> listOf("Dua for exam stress", "Dua for my parents' health", "Dua for forgiveness", "Dua before travelling", "Dua for anxiety")
+    NoorAiMode.QuranHelper -> listOf("Lessons from Surah Al-Fatiha", "Explain Ayat al-Kursi simply", "What does the Quran say about patience?", "How to reflect on an ayah?")
+    NoorAiMode.HadithExplainer -> listOf("Explain the hadith on intentions", "Hadith about smiling as charity", "How is a hadith graded?", "Hadith on kindness to neighbours")
+    NoorAiMode.HajjUmrahGuide -> listOf("Umrah steps in order", "What do I do after tawaf?", "Packing list for Umrah", "Rules of ihram")
+    NoorAiMode.AppGuide -> listOf("How do I upload a reel?", "How to change my username?", "How do group chats work?", "Where is the Qibla finder?")
 }
 
-@Composable
-private fun NoorAiTypingBubble(isLightTheme: Boolean) {
-    val container = if (isLightTheme) Color.White.copy(alpha = 0.96f) else Color(0xFF101B18).copy(alpha = 0.98f)
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(container)
-            .border(1.dp, GlassBorder, RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CircularProgressIndicator(color = MatteGold, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text("Noor AI is preparing a detailed answer...", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("If the cloud is slow, a safe offline answer appears quickly.", color = TextSecondary, fontSize = 11.sp)
-        }
-    }
-}
 
-@Composable
-private fun NoorAiInputBar(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    isTyping: Boolean,
-    onSend: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(placeholder, fontSize = 12.sp) },
-            shape = RoundedCornerShape(24.dp),
-            minLines = 1,
-            maxLines = 4,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSend() })
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(if (isTyping) MatteGold.copy(alpha = 0.45f) else MatteGold)
-                .clickable(enabled = !isTyping) { onSend() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color(0xFF050C18))
-        }
-    }
-}
-
-private fun noorAiModeIcon(mode: NoorAiMode): ImageVector = when (mode) {
-    NoorAiMode.AskNoor -> Icons.Default.AutoAwesome
-    NoorAiMode.DuaGenerator -> Icons.Default.Favorite
-    NoorAiMode.QuranHelper -> Icons.Default.MenuBook
-    NoorAiMode.HadithExplainer -> Icons.Default.Star
-    NoorAiMode.HajjUmrahGuide -> Icons.Default.Mosque
-    NoorAiMode.AppGuide -> Icons.Default.Info
-}
+/** A question handed over from the Home "Ask Noor AI" card; sent once when the chat opens. */
+object NoorAiLaunch { var pending: String? = null }

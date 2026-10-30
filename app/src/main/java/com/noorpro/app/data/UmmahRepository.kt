@@ -34,8 +34,28 @@ data class UmmahPost(
     val mediaHeight: Int = 0,
     val mediaRotationDegrees: Int = 0,
     val publicationStatus: String = "published",
-    val storageProvider: String = ""
+    val storageProvider: String = "",
+    /** gs:// URI or storage path still to be resolved to an https download URL (legacy posts). */
+    val pendingStorageRef: String = "",
+    /** 1.0.75: optional multi-photo carousel (first item == mediaUrl). Empty for legacy posts. */
+    val mediaUrls: List<String> = emptyList(),
+    /** 1.1.1 (additive, need the updated publisher): poll options (2..4), poll close time, AI label, place, audience. */
+    val pollOptions: List<String> = emptyList(),
+    val pollEndsAt: Long = 0L,
+    val aiLabel: Boolean = false,
+    val locationName: String = "",
+    val visibility: String = "everyone",
+    /** 1.1.4 Creator Studio (additive; written only when the creator edit flag + rules are live). */
+    val pinnedToProfile: Boolean = false,
+    val archived: Boolean = false,
+    val pinnedCommentId: String = "",
+    /** 1.1.5 Halal Guard: a moderator approved this but marked it sensitive (viewers can keep it blurred). */
+    val sensitive: Boolean = false
 )
+
+/** Result of recording a reel view. Keeping "already counted" separate from a failed write lets
+ * the UI stop retrying a valid receipt while still retrying transient network/rules failures. */
+enum class ReelViewResult { COUNTED, ALREADY_COUNTED, FAILED }
 
 /** A member shown in a followers / following list (Instagram-style). */
 data class UmmahFollowUser(
@@ -54,7 +74,9 @@ data class UmmahProfile(
     val bio: String = "",
     // Privacy flags, published so other clients can respect them.
     val isPrivate: Boolean = false,
-    val hideCounts: Boolean = false
+    val hideCounts: Boolean = false,
+    /** 1.1.4: optional admin-set badge (read only; absent = false). */
+    val verified: Boolean = false
 )
 
 data class UmmahChat(
@@ -65,7 +87,8 @@ data class UmmahChat(
     val lastMessageType: String,
     val lastSenderUid: String,
     val updatedAt: Long,
-    val unreadCount: Long = 0
+    val unreadCount: Long = 0,
+    val meta: ChatMeta = ChatMeta()
 )
 
 data class UmmahGroup(
@@ -76,7 +99,9 @@ data class UmmahGroup(
     val memberUids: List<String>,
     val memberNames: Map<String, String> = emptyMap(),
     val lastMessage: String,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** 1.1.5: "all" | "sisters" | "brothers" (client-enforced circles, flagged). */
+    val audience: String = "all"
 )
 
 data class UmmahMessage(
@@ -91,7 +116,19 @@ data class UmmahMessage(
     val replyToName: String = "",
     val replyToText: String = "",
     val replyToType: String = "",
-    val reactions: Map<String, String> = emptyMap()
+    val reactions: Map<String, String> = emptyMap(),
+    /** 1.0.82: Instagram-style in-app share of a reel / Ummah post ("post_share" messages). */
+    val sharedPostId: String = "",
+    val sharedPostKind: String = "",
+    val sharedThumb: String = "",
+    val sharedCreatorUid: String = "",
+    val sharedCreatorName: String = "",
+    val sharedCreatorPhoto: String = "",
+    val sharedCaption: String = "",
+    /** 1.0.92: voice notes — length + 0..100 amplitude bars; forwarded flag. */
+    val durationMs: Long = 0,
+    val waveform: List<Int> = emptyList(),
+    val forwarded: Boolean = false
 )
 
 data class UmmahComment(
@@ -102,7 +139,10 @@ data class UmmahComment(
     val creatorName: String,
     val createdAt: Long,
     val parentCommentId: String = "",
-    val replyToName: String = ""
+    val replyToName: String = "",
+    val likeCount: Long = 0,
+    /** 1.1.4: "hidden" = hidden by the post owner (Creator Studio). */
+    val status: String = "published"
 )
 
 data class UmmahSavedCollection(
@@ -145,18 +185,24 @@ private fun contentLength(context: Context, uri: Uri): Long {
 }
 
 class UmmahRepository {
-    private val firestore = FirebaseFirestore.getInstance()
+    // Lazy: constructing the repository (every composable remembers one) must not touch Firebase.
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
     private var listener: ListenerRegistration? = null
     private var submissionListener: ListenerRegistration? = null
     private val interactionListeners = mutableListOf<ListenerRegistration>()
     private val chatListeners = mutableListOf<ListenerRegistration>()
+    /** 1.1.9: bumped by [close] so a pending chat re-listen never outlives its screen. */
+    @Volatile private var chatGeneration = 0
     private val blockedListeners = mutableListOf<ListenerRegistration>()
     private val publicationRequestedIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
     private val publicationRetryAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val publicationRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** A creator can interact with a reel during its brief submission-to-publication window.
-     * Retry public counters so those first likes, saves, shares, and views are not lost. */
+    /**
+     * Update the public counter, or the creator-owned submission while a new reel is waiting for
+     * backend promotion. This removes the publication race that used to make a successful Like,
+     * Save, Comment, Share, or View fall back to zero on a newly uploaded reel.
+     */
     private fun incrementPublishedCounter(
         postId: String,
         field: String,
@@ -169,21 +215,29 @@ class UmmahRepository {
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     onResult(true)
-                } else if (attempt < 6) {
-                    publicationRetryHandler.postDelayed(
-                        {
-                            incrementPublishedCounter(
-                                postId = postId,
-                                field = field,
-                                delta = delta,
-                                attempt = attempt + 1,
-                                onResult = onResult
-                            )
-                        },
-                        ((attempt + 1) * 1_500L).coerceAtMost(6_000L)
-                    )
                 } else {
-                    onResult(false)
+                    firestore.collection("ummah_submissions").document(postId)
+                        .update(field, com.google.firebase.firestore.FieldValue.increment(delta))
+                        .addOnCompleteListener { submissionTask ->
+                            if (submissionTask.isSuccessful) {
+                                onResult(true)
+                            } else if (attempt < 3) {
+                                publicationRetryHandler.postDelayed(
+                                    {
+                                        incrementPublishedCounter(
+                                            postId = postId,
+                                            field = field,
+                                            delta = delta,
+                                            attempt = attempt + 1,
+                                            onResult = onResult
+                                        )
+                                    },
+                                    ((attempt + 1) * 1_000L).coerceAtMost(3_000L)
+                                )
+                            } else {
+                                onResult(false)
+                            }
+                        }
                 }
             }
     }
@@ -212,7 +266,7 @@ class UmmahRepository {
         }
     }
 
-    fun currentUserUid(): String? = FirebaseAuth.getInstance().currentUser?.uid
+    fun currentUserUid(): String? = FirebaseGate.currentUser?.uid
 
     fun chatIdFor(otherUid: String): String? {
         val uid = currentUserUid() ?: return null
@@ -220,6 +274,7 @@ class UmmahRepository {
     }
 
     fun observeApprovedPosts(onResult: (List<UmmahPost>, String?) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
         listener?.remove()
         submissionListener?.remove()
         var publishedPosts = emptyList<UmmahPost>()
@@ -235,6 +290,7 @@ class UmmahRepository {
                 .associateBy { it.id }
                 .values
                 .sortedByDescending { it.publishedAt }
+                .let { playableOnly(it) { mainHandler.post { emit() } } }
             val message = if (merged.isEmpty()) publishedError ?: submissionError else null
             onResult(merged, message)
         }
@@ -255,15 +311,17 @@ class UmmahRepository {
                     if (document.contains("approved") && document.getBoolean("approved") != true) {
                         return@mapNotNull null
                     }
+                    // 1.1.4 Creator Studio: archived posts leave the feed (only the creator sees them, in the Studio).
+                    if (document.getBoolean("archived") == true) return@mapNotNull null
                     document.toUmmahPost()
-                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                }.filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                 emit()
             }
 
         // Always show the signed-in creator their own successful upload immediately. This keeps
         // Reels and Profile useful even while the trusted backend publisher is cold-starting or
         // has not yet been deployed. Security rules expose only this user's submissions.
-        FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
+        FirebaseGate.currentUser?.uid?.let { uid ->
             submissionListener = firestore.collection("ummah_submissions")
                 .whereEqualTo("creatorUid", uid)
                 .addSnapshotListener { snapshot, error ->
@@ -273,10 +331,15 @@ class UmmahRepository {
                         return@addSnapshotListener
                     }
                     submissionError = null
+                    // 1.1.5 Halal Guard: tell the creator when the server rejected or queued a post.
+                    snapshot?.documents.orEmpty().forEach { d ->
+                        com.noorpro.app.data.halal.HalalNotices.onSubmission(
+                            d.id, d.getString("status").orEmpty(), d.getString("moderationReason").orEmpty(), d.getBoolean("guardBlocked") == true)
+                    }
                     val visibleSubmissions = snapshot?.documents.orEmpty()
                         .filter { it.getString("status") !in setOf("rejected", "removed") }
                     visibleSubmissions
-                        .filter { it.getString("status") != "published" }
+                        .filter { it.getString("status") !in setOf("published", "in_review") }
                         .forEach { document ->
                             recoverPendingPublication(document.id)
                         }
@@ -288,18 +351,70 @@ class UmmahRepository {
                         }
                     mySubmissions = visibleSubmissions
                         .map { it.toUmmahPost(fallbackTimestamp = System.currentTimeMillis()) }
-                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() }
+                        .filter { it.caption.isNotBlank() || it.arabicText.isNotBlank() || it.mediaUrl.isNotBlank() || it.pendingStorageRef.isNotBlank() }
                     emit()
                 }
         }
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Resolve legacy gs:// / storage-path media and drop video posts whose media is permanently
+     * unreachable on the server (missing object, revoked token, Storage disabled), so the feed
+     * and Reels never show a broken card. [reemit] fires when a background check changes the result.
+     */
+    private fun playableOnly(posts: List<UmmahPost>, reemit: () -> Unit): List<UmmahPost> =
+        posts.mapNotNull { post ->
+            var p = post
+            if (p.pendingStorageRef.isNotBlank()) {
+                val url = com.noorpro.app.data.media.ReelMediaAvailability.resolvedUrl(p.pendingStorageRef)
+                if (url == null) {
+                    com.noorpro.app.data.media.ReelMediaAvailability.resolveStorageRef(p.pendingStorageRef, reemit)
+                    // Text-only content can still be shown; a media-only post waits for its URL.
+                    return@mapNotNull if (p.caption.isNotBlank() || p.arabicText.isNotBlank()) p else null
+                }
+                p = p.copy(mediaUrl = url, pendingStorageRef = "")
+            }
+            if (!com.noorpro.app.data.media.MediaUrls.looksLikeVideo(p.type, p.mediaUrl)) return@mapNotNull p
+            val urls = listOf(p.hlsUrl, p.mediaUrl)
+            com.noorpro.app.data.media.ReelMediaAvailability.ensureChecked(urls, reemit)
+            if (com.noorpro.app.data.media.ReelMediaAvailability.isDead(urls)) null else p
+        }
+
+    private fun DocumentSnapshot.rawMediaUrl(): String =
+        com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_MEDIA_FIELDS) { getString(it) }
+
+    /**
+     * 1.0.91 Reels search: one-shot array-contains query over the server-maintained search arrays
+     * ("hashtags" or "searchKeywords"), limited to published posts. Client ranks + filters blocks.
+     */
+    fun searchPublishedPosts(field: String, value: String, limit: Long = 80, onResult: (List<UmmahPost>) -> Unit) {
+        if (value.isBlank() || field !in setOf("hashtags", "searchKeywords")) { onResult(emptyList()); return }
+        firestore.collection("ummah_posts")
+            .whereEqualTo("approved", true)
+            .whereEqualTo("status", "published")
+            .whereArrayContains(field, value)
+            .limit(limit)
+            .get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.toUmmahPost() }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
     private fun DocumentSnapshot.toUmmahPost(fallbackTimestamp: Long = 0L): UmmahPost = UmmahPost(
         id = id,
         type = getString("type")?.lowercase() ?: "image",
-        mediaUrl = getString("mediaUrl").orEmpty(),
-        hlsUrl = getString("hlsUrl").orEmpty(),
-        thumbnailUrl = getString("thumbnailUrl").orEmpty(),
+        mediaUrl = rawMediaUrl().let { raw ->
+            if (com.noorpro.app.data.media.MediaUrls.storagePathToResolve(raw, getString("mediaPath").orEmpty()) != null) ""
+            else com.noorpro.app.data.media.MediaUrls.normalize(raw)
+        },
+        pendingStorageRef = com.noorpro.app.data.media.MediaUrls
+            .storagePathToResolve(rawMediaUrl(), getString("mediaPath").orEmpty()).orEmpty(),
+        hlsUrl = com.noorpro.app.data.media.MediaUrls.normalize(getString("hlsUrl").orEmpty())
+            .takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
+        thumbnailUrl = com.noorpro.app.data.media.MediaUrls.normalize(
+            com.noorpro.app.data.media.MediaUrls.firstNonBlank(com.noorpro.app.data.media.MediaUrls.LEGACY_THUMB_FIELDS) { getString(it) }
+        ).takeIf { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.orEmpty(),
         creatorUid = getString("creatorUid").orEmpty(),
         creatorName = getString("creatorName") ?: "Noor Pro",
         creatorHandle = getString("creatorHandle") ?: "@noorpro",
@@ -321,13 +436,28 @@ class UmmahRepository {
         mediaHeight = (get("mediaHeight") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0,
         mediaRotationDegrees = (get("mediaRotationDegrees") as? Number)?.toInt() ?: 0,
         publicationStatus = getString("status") ?: "published",
-        storageProvider = getString("storageProvider").orEmpty()
+        storageProvider = getString("storageProvider").orEmpty(),
+        mediaUrls = (get("mediaUrls") as? List<*>).orEmpty().filterIsInstance<String>()
+            .map { com.noorpro.app.data.media.MediaUrls.normalize(it) }
+            .filter { com.noorpro.app.data.media.MediaUrls.isHttp(it) }.take(10),
+        pollOptions = ((get("poll") as? Map<*, *>)?.get("options") as? List<*>).orEmpty()
+            .filterIsInstance<String>().map { it.trim().take(80) }.filter { it.isNotBlank() }.take(4)
+            .takeIf { it.size >= 2 }.orEmpty(),
+        pollEndsAt = ((get("poll") as? Map<*, *>)?.get("endsAt") as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L,
+        aiLabel = getBoolean("aiLabel") == true,
+        locationName = getString("locationName").orEmpty().take(80),
+        visibility = if (getString("visibility") == "followers") "followers" else "everyone",
+        pinnedToProfile = getBoolean("pinnedToProfile") == true,
+        archived = getBoolean("archived") == true,
+        pinnedCommentId = getString("pinnedCommentId").orEmpty(),
+        sensitive = getBoolean("sensitive") == true
     )
 
     fun observeUserInteractions(onResult: (liked: Set<String>, saved: Set<String>) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptySet(), emptySet())
         interactionListeners.forEach { it.remove() }
         interactionListeners.clear()
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptySet(), emptySet())
             return
         }
@@ -346,7 +476,7 @@ class UmmahRepository {
     }
 
     fun toggleInteraction(postId: String, type: String, active: Boolean, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val document = firestore.collection("ummah_users").document(user.uid).collection(type).document(postId)
         if (type == "likes" || type == "saved") {
             // Persist the member's interaction independently from the public post counter. A freshly
@@ -410,8 +540,69 @@ class UmmahRepository {
         incrementPublishedCounter(cleanPostId, "viewCount")
     }
 
+    /**
+     * 1.0.83: real, de-duplicated view. In one transaction: if this user has no receipt at
+     * ummah_posts/{id}/views/{uid}, create it (create-once rule) and +1 viewCount. A second view
+     * by the same user — on any device/reinstall — is a no-op. The result distinguishes a new
+     * count, an existing receipt, and a retryable failure.
+     */
+    fun recordUniqueView(postId: String, watchedMs: Long, onResult: (ReelViewResult) -> Unit = {}) {
+        val cleanPostId = postId.trim()
+        val uid = FirebaseGate.currentUser?.uid
+        if (cleanPostId.isBlank() || uid == null) return onResult(ReelViewResult.FAILED)
+        val post = firestore.collection("ummah_posts").document(cleanPostId)
+        val receipt = post.collection("views").document(uid)
+
+        fun fallbackAfterFailedReceipt(transactionError: Exception?) {
+            if ((transactionError as? com.google.firebase.firestore.FirebaseFirestoreException)?.code ==
+                com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+            ) {
+                // Compatibility with a backend that has the safe counter rule deployed but not the
+                // newer receipt subcollection yet.
+                incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                }
+                return
+            }
+            // Older production rules did not yet allow the /views receipt. Check whether the
+            // transaction actually committed before using the compatible +1 counter update.
+            receipt.get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        onResult(ReelViewResult.ALREADY_COUNTED)
+                    } else {
+                        incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                            onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    // A network failure should remain retryable when the viewer returns to the reel.
+                    onResult(ReelViewResult.FAILED)
+                }
+        }
+
+        firestore.runTransaction { tx ->
+            if (tx.get(receipt).exists()) return@runTransaction false
+            if (!tx.get(post).exists()) return@runTransaction null
+            tx.set(receipt, mapOf("uid" to uid, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(), "watchedMs" to watchedMs))
+            tx.update(post, "viewCount", com.google.firebase.firestore.FieldValue.increment(1L))
+            true
+        }.addOnCompleteListener { t ->
+            when {
+                !t.isSuccessful -> fallbackAfterFailedReceipt(t.exception)
+                t.result == null -> incrementPublishedCounter(cleanPostId, "viewCount") { updated ->
+                    onResult(if (updated) ReelViewResult.COUNTED else ReelViewResult.FAILED)
+                } // newly uploaded reel still present only in ummah_submissions
+                t.result == true -> onResult(ReelViewResult.COUNTED)
+                else -> onResult(ReelViewResult.ALREADY_COUNTED)
+            }
+        }
+    }
+
     fun observeSavedCollections(onResult: (List<UmmahSavedCollection>) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList())
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptyList())
             return
         }
@@ -429,7 +620,8 @@ class UmmahRepository {
     }
 
     fun observeSavedAssignments(onResult: (Map<String, String>) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyMap())
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptyMap())
             return
         }
@@ -444,7 +636,7 @@ class UmmahRepository {
     }
 
     fun createSavedCollection(title: String, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val cleanTitle = title.trim().take(36)
         if (cleanTitle.isBlank()) return onResult(false)
         firestore.collection("ummah_users").document(user.uid).collection("saved_collections")
@@ -458,7 +650,7 @@ class UmmahRepository {
     }
 
     fun assignSavedToCollection(postId: String, collectionId: String, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val cleanCollectionId = collectionId.trim()
         if (postId.isBlank() || cleanCollectionId.isBlank()) return onResult(false)
         firestore.collection("ummah_users").document(user.uid).collection("saved").document(postId)
@@ -476,6 +668,7 @@ class UmmahRepository {
     /** Live map of uid → public profile. Posts overlay these so profile edits propagate
      *  to every reel/post instantly without rewriting old documents. */
     fun observeProfiles(onResult: (Map<String, UmmahProfile>) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptyMap())
         interactionListeners += firestore.collection("ummah_profiles")
             .addSnapshotListener { snapshot, _ ->
                 val profiles = snapshot?.documents.orEmpty().associate { doc ->
@@ -486,16 +679,33 @@ class UmmahRepository {
                         photoUrl = doc.getString("photoUrl").orEmpty(),
                         bio = doc.getString("bio").orEmpty(),
                         isPrivate = doc.getBoolean("isPrivate") ?: false,
-                        hideCounts = doc.getBoolean("hideCounts") ?: false
+                        hideCounts = doc.getBoolean("hideCounts") ?: false,
+                        verified = doc.getBoolean("verified") ?: false
                     )
                 }
                 onResult(profiles)
             }
     }
 
+    /** 1.0.92: server-indexed people lookup (searchKeys prefix array written by indexPeopleSearch). */
+    fun searchProfiles(key: String, onResult: (List<UmmahProfile>) -> Unit) {
+        if (key.isBlank()) return onResult(emptyList())
+        firestore.collection("ummah_profiles").whereArrayContains("searchKeys", key.take(15)).limit(30).get()
+            .addOnSuccessListener { snap ->
+                onResult(snap.documents.map { doc ->
+                    UmmahProfile(
+                        uid = doc.id, name = doc.getString("name").orEmpty(), handle = doc.getString("handle").orEmpty(),
+                        photoUrl = doc.getString("photoUrl").orEmpty(), bio = doc.getString("bio").orEmpty(),
+                        isPrivate = doc.getBoolean("isPrivate") ?: false, hideCounts = doc.getBoolean("hideCounts") ?: false
+                    )
+                })
+            }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
     /** Publish/refresh the signed-in member's public profile card. Fire-and-forget. */
     fun upsertMyProfile(name: String, handle: String, photoUrl: String, bio: String? = null) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val user = FirebaseGate.currentUser ?: return
         val cleanHandle = handle.trim().removePrefix("@")
         val updates = mutableMapOf<String, Any>(
             "name" to name.trim().ifBlank { user.displayName ?: "Community member" },
@@ -514,7 +724,7 @@ class UmmahRepository {
      *  respect them (private account, hidden counts). Fire-and-forget. NOTE: full enforcement
      *  (blocking non-followers from reading data) also needs matching Firestore security rules. */
     fun updateMyPrivacy(isPrivate: Boolean, hideCounts: Boolean) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val user = FirebaseGate.currentUser ?: return
         firestore.collection("ummah_profiles").document(user.uid).set(
             mapOf(
                 "isPrivate" to isPrivate,
@@ -526,7 +736,8 @@ class UmmahRepository {
     }
 
     fun observeFollowing(onResult: (Set<String>) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptySet())
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptySet())
             return
         }
@@ -538,7 +749,8 @@ class UmmahRepository {
 
     /** Users [targetUid] follows (defaults to the signed-in member), with name + handle for a list view. */
     fun observeFollowingUsers(targetUid: String? = null, onResult: (List<UmmahFollowUser>) -> Unit) {
-        val target = targetUid?.trim()?.ifBlank { null } ?: FirebaseAuth.getInstance().currentUser?.uid ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList())
+        val target = targetUid?.trim()?.ifBlank { null } ?: FirebaseGate.currentUser?.uid ?: run {
             onResult(emptyList())
             return
         }
@@ -556,7 +768,8 @@ class UmmahRepository {
 
     /** Members who follow [uid] (defaults to the signed-in user). Followers are public to read. */
     fun observeFollowers(uid: String? = null, onResult: (List<UmmahFollowUser>) -> Unit) {
-        val target = uid ?: FirebaseAuth.getInstance().currentUser?.uid ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList())
+        val target = uid ?: FirebaseGate.currentUser?.uid ?: run {
             onResult(emptyList())
             return
         }
@@ -572,6 +785,37 @@ class UmmahRepository {
             }
     }
 
+    /** 1.1.4 recommendations: one-shot read of who each of [uids] follows (public lists). Capped. */
+    fun fetchFollowingOf(uids: Collection<String>, perUser: Long = 60, onResult: (Map<String, Set<String>>) -> Unit) {
+        val targets = uids.filter { it.isNotBlank() }.take(15)
+        if (FirebaseGate.currentUser == null || targets.isEmpty()) return onResult(emptyMap())
+        val out = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+        val left = java.util.concurrent.atomic.AtomicInteger(targets.size)
+        targets.forEach { uid ->
+            firestore.collection("ummah_users").document(uid).collection("following").limit(perUser).get()
+                .addOnCompleteListener { t ->
+                    if (t.isSuccessful) out[uid] = t.result?.documents.orEmpty().map { it.getString("uid") ?: it.id }.toSet()
+                    if (left.decrementAndGet() == 0) onResult(out.toMap())
+                }
+        }
+    }
+
+    /** 1.1.4: follower counts via aggregate count() on the public followers lists (top suggestions only). */
+    fun fetchFollowerCounts(uids: Collection<String>, onResult: (Map<String, Int>) -> Unit) {
+        val targets = uids.filter { it.isNotBlank() }.take(12)
+        if (FirebaseGate.currentUser == null || targets.isEmpty()) return onResult(emptyMap())
+        val out = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val left = java.util.concurrent.atomic.AtomicInteger(targets.size)
+        targets.forEach { uid ->
+            firestore.collection("ummah_users").document(uid).collection("followers").count()
+                .get(com.google.firebase.firestore.AggregateSource.SERVER)
+                .addOnCompleteListener { t ->
+                    if (t.isSuccessful) t.result?.count?.let { out[uid] = it.toInt() }
+                    if (left.decrementAndGet() == 0) onResult(out.toMap())
+                }
+        }
+    }
+
     fun setFollowing(
         creatorUid: String,
         creatorName: String,
@@ -579,7 +823,7 @@ class UmmahRepository {
         following: Boolean,
         onResult: (Boolean) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val target = creatorUid.trim()
         if (target.isBlank() || target == user.uid) return onResult(false)
         val document = firestore.collection("ummah_users").document(user.uid).collection("following").document(target)
@@ -626,9 +870,18 @@ class UmmahRepository {
         creatorHandle: String = "",
         creatorDisplayName: String = "",
         creatorPhotoUrlOverride: String = "",
+        onSubmitted: (String) -> Unit = {},
+        onProgress: (Float) -> Unit = {},
+        extraImageUris: List<Uri> = emptyList(),
+        /** 1.1.1: an uploaded reel/video cover (https). Blank keeps the previous behaviour. */
+        thumbnailUrlOverride: String = "",
+        /** 1.1.1: optional composer fields (poll, aiLabel, locationName, visibility). Empty = unchanged. */
+        extraFields: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in before posting.")
+        val extras = if (type == "image") extraImageUris.take(9) else emptyList()
+        val photoCount = 1 + extras.size
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in before posting.")
         val resolvedHandle = creatorHandle.trim().ifBlank { "@${user.email?.substringBefore("@").orEmpty()}" }
             .let { if (it.startsWith("@")) it else "@$it" }
         val resolvedName = creatorDisplayName.trim().ifBlank { user.displayName ?: "Community member" }
@@ -651,12 +904,13 @@ class UmmahRepository {
             mediaUrl: String,
             mediaPath: String = "",
             hlsUrl: String = "",
-            storageProvider: String = "firebase"
+            storageProvider: String = "firebase",
+            mediaUrls: List<String> = emptyList()
         ) {
             val publishedCaption = caption.trim().ifBlank {
                 if (mediaUrl.isNotBlank()) "Shared with the Ummah" else ""
             }
-            val thumbnailUrl = if (type == "image") mediaUrl else ""
+            val thumbnailUrl = if (type == "image") mediaUrl else thumbnailUrlOverride.takeIf { it.startsWith("https://") }.orEmpty()
             // The client writes an authenticated submission. A trusted Firestore trigger validates
             // it, then publishes it into ummah_posts so the reel appears in the live feed.
             firestore.collection("ummah_submissions").add(
@@ -689,8 +943,9 @@ class UmmahRepository {
                     "displayAspectRatio" to videoMetadata.displayAspectRatio.toDouble(),
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "submittedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                )
+                ) + (if (mediaUrls.size > 1) mapOf("mediaUrls" to mediaUrls.take(10)) else emptyMap()) + extraFields
             ).addOnSuccessListener { document ->
+                onSubmitted(document.id)
                 ReelCdnUploader.requestPublication(document.id)
                 // Keep storage-provider and backend workflow details out of the member experience.
                 val message = if (type == "reel" || type == "video") {
@@ -700,7 +955,7 @@ class UmmahRepository {
                 }
                 onResult(true, message)
             }.addOnFailureListener { error ->
-                onResult(false, error.localizedMessage ?: "Post submit failed.")
+                onResult(false, "Couldn't publish your post. Check your connection and tap Retry.")
             }
         }
 
@@ -709,48 +964,153 @@ class UmmahRepository {
             return
         }
 
-        val contentType = normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
+        val mediaUri = if (type == "image") ImageCompressor.compress(context, mediaUri, maxSide = 2048, quality = 90) else mediaUri  // 1.0.83: sharper chat photos
+        val contentType = if (type == "image") "image/jpeg" else normalizedUmmahContentType(type, context.contentResolver.getType(mediaUri))
         val mediaSize = contentLength(context, mediaUri)
         if (mediaSize >= MAX_UMMAH_MEDIA_BYTES) {
             return onResult(false, "This file is too large. Choose a photo or video smaller than 100 MB.")
         }
 
-        // Upload the raw bytes to Firebase Storage. Used directly for images, and as the fallback
-        // for videos when the AWS/CloudFront pipeline is off or unreachable.
-        fun uploadViaFirebase() {
+        // Firebase Storage is the primary upload path (images and reels). Each attempt reports
+        // progress; transient failures are retried with backoff, and if Storage is unavailable
+        // (e.g. HTTP 402/403 when billing lapses) reels/videos fall back to the AWS S3 +
+        // CloudFront pipeline. Members only ever see a friendly message.
+        val isVideo = type == "reel" || type == "video"
+        fun uploadExtras(start: Int, acc: List<String>, done: (List<String>?) -> Unit) =
+            uploadExtrasImpl(context, user.uid, extras, start, acc, onProgress) { r -> mainHandler.post { done(r) } }
+        fun uploadViaCdn(lastError: Throwable?) {
+            if (!ReelCdnUploader.ENABLED) {
+                return onResult(false, UploadErrors.friendly(lastError, isVideo))
+            }
+            onProgress(0f)
+            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata, onProgress = { onProgress(it) }) { result ->
+                mainHandler.post {
+                    if (result != null) {
+                        onProgress(1f)
+                        publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+                    } else {
+                        onResult(false, UploadErrors.friendly(lastError, isVideo))
+                    }
+                }
+            }
+        }
+
+        fun uploadViaFirebase(attempt: Int) {
             val folder = if (type == "image") "images" else "videos"
             val ref = FirebaseStorage.getInstance().reference
                 .child("ummah_submissions/${user.uid}/$folder/${System.currentTimeMillis()}")
             val metadata = StorageMetadata.Builder()
                 .setContentType(contentType)
                 .build()
-            ref.putFile(mediaUri, metadata)
-                .addOnSuccessListener {
-                    ref.downloadUrl
-                        .addOnSuccessListener { downloadUri -> publishPost(downloadUri.toString(), ref.path) }
-                        .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Could not read uploaded media URL.") }
-                }
-                .addOnFailureListener { error -> onResult(false, error.localizedMessage ?: "Media upload failed.") }
-        }
-
-        // Reels/videos: try the AWS S3 + CloudFront pipeline first (fast, cheap playback). On any
-        // failure or when it's disabled, fall back to Firebase Storage so uploads never break.
-        if (ReelCdnUploader.ENABLED && (type == "reel" || type == "video")) {
-            ReelCdnUploader.upload(context, mediaUri, contentType, videoMetadata) { result ->
-                if (result != null) {
-                    publishPost(result.mp4Url, hlsUrl = result.hlsUrl, storageProvider = "aws")
+            fun failed(error: Throwable) {
+                android.util.Log.w("NoorUpload", "storage upload failed attempt=$attempt http=${UploadErrors.httpCodeOf(error)}: ${error.javaClass.simpleName}")
+                if (attempt < 2 && UploadErrors.isRetryable(error)) {
+                    mainHandler.postDelayed({ uploadViaFirebase(attempt + 1) }, 1_500L * (attempt + 1))
                 } else {
-                    uploadViaFirebase()
+                    uploadViaCdn(error)
                 }
             }
-            return
+            ref.putFile(mediaUri, metadata)
+                .addOnProgressListener { snap ->
+                    if (snap.totalByteCount > 0) onProgress((snap.bytesTransferred.toFloat() / snap.totalByteCount / photoCount).coerceIn(0f, 1f))
+                }
+                .addOnSuccessListener {
+                    ref.downloadUrl
+                        .addOnSuccessListener { downloadUri ->
+                            if (extras.isEmpty()) { onProgress(1f); publishPost(downloadUri.toString(), ref.path) }
+                            else uploadExtras(0, listOf(downloadUri.toString())) { urls ->
+                                if (urls == null) onResult(false, "Couldn't upload all photos. Check your connection and tap Retry.")
+                                else { onProgress(1f); publishPost(urls.first(), ref.path, mediaUrls = urls) }
+                            }
+                        }
+                        .addOnFailureListener { error -> failed(error) }
+                }
+                .addOnFailureListener { error -> failed(error) }
         }
 
-        uploadViaFirebase()
+        uploadViaFirebase(0)
+    }
+
+    /** Sequentially uploads the remaining carousel photos (compressed JPEG) to the same submissions folder. */
+    private fun uploadExtrasImpl(
+        context: Context, uid: String, extras: List<Uri>, index: Int, acc: List<String>,
+        onProgress: (Float) -> Unit, done: (List<String>?) -> Unit
+    ) {
+        if (index >= extras.size) return done(acc)
+        val total = extras.size + 1
+        val file = ImageCompressor.compress(context, extras[index])
+        val ref = FirebaseStorage.getInstance().reference.child("ummah_submissions/$uid/images/${System.currentTimeMillis()}_${index + 1}")
+        ref.putFile(file, StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .addOnProgressListener { snap ->
+                if (snap.totalByteCount > 0) onProgress(((index + 1) + snap.bytesTransferred.toFloat() / snap.totalByteCount) / total)
+            }
+            .addOnSuccessListener {
+                ref.downloadUrl.addOnSuccessListener { url ->
+                    uploadExtrasImpl(context, uid, extras, index + 1, acc + url.toString(), onProgress, done)
+                }.addOnFailureListener { done(null) }
+            }
+            .addOnFailureListener { done(null) }
+    }
+
+    /** X-style repost / quote-repost into the Ummah feed. Creates a normal text submission that
+     *  references the original post; the trusted publisher promotes it like any other post. */
+    fun repost(context: Context, original: UmmahPost, quote: String, onResult: (Boolean, String?) -> Unit) {
+        val link = "https://noor-pro-d87e3.web.app/reel?id=${original.id}"
+        val handle = original.creatorHandle.ifBlank { "@ummah" }
+        val body = buildString {
+            if (quote.isNotBlank()) { append(quote.trim()); append("\n\n") }
+            append("\uD83D\uDD01 Reposted from "); append(handle)
+            val text = original.caption.ifBlank { original.arabicText }.trim()
+            if (text.isNotBlank()) { append(": "); append(text.take(280)) }
+            append("\n"); append(link)
+        }.take(2000)
+        submitPost(context, body, "", original.category.ifBlank { "Reminder" }, "text", null, "repost:${original.id}", onResult = { ok, msg ->
+            onResult(ok, if (ok) (if (quote.isBlank()) "Reposted to the Ummah feed" else "Quote posted to the Ummah feed") else msg)
+        })
+    }
+
+    /** 1.1.1: upload a chosen reel cover (JPEG) next to the member's submissions; null on failure. */
+    fun uploadCover(file: java.io.File, onResult: (String?) -> Unit) {
+        val user = FirebaseGate.currentUser ?: return onResult(null)
+        val ref = FirebaseStorage.getInstance().reference
+            .child("ummah_submissions/${user.uid}/images/${System.currentTimeMillis()}_cover")
+        ref.putFile(Uri.fromFile(file), StorageMetadata.Builder().setContentType("image/jpeg").build())
+            .continueWithTask { ref.downloadUrl }
+            .addOnCompleteListener { t -> mainHandler.post { onResult(if (t.isSuccessful) t.result.toString() else null) } }
+    }
+
+    /** 1.1.1: vote once in a post's poll (needs the 1.1.1 rules). */
+    fun votePoll(postId: String, option: Int, onResult: (Boolean) -> Unit) {
+        val user = FirebaseGate.currentUser ?: return onResult(false)
+        firestore.collection("ummah_posts").document(postId).collection("poll_votes").document(user.uid)
+            .set(mapOf("uid" to user.uid, "option" to option, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()))
+            .addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** 1.1.1: live poll tally (option -> votes) and my vote (-1 if none). */
+    fun observePoll(postId: String, onResult: (Map<Int, Int>, Int) -> Unit): com.google.firebase.firestore.ListenerRegistration? {
+        if (!FirebaseGate.ready) return null
+        val me = FirebaseGate.currentUser?.uid ?: return null
+        return firestore.collection("ummah_posts").document(postId).collection("poll_votes")
+            .addSnapshotListener { snap, _ ->
+                val docs = snap?.documents.orEmpty()
+                val tally = docs.mapNotNull { (it.get("option") as? Number)?.toInt() }.groupingBy { it }.eachCount()
+                onResult(tally, docs.firstOrNull { it.id == me }?.let { (it.get("option") as? Number)?.toInt() } ?: -1)
+            }
+    }
+
+    /** 1.1.1: followers-only posts from creators I follow (one query per creator, as the rules require). */
+    fun fetchFollowerPosts(creators: Collection<String>, onResult: (List<UmmahPost>) -> Unit) {
+        val ids = creators.filter { it.isNotBlank() }.take(30)
+        if (ids.isEmpty() || FirebaseGate.currentUser == null) return onResult(emptyList())
+        val tasks = ids.map { uid -> firestore.collection("ummah_follower_posts").whereEqualTo("creatorUid", uid).limit(20).get() }
+        com.google.android.gms.tasks.Tasks.whenAllComplete(tasks).addOnCompleteListener {
+            onResult(tasks.filter { it.isSuccessful }.flatMap { t -> t.result.documents.map { it.toUmmahPost() } })
+        }
     }
 
     fun report(postId: String, reason: String, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = FirebaseGate.currentUser
         if (user == null) {
             onResult(false)
             return
@@ -765,11 +1125,44 @@ class UmmahRepository {
         ).addOnCompleteListener { onResult(it.isSuccessful) }
     }
 
+    /**
+     * Report any kind of user-generated content (post, reel, comment, message, group, user).
+     * Moderators review `ummah_reports` within 24 hours.
+     */
+    fun reportContent(
+        type: String,
+        targetId: String,
+        targetUid: String,
+        reason: String,
+        details: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        val user = FirebaseGate.currentUser
+        if (user == null || targetId.isBlank()) {
+            onResult(false)
+            return
+        }
+        firestore.collection("ummah_reports").add(
+            mapOf(
+                "postId" to targetId,
+                "targetType" to type.take(20),
+                "targetId" to targetId.take(200),
+                "targetUid" to targetUid.take(128),
+                "reason" to reason.take(120),
+                "details" to details.take(300),
+                "reporterUid" to user.uid,
+                "status" to "open",
+                "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+            )
+        ).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
     /** Live set of UIDs the signed-in user has blocked. Empty for signed-out users. */
     fun observeBlockedUsers(onResult: (Set<String>) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptySet())
         blockedListeners.forEach { it.remove() }
         blockedListeners.clear()
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptySet())
             return
         }
@@ -781,7 +1174,7 @@ class UmmahRepository {
 
     /** Block (or unblock) a creator so their posts are hidden from this user's feed. */
     fun setBlocked(uid: String, blocked: Boolean, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val target = uid.trim()
         if (target.isBlank() || target == user.uid) return onResult(false)
         val document = firestore.collection("ummah_users").document(user.uid).collection("blocked").document(target)
@@ -804,8 +1197,11 @@ class UmmahRepository {
         return firestore.collection("ummah_comments")
             .whereEqualTo("postId", postId)
             .addSnapshotListener { snapshot, _ ->
+                val me = FirebaseGate.currentUser?.uid
                 val comments = snapshot?.documents.orEmpty().mapNotNull { document ->
                     if (document.getString("status") == "removed") return@mapNotNull null
+                    // 1.1.4: comments the post owner hid stay visible only to their author (Instagram-style hide).
+                    if (document.getString("status") == "hidden" && document.getString("creatorUid") != me) return@mapNotNull null
                     UmmahComment(
                         id = document.id,
                         postId = postId,
@@ -814,15 +1210,59 @@ class UmmahRepository {
                         creatorName = document.getString("creatorName") ?: "Community member",
                         createdAt = document.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
                         parentCommentId = document.getString("parentCommentId").orEmpty(),
-                        replyToName = document.getString("replyToName").orEmpty()
+                        replyToName = document.getString("replyToName").orEmpty(),
+                        likeCount = document.getLong("likeCount") ?: 0L
                     )
                 }.sortedBy { it.createdAt }
-                onResult(comments)
+                // 1.0.78: Instagram threading - each reply sits under its top-level comment.
+                val ids = comments.map { it.id }.toSet()
+                val roots = comments.filter { it.parentCommentId.isBlank() || it.parentCommentId !in ids }
+                val byParent = comments.filter { it.parentCommentId.isNotBlank() && it.parentCommentId in ids }.groupBy { it.parentCommentId }
+                fun thread(c: UmmahComment): List<UmmahComment> = listOf(c) + byParent[c.id].orEmpty().flatMap { thread(it) }
+                onResult(roots.flatMap { thread(it) })
             }
     }
 
+    /** 1.0.78: real comment likes - per-member like doc + public likeCount (+/-1 only by rules). */
+    fun toggleCommentLike(commentId: String, active: Boolean, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseGate.currentUser ?: return onResult(false)
+        if (commentId.isBlank()) return onResult(false)
+        val likeDoc = firestore.collection("ummah_users").document(user.uid).collection("comment_likes").document(commentId)
+        firestore.runTransaction { tx ->
+            val already = tx.get(likeDoc).exists()
+            when {
+                active && !already -> { tx.set(likeDoc, mapOf("commentId" to commentId, "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())); 1L }
+                !active && already -> { tx.delete(likeDoc); -1L }
+                else -> 0L
+            }
+        }.addOnCompleteListener { task ->
+            val delta = if (task.isSuccessful) task.result ?: 0L else 0L
+            if (delta != 0L) {
+                firestore.collection("ummah_comments").document(commentId)
+                    .update("likeCount", com.google.firebase.firestore.FieldValue.increment(delta))
+            }
+            onResult(task.isSuccessful)
+        }
+    }
+
+    fun observeMyCommentLikes(onResult: (Set<String>) -> Unit): ListenerRegistration? {
+        if (!FirebaseGate.ready) return null
+        val user = FirebaseGate.currentUser ?: return null
+        return firestore.collection("ummah_users").document(user.uid).collection("comment_likes")
+            .addSnapshotListener { snap, _ -> onResult(snap?.documents.orEmpty().map { it.id }.toSet()) }
+    }
+
+    fun deleteOwnComment(comment: UmmahComment, onResult: (Boolean) -> Unit = {}) {
+        val user = FirebaseGate.currentUser ?: return onResult(false)
+        if (comment.creatorUid != user.uid) return onResult(false)
+        firestore.collection("ummah_comments").document(comment.id).delete().addOnCompleteListener { t ->
+            onResult(t.isSuccessful)
+        }
+    }
+
     fun observeUserComments(onResult: (List<UmmahComment>) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList())
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptyList())
             return
         }
@@ -846,9 +1286,86 @@ class UmmahRepository {
             }
     }
 
+    // ------------------------------------------------------------------ 1.1.4 Creator Studio
+
+    /** The signed-in creator's published posts and reels (one-shot, equality filters only — no new index). */
+    fun fetchMyPosts(limit: Long = 300, onResult: (List<UmmahPost>) -> Unit) {
+        val uid = FirebaseGate.currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_posts")
+            .whereEqualTo("approved", true).whereEqualTo("status", "published").whereEqualTo("creatorUid", uid)
+            .limit(limit).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.toUmmahPost() }.sortedByDescending { it.publishedAt }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
+    /** Comments on the given posts (most recent posts first; ≤ 60 posts, whereIn in chunks of 30). */
+    fun fetchCommentsForPosts(postIds: List<String>, onResult: (List<UmmahComment>) -> Unit) {
+        val ids = postIds.filter { it.isNotBlank() }.distinct().take(60)
+        if (ids.isEmpty()) return onResult(emptyList())
+        val chunks = ids.chunked(30)
+        val out = java.util.Collections.synchronizedList(mutableListOf<UmmahComment>())
+        var pending = chunks.size
+        chunks.forEach { chunk ->
+            firestore.collection("ummah_comments").whereIn("postId", chunk).limit(400).get()
+                .addOnSuccessListener { snap ->
+                    out += snap.documents.mapNotNull { d ->
+                        if (d.getString("status") == "removed") return@mapNotNull null
+                        UmmahComment(
+                            id = d.id, postId = d.getString("postId").orEmpty(), text = d.getString("text").orEmpty(),
+                            creatorUid = d.getString("creatorUid").orEmpty(), creatorName = d.getString("creatorName") ?: "Community member",
+                            createdAt = d.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                            parentCommentId = d.getString("parentCommentId").orEmpty(), replyToName = d.getString("replyToName").orEmpty(),
+                            likeCount = d.getLong("likeCount") ?: 0L, status = d.getString("status") ?: "published"
+                        )
+                    }
+                }
+                .addOnCompleteListener { if (--pending == 0) mainHandler.post { onResult(out.toList()) } }
+        }
+    }
+
+    /**
+     * Creator edits on their own post: caption, pinnedToProfile, archived, pinnedCommentId only.
+     * Needs the additive 1.1.4 rule (flag creator_studio_edit_enabled); otherwise the write is denied.
+     */
+    fun updateMyPost(postId: String, fields: Map<String, Any>, onResult: (Boolean) -> Unit) {
+        val allowed = setOf("caption", "pinnedToProfile", "archived", "pinnedCommentId")
+        val clean = fields.filterKeys { it in allowed }.toMutableMap<String, Any>()
+        if (clean.isEmpty() || FirebaseGate.currentUser == null) return onResult(false)
+        (clean["caption"] as? String)?.let { clean["caption"] = it.trim().take(2200); clean["captionEditedAt"] = com.google.firebase.firestore.FieldValue.serverTimestamp() }
+        firestore.collection("ummah_posts").document(postId).update(clean).addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** Post owner hides / unhides a comment on their post (status hidden ↔ published; flagged rule). */
+    fun setCommentHidden(commentId: String, hidden: Boolean, onResult: (Boolean) -> Unit) {
+        firestore.collection("ummah_comments").document(commentId)
+            .update("status", if (hidden) "hidden" else "published").addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** Post owner deletes someone's comment on their post (flagged rule; the existing trigger fixes commentCount). */
+    fun deleteCommentOnMyPost(comment: UmmahComment, onResult: (Boolean) -> Unit) {
+        firestore.collection("ummah_comments").document(comment.id).delete().addOnCompleteListener { onResult(it.isSuccessful) }
+    }
+
+    /** When each follower followed (for follower growth). Followers are readable by signed-in members. */
+    fun fetchFollowerTimes(uid: String? = null, onResult: (List<Long>) -> Unit) {
+        val target = uid ?: FirebaseGate.currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_users").document(target).collection("followers").limit(5000).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.getTimestamp("createdAt")?.toDate()?.time ?: 0L }) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
+    /** Daily totals written by the flagged creatorDailySnapshot function: (yyyyMMdd, views) oldest first. */
+    fun fetchDailyStats(onResult: (List<Pair<String, Long>>) -> Unit) {
+        val uid = FirebaseGate.currentUser?.uid ?: return onResult(emptyList())
+        firestore.collection("ummah_creator_stats").document(uid).collection("days")
+            .orderBy(com.google.firebase.firestore.FieldPath.documentId(), com.google.firebase.firestore.Query.Direction.DESCENDING).limit(91).get()
+            .addOnSuccessListener { snap -> onResult(snap.documents.map { it.id to (it.getLong("views") ?: 0L) }.reversed()) }
+            .addOnFailureListener { onResult(emptyList()) }
+    }
+
     /** Delete a post the signed-in user owns, plus best-effort removal of its uploaded media. */
     fun deletePost(post: UmmahPost, onResult: (Boolean) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         if (post.creatorUid.isBlank() || post.creatorUid != user.uid) return onResult(false)
         firestore.collection("ummah_posts").document(post.id).delete()
             .addOnCompleteListener { task ->
@@ -866,7 +1383,7 @@ class UmmahRepository {
         replyToName: String = "",
         onResult: (Boolean) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false)
+        val user = FirebaseGate.currentUser ?: return onResult(false)
         val cleanText = text.trim()
         if (postId.isBlank() || cleanText.isBlank()) return onResult(false)
         val commentRef = firestore.collection("ummah_comments").document()
@@ -883,17 +1400,15 @@ class UmmahRepository {
             )
         ).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // Pending AWS reels do not have a public post document yet. Keep the successful
-                // comment and update the public counter only when that document is available.
-                firestore.collection("ummah_posts").document(postId)
-                    .update("commentCount", com.google.firebase.firestore.FieldValue.increment(1))
+                incrementPublishedCounter(postId, "commentCount")
             }
             onResult(task.isSuccessful)
         }
     }
 
     fun observeChats(onResult: (List<UmmahChat>, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptyList(), "Please sign in to use Friends chat.")
             return
         }
@@ -915,9 +1430,15 @@ class UmmahRepository {
                         lastMessageType = document.getString("lastMessageType").orEmpty(),
                         lastSenderUid = document.getString("lastSenderUid").orEmpty(),
                         updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
-                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L
+                        unreadCount = document.getLong("unread_${user.uid}") ?: 0L,
+                        meta = ChatMeta.fromFields(document.getData(com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior.ESTIMATE).orEmpty())
                     )
                 }.sortedByDescending { it.updatedAt }
+                // 1.0.78: double grey tick - acknowledge delivery of new incoming messages.
+                chats.filter { chat ->
+                    chat.lastSenderUid.isNotBlank() && chat.lastSenderUid != user.uid &&
+                        chat.updatedAt > (chat.meta.deliveredAt[user.uid] ?: 0L)
+                }.forEach { ChatRealtime.markDelivered(it.id) }
                 onResult(chats, null)
             }
         chatListeners += registration
@@ -925,14 +1446,14 @@ class UmmahRepository {
 
     /** Clear the signed-in user's unread badge after they open a 1:1 conversation. */
     fun markChatRead(chatId: String) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val uid = FirebaseGate.currentUser?.uid ?: return
         if (chatId.isBlank()) return
-        firestore.collection("ummah_chats").document(chatId)
-            .update("unread_$uid", 0L)
+        ChatRealtime.markRead(chatId)
     }
 
     fun observeGroups(onResult: (List<UmmahGroup>, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: run {
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
+        val user = FirebaseGate.currentUser ?: run {
             onResult(emptyList(), "Please sign in to use community groups.")
             return
         }
@@ -953,7 +1474,8 @@ class UmmahRepository {
                         memberUids = document.get("memberUids") as? List<String> ?: emptyList(),
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
-                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }.sortedByDescending { it.updatedAt }
                 onResult(groups, null)
@@ -961,8 +1483,12 @@ class UmmahRepository {
         chatListeners += registration
     }
 
-    fun createGroup(name: String, description: String, onResult: (Boolean, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to create a group.")
+    fun createGroup(name: String, description: String, onResult: (Boolean, String?) -> Unit) =
+        createGroup(name, description, "all", onResult)
+
+    /** 1.1.5: [audience] other than "all" is written only when the circles flag is on (rules allow extra keys). */
+    fun createGroup(name: String, description: String, audience: String, onResult: (Boolean, String?) -> Unit) {
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to create a group.")
         val cleanName = name.trim().take(60)
         if (cleanName.isBlank()) return onResult(false, "Add a group name.")
         firestore.collection("ummah_groups").add(
@@ -975,7 +1501,7 @@ class UmmahRepository {
                 "lastMessage" to "Group created",
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                 "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-            )
+            ) + (if (audience == "sisters" || audience == "brothers") mapOf("audience" to audience) else emptyMap())
         ).addOnCompleteListener { task ->
             onResult(task.isSuccessful, task.exception?.localizedMessage)
         }
@@ -983,6 +1509,7 @@ class UmmahRepository {
 
     /** Discover public community groups to search & join (not filtered to your memberships). */
     fun observeDiscoverGroups(onResult: (List<UmmahGroup>, String?) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
         val registration = firestore.collection("ummah_groups")
             .orderBy("updatedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .limit(80)
@@ -1001,7 +1528,8 @@ class UmmahRepository {
                         memberUids = document.get("memberUids") as? List<String> ?: emptyList(),
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
-                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                        updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }
                 onResult(groups, null)
@@ -1011,7 +1539,7 @@ class UmmahRepository {
 
     /** Join a public group by adding yourself to its member list (Instagram/WhatsApp-style). */
     fun joinGroup(groupId: String, onResult: (Boolean, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to join groups.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to join groups.")
         if (groupId.isBlank()) return onResult(false, "Invalid group.")
         val name = user.displayName ?: user.email?.substringBefore("@") ?: "Member"
         firestore.collection("ummah_groups").document(groupId).update(
@@ -1027,7 +1555,7 @@ class UmmahRepository {
 
     /** Owner adds members to a group (WhatsApp-style). [members] maps uid → display name. */
     fun addGroupMembers(groupId: String, members: Map<String, String>, onResult: (Boolean, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in.")
         val cleanMembers = members.filterKeys { it.isNotBlank() }
         if (cleanMembers.isEmpty()) return onResult(false, "Choose at least one member.")
         val groupRef = firestore.collection("ummah_groups").document(groupId)
@@ -1058,7 +1586,7 @@ class UmmahRepository {
 
     /** Toggle an emoji reaction (keyed by your uid) on a 1:1 message. Empty emoji removes it. */
     fun reactToChatMessage(chatId: String, messageId: String, emoji: String) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val uid = FirebaseGate.currentUser?.uid ?: return
         if (chatId.isBlank() || messageId.isBlank()) return
         val ref = firestore.collection("ummah_chats").document(chatId).collection("messages").document(messageId)
         val value: Any = if (emoji.isBlank()) com.google.firebase.firestore.FieldValue.delete() else emoji
@@ -1067,7 +1595,7 @@ class UmmahRepository {
 
     /** Toggle an emoji reaction (keyed by your uid) on a group message. Empty emoji removes it. */
     fun reactToGroupMessage(groupId: String, messageId: String, emoji: String) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val uid = FirebaseGate.currentUser?.uid ?: return
         if (groupId.isBlank() || messageId.isBlank()) return
         val ref = firestore.collection("ummah_groups").document(groupId).collection("messages").document(messageId)
         val value: Any = if (emoji.isBlank()) com.google.firebase.firestore.FieldValue.delete() else emoji
@@ -1075,14 +1603,37 @@ class UmmahRepository {
     }
 
     fun observeMessages(chatId: String, onResult: (List<UmmahMessage>, String?) -> Unit) {
-        val registration = firestore.collection("ummah_chats").document(chatId).collection("messages")
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
+        observeMessagesAttempt(chatId, 0, chatGeneration, onResult)
+    }
+
+    /**
+     * 1.1.9: a 1:1 chat that has no messages yet has no chat document, and rules deployed before 1.1.9
+     * refuse to listen to its messages (PERMISSION_DENIED). Show an empty chat instead of the raw error
+     * and listen again shortly, so the conversation appears as soon as either member sends.
+     */
+    private fun observeMessagesAttempt(chatId: String, attempt: Int, generation: Int, onResult: (List<UmmahMessage>, String?) -> Unit) {
+        var registration: ListenerRegistration? = null
+        if (generation != chatGeneration) return
+        registration = firestore.collection("ummah_chats").document(chatId).collection("messages")
             .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    onResult(emptyList(), error.localizedMessage ?: "Unable to load messages.")
+                    if (ChatErrors.isPermissionDenied(error) && attempt < ChatErrors.MAX_RETRIES) {
+                        onResult(emptyList(), null)
+                        registration?.remove()
+                        registration?.let { chatListeners -= it }
+                        mainHandler.postDelayed({
+                            if (generation == chatGeneration && FirebaseGate.currentUser != null) observeMessagesAttempt(chatId, attempt + 1, generation, onResult)
+                        }, ChatErrors.retryDelayMs(attempt))
+                    } else onResult(emptyList(), ChatErrors.friendly(error.localizedMessage, "Unable to load messages."))
                     return@addSnapshotListener
                 }
-                val messages = snapshot?.documents.orEmpty().map { document ->
+                val me = FirebaseGate.currentUser?.uid.orEmpty()
+                val messages = snapshot?.documents.orEmpty().filter { document ->
+                    // 1.0.78 "Delete for me": hide messages this member removed from their view.
+                    ((document.get("hiddenFor") as? List<*>)?.contains(me) != true)
+                }.map { document ->
                     UmmahMessage(
                         id = document.id,
                         senderUid = document.getString("senderUid").orEmpty(),
@@ -1095,15 +1646,100 @@ class UmmahRepository {
                         replyToName = document.getString("replyToName").orEmpty(),
                         replyToText = document.getString("replyToText").orEmpty(),
                         replyToType = document.getString("replyToType").orEmpty(),
-                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap()
+                        reactions = (document.get("reactions") as? Map<String, String>) ?: emptyMap(),
+                        sharedPostId = document.getString("sharedPostId").orEmpty(),
+                        sharedPostKind = document.getString("sharedPostKind").orEmpty(),
+                        sharedThumb = document.getString("sharedThumb").orEmpty(),
+                        sharedCreatorUid = document.getString("sharedCreatorUid").orEmpty(),
+                        sharedCreatorName = document.getString("sharedCreatorName").orEmpty(),
+                        sharedCreatorPhoto = document.getString("sharedCreatorPhoto").orEmpty(),
+                        sharedCaption = document.getString("sharedCaption").orEmpty(),
+                        durationMs = document.getLong("durationMs") ?: 0L,
+                        waveform = (document.get("waveform") as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty(),
+                        forwarded = document.getBoolean("forwarded") ?: false
                     )
                 }
                 onResult(messages, null)
             }
-        chatListeners += registration
+        registration?.let { chatListeners += it }
+    }
+
+    /** One-shot read of a published post for shared-post cards. null = deleted / not published. */
+    fun fetchPublishedPost(postId: String, onResult: (UmmahPost?) -> Unit) {
+        val id = postId.trim()
+        if (id.isBlank() || id.contains('/')) return onResult(null)
+        firestore.collection("ummah_posts").document(id).get()
+            .addOnSuccessListener { doc ->
+                val post = if (doc.exists()) runCatching { doc.toUmmahPost() }.getOrNull() else null
+                onResult(post?.takeIf { it.publicationStatus.isBlank() || it.publicationStatus == "published" })
+            }
+            .addOnFailureListener { onResult(null) }
+    }
+
+    /**
+     * 1.0.82: send [post] to each recipient's 1:1 chat as a "post_share" message (Instagram style).
+     * An optional [note] rides in the message text. The share counter is incremented once.
+     * Recipients the sender has blocked are skipped by the caller; Firestore rules also refuse a
+     * share to someone who has blocked the sender.
+     */
+    fun sendPostShare(post: UmmahPost, recipients: List<Pair<String, String>>, note: String, onResult: (Int, String?) -> Unit) {
+        val user = FirebaseGate.currentUser ?: return onResult(0, "Please sign in to share.")
+        val targets = recipients.filter { it.first.isNotBlank() && it.first != user.uid }.distinctBy { it.first }.take(15)
+        if (targets.isEmpty()) return onResult(0, "Choose who to send to.")
+        val isReel = post.type == "reel" || post.type == "video"
+        val kind = if (isReel) "reel" else "post"
+        val preview = if (isReel) "Sent a reel" else "Sent a post"
+        // Keep a real visual on the chat card. Older reels often have no generated thumbnail, so
+        // carry the MP4 URL and let the receiver extract/cache a frame from it.
+        val thumb = post.thumbnailUrl.ifBlank {
+            post.mediaUrls.firstOrNull().orEmpty().ifBlank { post.mediaUrl }
+        }
+            .takeIf { it.startsWith("https://") }.orEmpty().take(2000)
+        var done = 0; var ok = 0; var firstError: String? = null
+        targets.forEach { (uid, name) ->
+            val chatId = listOf(user.uid, uid).sorted().joinToString("_")
+            val chatRef = firestore.collection("ummah_chats").document(chatId)
+            val messageRef = chatRef.collection("messages").document()
+            fun commit(withMembers: Boolean) = firestore.runBatch { batch ->
+                batch.set(chatRef, ChatErrors.chatMeta(
+                    withMembers, listOf(user.uid, uid).sorted(),
+                    mapOf(user.uid to (user.displayName ?: user.email?.substringBefore("@") ?: "You"), uid to name.ifBlank { "Friend" }), mapOf(
+                    "lastMessage" to preview,
+                    "lastMessageType" to "post_share",
+                    "lastSenderUid" to user.uid,
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "unread_$uid" to com.google.firebase.firestore.FieldValue.increment(1)
+                )), com.google.firebase.firestore.SetOptions.merge())
+                batch.set(messageRef, mapOf(
+                    "senderUid" to user.uid,
+                    "senderName" to (user.displayName ?: "Community member"),
+                    "text" to note.trim().take(500),
+                    "mediaUrl" to "",
+                    "type" to "post_share",
+                    "sharedTo" to uid,
+                    "sharedPostId" to post.id.take(128),
+                    "sharedPostKind" to kind,
+                    "sharedThumb" to thumb,
+                    "sharedCreatorUid" to post.creatorUid.take(128),
+                    "sharedCreatorName" to post.creatorName.take(80),
+                    "sharedCreatorPhoto" to post.creatorPhotoUrl.takeIf { it.startsWith("https://") }.orEmpty().take(1000),
+                    "sharedCaption" to post.caption.ifBlank { post.arabicText }.trim().take(300),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                ))
+            }
+            commit(true).continueWithTask { t -> if (!t.isSuccessful && ChatErrors.isPermissionDenied(t.exception)) commit(false) else t }.addOnCompleteListener { task ->
+                done++
+                if (task.isSuccessful) ok++ else if (firstError == null) firstError = task.exception?.localizedMessage ?: "Couldn't send."
+                if (done == targets.size) {
+                    if (ok > 0) incrementShare(post.id)
+                    onResult(ok, firstError)
+                }
+            }
+        }
     }
 
     fun observeGroupMessages(groupId: String, onResult: (List<UmmahMessage>, String?) -> Unit) {
+        if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
         val registration = firestore.collection("ummah_groups").document(groupId).collection("messages")
             .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
@@ -1133,7 +1769,7 @@ class UmmahRepository {
     }
 
     fun sendGroupMessage(groupId: String, text: String, onResult: (Boolean, String?) -> Unit) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to message.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to message.")
         val cleanText = text.trim()
         if (cleanText.isBlank()) return onResult(false, "Write a message.")
         val groupRef = firestore.collection("ummah_groups").document(groupId)
@@ -1175,7 +1811,7 @@ class UmmahRepository {
         replyToType: String = "",
         onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to message.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to message.")
         if (groupId.isBlank()) return onResult(false, "Open a group first.")
 
         fun writeMessage(mediaUrl: String) {
@@ -1275,9 +1911,10 @@ class UmmahRepository {
         replyToName: String = "",
         replyToText: String = "",
         replyToType: String = "",
+        extra: Map<String, Any> = emptyMap(),
         onResult: (Boolean, String?) -> Unit
     ) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "Please sign in to chat.")
+        val user = FirebaseGate.currentUser ?: return onResult(false, "Please sign in to chat.")
         val targetUid = otherUid.trim()
         if (targetUid.isBlank()) return onResult(false, "Enter a friend user ID.")
         val chatId = listOf(user.uid, targetUid).sorted().joinToString("_")
@@ -1288,7 +1925,7 @@ class UmmahRepository {
 
         fun writeMessage(mediaUrl: String) {
             val cleanType = when (type) {
-                "image", "video", "reel", "audio", "location", "file", "pdf" -> type
+                "image", "video", "reel", "audio", "location", "file", "pdf", "call" -> type
                 else -> "text"
             }
             val preview = text.ifBlank {
@@ -1304,22 +1941,22 @@ class UmmahRepository {
                 }
             }
             val chatRef = firestore.collection("ummah_chats").document(chatId)
-            firestore.runBatch { batch ->
+            val messageRef = chatRef.collection("messages").document()
+            fun commit(withMembers: Boolean) = firestore.runBatch { batch ->
                 batch.set(
                     chatRef,
-                    mapOf(
-                        "participantUids" to listOf(user.uid, targetUid),
-                        "participantNames" to participantNames,
+                    ChatErrors.chatMeta(
+                        withMembers, listOf(user.uid, targetUid).sorted(), participantNames, mapOf(
                         "lastMessage" to preview.take(180),
                         "lastMessageType" to cleanType,
                         "lastSenderUid" to user.uid,
                         "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                         "unread_$targetUid" to com.google.firebase.firestore.FieldValue.increment(1)
-                    ),
+                    )),
                     com.google.firebase.firestore.SetOptions.merge()
                 )
                 batch.set(
-                    chatRef.collection("messages").document(),
+                    messageRef,
                     mapOf(
                         "senderUid" to user.uid,
                         "senderName" to (user.displayName ?: "Community member"),
@@ -1331,10 +1968,17 @@ class UmmahRepository {
                         "replyToText" to replyToText.trim().take(220),
                         "replyToType" to replyToType.trim().take(24),
                         "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                    )
+                    ) + extra.filterKeys { it in setOf("durationMs", "waveform", "forwarded") }
                 )
-            }.addOnCompleteListener { task ->
-                onResult(task.isSuccessful, task.exception?.localizedMessage)
+            }
+            // 1.1.9: a chat the other member started stores its members in their order; older rules
+            // refuse a write that re-sends them in ours. Retry once without touching the member list.
+            commit(true).addOnCompleteListener { task ->
+                if (!task.isSuccessful && ChatErrors.isPermissionDenied(task.exception)) {
+                    commit(false).addOnCompleteListener { retry ->
+                        onResult(retry.isSuccessful, ChatErrors.friendly(retry.exception?.localizedMessage, null))
+                    }
+                } else onResult(task.isSuccessful, ChatErrors.friendly(task.exception?.localizedMessage, null))
             }
         }
 
@@ -1385,6 +2029,7 @@ class UmmahRepository {
         interactionListeners.clear()
         chatListeners.forEach { it.remove() }
         chatListeners.clear()
+        chatGeneration++
         blockedListeners.forEach { it.remove() }
         blockedListeners.clear()
     }

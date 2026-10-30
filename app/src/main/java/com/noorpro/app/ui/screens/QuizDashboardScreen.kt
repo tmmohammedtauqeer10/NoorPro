@@ -90,7 +90,7 @@ fun QuizDashboardScreen(viewModel: DeenViewModel) {
                 }
             } else if (errorMessage != null || categories.isNullOrEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(errorMessage ?: "No quizzes available.", color = Color.White)
+                    Text(errorMessage ?: "No quizzes available.", color = MaterialTheme.colorScheme.onSurface)
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -110,14 +110,14 @@ fun QuizDashboardScreen(viewModel: DeenViewModel) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = category.categoryName,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 18.sp
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "Difficulty: ${category.difficulty} • ${category.questions.size} Questions",
-                                        color = Color.White.copy(alpha = 0.6f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 14.sp
                                     )
                                 }

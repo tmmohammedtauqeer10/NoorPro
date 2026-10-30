@@ -82,11 +82,21 @@ object GithubApiService {
 
     val api: GithubApi = retrofit.create(GithubApi::class.java)
 
+    private val moshi = com.squareup.moshi.Moshi.Builder().build()
+
+    /** Bundled snapshot (src/main/resources/offline) used when the network is unavailable. */
+    private fun <T> bundled(name: String, type: Class<T>): T? = runCatching {
+        GithubApiService::class.java.getResourceAsStream("/offline/$name")?.use { stream ->
+            moshi.adapter(type).fromJson(stream.bufferedReader(Charsets.UTF_8).readText())
+        }
+    }.getOrNull()
+
     suspend fun fetchLibraryCatalogSafely(): List<LibraryCategory> {
         return withContext(Dispatchers.IO) {
             try {
                 api.fetchLibraryCatalog().categories
             } catch (e: Exception) {
+                bundled("library_api.json", LibraryResponse::class.java)?.categories?.let { return@withContext it }
                 throw IOException("Library error: ${e.message}", e)
             }
         }
@@ -97,6 +107,7 @@ object GithubApiService {
             try {
                 api.fetchQuizData().categories
             } catch (e: Exception) {
+                bundled("quiz_data.json", QuizResponse::class.java)?.categories?.let { return@withContext it }
                 throw IOException("Quiz error: ${e.message}", e)
             }
         }
@@ -107,8 +118,8 @@ object GithubApiService {
             try {
                 api.fetchAudioCatalog().categories
             } catch (e: Exception) {
-                // Do not invent empty-URL tracks — UI should show an offline/error state.
-                emptyList()
+                // Real bundled snapshot (same URLs); never invent empty-URL tracks.
+                bundled("audio_api.json", AudioResponse::class.java)?.categories ?: emptyList()
             }
         }
     }

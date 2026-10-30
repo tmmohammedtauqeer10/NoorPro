@@ -147,8 +147,8 @@ fun BookmarkItem(
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = bookmark.ayahText,
-                style = MaterialTheme.typography.titleMedium.copy(color = TextPrimary, lineHeight = 28.sp),
+                text = com.noorpro.app.ui.components.quranDisplayText(bookmark.ayahText),
+                style = MaterialTheme.typography.titleMedium.copy(color = com.noorpro.app.ui.components.quranArabicColor(), lineHeight = 30.sp, fontFamily = com.noorpro.app.ui.components.QuranArabicFont),
                 textAlign = TextAlign.Right,
                 modifier = Modifier.fillMaxWidth()
             )

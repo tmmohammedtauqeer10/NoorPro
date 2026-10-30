@@ -62,7 +62,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     val alarmSoundFlow: Flow<String> = dataStore.data.map { prefs ->
-        prefs[ALARM_SOUND_KEY] ?: "Mecca Adhan"
+        prefs[ALARM_SOUND_KEY] ?: "Alarm tone"
     }
 
     suspend fun updateAlarmSound(sound: String) {
@@ -72,7 +72,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     fun isAlarmEnabledFlow(prayerName: String): Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[alarmEnabledKey(prayerName)] ?: false
+        prefs[alarmEnabledKey(prayerName)] ?: true
     }
 
     suspend fun setAlarmEnabled(prayerName: String, enabled: Boolean) {

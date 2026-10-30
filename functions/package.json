@@ -4,16 +4,19 @@
   "private": true,
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
-    "lint": "node --check index.js",
+    "lint": "node --check index.js && node --check halal.js",
+    "test": "node composer.test.js && node creator.test.js && node halal.test.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
     "@aws-sdk/client-mediaconvert": "^3.700.0",
     "@aws-sdk/client-s3": "^3.700.0",
     "@aws-sdk/s3-request-presigner": "^3.700.0",
+    "@google-cloud/video-intelligence": "^7.2.0",
+    "@google-cloud/vision": "^6.2.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.3.2"
   }

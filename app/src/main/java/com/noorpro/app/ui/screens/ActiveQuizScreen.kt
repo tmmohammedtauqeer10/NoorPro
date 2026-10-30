@@ -76,7 +76,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         "You earned ${score} points!",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp,
                         textAlign = TextAlign.Center
                     )
@@ -90,7 +90,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth().height(50.dp)
                     ) {
-                        Text("Claim Rewards & Exit", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Claim Rewards & Exit", color = if (com.noorpro.app.ui.theme.isAppDark) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             } else if (currentQuestion != null) {
@@ -100,7 +100,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
                     // Progress Indicator
                     Text(
                         "Question ${currentIndex + 1} of ${questions.size}",
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -121,7 +121,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
                     ) {
                         Text(
                             text = currentQuestion.text,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(24.dp),
@@ -146,7 +146,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
                                 else -> SlateCard.copy(alpha = 0.5f)
                             }
                             
-                            val textColor = if (hasAnswered && (isSelected || isCorrect)) Color.White else Color.White
+                            val textColor = if (hasAnswered && (isSelected || isCorrect)) Color.White else MaterialTheme.colorScheme.onSurface
 
                             Box(
                                 modifier = Modifier

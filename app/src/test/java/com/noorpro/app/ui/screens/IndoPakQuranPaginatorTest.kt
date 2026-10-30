@@ -65,4 +65,11 @@ class IndoPakQuranPaginatorTest {
     fun unsupportedSourceControlGlyphsAreRemovedWithoutChangingArabic() {
         assertEquals("بِسْمِ الله", normalizeWord("\u200Fبِسْمِ\uE022 \u200Bالله\uFEFF"))
     }
+
+    @Test
+    fun renderedLineShrinksOnlyWhenItWouldCrossThePrintableArea() {
+        assertEquals(25f, fitMushafFontSize(25f, 280f, 300f), 0.001f)
+        assertEquals(24.5f, fitMushafFontSize(25f, 300f, 300f), 0.001f)
+        assertEquals(14f, fitMushafFontSize(25f, 1_000f, 200f), 0.001f)
+    }
 }
