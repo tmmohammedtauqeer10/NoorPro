@@ -48,6 +48,21 @@ class ChatAndSoundTest {
         assertNull(ReelSoundLibrary.findByCredit(items, ""))
     }
 
+    private fun track(l: com.noorpro.app.audio.models.LicenseType, attr: String) = com.noorpro.app.audio.models.Track(
+        "id", "T", "a", "A", "https://cdn.example.org/t.mp3", 1000, license = l, attributionText = attr, sourceUrl = "")
+
+    @Test fun libraryIsNeverCreativeCommons() {
+        val L = com.noorpro.app.audio.models.LicenseType
+        assertNotNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.PUBLIC_DOMAIN, "Hisn · Public Domain Mark 1.0")))
+        assertNotNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.PIXABAY, "Pixabay creators · Pixabay Content License")))
+        assertNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.CC_BY, "Ubaid · CC BY 4.0")))
+        assertNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.CC0, "x · CC0")))
+        assertNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.PUBLIC_DOMAIN, "x · Creative Commons Attribution")))
+        assertNull(com.noorpro.app.data.media.edit.ReelSounds.from(track(L.SOURCE_TERMS, "Islamic Network")))
+        val items = listOf(lib("a", "b", "Nasheeds (voice only)", "g"), lib("c", "d", ReelSoundLibrary.DUAS, "g"))
+        assertEquals(listOf(ReelSoundLibrary.ALL, "Nasheeds (voice only)", ReelSoundLibrary.DUAS), ReelSoundLibrary.categories(items))
+    }
+
     @Test fun soundTagParsing() {
         val s = ReelSound("x", "Morning dua", "Hisn al-Muslim", "https://x", "Public Domain", "")
         val t = ReelSoundTag.parse("Al-Baqarah 2:255 · Sound: ${s.credit}", "Ali")

@@ -74,6 +74,12 @@ object FreeAudioCatalog {
         LicenseType.PUBLIC_DOMAIN, "Public Domain Mark 1.0", PD_MARK, "https://archive.org/details/Eng_Commentary_AlBaqarah1-286",
     )
 
+    /** 1.1.9: Pixabay Content License sounds (asset rows tagged "P"); none shipped yet — add / remove rows in the asset only. */
+    val pixabay = AudioSource(
+        "pixabay", "Pixabay (Content License)", "Pixabay creators",
+        LicenseType.PIXABAY, "Pixabay Content License", "https://pixabay.com/service/license-summary/", "https://pixabay.com/sound-effects/",
+    )
+
     val sources = listOf(hisn, quranicDuas, islamicNetwork, ubaid, wahid)
 
     private fun track(id: String, title: String, artist: String, url: String, src: AudioSource, lang: String?, durMs: Long = 0L) = Track(
@@ -116,6 +122,16 @@ object FreeAudioCatalog {
                 track("dua-${it[0]}-$occasion-$i", if (it[3].isNotBlank()) it[3] + " …" else it[2], src.by, it[4], src, if (it[0] == "Q") "ar,ur" else "ar", it[5].toLongOrNull() ?: 0L)
             })
         }
+    }
+
+    /**
+     * 1.1.9 catalog-driven reel sounds licensed outside Creative Commons. Asset row:
+     * `P|category|title|artist|https url|durationMs|page url|tags` — e.g. category "Nasheeds (voice only)".
+     */
+    fun pixabaySounds(ctx: Context): List<Pair<String, Track>> = rows(ctx).filter { it[0] == "P" && it.size >= 5 }.mapIndexed { i, r ->
+        r[1] to track("pix-$i", r[2], r[3].ifBlank { pixabay.by }, r[4], pixabay, null, r.getOrNull(5)?.toLongOrNull() ?: 0L)
+            .copy(sourceUrl = r.getOrNull(6)?.takeIf { it.startsWith("https://") } ?: pixabay.sourceUrl,
+                tags = r.getOrNull(7)?.split(',')?.map { it.trim() }?.filter { it.isNotBlank() }.orEmpty())
     }
 
     /** Tafsir by scholar, then surah, then part (by starting ayah). */

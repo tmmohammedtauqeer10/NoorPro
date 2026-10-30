@@ -112,7 +112,7 @@ fun ReelSoundPickerSheet(selected: ReelSound?, creatorName: String, onPick: (Ree
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Add sound", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                    Text("From Al-Noor Audio · voice only, free to reuse with credit", color = stitchMutedText(), fontSize = 12.sp)
+                    Text("From Al-Noor Audio · public domain & Pixabay licence, voice only", color = stitchMutedText(), fontSize = 12.sp)
                 }
                 if (selected != null) TextButton(onClick = { toggle(null); onPick(null) }) { Text("Remove", color = Color(0xFFD9475A)) }
             }
@@ -128,7 +128,7 @@ fun ReelSoundPickerSheet(selected: ReelSound?, creatorName: String, onPick: (Ree
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReelSoundLibrary.categories.forEach { c ->
+                ReelSoundLibrary.categories(all.orEmpty()).forEach { c ->
                     val on = c == category
                     Text(c, color = if (on) Color.White else stitchText(), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) green else stitchBackground()).clickable { category = c }.padding(horizontal = 13.dp, vertical = 7.dp))

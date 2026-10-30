@@ -136,6 +136,7 @@ data class ReelSound(
     /** Short licence name for the credit line. */
     val licenseShort get() = when {
         licenseLabel.contains("Public Domain", true) -> "Public domain"
+        licenseLabel.contains("Pixabay", true) -> "Pixabay licence"
         licenseLabel.contains("CC0", true) -> "CC0"
         licenseLabel.contains("CC BY", true) -> "CC BY"
         else -> licenseLabel.take(20)
@@ -145,8 +146,12 @@ data class ReelSound(
 }
 
 object ReelSounds {
-    /** Licences that allow putting the audio into a new video: public domain / CC0 / CC BY (with credit). */
-    private val reusable = setOf(LicenseType.PUBLIC_DOMAIN, LicenseType.CC0, LicenseType.CC_BY)
+    /**
+     * 1.1.9: the reel sound library is catalog-driven and NON-Creative-Commons only — public domain and the
+     * Pixabay Content License (plus the creator's own uploads, see ReelSoundLibrary.original). CC0 / CC BY /
+     * CC BY-SA tracks are never offered, so removing tracks from the catalog asset later needs no code change.
+     */
+    private val reusable = setOf(LicenseType.PUBLIC_DOMAIN, LicenseType.PIXABAY)
 
     /**
      * Only own/licensed Al-Noor Audio tracks. Excludes stream-only sources (SOURCE_TERMS, e.g. Quran CDN
@@ -156,7 +161,8 @@ object ReelSounds {
     fun eligible(t: Track): Boolean {
         val url = t.audioUrl.lowercase()
         return t.license in reusable && url.startsWith("https://") && !url.contains("youtube") && !url.contains("youtu.be") &&
-            !url.contains("googlevideo") && t.attributionText.isNotBlank()
+            !url.contains("googlevideo") && t.attributionText.isNotBlank() &&
+            !t.attributionText.contains("Creative Commons", true) && !Regex("\\bCC[ -]?(0|BY)", RegexOption.IGNORE_CASE).containsMatchIn(t.attributionText)
     }
 
     fun from(t: Track): ReelSound? = if (!eligible(t)) null else ReelSound(

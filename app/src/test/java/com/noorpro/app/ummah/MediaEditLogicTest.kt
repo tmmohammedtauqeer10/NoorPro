@@ -215,9 +215,9 @@ class MediaEditLogicTest {
 
     @Test fun onlyReusableAlNoorAudio() {
         assertTrue(ReelSounds.eligible(track(LicenseType.PUBLIC_DOMAIN)))
-        assertTrue(ReelSounds.eligible(track(LicenseType.CC0)))
-        assertTrue(ReelSounds.eligible(track(LicenseType.CC_BY)))
-        listOf(LicenseType.SOURCE_TERMS, LicenseType.PUBLISHER_RSS, LicenseType.CC_BY_SA, LicenseType.PERMISSION_LETTER)
+        assertTrue(ReelSounds.eligible(track(LicenseType.PIXABAY)))
+        // 1.1.9: Creative Commons is never offered in the reel sound library.
+        listOf(LicenseType.CC0, LicenseType.CC_BY, LicenseType.SOURCE_TERMS, LicenseType.PUBLISHER_RSS, LicenseType.CC_BY_SA, LicenseType.PERMISSION_LETTER)
             .forEach { assertFalse("$it", ReelSounds.eligible(track(it))) }
         assertFalse(ReelSounds.eligible(track(LicenseType.PUBLIC_DOMAIN, url = "https://www.youtube.com/watch?v=x")))
         assertFalse(ReelSounds.eligible(track(LicenseType.PUBLIC_DOMAIN, url = "https://youtu.be/x")))

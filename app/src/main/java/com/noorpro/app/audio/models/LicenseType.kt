@@ -14,4 +14,6 @@ enum class LicenseType {
     SOURCE_TERMS,
     /** Public podcast RSS feed, streamed from the publisher's enclosure URL (never rehosted). */
     PUBLISHER_RSS,
+    /** 1.1.9: Pixabay Content License (free reuse in videos, no attribution required; not Creative Commons). */
+    PIXABAY,
 }

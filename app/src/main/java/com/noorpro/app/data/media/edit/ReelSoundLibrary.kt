@@ -6,7 +6,7 @@ import com.noorpro.app.audio.catalog.FreeAudioCatalog
 /**
  * 1.1.9 reel sound library (Instagram-style "Add sound"). Built only from Al-Noor Audio tracks whose
  * licence allows reuse in a new video (public domain / CC0 / CC BY, see [ReelSounds.eligible]) plus the
- * creator's own original sound. No music, no YouTube, no stream-only recitations.
+ * creator's own original sound. Never Creative Commons, no music, no YouTube, no stream-only recitations.
  */
 data class LibrarySound(
     val sound: ReelSound,
@@ -23,20 +23,24 @@ object ReelSoundLibrary {
     const val QURANIC = "Quranic duas"
     const val TAFSIR = "Tafsir & reminders"
     const val ORIGINAL = "Original"
-    val categories = listOf(ALL, DUAS, QURANIC, TAFSIR)
+    /** Category chips come from the catalog itself, so adding / removing tracks needs no code change. */
+    fun categories(items: List<LibrarySound>): List<String> = listOf(ALL) + items.map { it.category }.distinct()
 
     @Volatile private var cache: List<LibrarySound>? = null
 
     fun load(ctx: Context): List<LibrarySound> = cache ?: runCatching {
         val duas = FreeAudioCatalog.duaGroups(ctx).flatMap { g ->
             g.tracks.mapNotNull { t ->
-                ReelSounds.from(t)?.let { LibrarySound(it, if (t.id.startsWith("dua-Q")) QURANIC else DUAS, g.title, t.durationMs) }
+                ReelSounds.from(t)?.let { LibrarySound(it, if (t.id.contains("dua-Q-")) QURANIC else DUAS, g.title, t.durationMs) }
             }
         }
         val tafsir = FreeAudioCatalog.scholars(ctx).flatMap { s ->
             s.surahs.flatMap { g -> g.tracks.mapNotNull { t -> ReelSounds.from(t)?.let { LibrarySound(it, TAFSIR, "${s.name} · ${g.title}", t.durationMs) } } }
         }
-        (duas + tafsir).distinctBy { it.sound.url }
+        val pix = FreeAudioCatalog.pixabaySounds(ctx).mapNotNull { (cat, t) ->
+            ReelSounds.from(t)?.let { LibrarySound(it, cat, t.artistName, t.durationMs, if (t.tags.any { g -> g.equals("vocals", true) || g.equals("nasheed", true) }) "Vocals · no instruments" else "Voice only") }
+        }
+        (duas + pix + tafsir).distinctBy { it.sound.url }
     }.getOrDefault(emptyList()).also { if (it.isNotEmpty()) cache = it }
 
     /** Search title / artist / group; every word must match somewhere. */
