@@ -1,4 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="NoorPro">
-  <rect width="64" height="64" rx="16" fill="#0B6243"/>
-  <path fill="#FDF9F0" d="M15.16,46.91L15.16,15.98A0.98,0.98 0 0 1 16.14,15L20.81,15A5.31,5.31 0 0 1 25.02,17.08L39.93,36.52L39.93,17.95A2.95,2.95 0 0 1 42.87,15L47.95,15A0.88,0.88 0 0 1 48.84,15.88L48.84,47.18A1.82,1.82 0 0 1 47.02,49L42.25,49A5.14,5.14 0 0 1 38.26,47.11L31.53,38.85C29.57,36.44 27.24,35.09 24.94,33.38A6.24,6.24 0 0 1 23.85,24.4A6.43,6.43 0 0 0 24.08,36.89L24.08,46.18A2.82,2.82 0 0 1 21.26,49L17.25,49A2.09,2.09 0 0 1 15.16,46.91Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Noor Pro">
+  <defs>
+    <linearGradient id="noorBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B5C4D"/>
+      <stop offset="1" stop-color="#053C2E"/>
+    </linearGradient>
+    <mask id="noorCrescent">
+      <rect width="64" height="64" fill="#fff"/>
+      <circle cx="40" cy="27" r="12.5" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#noorBg)"/>
+  <circle cx="32" cy="32" r="14" fill="#D4AF37" mask="url(#noorCrescent)"/>
+  <path d="M45.5 37.5 47 41.9 51.4 43.4 47 44.9 45.5 49.3 44 44.9 39.6 43.4 44 41.9Z" fill="#F0D07A"/>
 </svg>
