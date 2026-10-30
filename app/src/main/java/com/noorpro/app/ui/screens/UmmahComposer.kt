@@ -117,6 +117,10 @@ class ComposerUiState(destination: ComposerDestination) {
     var arabic by mutableStateOf("")
     var reference by mutableStateOf("")
     var credit by mutableStateOf("")
+    /** 1.1.9 sound library: chosen sound, and whether [video] already has it mixed in (editor export). */
+    var sound by mutableStateOf<com.noorpro.app.data.media.edit.ReelSound?>(null)
+    var soundMixed by mutableStateOf(false)
+    var soundPickerOpen by mutableStateOf(false)
     var pollOpen by mutableStateOf(false)
     var poll by mutableStateOf(ComposerPoll())
     var aiLabel by mutableStateOf(false)
@@ -163,6 +167,7 @@ class ComposerUiState(destination: ComposerDestination) {
         val edits = com.noorpro.app.data.media.edit.EditCodec.draft(d.editJson)
         photoOrigins = edits.photos.entries.associate { (k, v) -> Uri.parse(k) to (Uri.parse(v.first) to v.second) }.filterKeys { it in photos }
         reelSource = edits.reelSource?.let(Uri::parse); reelEdit = edits.reel?.takeIf { video != null }
+        sound = reelEdit?.sound; soundMixed = sound != null && reelSource != null
         error = null
     }
 }
@@ -687,7 +692,8 @@ private fun ComposerSettings(state: ComposerUiState, features: ComposerFeatures)
     val showLoc = features.location && !story
     if (!reel && !showAi && !showLoc) return
     Column(composerCard().animateContentSize()) {
-        if (reel) SettingRow(Icons.Default.MusicNote, "Sound / recitation credit") {
+        if (reel) ReelSoundRow(state.sound, state.soundMixed) { state.soundPickerOpen = true }
+        if (reel && state.sound == null) SettingRow(Icons.Default.MusicNote, "Original audio credit") {
             ComposerField(state.credit, { state.credit = it.take(80) }, "e.g. Recitation: Sheikh …  (optional)", "composer_credit", modifier = Modifier.padding(top = 6.dp))
         }
         if (showLoc) SettingRow(Icons.Default.Place, "Location") {

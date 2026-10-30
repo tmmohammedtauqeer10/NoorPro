@@ -21,6 +21,8 @@ sealed class CarTarget {
     data class Surah(val surah: Int) : CarTarget()
     data class Routine(val id: String) : CarTarget()
     data class Episode(val podcastId: String, val trackId: String) : CarTarget()
+    /** 1.1.9: an Al-Noor Audio track (dua group index, track index) — same catalog as the Al-Noor Audio screen. */
+    data class AlNoor(val group: Int, val track: Int) : CarTarget()
 }
 
 object CarModeLogic {
@@ -29,6 +31,9 @@ object CarModeLogic {
     const val ROUTINES = "car_routines"
     const val BAYANS = "car_bayans"
     const val CONTINUE = "car_continue"
+    const val ALNOOR = "car_alnoor"
+    private const val ALNOOR_GROUP = "car_alnoor_g:"
+    private const val ALNOOR_TRACK = "car_alnoor_t:"
     private const val SURAH = "car_surah:"
     private const val ROUTINE = "car_routine:"
     private const val SHOW = "car_show:"
@@ -43,19 +48,25 @@ object CarModeLogic {
     fun routineId(id: String) = "$ROUTINE$id"
     fun showId(id: String) = "$SHOW$id"
     fun episodeId(podcastId: String, trackId: String) = "$EP$podcastId|$trackId"
+    fun alNoorGroupId(g: Int) = "$ALNOOR_GROUP$g"
+    fun alNoorTrackId(g: Int, t: Int) = "$ALNOOR_TRACK$g|$t"
+    fun alNoorGroupOf(mediaId: String): Int? = mediaId.takeIf { it.startsWith(ALNOOR_GROUP) }?.removePrefix(ALNOOR_GROUP)?.toIntOrNull()?.takeIf { it >= 0 }
 
     fun parse(mediaId: String): CarTarget? = when {
         mediaId.startsWith(SURAH) -> mediaId.removePrefix(SURAH).toIntOrNull()?.takeIf { it in 1..114 }?.let { CarTarget.Surah(it) }
         mediaId.startsWith(ROUTINE) -> mediaId.removePrefix(ROUTINE).takeIf { it.isNotBlank() }?.let { CarTarget.Routine(it) }
+        mediaId.startsWith(ALNOOR_TRACK) -> mediaId.removePrefix(ALNOOR_TRACK).split('|').mapNotNull { it.toIntOrNull() }
+            .takeIf { it.size == 2 && it.all { n -> n >= 0 } }?.let { CarTarget.AlNoor(it[0], it[1]) }
         mediaId.startsWith(EP) -> mediaId.removePrefix(EP).split('|', limit = 2).takeIf { it.size == 2 && it.all(String::isNotBlank) }?.let { CarTarget.Episode(it[0], it[1]) }
         else -> null
     }
 
     fun showIdOf(mediaId: String): String? = mediaId.takeIf { it.startsWith(SHOW) }?.removePrefix(SHOW)
 
-    fun root(bayansOn: Boolean, routines: Int, inProgress: Int): List<CarNode> = buildList {
+    fun root(bayansOn: Boolean, routines: Int, inProgress: Int, alNoor: Boolean = true): List<CarNode> = buildList {
         if (bayansOn && inProgress > 0) add(CarNode(CONTINUE, "Continue listening", "$inProgress in progress", false))
         add(CarNode(QURAN, "Quran", "Recitation · saved surahs play offline", false))
+        if (alNoor) add(CarNode(ALNOOR, "Al-Noor Audio", "Duas, azkar & tafsir", false))
         if (routines > 0) add(CarNode(ROUTINES, "My routines", "$routines saved", false))
         if (bayansOn) add(CarNode(BAYANS, "Bayans & lectures", "Publisher podcasts", false))
     }
@@ -81,6 +92,13 @@ object CarModeLogic {
             else e.durationMs.takeIf { it > 0 }?.let { "${it / 60_000} min" } ?: p.name
         CarNode(episodeId(p.id, tid), e.title, sub, true)
     }
+
+    /** Al-Noor Audio folders: (title, track count) per dua / azkar group. */
+    fun alNoorGroups(groups: List<Pair<String, Int>>): List<CarNode> =
+        groups.take(MAX_ITEMS).mapIndexed { i, (title, n) -> CarNode(alNoorGroupId(i), title, "$n tracks · Al-Noor Audio", false) }
+
+    fun alNoorTracks(group: Int, titles: List<Pair<String, String>>): List<CarNode> =
+        titles.take(MAX_ITEMS).mapIndexed { i, (title, artist) -> CarNode(alNoorTrackId(group, i), title, artist, true) }
 
     fun continueNodes(points: List<ResumePoint>): List<CarNode> = BayanLogic.inProgress(points).take(10).map {
         CarNode(episodeId(it.podcastId, it.trackId), it.title, BayanLogic.remainingLabel(it.positionMs, it.durationMs), true)

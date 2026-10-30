@@ -80,8 +80,10 @@ object ChatRealtime {
         val now = System.currentTimeMillis()
         if (typing && now - lastTypingPing < 3_000L) return
         lastTypingPing = if (typing) now else 0L
+        // 1.1.9: update (not merge-set) so typing before the first message never tries to create
+        // a member-less chat document (the rules refuse that and logged PERMISSION_DENIED).
         db.collection("ummah_chats").document(chatId)
-            .set(mapOf("typing_$me" to if (typing) now else 0L), SetOptions.merge())
+            .update(mapOf("typing_$me" to if (typing) now else 0L))
     }
 
     fun markRead(chatId: String) {

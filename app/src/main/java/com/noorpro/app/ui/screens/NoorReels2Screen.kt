@@ -377,7 +377,7 @@ fun NoorReels2Screen(viewModel: DeenViewModel) {
                         commentCount = displayedEngagementCount(post.commentCount, false, optimisticCommentCounts[post.id], optimisticBase["comment:${post.id}"]),
                         positionMs = if (active) positionMs else 0, durationMs = if (active) durationMs else 0,
                         speed = speed, captionsOn = captionsOn, captionLang = captionLang, captionLine = if (active) captionLine else "",
-                        soundTitle = "Original audio · ${post.creatorName.ifBlank { "creator" }}", nextPart = next, refCount = refs.size,
+                        soundTitle = remember(post.id, post.sourceReference) { com.noorpro.app.data.media.edit.ReelSoundTag.parse(post.sourceReference, post.creatorName).display }, nextPart = next, refCount = refs.size,
                         measuredAspect = measuredAspects[post.id] ?: 0f,
                     )
                     val actions = Reels2Actions(
@@ -517,11 +517,31 @@ fun NoorReels2Screen(viewModel: DeenViewModel) {
                     R2Sheet.AI -> AskAiHost(sp)
                     R2Sheet.VERIFY -> VerifyHost(sp)
                     R2Sheet.COLLECTION -> CollectionHost(sp, isSaved(sp), { p, done -> setSaved(p, true, done) }) { sheet = null }
-                    R2Sheet.SOUND -> Reels2SoundPage(
-                        Reels2Sound("Original audio", sp.creatorName, allReels.count { it.creatorUid == sp.creatorUid }.toLong(), false),
-                        allReels.filter { it.creatorUid == sp.creatorUid }.take(9).map { it to null },
-                        onUse = { sheet = null; viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
-                        onOpen = { sheet = null; goTo(it) }, modifier = Modifier.heightIn(max = 640.dp))
+                    R2Sheet.SOUND -> {
+                        // 1.1.9: real sound pages — reels grouped by the sound credit they were shared with.
+                        val tag = remember(sp.id) { com.noorpro.app.data.media.edit.ReelSoundTag.parse(sp.sourceReference, sp.creatorName) }
+                        val same = remember(sp.id, allReels) {
+                            allReels.filter { r ->
+                                val t = com.noorpro.app.data.media.edit.ReelSoundTag.parse(r.sourceReference, r.creatorName)
+                                if (tag.credit.isBlank()) t.credit.isBlank() && r.creatorUid == sp.creatorUid else t.key == tag.key
+                            }
+                        }
+                        val library = remember { com.noorpro.app.data.media.edit.ReelSoundLibrary.load(context) }
+                        val reusable = remember(tag) { if (tag.original) null else com.noorpro.app.data.media.edit.ReelSoundLibrary.findByCredit(library, tag.credit) }
+                        val (playing, toggle) = rememberSoundPreview()
+                        Reels2SoundPage(
+                            Reels2Sound(tag.title, tag.artist, same.size.toLong(), reusable != null),
+                            same.take(12).map { it to null },
+                            onUse = {
+                                sheet = null; toggle(null)
+                                if (reusable == null) Toast.makeText(context, "This is the creator's original audio — make your own reel with a sound from Al-Noor Audio", Toast.LENGTH_SHORT).show()
+                                viewModel.pendingReelSound = reusable
+                                viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL)
+                            },
+                            onPreview = { if (reusable != null) toggle(reusable) else Toast.makeText(context, "Play the reel to hear its original audio", Toast.LENGTH_SHORT).show() },
+                            previewPlaying = reusable != null && playing == reusable.trackId,
+                            onOpen = { sheet = null; toggle(null); goTo(it) }, modifier = Modifier.heightIn(max = 640.dp))
+                    }
                     R2Sheet.SEARCH -> SearchHost(allReels, watchStore, features, onOpen = { list, start, resumeAt ->
                         sheet = null
                         if (resumeAt != null) pendingSeek = start.id to resumeAt

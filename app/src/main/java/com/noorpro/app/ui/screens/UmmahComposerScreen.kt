@@ -63,6 +63,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     var aiHelperOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         launchDraft?.let { id -> drafts.firstOrNull { it.id == id }?.let { state.load(it) } }
+        viewModel.pendingReelSound?.let { s -> viewModel.pendingReelSound = null; state.sound = s; state.soundMixed = false }
         launchPrefill?.takeIf { it.isNotBlank() }?.let { t -> state.text = androidx.compose.ui.text.input.TextFieldValue(t, androidx.compose.ui.text.TextRange(t.length)) }
     }
     val termsGate = rememberUgcTermsGate()
@@ -79,7 +80,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
 
     fun setVideo(uri: Uri) {
         state.video = uri; state.photos = emptyList(); state.coverFrame = null
-        state.reelSource = null; state.reelEdit = null; state.photoOrigins = emptyMap()
+        state.reelSource = null; state.reelEdit = null; state.photoOrigins = emptyMap(); state.soundMixed = false
         state.trimStartMs = 0; state.trimEndMs = 0; state.coverMs = 0; state.coverTouched = false
         scope.launch {
             val d = withContext(Dispatchers.IO) { ReelEditor.durationMs(context, uri) }
@@ -172,7 +173,7 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
             }
             ComposerDestination.REEL -> {
                 val src = state.video ?: return
-                val credit = state.credit.trim()
+                val credit = (state.sound?.credit ?: state.credit).trim()
                 val source = listOf(reference, if (credit.isNotBlank()) "Sound: $credit" else "").filter { it.isNotBlank() }.joinToString(" · ")
                 fun submit(media: Uri, cover: String) {
                     state.stage = "Uploading your reel…"; state.progress = -1f
@@ -194,7 +195,24 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
                         if (f == null) submit(media, "") else repository.uploadCover(f) { url -> f.delete(); submit(media, url.orEmpty()) }
                     }
                 }
-                if (ReelEditor.needsTrim(state.trimStartMs, state.trimEndMs, state.videoDurationMs)) {
+                val chosen = state.sound
+                if (chosen != null && !state.soundMixed) {
+                    // 1.1.9: mix the library / own sound into the clip (same exporter as the editor).
+                    val original = state.reelSource ?: src
+                    val base = state.reelEdit ?: com.noorpro.app.data.media.edit.ReelEdit(state.videoDurationMs)
+                        .let { if (state.trimEndMs > 0) it.trim(state.trimStartMs, state.trimEndMs) else it }
+                    val edit = base.copy(sound = chosen)
+                    state.stage = "Adding your sound…"
+                    val (w, h) = com.noorpro.app.data.media.edit.ReelExporter.videoSize(context, original)
+                    com.noorpro.app.data.media.edit.ReelExporter.export(context, original, com.noorpro.app.data.media.edit.ReelExportParams.from(edit, w, h), onProgress = { progress(it) }) { file ->
+                        if (file == null) finish(false, "Couldn't add the sound on this phone. Try a shorter clip, or remove the sound.", DeenScreen.REELS)
+                        else {
+                            state.reelSource = original; state.reelEdit = edit; state.soundMixed = true
+                            state.video = Uri.fromFile(file); state.trimStartMs = 0; state.trimEndMs = edit.outputMs; state.videoDurationMs = edit.outputMs
+                            withCover(Uri.fromFile(file))
+                        }
+                    }
+                } else if (ReelEditor.needsTrim(state.trimStartMs, state.trimEndMs, state.videoDurationMs)) {
                     state.stage = "Trimming your clip…"
                     ReelEditor.trim(context, src, state.trimStartMs, state.trimEndMs, progress) { out ->
                         if (out == null) finish(false, "Couldn't trim this video. Try a different range or clip.", DeenScreen.REELS)
@@ -246,6 +264,10 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
     )
     editingPhoto?.let { i -> PhotoEditorHost(state, i) { editingPhoto = null } }
     if (editingVideo) ReelEditorHost(state) { editingVideo = false }
+    if (state.soundPickerOpen) ReelSoundPickerSheet(state.sound, viewModel.userDisplayName, onPick = { s ->
+        state.soundPickerOpen = false
+        if (s != state.sound) { state.sound = s; state.soundMixed = false; if (s != null) state.credit = "" }
+    }, onDismiss = { state.soundPickerOpen = false })
     if (editingCollage) CollageEditorHost(state) { editingCollage = false }
     if (aiHelperOpen) CreatorAiSheet(initialText = state.text.text, topic = state.topic, onInsert = { t -> state.text = insertAiText(state.text, t) }, onDismiss = { aiHelperOpen = false })
     }

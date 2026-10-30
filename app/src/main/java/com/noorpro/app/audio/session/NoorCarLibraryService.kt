@@ -98,16 +98,21 @@ class NoorCarLibraryService : MediaLibraryService() {
         val nodes: List<CarNode> = when (parentId) {
             CarModeLogic.ROOT -> CarModeLogic.root(bayansOn(), RoutineStore(this).all().size, BayanLogic.inProgress(BayanResumeStore(this).all()).size)
             CarModeLogic.QURAN -> CarModeLogic.quran(reciterStorage().completeSurahs)
+            CarModeLogic.ALNOOR -> CarModeLogic.alNoorGroups(duaGroups().map { it.title to it.tracks.size })
             CarModeLogic.ROUTINES -> CarModeLogic.routines(RoutineStore(this).all())
             CarModeLogic.CONTINUE -> if (bayansOn()) CarModeLogic.continueNodes(BayanResumeStore(this).all()) else emptyList()
             CarModeLogic.BAYANS -> if (bayansOn()) BayanLogic.shows().let { s -> CarModeLogic.shows(s, s.associate { it.id to PodcastRepository.cachedEpisodes(this, it).size }) } else emptyList()
-            else -> CarModeLogic.showIdOf(parentId)?.takeIf { bayansOn() }?.let { id ->
+            else -> CarModeLogic.alNoorGroupOf(parentId)?.let { g ->
+                CarModeLogic.alNoorTracks(g, duaGroups().getOrNull(g)?.tracks.orEmpty().map { it.title.removeSuffix(" …") to it.artistName })
+            } ?: CarModeLogic.showIdOf(parentId)?.takeIf { bayansOn() }?.let { id ->
                 val p = BayanLogic.shows().firstOrNull { it.id == id } ?: return emptyList()
                 CarModeLogic.episodes(p, PodcastRepository.cachedEpisodes(this, p), BayanResumeStore(this).all().associateBy { it.trackId })
             }.orEmpty()
         }
         return nodes.map(::node)
     }
+
+    private fun duaGroups() = runCatching { com.noorpro.app.audio.catalog.FreeAudioCatalog.duaGroups(this) }.getOrDefault(emptyList())
 
     private fun reciterStorage() = OfflineQuranStore.storage(this, CarModeLogic.reciter(OfflineQuranStore.all(this)))
 
@@ -142,13 +147,22 @@ class NoorCarLibraryService : MediaLibraryService() {
                     .setArtworkUri(Uri.parse(e?.imageUrl ?: saved?.artwork ?: AlNoorMediaItems.FALLBACK_ART)).build()).build()) to
                     (saved?.let { BayanLogic.resumeFrom(it.positionMs, it.durationMs) } ?: 0L)
             }
+            is CarTarget.AlNoor -> {
+                // Queue the rest of the group so the car's next / previous buttons move through it.
+                val tracks = duaGroups().getOrNull(t.group)?.tracks.orEmpty()
+                tracks.drop(t.track).take(CarModeLogic.MAX_ITEMS).mapIndexed { i, tr ->
+                    MediaItem.Builder().setMediaId(CarModeLogic.alNoorTrackId(t.group, t.track + i)).setUri(tr.audioUrl).setMediaMetadata(MediaMetadata.Builder()
+                        .setTitle(tr.title.removeSuffix(" …")).setArtist(tr.artistName).setAlbumTitle("Al-Noor Audio")
+                        .setIsPlayable(true).setIsBrowsable(false).setArtworkUri(Uri.parse(tr.coverUrl ?: AlNoorMediaItems.FALLBACK_ART)).build()).build()
+                } to 0L
+            }
             null -> emptyList<MediaItem>() to 0L
         }
     }
 
     private inner class Callback : MediaLibrarySession.Callback {
         override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> =
-            Futures.immediateFuture(LibraryResult.ofItem(node(CarNode(CarModeLogic.ROOT, "NoorPro", "Quran & bayans", false)), params))
+            Futures.immediateFuture(LibraryResult.ofItem(node(CarNode(CarModeLogic.ROOT, "NoorPro", "Quran, Al-Noor Audio & bayans", false)), params))
 
         override fun onGetChildren(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String, page: Int, pageSize: Int, params: LibraryParams?): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             val all = children(parentId)

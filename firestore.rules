@@ -588,10 +588,24 @@ service cloud.firestore {
       allow update: if isParticipant()
         && request.resource.data.participantUids == resource.data.participantUids;
       allow delete: if false;
+      // 1.1.9 (additive): opening a 1:1 chat that has not been created yet. Chat ids are the two
+      // member uids sorted and joined by "_", so only those two members learn that it does not exist.
+      allow read: if request.auth != null && resource == null
+        && request.auth.uid in chatId.split('_');
+      // 1.1.9 (additive): either member may update metadata even when their client lists the two
+      // participants in the other order. The member SET can never change.
+      allow update: if isParticipant()
+        && request.resource.data.participantUids is list
+        && request.resource.data.participantUids.size() == 2
+        && request.resource.data.participantUids.toSet() == resource.data.participantUids.toSet();
 
       match /messages/{msgId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids;
+        // 1.1.9 (additive): a member may listen to a not-yet-created chat (empty until the first message).
+        allow read: if request.auth != null
+          && !exists(/databases/$(database)/documents/ummah_chats/$(chatId))
+          && request.auth.uid in chatId.split('_');
         allow create: if request.auth != null
           && request.auth.uid in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
           && request.resource.data.senderUid == request.auth.uid

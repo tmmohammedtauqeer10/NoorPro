@@ -41,7 +41,10 @@ import java.util.Calendar
 
 /* 1.1.6 Car mode (car_mode_enabled): one screen, huge targets (≥ 76dp), minimal text, screen kept on. */
 
-enum class CarSource { QURAN, BAYAN, NONE }
+enum class CarSource { QURAN, BAYAN, ALNOOR, NONE }
+
+/** 1.1.9: an Al-Noor Audio shortcut in car mode (dua / azkar group from the shared catalog). */
+data class CarAlNoorGroup(val index: Int, val title: String, val subtitle: String)
 
 data class CarNowPlaying(val title: String, val subtitle: String, val source: CarSource, val playing: Boolean, val progress: Float = 0f)
 
@@ -54,6 +57,7 @@ data class CarModeUi(
     val resume: ResumePoint? = null,
     val bayansOn: Boolean = false,
     val autoOn: Boolean = true,
+    val alNoor: List<CarAlNoorGroup> = emptyList(),
 )
 
 class CarModeActions(
@@ -65,6 +69,8 @@ class CarModeActions(
     val onRoutine: (AudioRoutine) -> Unit = {},
     val onResume: (ResumePoint) -> Unit = {},
     val onBayans: () -> Unit = {},
+    val onAlNoor: (CarAlNoorGroup) -> Unit = {},
+    val onAlNoorLibrary: () -> Unit = {},
 )
 
 @Composable
@@ -92,18 +98,36 @@ fun CarModeScreen(viewModel: DeenViewModel) {
     val alNoor = pb?.first
     val now = when {
         active == AlNoorSessionRouter.Source.AL_NOOR && alNoor != null -> CarNowPlaying(alNoor.title, alNoor.artistName,
-            if (alNoor.id.startsWith("pod-")) CarSource.BAYAN else CarSource.NONE, pb?.second?.isPlaying == true,
+            if (alNoor.id.startsWith("pod-")) CarSource.BAYAN else CarSource.ALNOOR, pb?.second?.isPlaying == true,
             BayanLogic.progress(pb?.second?.positionMs ?: 0, pb?.second?.durationMs?.takeIf { it > 0 } ?: alNoor.durationMs))
         qSurah != null -> CarNowPlaying(qSurah!!.nameEnglish, reciter.name, CarSource.QURAN, qPlaying)
         else -> null
     }
-    val ui = CarModeUi(cal.get(Calendar.HOUR_OF_DAY), "%d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE)), now, saved, routines, resume, bayansOn)
+    val duaGroups = remember { runCatching { com.noorpro.app.audio.catalog.FreeAudioCatalog.duaGroups(ctx) }.getOrDefault(emptyList()) }
+    val alNoorTiles = remember(duaGroups) { duaGroups.take(6).mapIndexed { i, g -> CarAlNoorGroup(i, g.title, "${g.tracks.size} tracks") } }
+    val ui = CarModeUi(cal.get(Calendar.HOUR_OF_DAY), "%d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE)), now, saved, routines, resume, bayansOn,
+        alNoor = alNoorTiles)
+    val talkActive = active == AlNoorSessionRouter.Source.AL_NOOR && alNoor != null && alNoor.id.startsWith("pod-")
     val alNoorActive = active == AlNoorSessionRouter.Source.AL_NOOR && alNoor != null
     CarModeContent(ui, CarModeActions(
         onExit = { viewModel.goBack() },
         onPlayPause = { if (alNoorActive) AlNoorAudioSession.player.togglePlayPause() else viewModel.toggleAudioPlayback() },
-        onBack = { if (alNoorActive) AlNoorAudioSession.player.let { it.seekTo((it.playback.value.positionMs - 30_000).coerceAtLeast(0)) } else viewModel.playPreviousSurah() },
-        onForward = { if (alNoorActive) AlNoorAudioSession.player.let { it.seekTo(it.playback.value.positionMs + 30_000) } else viewModel.playNextSurah() },
+        onBack = {
+            when {
+                talkActive -> AlNoorAudioSession.player.let { it.seekTo((it.playback.value.positionMs - 30_000).coerceAtLeast(0)) }
+                alNoorActive -> AlNoorAudioSession.player.skipPrevious()
+                else -> viewModel.playPreviousSurah()
+            }
+        },
+        onForward = {
+            when {
+                talkActive -> AlNoorAudioSession.player.let { it.seekTo(it.playback.value.positionMs + 30_000) }
+                alNoorActive -> AlNoorAudioSession.player.skipNext()
+                else -> viewModel.playNextSurah()
+            }
+        },
+        onAlNoor = { g -> duaGroups.getOrNull(g.index)?.tracks?.takeIf { it.isNotEmpty() }?.let { q -> com.noorpro.app.ui.screens.playFree(ctx, q.first(), q) } },
+        onAlNoorLibrary = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.AUDIO_LIBRARY) },
         onSurah = { n -> viewModel.playQueue(RoutineLogic.queue(AudioRoutine("car", "", listOf(n), emptySet(), 0, true, "")), 0) },
         onRoutine = { r -> viewModel.playQueue(RoutineLogic.queue(r), 0) },
         onResume = { r ->
@@ -133,7 +157,7 @@ fun CarModeContent(ui: CarModeUi, actions: CarModeActions, modifier: Modifier = 
 
         IkHero(Modifier.testTag("car_now")) {
             val n = ui.now
-            Text(when (n?.source) { CarSource.QURAN -> "QURAN"; CarSource.BAYAN -> "BAYAN"; else -> if (n == null) "READY" else "NOW PLAYING" },
+            Text(when (n?.source) { CarSource.QURAN -> "QURAN"; CarSource.BAYAN -> "BAYAN"; CarSource.ALNOOR -> "AL-NOOR AUDIO"; else -> if (n == null) "READY" else "NOW PLAYING" },
                 color = IkGold, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Spacer(Modifier.height(6.dp))
             Text(n?.title ?: "Pick something to listen to", color = IkCream, fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 28.sp,
@@ -148,11 +172,11 @@ fun CarModeContent(ui: CarModeUi, actions: CarModeActions, modifier: Modifier = 
             Spacer(Modifier.height(18.dp))
             val talk = n?.source == CarSource.BAYAN
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                BigRound(if (talk) Icons.Outlined.Replay30 else Icons.Outlined.SkipPrevious, if (talk) "Back 30 seconds" else "Previous surah",
+                BigRound(if (talk) Icons.Outlined.Replay30 else Icons.Outlined.SkipPrevious, if (talk) "Back 30 seconds" else if (n?.source == CarSource.ALNOOR) "Previous track" else "Previous surah",
                     CarModeLogic.MIN_TARGET_DP.dp, Color.White.copy(alpha = 0.14f), IkCream, "car_back", enabled = n != null, onClick = actions.onBack)
                 BigRound(if (n?.playing == true) Icons.Outlined.Pause else Icons.Outlined.PlayArrow, if (n?.playing == true) "Pause" else "Play",
                     104.dp, IkGold, IkGreenDeep, "car_play", enabled = n != null, onClick = actions.onPlayPause)
-                BigRound(if (talk) Icons.Outlined.Forward30 else Icons.Outlined.SkipNext, if (talk) "Forward 30 seconds" else "Next surah",
+                BigRound(if (talk) Icons.Outlined.Forward30 else Icons.Outlined.SkipNext, if (talk) "Forward 30 seconds" else if (n?.source == CarSource.ALNOOR) "Next track" else "Next surah",
                     CarModeLogic.MIN_TARGET_DP.dp, Color.White.copy(alpha = 0.14f), IkCream, "car_forward", enabled = n != null, onClick = actions.onForward)
             }
         }
@@ -174,10 +198,20 @@ fun CarModeContent(ui: CarModeUi, actions: CarModeActions, modifier: Modifier = 
             Text("MY ROUTINES", color = stitchMutedText(), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             ui.routines.take(3).forEach { rt -> BigTile(Icons.Outlined.EventRepeat, rt.title, RoutineLogic.surahsLabel(rt), "car_routine_${rt.id}") { actions.onRoutine(rt) } }
         }
-        if (ui.bayansOn) BigTile(Icons.Outlined.Podcasts, "Bayans & lectures", "Choose a show before you drive", "car_bayans") { actions.onBayans() }
+        if (ui.alNoor.isNotEmpty()) {
+            Text("AL-NOOR AUDIO", color = stitchMutedText(), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            ui.alNoor.take(4).chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { g -> BigTile(null, g.title, g.subtitle, "car_alnoor_${g.index}", Modifier.weight(1f)) { actions.onAlNoor(g) } }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            BigTile(Icons.Outlined.Headphones, "All Al-Noor Audio", "Duas, tafsir & podcasts", "car_alnoor_all") { actions.onAlNoorLibrary() }
+        }
+        if (ui.bayansOn) BigTile(Icons.Outlined.Podcasts, "Bayans & podcasts", "Choose a show before you drive", "car_bayans") { actions.onBayans() }
 
         if (ui.autoOn) IkNotice("Android Auto",
-            "With car mode on, NoorPro appears in your car's media apps: Quran, your routines and bayans, played with the car's own controls.",
+            "With car mode on, NoorPro appears in your car's media apps: Quran, Al-Noor Audio, your routines and bayans, played with the car's own controls.",
             tag = "car_auto")
         Spacer(Modifier.height(16.dp))
     }

@@ -129,10 +129,9 @@ fun CollageEditorHost(state: ComposerUiState, onClose: () -> Unit) {
     }, saving)
 }
 
-/** Al-Noor tracks whose licence allows reuse in a new video (public domain / CC BY) — short duas only. */
-internal fun reelSoundsFrom(ctx: android.content.Context, limit: Int = 40): List<ReelSound> = runCatching {
-    FreeAudioCatalog.duaGroups(ctx).flatMap { it.tracks }.mapNotNull(ReelSounds::from).distinctBy { it.url }.take(limit)
-}.getOrDefault(emptyList())
+/** Al-Noor tracks whose licence allows reuse in a new video (public domain / CC BY); 1.1.9 shared sound library. */
+internal fun reelSoundsFrom(ctx: android.content.Context, limit: Int = 120): List<ReelSound> =
+    com.noorpro.app.data.media.edit.ReelSoundLibrary.load(ctx).map { it.sound }.take(limit)
 
 @Composable
 fun ReelEditorHost(state: ComposerUiState, onClose: () -> Unit) {
@@ -142,7 +141,8 @@ fun ReelEditorHost(state: ComposerUiState, onClose: () -> Unit) {
     if (source == null) { LaunchedEffect(Unit) { onClose() }; return }
     val sourceMs = state.reelEdit?.sourceDurationMs ?: state.videoDurationMs
     val editor = remember(source) {
-        ReelEditorState(state.reelEdit ?: ReelEdit(sourceMs).let { if (state.trimEndMs > 0) it.trim(state.trimStartMs, state.trimEndMs) else it })
+        ReelEditorState((state.reelEdit ?: ReelEdit(sourceMs).let { if (state.trimEndMs > 0) it.trim(state.trimStartMs, state.trimEndMs) else it })
+            .let { e -> if (state.sound != null && e.sound != state.sound) e.copy(sound = state.sound) else e })
     }
     var frame by remember { mutableStateOf<Bitmap?>(state.coverFrame) }
     var strip by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
@@ -151,7 +151,7 @@ fun ReelEditorHost(state: ComposerUiState, onClose: () -> Unit) {
     val sources = rememberEditorStickerSources(state)
     fun uriOf(src: Int): Uri = editor.edit.sources.getOrNull(src)?.uri?.takeIf { it.isNotBlank() }?.let(Uri::parse) ?: source
     LaunchedEffect(source) {
-        sounds = withContext(Dispatchers.IO) { reelSoundsFrom(ctx) }
+        sounds = withContext(Dispatchers.IO) { listOfNotNull(state.sound) + reelSoundsFrom(ctx).filter { it.trackId != state.sound?.trackId } }
         strip = withContext(Dispatchers.IO) {
             if (sourceMs <= 0) emptyList() else (0 until 8).mapNotNull { i -> ReelEditor.frameAt(ctx, source, sourceMs * i / 8 + 200, 200) }
         }
@@ -272,6 +272,7 @@ fun ReelEditorHost(state: ComposerUiState, onClose: () -> Unit) {
             if (!ReelExportParams.needsFullExport(e)) {
                 // Plain trim: keep the 1.1.1 path (trim happens at post time).
                 applyCredit(e)
+                state.sound = e.sound; state.soundMixed = false
                 state.video = source; state.reelSource = null; state.reelEdit = e
                 state.videoDurationMs = e.sourceDurationMs
                 state.trimStartMs = e.trimStartMs; state.trimEndMs = e.trimEndMs
@@ -289,6 +290,7 @@ fun ReelEditorHost(state: ComposerUiState, onClose: () -> Unit) {
                     Toast.makeText(ctx, editor.exportError, Toast.LENGTH_LONG).show()
                 } else {
                     applyCredit(e)
+                    state.sound = e.sound; state.soundMixed = e.sound != null
                     state.reelSource = source; state.reelEdit = e
                     state.video = Uri.fromFile(file); state.coverFrame = null
                     state.videoDurationMs = e.outputMs

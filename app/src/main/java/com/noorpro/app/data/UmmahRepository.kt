@@ -191,6 +191,8 @@ class UmmahRepository {
     private var submissionListener: ListenerRegistration? = null
     private val interactionListeners = mutableListOf<ListenerRegistration>()
     private val chatListeners = mutableListOf<ListenerRegistration>()
+    /** 1.1.9: bumped by [close] so a pending chat re-listen never outlives its screen. */
+    @Volatile private var chatGeneration = 0
     private val blockedListeners = mutableListOf<ListenerRegistration>()
     private val publicationRequestedIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
     private val publicationRetryAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -1602,11 +1604,29 @@ class UmmahRepository {
 
     fun observeMessages(chatId: String, onResult: (List<UmmahMessage>, String?) -> Unit) {
         if (!FirebaseGate.ready) return onResult(emptyList(), FirebaseGate.OFFLINE)
-        val registration = firestore.collection("ummah_chats").document(chatId).collection("messages")
+        observeMessagesAttempt(chatId, 0, chatGeneration, onResult)
+    }
+
+    /**
+     * 1.1.9: a 1:1 chat that has no messages yet has no chat document, and rules deployed before 1.1.9
+     * refuse to listen to its messages (PERMISSION_DENIED). Show an empty chat instead of the raw error
+     * and listen again shortly, so the conversation appears as soon as either member sends.
+     */
+    private fun observeMessagesAttempt(chatId: String, attempt: Int, generation: Int, onResult: (List<UmmahMessage>, String?) -> Unit) {
+        var registration: ListenerRegistration? = null
+        if (generation != chatGeneration) return
+        registration = firestore.collection("ummah_chats").document(chatId).collection("messages")
             .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    onResult(emptyList(), error.localizedMessage ?: "Unable to load messages.")
+                    if (ChatErrors.isPermissionDenied(error) && attempt < ChatErrors.MAX_RETRIES) {
+                        onResult(emptyList(), null)
+                        registration?.remove()
+                        registration?.let { chatListeners -= it }
+                        mainHandler.postDelayed({
+                            if (generation == chatGeneration && FirebaseGate.currentUser != null) observeMessagesAttempt(chatId, attempt + 1, generation, onResult)
+                        }, ChatErrors.retryDelayMs(attempt))
+                    } else onResult(emptyList(), ChatErrors.friendly(error.localizedMessage, "Unable to load messages."))
                     return@addSnapshotListener
                 }
                 val me = FirebaseGate.currentUser?.uid.orEmpty()
@@ -1641,7 +1661,7 @@ class UmmahRepository {
                 }
                 onResult(messages, null)
             }
-        chatListeners += registration
+        registration?.let { chatListeners += it }
     }
 
     /** One-shot read of a published post for shared-post cards. null = deleted / not published. */
@@ -1679,17 +1699,18 @@ class UmmahRepository {
         targets.forEach { (uid, name) ->
             val chatId = listOf(user.uid, uid).sorted().joinToString("_")
             val chatRef = firestore.collection("ummah_chats").document(chatId)
-            firestore.runBatch { batch ->
-                batch.set(chatRef, mapOf(
-                    "participantUids" to listOf(user.uid, uid),
-                    "participantNames" to mapOf(user.uid to (user.displayName ?: user.email?.substringBefore("@") ?: "You"), uid to name.ifBlank { "Friend" }),
+            val messageRef = chatRef.collection("messages").document()
+            fun commit(withMembers: Boolean) = firestore.runBatch { batch ->
+                batch.set(chatRef, ChatErrors.chatMeta(
+                    withMembers, listOf(user.uid, uid).sorted(),
+                    mapOf(user.uid to (user.displayName ?: user.email?.substringBefore("@") ?: "You"), uid to name.ifBlank { "Friend" }), mapOf(
                     "lastMessage" to preview,
                     "lastMessageType" to "post_share",
                     "lastSenderUid" to user.uid,
                     "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "unread_$uid" to com.google.firebase.firestore.FieldValue.increment(1)
-                ), com.google.firebase.firestore.SetOptions.merge())
-                batch.set(chatRef.collection("messages").document(), mapOf(
+                )), com.google.firebase.firestore.SetOptions.merge())
+                batch.set(messageRef, mapOf(
                     "senderUid" to user.uid,
                     "senderName" to (user.displayName ?: "Community member"),
                     "text" to note.trim().take(500),
@@ -1705,7 +1726,8 @@ class UmmahRepository {
                     "sharedCaption" to post.caption.ifBlank { post.arabicText }.trim().take(300),
                     "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 ))
-            }.addOnCompleteListener { task ->
+            }
+            commit(true).continueWithTask { t -> if (!t.isSuccessful && ChatErrors.isPermissionDenied(t.exception)) commit(false) else t }.addOnCompleteListener { task ->
                 done++
                 if (task.isSuccessful) ok++ else if (firstError == null) firstError = task.exception?.localizedMessage ?: "Couldn't send."
                 if (done == targets.size) {
@@ -1919,22 +1941,22 @@ class UmmahRepository {
                 }
             }
             val chatRef = firestore.collection("ummah_chats").document(chatId)
-            firestore.runBatch { batch ->
+            val messageRef = chatRef.collection("messages").document()
+            fun commit(withMembers: Boolean) = firestore.runBatch { batch ->
                 batch.set(
                     chatRef,
-                    mapOf(
-                        "participantUids" to listOf(user.uid, targetUid),
-                        "participantNames" to participantNames,
+                    ChatErrors.chatMeta(
+                        withMembers, listOf(user.uid, targetUid).sorted(), participantNames, mapOf(
                         "lastMessage" to preview.take(180),
                         "lastMessageType" to cleanType,
                         "lastSenderUid" to user.uid,
                         "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                         "unread_$targetUid" to com.google.firebase.firestore.FieldValue.increment(1)
-                    ),
+                    )),
                     com.google.firebase.firestore.SetOptions.merge()
                 )
                 batch.set(
-                    chatRef.collection("messages").document(),
+                    messageRef,
                     mapOf(
                         "senderUid" to user.uid,
                         "senderName" to (user.displayName ?: "Community member"),
@@ -1948,8 +1970,15 @@ class UmmahRepository {
                         "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                     ) + extra.filterKeys { it in setOf("durationMs", "waveform", "forwarded") }
                 )
-            }.addOnCompleteListener { task ->
-                onResult(task.isSuccessful, task.exception?.localizedMessage)
+            }
+            // 1.1.9: a chat the other member started stores its members in their order; older rules
+            // refuse a write that re-sends them in ours. Retry once without touching the member list.
+            commit(true).addOnCompleteListener { task ->
+                if (!task.isSuccessful && ChatErrors.isPermissionDenied(task.exception)) {
+                    commit(false).addOnCompleteListener { retry ->
+                        onResult(retry.isSuccessful, ChatErrors.friendly(retry.exception?.localizedMessage, null))
+                    }
+                } else onResult(task.isSuccessful, ChatErrors.friendly(task.exception?.localizedMessage, null))
             }
         }
 
@@ -2000,6 +2029,7 @@ class UmmahRepository {
         interactionListeners.clear()
         chatListeners.forEach { it.remove() }
         chatListeners.clear()
+        chatGeneration++
         blockedListeners.forEach { it.remove() }
         blockedListeners.clear()
     }

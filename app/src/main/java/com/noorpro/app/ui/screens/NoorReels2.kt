@@ -622,7 +622,7 @@ private fun VoiceCommentRow() {
 data class Reels2Sound(val title: String, val artist: String, val reelsCount: Long, val fromAlNoor: Boolean)
 
 @Composable
-fun Reels2SoundPage(sound: Reels2Sound, reels: List<Pair<UmmahPost, ImageBitmap?>>, onUse: () -> Unit, onPreview: () -> Unit = {}, onOpen: (UmmahPost) -> Unit = {}, modifier: Modifier = Modifier) {
+fun Reels2SoundPage(sound: Reels2Sound, reels: List<Pair<UmmahPost, ImageBitmap?>>, onUse: () -> Unit, onPreview: () -> Unit = {}, onOpen: (UmmahPost) -> Unit = {}, modifier: Modifier = Modifier, previewPlaying: Boolean = false) {
     Column(modifier.fillMaxSize().background(stitchBackground()).statusBarsPadding().padding(16.dp).testTag("reels2_sound")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(96.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(R2Green, Color(0xFF0E8C73)))), contentAlignment = Alignment.Center) {
@@ -643,10 +643,11 @@ fun Reels2SoundPage(sound: Reels2Sound, reels: List<Pair<UmmahPost, ImageBitmap?
             Row(Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(999.dp)).background(accent()).clickable(onClick = onUse), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Videocam, null, tint = Color.White); Spacer(Modifier.width(6.dp))
-                Text("Use this sound", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(if (sound.fromAlNoor) "Use this sound" else "Make a reel", color = Color.White, fontWeight = FontWeight.Bold)
             }
-            Box(Modifier.size(46.dp).clip(CircleShape).background(mint()).clickable(onClick = onPreview), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, "Preview", tint = accent()) }
-            Box(Modifier.size(46.dp).clip(CircleShape).background(mint()), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.BookmarkBorder, "Save sound", tint = accent()) }
+            Box(Modifier.size(46.dp).clip(CircleShape).background(mint()).clickable(onClick = onPreview), contentAlignment = Alignment.Center) {
+                Icon(if (previewPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (previewPlaying) "Pause preview" else "Preview", tint = accent())
+            }
         }
         Spacer(Modifier.height(16.dp))
         Text("Reels using this sound", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp)

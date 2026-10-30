@@ -497,6 +497,9 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     // reel opens and plays — no static thumbnail or intermediate page. Cleared once focused.
     var reelFocusId by mutableStateOf("")
 
+    /** 1.1.9: "Use this sound" on a reel's sound page preselects it in the reel composer. */
+    var pendingReelSound: com.noorpro.app.data.media.edit.ReelSound? = null
+
     /** 1.0.82: post being shared via the Instagram-style in-app share sheet (null = closed). */
     var sharePost by mutableStateOf<com.noorpro.app.data.UmmahPost?>(null)
     var shareSentCount by mutableStateOf(0)

@@ -82,8 +82,17 @@ class CarBayanLogicTest {
         assertNull(CarModeLogic.parse("car_ep:broken"))
         assertEquals("yaqeen", CarModeLogic.showIdOf(CarModeLogic.showId("yaqeen")))
 
-        assertEquals(listOf(CarModeLogic.QURAN), CarModeLogic.root(false, 0, 3).map { it.id })
-        assertEquals(listOf(CarModeLogic.CONTINUE, CarModeLogic.QURAN, CarModeLogic.ROUTINES, CarModeLogic.BAYANS), CarModeLogic.root(true, 2, 1).map { it.id })
+        assertEquals(listOf(CarModeLogic.QURAN, CarModeLogic.ALNOOR), CarModeLogic.root(false, 0, 3).map { it.id })
+        assertEquals(listOf(CarModeLogic.QURAN), CarModeLogic.root(false, 0, 3, alNoor = false).map { it.id })
+        assertEquals(listOf(CarModeLogic.CONTINUE, CarModeLogic.QURAN, CarModeLogic.ALNOOR, CarModeLogic.ROUTINES, CarModeLogic.BAYANS), CarModeLogic.root(true, 2, 1).map { it.id })
+        // 1.1.9 Al-Noor Audio in the car
+        assertEquals(CarTarget.AlNoor(2, 5), CarModeLogic.parse(CarModeLogic.alNoorTrackId(2, 5)))
+        assertNull(CarModeLogic.parse("car_alnoor_t:x|1"))
+        assertEquals(3, CarModeLogic.alNoorGroupOf(CarModeLogic.alNoorGroupId(3)))
+        val g = CarModeLogic.alNoorGroups(listOf("Morning" to 12, "Evening" to 9))
+        assertTrue(g.none { it.playable }); assertEquals("12 tracks · Al-Noor Audio", g[0].subtitle)
+        val tr = CarModeLogic.alNoorTracks(1, listOf("Dua 1" to "Hisn", "Dua 2" to "Hisn"))
+        assertTrue(tr.all { it.playable }); assertEquals(CarTarget.AlNoor(1, 1), CarModeLogic.parse(tr[1].id))
         assertTrue(CarModeLogic.root(true, 2, 1).none { it.playable })
 
         val q = CarModeLogic.quran(setOf(112, 2))

@@ -18,7 +18,7 @@ object Reels2Flags {
     const val REELS_V2 = "reels_v2_enabled"
     const val PROFILE_V2 = "profile_v2_enabled"
     const val SERIES = "reels_series_enabled"              // needs series/part fields on posts
-    const val SOUND_PAGES = "reels_sound_pages_enabled"    // needs soundId / sounds collection
+    const val SOUND_PAGES = "reels_sound_pages_enabled"    // 1.1.9: on — grouped by the "Sound:" credit
     const val VOICE_COMMENTS = "reels_voice_comments_enabled" // needs audio upload + rules
     const val REACTIONS = "reels_reactions_enabled"        // needs reactions storage (likes keep working)
     const val CREATOR_LIKED = "reels_creator_liked_enabled" // needs creatorLiked flag on comments
@@ -34,7 +34,7 @@ object Reels2Flags {
 
     private val DEFAULTS = mapOf(
         REELS_V2 to true, PROFILE_V2 to true, AI_ASK to true,
-        SERIES to false, SOUND_PAGES to false, VOICE_COMMENTS to false, REACTIONS to false, CREATOR_LIKED to false,
+        SERIES to false, SOUND_PAGES to true, VOICE_COMMENTS to false, REACTIONS to false, CREATOR_LIKED to false,
         LIVE to false, MINI_PLAYER to false, AI_TRANSCRIPTS to false, DEEN_CARD to false, PROFILE_FIELDS to false,
         HIGHLIGHTS to false, CLOSE_FRIENDS to false, AI_RECAP to false,
         // 1.1.6 Islamic features (see com.noorpro.app.islamic.IslamicFlags), all default OFF.

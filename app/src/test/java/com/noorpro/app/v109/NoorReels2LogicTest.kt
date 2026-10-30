@@ -157,7 +157,8 @@ class NoorReels2LogicTest {
     // ---- flags
     @Test fun flagDefaultsKillSwitchesOnBackendOff() {
         assertTrue(Reels2Flags.default(Reels2Flags.REELS_V2)); assertTrue(Reels2Flags.default(Reels2Flags.PROFILE_V2))
-        listOf(Reels2Flags.SERIES, Reels2Flags.SOUND_PAGES, Reels2Flags.VOICE_COMMENTS, Reels2Flags.REACTIONS, Reels2Flags.CREATOR_LIKED,
+        assertTrue(Reels2Flags.default(Reels2Flags.SOUND_PAGES)) // 1.1.9 sound pages on
+        listOf(Reels2Flags.SERIES, Reels2Flags.VOICE_COMMENTS, Reels2Flags.REACTIONS, Reels2Flags.CREATOR_LIKED,
             Reels2Flags.LIVE, Reels2Flags.MINI_PLAYER, Reels2Flags.AI_TRANSCRIPTS, Reels2Flags.DEEN_CARD, Reels2Flags.PROFILE_FIELDS,
             Reels2Flags.HIGHLIGHTS, Reels2Flags.CLOSE_FRIENDS, Reels2Flags.AI_RECAP).forEach { assertFalse(it, Reels2Flags.default(it)) }
         assertTrue(Reels2Flags.isOn(Reels2Flags.REELS_V2))
