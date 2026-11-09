@@ -52,7 +52,7 @@ fun PdfLibraryHubScreen(viewModel: DeenViewModel) {
                 TopAppBar(
                     title = { Text("Cloud Library", color = MatteGold) },
                     navigationIcon = {
-                        IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                        IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MatteGold)
                         }
                     },

@@ -198,40 +198,23 @@ fun AdvancedSettingsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
+                                Column {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (currentAppLanguage == AppLanguage.EN) MatteGold.copy(alpha=0.3f) else Color.Transparent)
+                            .background(MatteGold.copy(alpha=0.3f))
                             .clickable { viewModel.updateLanguage(AppLanguage.EN) }
                             .padding(12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(strings.english, style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary, fontWeight = FontWeight.Bold))
                     }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (currentAppLanguage == AppLanguage.AR) MatteGold.copy(alpha=0.3f) else Color.Transparent)
-                            .clickable { viewModel.updateLanguage(AppLanguage.AR) }
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(strings.arabic, style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary, fontWeight = FontWeight.Bold))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (currentAppLanguage == AppLanguage.UR) MatteGold.copy(alpha=0.3f) else Color.Transparent)
-                            .clickable { viewModel.updateLanguage(AppLanguage.UR) }
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(strings.urdu, style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary, fontWeight = FontWeight.Bold))
-                    }
+                    Text(
+                        "Arabic and Urdu are coming in a later update. The app stays in English for now.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextPrimary.copy(alpha = 0.7f)),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
         }

@@ -506,10 +506,14 @@ private fun PersonalisePage(
     Spacer(Modifier.height(14.dp))
     SectionLabel("Language")
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        ChoiceCard("English", null, null, language == AppLanguage.EN, Modifier.weight(1f)) { onLanguage(AppLanguage.EN) }
-        ChoiceCard("العربية", null, null, language == AppLanguage.AR, Modifier.weight(1f)) { onLanguage(AppLanguage.AR) }
-        ChoiceCard("اردو", null, null, language == AppLanguage.UR, Modifier.weight(1f)) { onLanguage(AppLanguage.UR) }
+        ChoiceCard("English", null, null, true, Modifier.weight(1f)) { onLanguage(AppLanguage.EN) }
     }
+    Text(
+        "Arabic and Urdu are coming in a later update.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 6.dp)
+    )
     Spacer(Modifier.height(8.dp))
 }
 

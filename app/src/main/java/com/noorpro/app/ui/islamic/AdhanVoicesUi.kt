@@ -67,7 +67,7 @@ fun AdhanVoicesScreen(viewModel: DeenViewModel) {
 @Composable
 fun AdhanVoicesContent(ui: AdhanVoicesUi, actions: AdhanVoicesActions, modifier: Modifier = Modifier) {
     Column(modifier.ikScreen().verticalScroll(rememberScrollState()).testTag("adhan_screen")) {
-        IkHeader("Adhan sound", "What plays at each prayer time", actions.onBack)
+        IkHeader("Prayer alert sound", "What plays at each prayer time", actions.onBack)
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val now = AdhanVoiceLogic.OPTIONS.first { it.sound == ui.applied }
             IkHero {

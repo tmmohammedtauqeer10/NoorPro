@@ -106,7 +106,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = settingsTextColor())
                     }
                     Spacer(modifier = Modifier.width(4.dp))
@@ -126,7 +126,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
             item {
                 SettingsGroup("Account", Icons.Default.AccountCircle, index = 1) {
                     if (signedIn) {
-                        GroupRow("Profile", viewModel.userEmail.ifBlank { "Your Noor Pro profile" }, Icons.Default.Person) { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }
+                        GroupRow("Profile", viewModel.userEmail.ifBlank { "Your Noor Pro profile" }, Icons.Default.Person) { if (viewModel.isLoggedIn) viewModel.openMyProfile() else viewModel.navigateTo(DeenScreen.LOGIN) }
                         GroupRow("Switch account", "Saved accounts on this device", Icons.Default.SwitchAccount) { viewModel.navigateTo(DeenScreen.ACCOUNT_SWITCHER) }
                         GroupRow("Sign out", "You can sign back in any time", Icons.Default.Logout) {
                             viewModel.handleLogout(); viewModel.navigateTo(DeenScreen.LOGIN)
@@ -170,19 +170,17 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                         theme.name.lowercase().replaceFirstChar { it.uppercase() }) {
                         viewModel.updateThemeMode(com.noorpro.app.ui.viewmodel.ThemeMode.valueOf(it.uppercase()))
                     }
-                    GroupRow("App language", "Current: ${language.name}", Icons.Default.Language) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
+                    GroupRow("App language", "Current: English (Arabic/Urdu coming later)", Icons.Default.Language) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
                     GroupRow("Text size", "Reading font size", Icons.Default.FormatSize) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
                 }
             }
             item {
                 SettingsGroup("Notifications", Icons.Default.NotificationsActive, index = 5) {
                     GroupRow("Notification settings", "Prayer alerts, alarm sound and reminder schedules", Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.ADVANCED_SETTINGS) }
-                    GroupRow("Community notifications", "Likes, comments and messages", Icons.Default.Forum) { viewModel.navigateTo(DeenScreen.UMMAH_NOTIFICATIONS) }
                 }
             }
             item {
                 SettingsGroup("Privacy & Data", Icons.Default.Shield, index = 6) {
-                    GroupRow("Profile visibility", "Who can see your Ummah profile", Icons.Default.Visibility) { viewModel.navigateTo(DeenScreen.UMMAH_PRIVACY) }
                     GroupRow("Blocked accounts", "Manage people you blocked", Icons.Default.Block) { viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED) }
                     if (signedIn && com.noorpro.app.data.halal.HalalFlags.safety)
                         GroupRow("Safety", "Message requests, comment filter, blur flagged media", Icons.Default.HealthAndSafety) { viewModel.navigateTo(DeenScreen.SAFETY_SETTINGS) }

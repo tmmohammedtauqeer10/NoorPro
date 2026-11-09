@@ -287,7 +287,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         isTyping = isTyping,
         showTip = showTip,
         revealId = revealId,
-        onBack = { viewModel.navigateTo(DeenScreen.DASHBOARD) },
+        onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
         onInput = { input = it },
         onSend = { send(input) },
         onSuggestion = { send(it) },

@@ -26,7 +26,7 @@ object AdhanVoiceLogic {
             PrayerNotificationChannels.ADHAN_SILENT),
     )
 
-    fun current(pref: String?): AdhanVoiceOption = AdhanSound.fromPref(pref).let { s -> OPTIONS.first { it.sound == s } }
+    fun current(pref: String?): AdhanVoiceOption = AdhanSound.fromPref(pref).let { s -> OPTIONS.firstOrNull { it.sound == s } ?: OPTIONS.first() }
 
     /** Preview length; long enough to recognise the tone, short enough not to disturb. */
     const val PREVIEW_MS = 4_000L
