@@ -121,7 +121,7 @@ fun StitchAudioLibraryScreen(viewModel: DeenViewModel, initialCategory: String =
 @Composable
 internal fun AudioCredits(t: AudioTheme) {
     Text(
-        "Credits: Qur'an recitations stream from EveryAyah.com and curated MP3Quran.net voices (Audio: MP3Quran.net); nasheeds and podcasts come from their publishers' official feeds; dua, tarjuma and tafsir audio is used under its free licences. Each section lists its source.",
+        "Credits: Qur'an recitations stream from EveryAyah.com; nasheeds and podcasts come from their publishers' official feeds; dua, tarjuma and tafsir audio is used under its free licences. Each section lists its source.",
         color = t.muted, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 16.dp)
     )
 }

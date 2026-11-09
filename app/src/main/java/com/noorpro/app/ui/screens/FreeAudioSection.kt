@@ -110,7 +110,7 @@ internal fun FreeNowPlayingBar() {
     val q by AlNoorAudioSession.player.queue.collectAsState()
     val pb by AlNoorAudioSession.player.playback.collectAsState()
     val t = q.currentTrack ?: return
-    if (!t.id.startsWith("free-") && !t.id.startsWith("pod-") && !t.id.startsWith("mp3q-")) return
+    if (!t.id.startsWith("free-") && !t.id.startsWith("pod-")) return
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stitchPrimary().copy(alpha = 0.12f))
             .border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).padding(12.dp),
@@ -215,13 +215,20 @@ private fun DuaList(ctx: android.content.Context) {
 
 @Composable
 private fun TarjumaList(ctx: android.content.Context) {
-    var lang by rememberSaveable { mutableStateOf(FreeAudioCatalog.tarjumaLanguages.first()) }
+    val langs = FreeAudioCatalog.tarjumaLanguages
+    if (langs.isEmpty()) return
+    var lang by rememberSaveable { mutableStateOf(langs.first()) }
+    if (lang !in langs) lang = langs.first()
     val eds = FreeAudioCatalog.editions.filter { it.language == lang }
+    if (eds.isEmpty()) {
+        Text("No tarjuma editions available for $lang right now.", color = stitchMutedText(), fontSize = 13.sp)
+        return
+    }
     var edKey by rememberSaveable(lang) { mutableStateOf(eds.first().key) }
     val ed = eds.firstOrNull { it.key == edKey } ?: eds.first()
     var showAll by rememberSaveable(edKey) { mutableStateOf(false) }
-    FreeChips(FreeAudioCatalog.tarjumaLanguages, lang) { lang = it }
-    if (eds.size > 1) FreeChips(eds.map { it.title }, ed.title) { t -> edKey = eds.first { it.title == t }.key }
+    FreeChips(langs, lang) { lang = it }
+    if (eds.size > 1) FreeChips(eds.map { it.title }, ed.title) { t -> edKey = eds.firstOrNull { it.title == t }?.key ?: edKey }
     Text(ed.subtitle + " · 114 surahs", color = stitchMutedText(), fontSize = 12.sp)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(stitchSurface())
@@ -230,7 +237,7 @@ private fun TarjumaList(ctx: android.content.Context) {
         val n = if (showAll) 114 else 10
         (1..n).forEach { s ->
             Row(Modifier.fillMaxWidth().clickable {
-                val tr = ed.surahTracks(s); playFree(ctx, tr.first(), tr)
+                val tr = ed.surahTracks(s); tr.firstOrNull()?.let { playFree(ctx, it, tr) }
             }.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("$s", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
                 Column(Modifier.weight(1f)) {
@@ -280,7 +287,7 @@ internal fun AudioSourcesContent(onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Audio sources", color = stitchPrimary(), fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
-            FreeAudioCatalog.allSources().forEach { s ->
+            FreeAudioCatalog.sources.forEach { s ->
                 Column {
                     Text(s.name, color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(s.by, color = stitchMutedText(), fontSize = 12.sp)

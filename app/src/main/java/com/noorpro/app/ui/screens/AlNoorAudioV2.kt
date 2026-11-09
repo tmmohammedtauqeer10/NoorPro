@@ -71,7 +71,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.noorpro.app.audio.catalog.Mp3QuranCatalog
 import com.noorpro.app.R
 import com.noorpro.app.audio.AlNoorAudioSession
 import com.noorpro.app.audio.podcast.FeedResult
@@ -269,7 +268,7 @@ internal fun SpTrackRow(t: SpTheme, index: Int?, title: String, subtitle: String
 @Composable
 internal fun SpCredits(t: SpTheme) {
     Text(
-        "Sources & credits: Qur'an recitations stream from EveryAyah.com; curated MP3Quran.net recitations are also available (Audio: MP3Quran.net). Nasheeds and podcasts load from each publisher's official public RSS feed and stream from their servers. " +
+        "Sources & credits: Qur'an recitations stream from EveryAyah.com. Nasheeds and podcasts load from each publisher's official public RSS feed and stream from their servers. " +
             "Dua, tarjuma and tafsir audio comes from free, licensed sources; open a category and tap “Audio sources” for full attribution.",
         color = t.muted, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 16.dp)
     )
@@ -401,12 +400,6 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
                 }
             }
         }
-        if (quran) item(key = "mp3quran") {
-            val mq = rememberMp3QuranResolved()
-            SpShelf(t, "Quran Recitations", kicker = "Audio: MP3Quran.net", action = "Show all", onAction = { open("mp3quran") }) {
-                mp3QuranShelfItems(t, mq, open)
-            }
-        }
         // 1.1.9: Nasheeds & Naats = the owner's own MAF Nasheed channel only.
         if (all || chip == "Nasheeds") item(key = "nasheeds") { MafNasheedShelf(t) }
         if ((all || chip == "Podcasts") && d.podcasts.isNotEmpty()) item(key = "podcasts") {
@@ -468,7 +461,6 @@ internal fun ChartRow(t: SpTheme, rank: Int, s: Surah, playing: Boolean, onClick
 internal data class SpBrowse(val label: String, val color: Color, val icon: ImageVector, val route: String)
 internal val SP_BROWSE = listOf(
     SpBrowse("Recitations", Color(0xFF0F7A4F), Icons.Default.MenuBook, "recitations"),
-    SpBrowse("Quran Recitations", Color(0xFF0B5E4A), Icons.Default.GraphicEq, "mp3quran"),
     SpBrowse("Nasheeds", Color(0xFF8D3FD1), Icons.Default.MusicNote, "browse:Nasheeds"),
     SpBrowse("Podcasts", Color(0xFF1E5AA8), Icons.Default.Podcasts, "browse:Podcasts"),
     SpBrowse("Bayans", Color(0xFF0F5D46), Icons.Default.Mic, "browse:Bayans"),
@@ -838,17 +830,6 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                         false, false, null, null, back, null, {}, {}, {}) {
                         item { Box(Modifier.padding(horizontal = 16.dp)) { FreeAudioSection(c) } }
                     }
-                }
-                rt == "mp3quran" -> {
-                    val mq = rememberMp3QuranResolved()
-                    Mp3QuranListPage(t, mq, back, ::open)
-                }
-                rt.startsWith("mp3quran:") -> {
-                    val key = rt.removePrefix("mp3quran:")
-                    val mq = rememberMp3QuranResolved()
-                    val r = Mp3QuranCatalog.findResolved(mq, key)
-                    if (r == null) LaunchedEffect(rt) { back() }
-                    else Mp3QuranReciterPage(t, r, back)
                 }
                 else -> LaunchedEffect(rt) { back() }
             }
