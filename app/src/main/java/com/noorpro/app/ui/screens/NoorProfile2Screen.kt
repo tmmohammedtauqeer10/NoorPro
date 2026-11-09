@@ -13,7 +13,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.runtime.*
@@ -43,7 +48,7 @@ import kotlinx.coroutines.launch
 
 private const val P2_PREFS = "noor_profile2"
 
-private enum class P2Sheet { QR, PRIVACY, MENU }
+private enum class P2Sheet { QR, PRIVACY, MENU, ACTIVITY }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,7 +144,7 @@ fun NoorProfile2Screen(viewModel: DeenViewModel) {
 
     val actions = Profile2Actions(
         onBack = { viewModel.goBack() },
-        onMenu = { sheet = if (own) P2Sheet.PRIVACY else P2Sheet.MENU },
+        onMenu = { sheet = if (own) P2Sheet.ACTIVITY else P2Sheet.MENU },
         onQr = { sheet = P2Sheet.QR },
         onStat = { key ->
             when (key) {
@@ -181,6 +186,13 @@ fun NoorProfile2Screen(viewModel: DeenViewModel) {
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("NoorPro profile", shareUrl))
                     Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
                 })
+            }
+            P2Sheet.ACTIVITY -> Reels2SheetFrame("Your Activity", "Shortcuts for this profile") {
+                P2MenuRow(Icons.Default.Bookmark, "Saved") { sheet = null; viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
+                P2MenuRow(Icons.Default.AutoGraph, "Your Activity") { sheet = null; viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) }
+                P2MenuRow(Icons.Default.History, "Watch history") { sheet = null; viewModel.navigateTo(DeenScreen.UMMAH_WATCH_HISTORY) }
+                P2MenuRow(Icons.Default.Archive, "Archive") { sheet = null; viewModel.navigateTo(DeenScreen.UMMAH_ARCHIVE) }
+                P2MenuRow(Icons.Outlined.Lock, "Privacy settings") { sheet = P2Sheet.PRIVACY }
             }
             P2Sheet.PRIVACY -> Profile2PrivacySheet(
                 privateOn, hideCountsOn, hideDeen, 0, features,

@@ -79,6 +79,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -194,6 +196,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -2180,9 +2184,13 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
             item { MoreCategoryGrid(onOpen = { viewModel.navigateTo(it) }) }
             item {
                 StitchProfileSection("Your Activity") {
+                    StitchListRow("Activity", "Likes, saves, archive and watch history", Icons.Default.AutoGraph) { viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) }
+                    StitchDivider()
                     StitchListRow("Saved", "Saved reels and posts", Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
                     StitchDivider()
-                    StitchListRow("Archive", "Private archived Ummah content", Icons.Default.CloudQueue) { viewModel.navigateTo(DeenScreen.UMMAH_ARCHIVE) }
+                    StitchListRow("Watch history", "Resume reels you watched on this device", Icons.Default.History) { viewModel.navigateTo(DeenScreen.UMMAH_WATCH_HISTORY) }
+                    StitchDivider()
+                    StitchListRow("Archive", "Private archived posts and reels", Icons.Default.Archive) { viewModel.navigateTo(DeenScreen.UMMAH_ARCHIVE) }
                     StitchDivider()
                     StitchListRow("Likes & comments", "See posts you liked and comments you made", Icons.Default.ChatBubble) { viewModel.navigateTo(DeenScreen.UMMAH_LIKES_COMMENTS) }
                     StitchDivider()
@@ -5636,7 +5644,6 @@ private fun StitchSearchResultCard(
 
 @Composable
 fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
-    val feedState = rememberStitchUmmahFeed()
     val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
     val savedLibrary = rememberStitchSavedLibrary(viewModel.isLoggedIn)
     val repository = remember { UmmahRepository() }
@@ -5644,9 +5651,9 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
     var selectedFilter by remember { mutableStateOf("all") }
     var showCreateCollection by remember { mutableStateOf(false) }
     var collectionTitle by remember { mutableStateOf("") }
-    val savedPosts = remember(feedState.posts, interactions.saved) {
-        feedState.posts.filter { it.id in interactions.saved }
-    }
+    val (resolved, loadMore) = rememberActivityResolvedRows(interactions.saved)
+    val savedPosts = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Available)?.post } }
+    val unavailableIds = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Unavailable)?.id } }
     val visiblePosts = remember(savedPosts, selectedFilter, savedLibrary.assignments) {
         when (selectedFilter) {
             "reels" -> savedPosts.filter { it.isReelLike() }
@@ -5727,14 +5734,14 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Saved reels and posts", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("${savedPosts.size} saved items. Create private collections.", color = stitchMutedText(), fontSize = 13.sp)
+                                Text("${interactions.saved.size} saved · collections stay private", color = stitchMutedText(), fontSize = 13.sp)
                             }
                             IconButton(onClick = { showCreateCollection = true }) {
                                 Icon(Icons.Default.Add, contentDescription = "Create collection", tint = stitchPrimary())
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            StitchSavedStatCard("All", savedPosts.size.toString(), Modifier.weight(1f))
+                            StitchSavedStatCard("All", interactions.saved.size.toString(), Modifier.weight(1f))
                             StitchSavedStatCard("Reels", savedPosts.count { it.isReelLike() }.toString(), Modifier.weight(1f))
                             StitchSavedStatCard("Posts", savedPosts.count { !it.isReelLike() }.toString(), Modifier.weight(1f))
                         }
@@ -5783,12 +5790,12 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
                         onAction = { viewModel.navigateTo(DeenScreen.LOGIN) }
                     )
                 }
-                feedState.loading -> item {
+                resolved.loading && resolved.rows.isEmpty() -> item {
                     Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = stitchPrimary())
                     }
                 }
-                savedPosts.isEmpty() -> item {
+                interactions.saved.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = "No saved content yet",
                         message = "Tap the bookmark on a reel or post to save it here.",
@@ -5796,7 +5803,7 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
                         onAction = { viewModel.navigateTo(DeenScreen.REELS) }
                     )
                 }
-                visiblePosts.isEmpty() -> item {
+                visiblePosts.isEmpty() && unavailableIds.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = "This collection is empty",
                         message = "Open All, then add saved reels or posts into this collection.",
@@ -5804,25 +5811,36 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
                         onAction = { selectedFilter = "all" }
                     )
                 }
-                else -> item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        visiblePosts.forEach { post ->
-                            StitchSavedContentCard(
-                                post = post,
-                                collections = savedLibrary.collections,
-                                assignedCollectionId = savedLibrary.assignments[post.id],
-                                onOpen = { if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
-                                onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) },
-                                onAssign = { collection ->
-                                    repository.assignSavedToCollection(post.id, collection.id) { ok ->
-                                        Toast.makeText(
-                                            context,
-                                            if (ok) "Saved to ${collection.title}" else "Unable to save to collection",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                else -> {
+                    items(visiblePosts, key = { it.id }) { post ->
+                        StitchSavedContentCard(
+                            post = post,
+                            collections = savedLibrary.collections,
+                            assignedCollectionId = savedLibrary.assignments[post.id],
+                            onOpen = { if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
+                            onOpenProfile = { viewModel.openCreatorProfile(post.creatorUid, post.creatorName, post.creatorHandle) },
+                            onAssign = { collection ->
+                                repository.assignSavedToCollection(post.id, collection.id) { ok ->
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Saved to ${collection.title}" else "Unable to save to collection",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
-                            )
+                            }
+                        )
+                    }
+                    if (selectedFilter == "all") {
+                        items(unavailableIds, key = { "saved-miss-$it" }) { id ->
+                            ActivityUnavailableTile(id) { repository.toggleInteraction(id, "saved", false) { } }
+                        }
+                    }
+                    if (resolved.hasMore) {
+                        item {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                if (resolved.loadingMore) CircularProgressIndicator(color = stitchPrimary(), modifier = Modifier.size(28.dp))
+                                else TextButton(onClick = loadMore) { Text("Load more", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                            }
                         }
                     }
                 }
@@ -5833,16 +5851,15 @@ fun StitchUmmahSavedScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
-    val feedState = rememberStitchUmmahFeed()
     val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
     var selectedTab by remember { mutableStateOf("likes") }
-    val likedPosts = remember(feedState.posts, interactions.liked) {
-        feedState.posts.filter { it.id in interactions.liked }
-    }
-    val savedPosts = remember(feedState.posts, interactions.saved) {
-        feedState.posts.filter { it.id in interactions.saved }
-    }
-    val activePosts = if (selectedTab == "likes") likedPosts else savedPosts
+    val repository = remember { UmmahRepository() }
+    val activeIds = if (selectedTab == "likes") interactions.liked else interactions.saved
+    val (resolved, loadMore) = rememberActivityResolvedRows(activeIds)
+    val likedCount = interactions.liked.size
+    val savedCount = interactions.saved.size
+    val activePosts = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Available)?.post } }
+    val unavailableIds = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Unavailable)?.id } }
 
     StitchScreen {
         LazyColumn(
@@ -5867,8 +5884,13 @@ fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
                         Text("Your activity", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text("Review what you liked and saved in Ummah.", color = stitchMutedText(), fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            StitchSavedStatCard("Liked", likedPosts.size.toString(), Modifier.weight(1f))
-                            StitchSavedStatCard("Saved", savedPosts.size.toString(), Modifier.weight(1f))
+                            StitchSavedStatCard("Liked", likedCount.toString(), Modifier.weight(1f))
+                            StitchSavedStatCard("Saved", savedCount.toString(), Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StitchSavedFilterChip("Watch history", false) { viewModel.navigateTo(DeenScreen.UMMAH_WATCH_HISTORY) }
+                            StitchSavedFilterChip("Archive", false) { viewModel.navigateTo(DeenScreen.UMMAH_ARCHIVE) }
+                            StitchSavedFilterChip("Saved", false) { viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
                         }
                     }
                 }
@@ -5891,12 +5913,12 @@ fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
                         onAction = { viewModel.navigateTo(DeenScreen.LOGIN) }
                     )
                 }
-                feedState.loading -> item {
+                resolved.loading && resolved.rows.isEmpty() -> item {
                     Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = stitchPrimary())
                     }
                 }
-                activePosts.isEmpty() -> item {
+                activeIds.isEmpty() -> item {
                     StitchUmmahEmptyCard(
                         title = if (selectedTab == "likes") "No liked posts yet" else "No saved posts yet",
                         message = if (selectedTab == "likes") "Tap the heart on reels and posts to build your activity." else "Tap the bookmark to save reels and posts.",
@@ -5904,13 +5926,26 @@ fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
                         onAction = { viewModel.navigateTo(if (selectedTab == "likes") DeenScreen.REELS else DeenScreen.UMMAH_SAVED) }
                     )
                 }
-                else -> item {
-                    StitchProfileMediaGrid(
-                        posts = activePosts,
-                        canDelete = false,
-                        onOpenPost = { post -> if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
-                        onDelete = {}
-                    )
+                else -> {
+                    if (activePosts.isNotEmpty()) item {
+                        StitchProfileMediaGrid(
+                            posts = activePosts,
+                            canDelete = false,
+                            onOpenPost = { post -> if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
+                            onDelete = {}
+                        )
+                    }
+                    items(unavailableIds, key = { "act-miss-$it" }) { id ->
+                        ActivityUnavailableTile(id) {
+                            repository.toggleInteraction(id, if (selectedTab == "likes") "likes" else "saved", false) { }
+                        }
+                    }
+                    if (resolved.hasMore) item {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            if (resolved.loadingMore) CircularProgressIndicator(color = stitchPrimary(), modifier = Modifier.size(28.dp))
+                            else TextButton(onClick = loadMore) { Text("Load more", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                        }
+                    }
                 }
             }
         }
@@ -5919,34 +5954,98 @@ fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahArchiveScreen(viewModel: DeenViewModel) {
+    val repository = remember { UmmahRepository() }
+    val context = LocalContext.current
+    var posts by remember { mutableStateOf<List<UmmahPost>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var refresh by remember { mutableStateOf(0) }
+    LaunchedEffect(viewModel.isLoggedIn, refresh) {
+        if (!viewModel.isLoggedIn) { posts = emptyList(); loading = false; return@LaunchedEffect }
+        loading = true
+        repository.fetchMyPosts { all ->
+            val order = YourActivityLogic.filterArchived(all.map { ArchivedPostRef(it.id, it.archived, it.publishedAt) }).map { it.id }
+            val byId = all.associateBy { it.id }
+            posts = order.mapNotNull { byId[it] }
+            loading = false
+        }
+    }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Archive",
         eyebrow = "Your activity",
-        subtitle = "Private posts and reels you archive will appear here.",
-        icon = Icons.Default.CloudQueue
+        subtitle = "Only you can see archived posts and reels. Unarchive restores them.",
+        icon = Icons.Default.Archive
     ) {
-        item {
-            StitchUmmahEmptyCard(
-                title = "No archived content",
-                message = "When you archive your posts or reels, they will move here privately.",
-                action = "Open Ummah",
-                onAction = { viewModel.navigateTo(DeenScreen.UMMAH) }
-            )
+        when {
+            !viewModel.isLoggedIn -> item {
+                StitchUmmahEmptyCard("Sign in to use Archive", "Archive is private to your creator account.", "Sign in") {
+                    viewModel.navigateTo(DeenScreen.LOGIN)
+                }
+            }
+            loading -> item {
+                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = stitchPrimary())
+                }
+            }
+            posts.isEmpty() -> item {
+                StitchUmmahEmptyCard(
+                    title = "No archived content",
+                    message = "Archive from Creator Studio. Archived items leave your public profile and the feed.",
+                    action = "Creator Studio",
+                    onAction = { viewModel.navigateTo(DeenScreen.CREATOR_STUDIO) }
+                )
+            }
+            else -> items(posts, key = { it.id }) { post ->
+                StitchCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(stitchSoftSurface()).clickable {
+                                if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH)
+                            },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val thumb = post.thumbnailUrl.ifBlank { post.mediaUrl }
+                            if (thumb.startsWith("http")) coil.compose.AsyncImage(thumb, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            else Icon(Icons.Default.Archive, null, tint = stitchPrimary())
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                post.caption.lineSequence().firstOrNull().orEmpty().ifBlank { if (post.isReelLike()) "Reel" else "Post" },
+                                color = stitchText(), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp
+                            )
+                            Text(if (post.isReelLike()) "Reel · archived" else "Post · archived", color = stitchMutedText(), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = {
+                            repository.updateMyPost(post.id, mapOf("archived" to false)) { ok ->
+                                Toast.makeText(context, if (ok) "Restored to profile" else "Couldn't unarchive", Toast.LENGTH_SHORT).show()
+                                if (ok) refresh++
+                            }
+                        }) { Text("Unarchive", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 fun StitchUmmahLikesCommentsScreen(viewModel: DeenViewModel) {
-    val feedState = rememberStitchUmmahFeed()
     val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
     val commentState = rememberStitchUserComments(viewModel.isLoggedIn)
     var selectedTab by remember { mutableStateOf("likes") }
-    val likedPosts = remember(feedState.posts, interactions.liked) {
-        feedState.posts.filter { it.id in interactions.liked }
+    val repository = remember { UmmahRepository() }
+    val (resolved, loadMore) = rememberActivityResolvedRows(interactions.liked)
+    val likedPosts = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Available)?.post } }
+    val unavailableIds = remember(resolved.rows) { resolved.rows.mapNotNull { (it as? ActivityRow.Unavailable)?.id } }
+    val commentPostIds = remember(commentState.comments) { commentState.comments.map { it.postId } }
+    val (commentResolved, _) = rememberActivityResolvedRows(commentPostIds)
+    val postsById = remember(likedPosts, commentResolved.rows) {
+        buildMap {
+            likedPosts.forEach { put(it.id, it) }
+            commentResolved.rows.mapNotNull { (it as? ActivityRow.Available)?.post }.forEach { put(it.id, it) }
+        }
     }
-    val postsById = remember(feedState.posts) { feedState.posts.associateBy { it.id } }
 
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
@@ -5970,7 +6069,7 @@ fun StitchUmmahLikesCommentsScreen(viewModel: DeenViewModel) {
                     onAction = { viewModel.navigateTo(DeenScreen.LOGIN) }
                 )
             }
-            selectedTab == "likes" && feedState.loading -> item {
+            selectedTab == "likes" && resolved.loading && resolved.rows.isEmpty() -> item {
                 Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = stitchPrimary())
                 }
@@ -5980,7 +6079,7 @@ fun StitchUmmahLikesCommentsScreen(viewModel: DeenViewModel) {
                     CircularProgressIndicator(color = stitchPrimary())
                 }
             }
-            selectedTab == "likes" && likedPosts.isEmpty() -> item {
+            selectedTab == "likes" && interactions.liked.isEmpty() -> item {
                 StitchUmmahEmptyCard("No liked posts yet", "Tap the heart on any reel or post to see it here.", "Watch Reels") {
                     viewModel.navigateTo(DeenScreen.REELS)
                 }
@@ -5990,13 +6089,24 @@ fun StitchUmmahLikesCommentsScreen(viewModel: DeenViewModel) {
                     viewModel.navigateTo(DeenScreen.UMMAH)
                 }
             }
-            selectedTab == "likes" -> item {
-                StitchProfileMediaGrid(
-                    posts = likedPosts,
-                    canDelete = false,
-                    onOpenPost = { post -> if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
-                    onDelete = {}
-                )
+            selectedTab == "likes" -> {
+                if (likedPosts.isNotEmpty()) item {
+                    StitchProfileMediaGrid(
+                        posts = likedPosts,
+                        canDelete = false,
+                        onOpenPost = { post -> if (post.opensInVideoViewer()) viewModel.openReel(post.id) else viewModel.navigateTo(DeenScreen.UMMAH) },
+                        onDelete = {}
+                    )
+                }
+                items(unavailableIds, key = { "like-miss-$it" }) { id ->
+                    ActivityUnavailableTile(id) { repository.toggleInteraction(id, "likes", false) { } }
+                }
+                if (resolved.hasMore) item {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        if (resolved.loadingMore) CircularProgressIndicator(color = stitchPrimary(), modifier = Modifier.size(28.dp))
+                        else TextButton(onClick = loadMore) { Text("Load more", color = stitchPrimary(), fontWeight = FontWeight.Bold) }
+                    }
+                }
             }
             else -> items(commentState.comments, key = { it.id }) { comment ->
                 StitchCommentActivityCard(
@@ -6364,7 +6474,7 @@ private fun StitchCommentActivityCard(
 }
 
 @Composable
-private fun StitchSavedStatCard(title: String, value: String, modifier: Modifier = Modifier) {
+internal fun StitchSavedStatCard(title: String, value: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -6381,7 +6491,7 @@ private fun StitchSavedStatCard(title: String, value: String, modifier: Modifier
 }
 
 @Composable
-private fun StitchSavedFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun StitchSavedFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .height(40.dp)
@@ -6397,7 +6507,7 @@ private fun StitchSavedFilterChip(label: String, selected: Boolean, onClick: () 
 }
 
 @Composable
-private fun StitchSavedContentCard(
+internal fun StitchSavedContentCard(
     post: UmmahPost,
     collections: List<UmmahSavedCollection>,
     assignedCollectionId: String?,
@@ -7824,9 +7934,8 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
 
     // Instagram-style "Saved" tab (own profile only) — reuse the live saved-interaction set.
     val interactions = rememberStitchInteractions(viewModel.isLoggedIn)
-    val savedPosts = remember(feedState.posts, interactions.saved) {
-        feedState.posts.filter { it.id in interactions.saved }
-    }
+    val (savedResolved, savedLoadMore) = rememberActivityResolvedRows(interactions.saved)
+    val savedPosts = remember(savedResolved.rows) { savedResolved.rows.mapNotNull { (it as? ActivityRow.Available)?.post } }
     // Real device location used as the profile's location line (own profile).
     val locationName by viewModel.currentLocationName.collectAsState()
     val hasCurrentLocation by viewModel.hasCurrentLocation.collectAsState()
@@ -7856,18 +7965,36 @@ fun StitchUmmahProfileScreen(viewModel: DeenViewModel) {
                     if (isOther) {
                         UgcOverflowButton(ReportTarget("user", profileUid, profileUid, displayName), tint = stitchMutedText())
                     } else {
-                        IconButton(
-                            onClick = {
-                                viewModel.navigateTo(
-                                    if (viewModel.isLoggedIn) DeenScreen.UMMAH_PROFILE_EDIT else DeenScreen.LOGIN
+                        var profileMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { profileMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = stitchPrimary())
+                            }
+                            DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit profile") },
+                                    onClick = {
+                                        profileMenu = false
+                                        viewModel.navigateTo(if (viewModel.isLoggedIn) DeenScreen.UMMAH_PROFILE_EDIT else DeenScreen.LOGIN)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Edit, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Saved") },
+                                    onClick = { profileMenu = false; viewModel.navigateTo(DeenScreen.UMMAH_SAVED) },
+                                    leadingIcon = { Icon(Icons.Default.Bookmark, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Your Activity") },
+                                    onClick = { profileMenu = false; viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) },
+                                    leadingIcon = { Icon(Icons.Default.AutoGraph, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Watch history") },
+                                    onClick = { profileMenu = false; viewModel.navigateTo(DeenScreen.UMMAH_WATCH_HISTORY) },
+                                    leadingIcon = { Icon(Icons.Default.History, null) }
                                 )
                             }
-                        ) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = if (viewModel.isLoggedIn) "Edit" else "Sign in",
-                                tint = stitchPrimary()
-                            )
                         }
                     }
                 }
@@ -9228,7 +9355,7 @@ private fun StitchProfileStatButton(
 }
 
 @Composable
-private fun StitchProfileMediaGrid(
+internal fun StitchProfileMediaGrid(
     posts: List<UmmahPost>,
     canDelete: Boolean,
     onOpenPost: (UmmahPost) -> Unit,

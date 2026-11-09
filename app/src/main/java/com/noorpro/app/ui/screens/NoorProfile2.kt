@@ -130,7 +130,7 @@ fun NoorProfile2(ui: Profile2Ui, a: Profile2Actions, f: Profile2Features = Profi
                 Spacer(Modifier.weight(1f))
                 TopIcon(Icons.Default.QrCode2, "Profile QR", a.onQr)
                 Spacer(Modifier.width(6.dp))
-                TopIcon(if (ui.own) Icons.Outlined.Lock else Icons.Default.MoreVert, if (ui.own) "Privacy" else "More", a.onMenu)
+                TopIcon(Icons.Default.MoreVert, if (ui.own) "Menu" else "More", a.onMenu)
             }
         }
         // ---- avatar row (overlaps the cover)

@@ -88,6 +88,11 @@ internal class ReelWatchStore(context: Context) {
         val extra = all().sortedByDescending { it.updatedAt }.drop(40)
         if (extra.isNotEmpty()) prefs.edit().apply { extra.forEach { remove(it.postId) } }.apply()
     }
+    fun remove(postId: String) {
+        if (postId.isBlank()) return
+        prefs.edit().remove(postId).apply()
+    }
+    fun clearAll() { prefs.edit().clear().apply() }
 }
 
 /** Halal reaction chosen per reel, kept on device until reactions storage exists (flag). */

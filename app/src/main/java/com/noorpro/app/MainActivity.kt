@@ -65,6 +65,7 @@ import com.noorpro.app.ui.screens.StitchUmmahCreateScreen
 import com.noorpro.app.ui.screens.StitchUmmahHubScreen
 import com.noorpro.app.ui.screens.StitchUmmahActivityScreen
 import com.noorpro.app.ui.screens.StitchUmmahArchiveScreen
+import com.noorpro.app.ui.screens.StitchUmmahWatchHistoryScreen
 import com.noorpro.app.ui.screens.StitchUmmahBlockedScreen
 import com.noorpro.app.ui.screens.StitchUmmahCloseFriendsScreen
 import com.noorpro.app.ui.screens.StitchUmmahLikesCommentsScreen
@@ -436,6 +437,7 @@ fun MainLayout() {
                 DeenScreen.UMMAH_SAVED -> StitchUmmahSavedScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_ACTIVITY -> StitchUmmahActivityScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_ARCHIVE -> StitchUmmahArchiveScreen(viewModel = viewModel)
+                DeenScreen.UMMAH_WATCH_HISTORY -> StitchUmmahWatchHistoryScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_NOTIFICATIONS -> StitchUmmahNotificationsScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_LIKES_COMMENTS -> StitchUmmahLikesCommentsScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_TIME_MANAGEMENT -> StitchUmmahTimeManagementScreen(viewModel = viewModel)

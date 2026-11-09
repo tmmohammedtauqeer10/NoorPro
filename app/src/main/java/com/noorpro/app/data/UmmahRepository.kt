@@ -1288,7 +1288,32 @@ class UmmahRepository {
 
     // ------------------------------------------------------------------ 1.1.4 Creator Studio
 
-    /** The signed-in creator's published posts and reels (one-shot, equality filters only — no new index). */
+    /**
+     * Resolve ummah_posts by id in whereIn chunks of 30 (documentId). Missing / unreadable ids are
+     * omitted from [found]; callers treat those as Unavailable tiles. No new index required.
+     */
+    fun fetchPostsByIds(postIds: List<String>, onResult: (Map<String, UmmahPost>) -> Unit) {
+        val ids = postIds.map { it.trim() }.filter { it.isNotEmpty() && !it.contains('/') }.distinct()
+        if (ids.isEmpty()) return onResult(emptyMap())
+        val chunks = ids.chunked(30)
+        val found = java.util.concurrent.ConcurrentHashMap<String, UmmahPost>()
+        var pending = chunks.size
+        chunks.forEach { chunk ->
+            firestore.collection("ummah_posts")
+                .whereIn(com.google.firebase.firestore.FieldPath.documentId(), chunk)
+                .get()
+                .addOnSuccessListener { snap ->
+                    snap.documents.forEach { doc ->
+                        runCatching { doc.toUmmahPost() }.getOrNull()?.let { found[it.id] = it }
+                    }
+                }
+                .addOnCompleteListener {
+                    if (--pending == 0) mainHandler.post { onResult(found.toMap()) }
+                }
+        }
+    }
+
+        /** The signed-in creator's published posts and reels (one-shot, equality filters only — no new index). */
     fun fetchMyPosts(limit: Long = 300, onResult: (List<UmmahPost>) -> Unit) {
         val uid = FirebaseGate.currentUser?.uid ?: return onResult(emptyList())
         firestore.collection("ummah_posts")
