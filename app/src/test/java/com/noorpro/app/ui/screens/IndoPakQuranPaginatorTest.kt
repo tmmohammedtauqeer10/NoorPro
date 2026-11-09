@@ -72,4 +72,13 @@ class IndoPakQuranPaginatorTest {
         assertEquals(24.5f, fitMushafFontSize(25f, 300f, 300f), 0.001f)
         assertEquals(14f, fitMushafFontSize(25f, 1_000f, 200f), 0.001f)
     }
+
+    @Test
+    fun safeMushafPageIndexClampsOutOfRangeAndEmptyPages() {
+        assertEquals(0, safeMushafPageIndex(50, 1))
+        assertEquals(0, safeMushafPageIndex(-3, 4))
+        assertEquals(3, safeMushafPageIndex(99, 4))
+        assertEquals(0, safeMushafPageIndex(2, 0))
+        assertEquals(2, safeMushafPageIndex(2, 5))
+    }
 }

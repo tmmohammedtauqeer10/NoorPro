@@ -179,19 +179,24 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
                 )
             }
         }
-        val initial = prefs.getInt("last_page_$surah", 0)
-            .coerceIn(0, (pages.size - 1).coerceAtLeast(0))
-        val pager = rememberPagerState(initialPage = initial) { pages.size.coerceAtLeast(1) }
+        // Recreate pager when surah/font change so currentPage cannot stay past the new page count.
+        val pager = key(surah, fontSize) {
+            val initial = prefs.getInt("last_page_$surah", 0)
+                .coerceIn(0, (pages.size - 1).coerceAtLeast(0))
+            rememberPagerState(initialPage = initial) { pages.size.coerceAtLeast(1) }
+        }
+        val safePage = safeMushafPageIndex(pager.currentPage, pages.size)
 
         LaunchedEffect(surah, pages.size) {
             if (pages.isNotEmpty()) {
-                pager.scrollToPage(prefs.getInt("last_page_$surah", 0).coerceIn(0, pages.lastIndex))
+                val target = prefs.getInt("last_page_$surah", 0).coerceIn(0, pages.lastIndex)
+                if (pager.currentPage != target) pager.scrollToPage(target)
             }
         }
-        LaunchedEffect(surah, pager.currentPage, pages.size) {
+        LaunchedEffect(surah, safePage, pages.size) {
             if (pages.isNotEmpty()) {
                 prefs.edit().putInt("last_surah", surah)
-                    .putInt("last_page_$surah", pager.currentPage).apply()
+                    .putInt("last_page_$surah", safePage).apply()
             }
         }
 
@@ -201,15 +206,15 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
                 if (controls) ReaderTopBar(
                     number = surah,
                     name = QuranMetaData.surahNamesEn.getOrElse(surah - 1) { "" },
-                    bookmarked = "$surah:${pager.currentPage}" in bookmarks,
+                    bookmarked = "$surah:$safePage" in bookmarks,
                     colors = colors,
                     onBack = viewModel::returnToQuranRoot,
                     onPick = { picker = true },
                     onSettings = { settings = true },
                     onBookmark = {
-                        val key = "$surah:${pager.currentPage}"
+                        val bookmarkKey = "$surah:$safePage"
                         bookmarks = bookmarks.toMutableSet().apply {
-                            if (!add(key)) remove(key)
+                            if (!add(bookmarkKey)) remove(bookmarkKey)
                         }.toSet()
                         prefs.edit().putStringSet("page_bookmarks", bookmarks).apply()
                     }
@@ -217,22 +222,22 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
             },
             bottomBar = {
                 if (controls && pages.isNotEmpty()) PageBar(
-                    page = pager.currentPage,
+                    page = safePage,
                     count = pages.size,
-                    juz = juzFor(surah, pages[pager.currentPage].firstAyah),
+                    juz = juzFor(surah, pages[safePage].firstAyah),
                     colors = colors,
                     previous = {
                         when {
-                            pager.currentPage > 0 -> scope.launch {
-                                pager.animateScrollToPage(pager.currentPage - 1)
+                            safePage > 0 -> scope.launch {
+                                pager.animateScrollToPage(safePage - 1)
                             }
                             surah > 1 -> surah--
                         }
                     },
                     next = {
                         when {
-                            pager.currentPage < pages.lastIndex -> scope.launch {
-                                pager.animateScrollToPage(pager.currentPage + 1)
+                            safePage < pages.lastIndex -> scope.launch {
+                                pager.animateScrollToPage(safePage + 1)
                             }
                             surah < 114 -> surah++
                         }
@@ -251,12 +256,13 @@ fun IndoPakQuranScreen(viewModel: DeenViewModel) {
                         detectTapGestures { controls = !controls }
                     }
                 ) { index ->
+                    val pageIndex = safeMushafPageIndex(index, pages.size)
                     PageSheet(
-                        page = pages[index],
-                        pageNumber = index + 1,
+                        page = pages[pageIndex],
+                        pageNumber = pageIndex + 1,
                         pageCount = pages.size,
                         surahName = QuranMetaData.surahNamesEn.getOrElse(surah - 1) { "" },
-                        juz = juzFor(surah, pages[index].firstAyah),
+                        juz = juzFor(surah, pages[pageIndex].firstAyah),
                         fontSize = fontSize,
                         colors = colors
                     )
@@ -443,6 +449,12 @@ private fun MushafRow(line: MushafLine, fontSize: Int, height: Dp, colors: Reade
             )
         }
     }
+}
+
+/** Clamps a pager index into [0, pageCount). Empty lists resolve to 0. */
+internal fun safeMushafPageIndex(currentPage: Int, pageCount: Int): Int {
+    if (pageCount <= 0) return 0
+    return currentPage.coerceIn(0, pageCount - 1)
 }
 
 internal fun fitMushafFontSize(
