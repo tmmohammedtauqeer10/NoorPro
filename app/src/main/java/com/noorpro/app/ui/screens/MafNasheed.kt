@@ -194,7 +194,7 @@ internal fun MafNasheedShelf(t: SpTheme, preview: YtChannelFeed? = null) {
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             if (vids.isEmpty() && !failed) items(4) { SpShimmer(t, Modifier.width(232.dp).height(130.dp).clip(RoundedCornerShape(8.dp))) }
             if (vids.isEmpty() && failed) item {
-                Text("Couldn't load videos. Open the channel on YouTube.", color = t.muted, fontSize = 13.sp,
+                Text("Service unavailable — couldn't load nasheeds. Tap to open the channel on YouTube.", color = t.muted, fontSize = 13.sp,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { openYouTube(ctx, MAF_CHANNEL_URL) }.padding(8.dp))
             }
             items(feed?.audioOnly.orEmpty(), key = { "new-" + it.key }) { a -> YtNewAudioCard(t, a) }

@@ -83,6 +83,7 @@ import com.noorpro.app.data.UmmahRepository
 import com.noorpro.app.ui.components.*
 import com.noorpro.app.ui.theme.LibreCaslon
 import com.noorpro.app.ui.viewmodel.DeenScreen
+import com.noorpro.app.ui.util.SafeLookups
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
 /*
@@ -328,7 +329,7 @@ internal fun NoorUmmahFeedScreen(viewModel: DeenViewModel) {
     )
     val actions = UmmahFeedActions(
         onSearch = { viewModel.navigateTo(DeenScreen.UMMAH_SEARCH) },
-        onNotifications = { viewModel.navigateTo(DeenScreen.UMMAH_NOTIFICATIONS) },
+        onNotifications = { viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) },
         onProfile = { viewModel.openMyProfile() },
         onCompose = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST) },
         onCreateReel = { viewModel.navigateTo(DeenScreen.UMMAH_CREATE_REEL) },
@@ -922,11 +923,11 @@ internal fun UmmahPollBlock(
                         }
                     }
             ) {
-                if (showResults) Box(Modifier.fillMaxHeight().fillMaxWidth(percents[i] / 100f).background(feedMint()))
+                if (showResults) Box(Modifier.fillMaxHeight().fillMaxWidth(SafeLookups.percentAt(percents, i) / 100f).background(feedMint()))
                 Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(option, color = stitchText(), fontSize = 14.sp, fontWeight = if (mine == i) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    if (showResults) Text("${percents[i]}%", color = feedAccent(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    if (showResults) Text("${SafeLookups.percentAt(percents, i)}%", color = feedAccent(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

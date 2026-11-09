@@ -34,6 +34,7 @@ import com.noorpro.app.data.QuranCourse
 import com.noorpro.app.data.QuranCourseProgress
 import com.noorpro.app.data.QuranCourseRepository
 import com.noorpro.app.data.QuranLearningSurah
+import com.noorpro.app.ui.util.SafeLookups
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
@@ -118,9 +119,13 @@ fun QuranCourseScreen(viewModel: DeenViewModel) {
     fun back() {
         CourseAudio.stop()
         nav = when (val n = nav) {
-            CourseNav.Home -> { viewModel.navigateTo(DeenScreen.EDUCATION); CourseNav.Home }
+            CourseNav.Home -> { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.EDUCATION); CourseNav.Home }
             is CourseNav.Level, CourseNav.Chart -> CourseNav.Home
-            is CourseNav.Lesson -> course?.levels?.indexOfFirst { lv -> lv.lessons.any { it.id == n.id } }?.let { CourseNav.Level(it) } ?: CourseNav.Home
+            is CourseNav.Lesson -> {
+                val levels = course?.levels.orEmpty()
+                val i = SafeLookups.levelIndexForLesson(levels.map { lv -> lv.lessons.map { it.id } }, n.id)
+                if (i != null) CourseNav.Level(i) else CourseNav.Home
+            }
         }
     }
     BackHandler(enabled = nav != CourseNav.Home) { back() }
@@ -141,10 +146,14 @@ fun QuranCourseScreen(viewModel: DeenViewModel) {
         is CourseNav.Level -> CourseLevelList(course, n.index, done, onBack = { back() }, onLesson = { nav = CourseNav.Lesson(it) })
         is CourseNav.Lesson -> {
             val all = course.allLessons
-            val idx = all.indexOfFirst { it.id == n.id }.coerceAtLeast(0)
+            val idx = SafeLookups.lessonIndex(all.map { it.id }, n.id)
+            if (idx == null) {
+                LaunchedEffect(n.id) { nav = CourseNav.Home }
+            } else {
             LaunchedEffect(n.id) { progress.lastLesson = n.id }
+            val levelTitle = course.levels.firstOrNull { lv -> lv.lessons.any { it.id == n.id } }?.title ?: course.title
             CourseLessonView(
-                lesson = all[idx], levelTitle = course.levels.first { lv -> lv.lessons.any { it.id == n.id } }.title,
+                lesson = all[idx], levelTitle = levelTitle,
                 position = idx, total = all.size, isDone = n.id in done, bestScore = progress.bestScore(n.id),
                 onBack = { back() },
                 onPrev = if (idx > 0) ({ CourseAudio.stop(); nav = CourseNav.Lesson(all[idx - 1].id) }) else null,
@@ -155,6 +164,7 @@ fun QuranCourseScreen(viewModel: DeenViewModel) {
                     viewModel.openLearningSurah(QuranLearningSurah(s, "", QuranCourseRepository.surahName(ctx, s), QuranCourseRepository.surahAyahs(ctx, s).size, null))
                 },
             )
+            }
         }
     }
 }
@@ -251,7 +261,7 @@ fun CourseHome(
 @Composable
 fun CourseLevelList(course: QuranCourse, index: Int, done: Set<String>, onBack: () -> Unit, onLesson: (String) -> Unit) {
     val p = coursePalette()
-    val lv = course.levels[index]
+    val lv = SafeLookups.getOrNull(course.levels, index) ?: return
     Column(Modifier.fillMaxSize().background(p.bg)) {
         CourseTopBar(lv.title, lv.subtitle, onBack)
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.navigationBarsPadding()) {

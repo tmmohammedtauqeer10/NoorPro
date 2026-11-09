@@ -1,5 +1,11 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.material3.Button
+
+import androidx.compose.material3.IconButton
+
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,6 +16,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -51,6 +60,7 @@ import com.noorpro.app.audio.models.RepeatMode
 import com.noorpro.app.data.Surah
 import com.noorpro.app.ui.components.QuranArabicFont
 import com.noorpro.app.ui.viewmodel.AudioQueueItem
+import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 import kotlinx.coroutines.launch
 
@@ -337,7 +347,24 @@ fun AlNoorNowPlayingScreen(vm: DeenViewModel) {
     var queue by remember { mutableStateOf(false) }
     val back = { vm.goBack(); Unit }
     BackHandler { back() }
-    if (s == null) { Box(Modifier.fillMaxSize().background(t.bg), contentAlignment = Alignment.Center) { Text("Nothing playing", color = t.muted) }; return }
+    if (s == null) {
+        Box(Modifier.fillMaxSize().background(t.bg).statusBarsPadding()) {
+            IconButton(onClick = { if (!vm.goBack()) vm.navigateTo(DeenScreen.AUDIO_LIBRARY) },
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = t.text)
+            }
+            Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Nothing playing", color = t.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Pick a surah, nasheed or podcast from Al-Noor Audio.", color = t.muted, fontSize = 14.sp)
+                Spacer(Modifier.height(20.dp))
+                Button(onClick = { vm.navigateTo(DeenScreen.AUDIO_LIBRARY) }) {
+                    Text("Browse Al-Noor Audio")
+                }
+            }
+        }
+        return
+    }
     NpFull(t, s, NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close, a.seekBack, a.seekForward), Modifier, back)
     if (queue) NpQueueSheet(t, vm, s.isFree) { queue = false }
 }

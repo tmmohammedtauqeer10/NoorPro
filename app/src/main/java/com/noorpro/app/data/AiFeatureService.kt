@@ -112,8 +112,7 @@ object AiFeatureService {
     private const val ONLINE_TIMEOUT_MS = 75_000L
 
     internal const val UNAVAILABLE_MESSAGE =
-        "Noor AI's online assistant is unavailable right now and no matching passage was found in the Qur'an and Hadith saved on your phone. Please tap send again in a little while. " +
-            "I don't want to give you a generic answer that doesn't address your question."
+        "Service unavailable right now. Noor AI could not reach the server, and nothing matching your question was found in the Qur'an and Hadith saved on this phone. Please try again in a little while."
 
     /** Builds the history array sent to the backend: recent turns only, never the question being asked. */
     internal fun trimHistoryForRequest(history: List<NoorAiMessage>, currentPrompt: String): List<NoorAiMessage> {
