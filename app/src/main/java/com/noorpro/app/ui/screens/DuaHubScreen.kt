@@ -104,7 +104,7 @@ fun DuaHubScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) },
+                        onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
                         modifier = Modifier
                             .padding(8.dp)
                             .testTag("dua_hub_back")

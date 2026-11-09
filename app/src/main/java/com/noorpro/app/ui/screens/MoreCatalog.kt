@@ -49,12 +49,12 @@ data class MoreItem(val title: String, val keywords: String, val icon: ImageVect
 }
 data class MoreCategory(val title: String, val icon: ImageVector, val items: List<MoreItem>)
 
-/** Single source of truth for More tab + Home "See All" (1.0.73). Umrah Essentials Kit stays hidden. */
+/** Single source of truth for More/Menu tab + Home Explore (1.2.0 slim ~30 tiles). Tabs/duplicates removed. */
 val moreCatalog: List<MoreCategory> = listOf(
     MoreCategory("Worship", Icons.Default.Mosque, listOf(
         MoreItem("Prayer Times", "salah namaz adhan", Icons.Default.AccessTime, DeenScreen.PRAYER_TIMES),
         MoreItem("Qibla", "direction kaaba compass", Icons.Default.Explore, DeenScreen.QIBLA_MORE),
-        MoreItem("Adhan Sound", "adhan sound voice tone alarm notification vibrate preview prayer time", Icons.Default.NotificationsActive, DeenScreen.ADHAN_VOICES, com.noorpro.app.islamic.IslamicFlags.ADHAN_VOICES),
+        MoreItem("Prayer alert sound", "adhan sound tone alarm notification vibrate preview prayer", Icons.Default.NotificationsActive, DeenScreen.ADHAN_VOICES, com.noorpro.app.islamic.IslamicFlags.ADHAN_VOICES),
         MoreItem("Masjid Pages", "masjid mosque jamaat jummah iqamah bayan announcements", Icons.Default.Mosque, DeenScreen.MASJID_PAGES, com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES),
         MoreItem("Prayer Tracker", "qaza missed", Icons.Default.CheckCircle, DeenScreen.QAZA_TRACKER),
         MoreItem("Tasbih", "dhikr counter", Icons.Default.Fingerprint, DeenScreen.TASBIH),
@@ -62,47 +62,36 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Duas", "supplication", Icons.Default.VolunteerActivism, DeenScreen.DUA_HUB),
         MoreItem("Hajj & Umrah", "pilgrimage", Icons.Default.TravelExplore, DeenScreen.HAJJ_UMRAH),
     )),
-    MoreCategory("Quran & Learning", Icons.AutoMirrored.Filled.MenuBook, listOf(
-        MoreItem("Quran", "read surah translation", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.QURAN),
+    MoreCategory("Quran", Icons.AutoMirrored.Filled.MenuBook, listOf(
         MoreItem("Indo-Pak Quran", "mushaf 15 line", Icons.Default.ImportContacts, DeenScreen.INDOPAK_QURAN),
         MoreItem("Bookmarks", "saved verses", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
-        MoreItem("Daily Deen Goals", "goals checklist habits streak salah adhkar sadaqah dua daily routine", Icons.Default.TaskAlt, DeenScreen.DEEN_GOALS, com.noorpro.app.islamic.IslamicFlags.DEEN_GOALS),
-        MoreItem("Dua Requests", "dua request ameen pray for me prayed ummah community anonymous", Icons.Default.VolunteerActivism, DeenScreen.UMMAH_DUA_REQUESTS, com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS),
-        MoreItem("Halaqa Rooms", "halaqa live audio room voice quran circle dars naat dhikr talk listen raise hand", Icons.Default.RecordVoiceOver, DeenScreen.UMMAH_HALAQA, com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS),
-        MoreItem("Ask a Scholar", "ask scholar question fatwa mufti imam answer fiqh ruling verified library", Icons.Default.ContactSupport, DeenScreen.UMMAH_ASK_SCHOLAR, com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR),
-        MoreItem("Good-deed Challenges", "challenge good deeds friends streak together quran page adhkar salawat sadaqah kindness habit", Icons.Default.EmojiEvents, DeenScreen.UMMAH_CHALLENGES, com.noorpro.app.islamic.IslamicFlags.CHALLENGES),
-        MoreItem("Ayah & Hadith Cards", "share card image ayah verse hadith quote story post design wallpaper", Icons.Default.Style, DeenScreen.UMMAH_SHARE_CARDS, com.noorpro.app.islamic.IslamicFlags.SHARE_CARDS),
-        MoreItem("Offline Quran", "offline download save quran audio recitation reciter storage sleep timer repeat ayah memorise no internet", Icons.Default.DownloadForOffline, DeenScreen.QURAN_OFFLINE, com.noorpro.app.islamic.IslamicFlags.QURAN_OFFLINE),
-        MoreItem("Audio Routines", "routine schedule kahf friday mulk night listen habit reminder quran audio daily", Icons.Default.EventRepeat, DeenScreen.AUDIO_ROUTINES, com.noorpro.app.islamic.IslamicFlags.AUDIO_ROUTINES),
-        MoreItem("Bayan Podcasts", "bayan lecture podcast talk tafsir seerah episode resume chapters scholar listen", Icons.Default.Podcasts, DeenScreen.BAYAN_PODCASTS, com.noorpro.app.islamic.IslamicFlags.BAYAN_PODCASTS),
-        MoreItem("Car Mode", "car drive driving android auto big buttons quran audio travel journey", Icons.Default.DirectionsCar, DeenScreen.CAR_MODE, com.noorpro.app.islamic.IslamicFlags.CAR_MODE),
         MoreItem("Family & Kids", "kids children family prayer tracker stories prophets duas manners", Icons.Default.FamilyRestroom, DeenScreen.FAMILY_KIDS, com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS),
-        MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
+    )),
+    MoreCategory("Learn", Icons.Default.School, listOf(
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
         MoreItem("Hifz Coach", "hifz memorise memorize revision recite", Icons.Default.Psychology, DeenScreen.HIFZ_COACH, com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH),
-        MoreItem("Hadith", "bukhari muslim", Icons.Default.LibraryBooks, DeenScreen.HADITH_LIBRARY),
-        MoreItem("Islamic Library", "books", Icons.Default.LocalLibrary, DeenScreen.LIBRARY_DASHBOARD),
-        MoreItem("PDF Library", "pdf books", Icons.Default.PictureAsPdf, DeenScreen.PDF_LIBRARY),
         MoreItem("Quiz", "knowledge test", Icons.Default.Quiz, DeenScreen.QUIZ_DASHBOARD),
         MoreItem("Noor AI", "ask ai question", Icons.Default.AutoAwesome, DeenScreen.AI_HUB),
     )),
     MoreCategory("Community", Icons.Default.Groups, listOf(
-        MoreItem("Ummah", "community posts", Icons.Default.Public, DeenScreen.UMMAH),
-        MoreItem("Reels", "short videos", Icons.Default.SmartDisplay, DeenScreen.REELS),
         MoreItem("Groups", "discover groups", Icons.Default.Diversity3, DeenScreen.DISCOVER_GROUPS),
         MoreItem("Messages", "chat", Icons.Default.Forum, DeenScreen.UMMAH_MESSAGES),
+        MoreItem("Dua Requests", "dua request ameen pray for me prayed ummah community anonymous", Icons.Default.VolunteerActivism, DeenScreen.UMMAH_DUA_REQUESTS, com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS),
+        MoreItem("Halaqa Rooms", "halaqa live audio room voice quran circle dars naat dhikr talk listen raise hand", Icons.Default.RecordVoiceOver, DeenScreen.UMMAH_HALAQA, com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS),
+        MoreItem("Ask a Scholar", "ask scholar question fatwa mufti imam answer fiqh ruling verified library", Icons.Default.ContactSupport, DeenScreen.UMMAH_ASK_SCHOLAR, com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR),
+        MoreItem("Good-deed Challenges", "challenge good deeds friends streak together quran page adhkar salawat sadaqah kindness habit", Icons.Default.EmojiEvents, DeenScreen.UMMAH_CHALLENGES, com.noorpro.app.islamic.IslamicFlags.CHALLENGES),
+        MoreItem("Group Khatm", "khatm khatam para juz together family invite", Icons.Default.Groups, DeenScreen.GROUP_KHATM, com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM),
+        MoreItem("Community guidelines", "constitution islamic content rules moderation account safety", Icons.Default.Gavel, DeenScreen.UMMAH_CONSTITUTION),
     )),
     MoreCategory("Audio", Icons.Default.Headphones, listOf(
-        MoreItem("Al-Noor Audio", "recitation nasheed podcast tafsir tarjuma", Icons.Default.LibraryMusic, DeenScreen.AUDIO_LIBRARY),
-        MoreItem("Now Playing", "player reciter", Icons.Default.PlayCircle, DeenScreen.NOW_PLAYING),
+        MoreItem("Al-Noor Audio", "recitation nasheed podcast tafsir tarjuma offline routines bayan car mode", Icons.Default.LibraryMusic, DeenScreen.AUDIO_LIBRARY),
     )),
     MoreCategory("Tools", Icons.Default.Construction, listOf(
         MoreItem("Zakat", "calculator", Icons.Default.Calculate, DeenScreen.ZAKAT),
-        MoreItem("Hijri Calendar", "islamic dates events", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
-        MoreItem("Islamic Events", "calendar ramadan eid ashura reminders", Icons.Default.EventNote, DeenScreen.ISLAMIC_CALENDAR, com.noorpro.app.islamic.IslamicFlags.CALENDAR),
+        MoreItem("Calendar", "hijri islamic dates events ramadan eid ashura reminders", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
         MoreItem("Health", "fasting wellness", Icons.Default.HealthAndSafety, DeenScreen.HEALTH_WELLNESS),
-        MoreItem("Progress", "spiritual streak", Icons.Default.AutoGraph, DeenScreen.SPIRITUAL_PROGRESS),
-        MoreItem("DeenPoints", "points rewards", Icons.Default.Star, DeenScreen.DEEN_POINTS),
+        MoreItem("My Progress", "spiritual streak deenpoints goals daily deen", Icons.Default.AutoGraph, DeenScreen.SPIRITUAL_PROGRESS),
+        MoreItem("Library", "books hadith islamic library", Icons.Default.LocalLibrary, DeenScreen.LIBRARY_DASHBOARD),
         MoreItem("Settings", "preferences", Icons.Default.Settings, DeenScreen.SETTINGS),
     )),
     MoreCategory("Spiritual", Icons.Default.Spa, listOf(

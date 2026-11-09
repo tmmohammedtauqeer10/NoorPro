@@ -1308,13 +1308,14 @@ fun StitchQuranScreen(viewModel: DeenViewModel) {
     }
 
     if (selectedSurah != null) {
+        val openSurah = selectedSurah ?: return
         SurahReaderView(
             viewModel = viewModel,
-            surah = selectedSurah!!,
-            lastReadAyah = if (lastReadSurah.id == selectedSurah!!.id) lastReadAyah else 1,
+            surah = openSurah,
+            lastReadAyah = if (lastReadSurah.id == openSurah.id) lastReadAyah else 1,
             onBack = { viewModel.closeSelectedSurah() },
-            onAyahLastRead = { ayah -> viewModel.updateLastRead(selectedSurah!!, ayah) },
-            onAyahBookmarkToggle = { ayah, text -> viewModel.toggleBookmark(selectedSurah!!, ayah, text) }
+            onAyahLastRead = { ayah -> viewModel.updateLastRead(openSurah, ayah) },
+            onAyahBookmarkToggle = { ayah, text -> viewModel.toggleBookmark(openSurah, ayah, text) }
         )
         return
     }
@@ -2176,81 +2177,18 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     onClick = { viewModel.navigateTo(DeenScreen.DEEN_POINTS) }
                 )
             }
-            item {
-                StitchPremiumBanner(onUpgrade = { viewModel.navigateTo(DeenScreen.NOOR_PRO_PLUS) })
-            }
             // 1.0.73: one categorized grid replaces Quick Access / Daily Dashboard / Knowledge / Lifestyle
             // (same catalog as Home "See All"; no duplicate or dead entries).
             item { MoreCategoryGrid(onOpen = { viewModel.navigateTo(it) }) }
             item {
-                StitchProfileSection("Your Activity") {
-                    StitchListRow("Activity", "Likes, saves, archive and watch history", Icons.Default.AutoGraph) { viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) }
-                    StitchDivider()
-                    StitchListRow("Saved", "Saved reels and posts", Icons.Default.Bookmark) { viewModel.navigateTo(DeenScreen.UMMAH_SAVED) }
-                    StitchDivider()
-                    StitchListRow("Watch history", "Resume reels you watched on this device", Icons.Default.History) { viewModel.navigateTo(DeenScreen.UMMAH_WATCH_HISTORY) }
-                    StitchDivider()
-                    StitchListRow("Archive", "Private archived posts and reels", Icons.Default.Archive) { viewModel.navigateTo(DeenScreen.UMMAH_ARCHIVE) }
-                    StitchDivider()
-                    StitchListRow("Likes & comments", "See posts you liked and comments you made", Icons.Default.ChatBubble) { viewModel.navigateTo(DeenScreen.UMMAH_LIKES_COMMENTS) }
-                    StitchDivider()
-                    StitchListRow("Time management", "Daily usage reminders and focus controls", Icons.Default.CalendarMonth) { viewModel.navigateTo(DeenScreen.UMMAH_TIME_MANAGEMENT) }
-                }
-            }
-            item {
-                StitchProfileSection("Settings & Privacy") {
-                    StitchListRow("Notifications", "Reels, comments, follows and reminders", Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.UMMAH_NOTIFICATIONS) }
-                    StitchDivider()
-                    StitchListRow("Profile visibility", "Profile previews, counts, and blocked accounts", Icons.Default.Fingerprint) { viewModel.navigateTo(DeenScreen.UMMAH_PRIVACY) }
-                    StitchDivider()
-                    StitchListRow("App Constitution", "Islamic content rules, moderation and account safety", Icons.Default.Gavel) { viewModel.navigateTo(DeenScreen.UMMAH_CONSTITUTION) }
-                    StitchDivider()
-                    StitchListRow("Close friends", "Create your private Ummah audience", Icons.Default.Groups) { viewModel.navigateTo(DeenScreen.UMMAH_CLOSE_FRIENDS) }
-                    StitchDivider()
-                    StitchListRow("Blocked", "Manage blocked accounts", Icons.Default.Logout) { viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED) }
-                }
-            }
-            item {
-                StitchProfileSection("Subscription") {
-                    StitchListRow("Noor Pro Plus", "Premium AI, learning tools and creator features", Icons.Default.Star) { viewModel.navigateTo(DeenScreen.NOOR_PRO_PLUS) }
-                }
-            }
-            item {
-                StitchProfileSection("Preferences") {
-                    StitchListRow(
-                        title = "Light Theme",
-                        subtitle = null,
-                        icon = Icons.Default.LightMode,
-                        trailing = {
-                            Switch(
-                                checked = themeMode != ThemeMode.DARK,
-                                onCheckedChange = { checked ->
-                                    viewModel.updateThemeMode(if (checked) ThemeMode.LIGHT else ThemeMode.DARK)
-                                }
-                            )
-                        }
-                    ) {
-                        viewModel.updateThemeMode(if (themeMode == ThemeMode.DARK) ThemeMode.LIGHT else ThemeMode.DARK)
-                    }
-                    StitchDivider()
-                    StitchListRow("Adhan Notification", null, Icons.Default.Notifications) { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                    StitchDivider()
-                    StitchListRow(
-                        title = "Language",
-                        subtitle = null,
-                        icon = Icons.Default.Language,
-                        trailing = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("English", color = stitchMutedText(), fontSize = 14.sp)
-                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = stitchMutedText())
-                            }
-                        }
-                    ) { viewModel.navigateTo(DeenScreen.SETTINGS) }
-                }
-            }
-            item {
                 StitchProfileSection("Account") {
-                    StitchListRow("Account Settings", null, Icons.Default.Settings) { viewModel.navigateTo(DeenScreen.SETTINGS) }
+                    StitchListRow("Settings", "Prayer, Quran, appearance, privacy and account", Icons.Default.Settings) { viewModel.navigateTo(DeenScreen.SETTINGS) }
+                    StitchDivider()
+                    StitchListRow("Your Activity", "Likes, saves, archive and watch history", Icons.Default.AutoGraph) { viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY) }
+                    StitchDivider()
+                    StitchListRow("Blocked accounts", "Manage blocked accounts", Icons.Default.NotInterested) { viewModel.navigateTo(DeenScreen.UMMAH_BLOCKED) }
+                    StitchDivider()
+                    StitchListRow("Community guidelines", "Islamic content rules and account safety", Icons.Default.Gavel) { viewModel.navigateTo(DeenScreen.UMMAH_CONSTITUTION) }
                     StitchDivider()
                     if (viewModel.isLoggedIn) {
                         PhoneLinkRow { title, subtitle, onClick -> StitchListRow(title, subtitle, Icons.Default.Phone) { onClick() } }
@@ -2258,36 +2196,30 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     }
                     StitchListRow(
                         "Switch Account",
-                        "Add accounts and switch securely by Firebase uid",
+                        "Add or switch signed-in accounts",
                         Icons.Default.Person
                     ) { viewModel.navigateTo(DeenScreen.ACCOUNT_SWITCHER) }
                     StitchDivider()
-                    if (isLoggedIn) {
-                        StitchListRow(
-                            title = "Sign Out",
-                            subtitle = null,
-                            icon = Icons.Default.Logout,
-                            iconTint = Color(0xFFBA1A1A),
-                            titleColor = Color(0xFFBA1A1A),
-                            trailing = {}
-                        ) {
-                            viewModel.handleLogout()
-                            viewModel.navigateTo(DeenScreen.LOGIN)
-                        }
-                        StitchDivider()
-                        StitchListRow(
-                            title = "Delete account",
-                            subtitle = "Permanently delete your account and data",
-                            icon = Icons.Default.Delete,
-                            iconTint = Color(0xFFBA1A1A),
-                            titleColor = Color(0xFFBA1A1A),
-                            trailing = {}
-                        ) { showDeleteAccount = true }
-                    } else {
-                        StitchListRow("Sign In", "Post in the Ummah and sync progress", Icons.Default.Person) {
-                            viewModel.navigateTo(DeenScreen.LOGIN)
-                        }
+                    StitchListRow(
+                        title = "Sign Out",
+                        subtitle = null,
+                        icon = Icons.Default.Logout,
+                        iconTint = Color(0xFFBA1A1A),
+                        titleColor = Color(0xFFBA1A1A),
+                        trailing = {}
+                    ) {
+                        viewModel.handleLogout()
+                        viewModel.navigateTo(DeenScreen.LOGIN)
                     }
+                    StitchDivider()
+                    StitchListRow(
+                        title = "Delete account",
+                        subtitle = "Permanently delete your account and data",
+                        icon = Icons.Default.Delete,
+                        iconTint = Color(0xFFBA1A1A),
+                        titleColor = Color(0xFFBA1A1A),
+                        trailing = {}
+                    ) { showDeleteAccount = true }
                 }
             }
             }
@@ -2311,35 +2243,13 @@ private fun StitchGuestProfileScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            Text(
+                "Menu",
+                color = stitchText(),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = stitchText(),
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    "Profile",
-                    color = stitchText(),
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Sign in",
-                        tint = stitchPrimary(),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -3001,37 +2911,6 @@ private fun StitchStreakPointsCard(streak: Int, points: Int, onClick: () -> Unit
             ) {
                 Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = StitchGold, modifier = Modifier.size(30.dp))
             }
-        }
-    }
-}
-
-/** Mock-matched gold "Upgrade to Premium" banner. */
-@Composable
-private fun StitchPremiumBanner(onUpgrade: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(StitchGold.copy(alpha = 0.12f))
-            .border(1.dp, StitchGold.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
-            .clickable(onClick = onUpgrade)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = StitchGold, modifier = Modifier.size(28.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Upgrade to Premium", color = StitchGold, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text("Unlock all features & remove ads", color = stitchMutedText(), fontSize = 12.sp)
-        }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(StitchGold)
-                .clickable(onClick = onUpgrade)
-                .padding(horizontal = 18.dp, vertical = 9.dp)
-        ) {
-            Text("Upgrade", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -6124,32 +6003,26 @@ fun StitchUmmahLikesCommentsScreen(viewModel: DeenViewModel) {
 
 @Composable
 fun StitchUmmahNotificationsScreen(viewModel: DeenViewModel) {
-    var comments by remember { mutableStateOf(true) }
-    var follows by remember { mutableStateOf(true) }
-    var reminders by remember { mutableStateOf(true) }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
-        title = "Notifications",
+        title = "Ummah Notifications",
         eyebrow = "Settings",
-        subtitle = "Choose what Noor Pro should notify you about.",
+        subtitle = "Alerts for likes, comments, follows and messages.",
         icon = Icons.Default.Notifications
     ) {
         item {
-            StitchSettingsToggleCard("Comments", "Replies and comments on your posts", Icons.Default.ChatBubble, comments) { comments = it }
-        }
-        item {
-            StitchSettingsToggleCard("Follows", "New followers and profile activity", Icons.Default.Groups, follows) { follows = it }
-        }
-        item {
-            StitchSettingsToggleCard("Daily reminders", "Prayer, adhkar, and learning nudges", Icons.Default.Notifications, reminders) { reminders = it }
+            StitchUmmahEmptyCard(
+                title = "Coming soon",
+                message = "Per-type Ummah notification controls are not wired yet. System notifications still follow your phone settings.",
+                action = "Back",
+                onAction = { viewModel.goBack() }
+            )
         }
     }
 }
 
 @Composable
 fun StitchUmmahTimeManagementScreen(viewModel: DeenViewModel) {
-    var dailyLimit by remember { mutableStateOf(false) }
-    var quietMode by remember { mutableStateOf(true) }
     StitchUmmahSettingsScaffold(
         viewModel = viewModel,
         title = "Time Management",
@@ -6158,15 +6031,12 @@ fun StitchUmmahTimeManagementScreen(viewModel: DeenViewModel) {
         icon = Icons.Default.CalendarMonth
     ) {
         item {
-            StitchSettingsToggleCard("Daily usage reminder", "Show a gentle reminder after 20 minutes", Icons.Default.CalendarMonth, dailyLimit) { dailyLimit = it }
-        }
-        item {
-            StitchSettingsToggleCard("Quiet mode", "Reduce social prompts during prayer and night hours", Icons.Default.DarkMode, quietMode) { quietMode = it }
-        }
-        item {
-            StitchUmmahEmptyCard("Balanced use", "Use Noor Pro for benefit, learning, and connection. Your time controls will expand here.", "Back") {
-                viewModel.goBack()
-            }
+            StitchUmmahEmptyCard(
+                title = "Coming soon",
+                message = "Usage reminders and quiet mode are not available yet. Use Noor Pro for benefit, learning, and connection.",
+                action = "Back",
+                onAction = { viewModel.goBack() }
+            )
         }
     }
 }
@@ -9624,82 +9494,6 @@ private fun StitchQrDialog(
     )
 }
 
-@Composable
-fun StitchMessagesComingSoonScreen(viewModel: DeenViewModel) {
-    StitchScreen {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.UMMAH) }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
-                }
-                Text(
-                    "Messages",
-                    color = stitchText(),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(48.dp))
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-            StitchCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 26.dp, vertical = 34.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(86.dp)
-                            .clip(CircleShape)
-                            .background(stitchSoftSurface()),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Groups, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(42.dp))
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        "Messages coming soon",
-                        color = stitchText(),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        "Private chats and community groups are paused for this version. We will add the full messaging section in the next release.",
-                        color = stitchMutedText(),
-                        fontSize = 15.sp,
-                        lineHeight = 23.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(26.dp))
-                    Button(
-                        onClick = { viewModel.navigateTo(DeenScreen.UMMAH) },
-                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)
-                    ) {
-                        Text("Back to Ummah", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.weight(1f))
-        }
-    }
-}
 
 @Composable
 fun StitchMessagesScreen(viewModel: DeenViewModel) {

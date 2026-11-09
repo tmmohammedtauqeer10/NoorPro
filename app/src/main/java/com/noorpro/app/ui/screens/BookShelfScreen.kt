@@ -46,7 +46,7 @@ fun BookShelfScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { Text("Islamic Books", color = GoldAccent, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = GoldAccent)
                     }
                 },
@@ -70,7 +70,7 @@ fun HadithLibraryScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { Text("Hadith", color = colors.onBackground, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.primary)
                     }
                 },

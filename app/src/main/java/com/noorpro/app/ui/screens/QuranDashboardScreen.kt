@@ -52,7 +52,7 @@ fun QuranDashboardScreen(viewModel: DeenViewModel) {
     QuranLearningMenu(
         totalLessons = course?.allLessons?.size ?: 0, doneLessons = done.size,
         surahs = surahs, isLoading = isLoading,
-        onBack = { viewModel.navigateTo(DeenScreen.EDUCATION) },
+        onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.EDUCATION) },
         onCourse = { openCourse(null) },
         onHifz = { openCourse("lesson:l4_hifz") },
         onSelfTest = { openCourse("lesson:l4_test") },

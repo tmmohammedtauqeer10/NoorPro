@@ -48,7 +48,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.noorpro.app.ui.screens.HomeScreen
 import com.noorpro.app.ui.screens.PrayerTimesScreen
 import com.noorpro.app.ui.screens.QiblaSettingsScreen
 import com.noorpro.app.ui.screens.StitchCreatorStudioScreen
@@ -293,8 +292,8 @@ fun MainLayout() {
     var onboardingComplete by remember { mutableStateOf(onboardingPrefs.getBoolean("permissions_intro_complete", false)) }
     
     val strings = when (appLang) {
-        AppLanguage.AR -> ArStrings
-        AppLanguage.UR -> UrStrings
+        AppLanguage.AR -> EnStrings // until translated
+        AppLanguage.UR -> EnStrings // until translated
         else -> EnStrings
     }
 
@@ -419,7 +418,7 @@ fun MainLayout() {
                         pdf_url = viewModel.currentPdfUrl
                     ),
                     viewModel = viewModel,
-                    onBack = { viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
+                    onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
                 )
                 DeenScreen.QUIZ_DASHBOARD -> com.noorpro.app.ui.screens.QuizDashboardScreen(viewModel = viewModel)
                 DeenScreen.ACTIVE_QUIZ -> com.noorpro.app.ui.screens.ActiveQuizScreen(viewModel = viewModel)
@@ -453,7 +452,7 @@ fun MainLayout() {
                 DeenScreen.ZAKAT -> com.noorpro.app.ui.screens.ZakatCalculatorScreen(viewModel = viewModel)
                 DeenScreen.HEALTH_WELLNESS -> com.noorpro.app.ui.screens.HealthWellnessScreen(viewModel = viewModel)
                 DeenScreen.AI_HUB -> com.noorpro.app.ui.screens.AiFeaturesHubScreen(viewModel = viewModel)
-                DeenScreen.PDF_LIBRARY -> com.noorpro.app.ui.screens.PdfLibraryHubScreen(viewModel = viewModel)
+                DeenScreen.PDF_LIBRARY -> com.noorpro.app.ui.screens.StitchDiscoverLibraryScreen(viewModel = viewModel)
                 DeenScreen.HAJJ_UMRAH -> com.noorpro.app.ui.screens.HajjUmrahScreen(viewModel = viewModel)
                 DeenScreen.CREATOR_STUDIO -> StitchCreatorStudioScreen(viewModel = viewModel)
                 DeenScreen.HALAL_GUIDELINES -> com.noorpro.app.ui.screens.HalalGuidelinesScreen(onBack = { viewModel.goBack() })
@@ -639,7 +638,7 @@ fun FloatingBottomNavigationBar(
             NavBarItem(
                 screen = DeenScreen.PROFILE_DASHBOARD,
                 icon = Icons.Default.Apps,
-                label = "More",
+                label = "Menu",
                 isSelected = currentScreen == DeenScreen.PROFILE_DASHBOARD,
                 isLightTheme = isLightTheme,
                 onClick = { onNavSelected(DeenScreen.PROFILE_DASHBOARD) }

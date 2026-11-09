@@ -55,7 +55,7 @@ fun HijriCalendarScreen(viewModel: DeenViewModel, modifier: Modifier = Modifier)
                 .padding(vertical = 12.dp)
         ) {
             IconButton(
-                onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) },
+                onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) },
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(GlassOverlay)

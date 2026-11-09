@@ -52,7 +52,7 @@ fun ActiveQuizScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit Quiz", tint = GoldAccent)
                     }
                 },

@@ -69,7 +69,7 @@ fun ZakatCalculatorScreen(
             TopAppBar(
                 title = { Text("Zakat Calculator", color = MaterialTheme.colorScheme.onBackground) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },

@@ -200,7 +200,7 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
     }
     val openBell = {
         HomeBell.markSeen(context); bellUnread = HomeBell.hasUnread(context)
-        viewModel.navigateTo(DeenScreen.SETTINGS)
+        viewModel.navigateTo(DeenScreen.UMMAH_ACTIVITY)
     }
     val askNoor: (String) -> Unit = { q ->
         NoorAiLaunch.pending = q.trim().ifBlank { null }
@@ -222,7 +222,10 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
             ) {
                 item(key = "header") {
                     HomeHeader(firstName, viewModel.userPhotoUrl, bellUnread,
-                        onProfile = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) }, onBell = openBell)
+                        onProfile = {
+                            if (viewModel.isLoggedIn) viewModel.openMyProfile()
+                            else viewModel.navigateTo(DeenScreen.LOGIN)
+                        }, onBell = openBell)
                 }
                 item(key = "hero") {
                     HomePrayerHero(prayers, nextPrayerName, nextPrayerCountdown, location, hasLocation, hijriAdjustment,
@@ -231,7 +234,7 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
                 item(key = "essentials") {
                     Column {
                         PermissionNudgeBanner(viewModel, Modifier.padding(bottom = 14.dp))
-                        HomeDailyEssentials(onTool = { viewModel.navigateTo(it) }, onViewAll = { viewModel.navigateTo(DeenScreen.EXPLORE) })
+                        HomeDailyEssentials(onTool = { viewModel.navigateTo(it) }, onViewAll = { viewModel.navigateTo(DeenScreen.PROFILE_DASHBOARD) })
                     }
                 }
                 item(key = "continue") {

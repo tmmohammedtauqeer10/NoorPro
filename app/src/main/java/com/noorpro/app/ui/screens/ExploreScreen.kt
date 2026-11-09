@@ -134,7 +134,7 @@ fun ExploreScreen(viewModel: DeenViewModel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = com.noorpro.app.ui.components.stitchText())
                     }
                     Column {
-                        Text("All features", color = com.noorpro.app.ui.components.stitchPrimary(), fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
+                        Text("Features", color = com.noorpro.app.ui.components.stitchPrimary(), fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
                         Text("Every Noor Pro tool, grouped", color = com.noorpro.app.ui.components.stitchMutedText(), fontSize = 13.sp)
                     }
                 }

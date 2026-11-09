@@ -49,7 +49,7 @@ fun QuizDashboardScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { Text("Islamic Knowledge Quiz", color = GoldAccent, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = GoldAccent)
                     }
                 },

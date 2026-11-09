@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -346,6 +347,163 @@ fun PrayerTimesRowItem(
                             },
                             modifier = Modifier.size(20.dp)
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeeklyStreakCalendar(
+    weeklyLogs: List<com.noorpro.app.data.PrayerLogEntity>,
+    currentStreak: Int,
+    modifier: Modifier = Modifier
+) {
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    val dayNameFormat = java.text.SimpleDateFormat("E", java.util.Locale.US)
+    val dayNumberFormat = java.text.SimpleDateFormat("d", java.util.Locale.US)
+    
+    val now = java.util.Date()
+    val todayStr = dateFormat.format(now)
+    
+    val c = java.util.Calendar.getInstance()
+    c.firstDayOfWeek = java.util.Calendar.MONDAY
+    c.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+    val weekDays = (0..6).map { i ->
+        val date = c.time
+        c.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        date
+    }
+
+    val history = weeklyLogs.associateBy { it.date }
+
+    androidx.compose.material3.Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = GlassOverlay),
+        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Weekly Consistency",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .background(MatteGold.copy(alpha = 0.1f))
+                        .border(1.dp, MatteGold.copy(alpha = 0.4f), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Default.LocalFireDepartment,
+                            contentDescription = "Streak",
+                            tint = MatteGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$currentStreak Day Streak",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = MatteGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                weekDays.forEach { date ->
+                    val formattedDate = dateFormat.format(date)
+                    val dayName = dayNameFormat.format(date).take(2)
+                    val dayNumber = dayNumberFormat.format(date)
+                    val isToday = formattedDate == todayStr
+                    
+                    val log = history[formattedDate]
+                    var completedCount = 0
+                    if (log != null) {
+                        if (log.fajr) completedCount++
+                        if (log.dhuhr) completedCount++
+                        if (log.asr) completedCount++
+                        if (log.maghrib) completedCount++
+                        if (log.isha) completedCount++
+                    }
+                    val targetCompletion = completedCount / 5f
+                    val completion by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = targetCompletion,
+                        animationSpec = androidx.compose.animation.core.tween(durationMillis = 800, delayMillis = 100, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        label = "calendarDayProgress"
+                    )
+                    val isPerfectDay = targetCompletion == 1.0f
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = dayName,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (isToday) MatteGold else TextSecondary,
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(if (isPerfectDay) MatteGold.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent)
+                                .border(
+                                    width = if (isToday) 2.dp else 1.5.dp,
+                                    color = if (isPerfectDay) MatteGold else if (isToday) MatteGold else TextSecondary.copy(alpha = 0.35f),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (completion > 0f && !isPerfectDay) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = completion,
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = MatteGold.copy(alpha = 0.5f),
+                                    trackColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    strokeWidth = 2.5.dp
+                                )
+                            }
+                            
+                            if (isPerfectDay) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Perfect Day",
+                                    tint = MatteGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = dayNumber,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = if (isToday) MatteGold else TextPrimary,
+                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }

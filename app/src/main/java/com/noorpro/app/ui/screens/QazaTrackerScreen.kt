@@ -46,7 +46,7 @@ fun QazaTrackerScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { Text("Qaza-e-Umri Tracker", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MatteGold)
                     }
                 },

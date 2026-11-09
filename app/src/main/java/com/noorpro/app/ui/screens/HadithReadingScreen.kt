@@ -54,7 +54,7 @@ fun HadithReadingScreen(viewModel: DeenViewModel) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { viewModel.navigateTo(DeenScreen.HADITH_CHAPTERS) }) {
+            IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.HADITH_CHAPTERS) }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",

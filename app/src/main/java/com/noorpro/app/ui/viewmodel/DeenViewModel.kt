@@ -2599,13 +2599,18 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     }
     private var lastOpenNowPlayingAt = 0L
 
+        private val tabRoots = setOf(
+        DeenScreen.DASHBOARD, DeenScreen.QURAN, DeenScreen.REELS, DeenScreen.UMMAH, DeenScreen.PROFILE_DASHBOARD,
+    )
+
     fun navigateTo(screen: DeenScreen) {
         val current = _currentScreen.value
         if (screen == current) return
-        if (screen == DeenScreen.DASHBOARD || screen == DeenScreen.LOGIN) {
-            backStack.clear()            // roots — nothing to return to
+        if (screen == DeenScreen.DASHBOARD || screen == DeenScreen.LOGIN || screen in tabRoots) {
+            backStack.clear() // roots and bottom-tab switches reset history
         } else {
             backStack.add(current)
+            while (backStack.size > 32) backStack.removeAt(0)
         }
         _currentScreen.value = screen
     }
@@ -2615,9 +2620,17 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
      * false if the stack was empty (caller should let the system handle it).
      */
     fun goBack(): Boolean {
-        if (backStack.isEmpty()) return false
-        _currentScreen.value = backStack.removeAt(backStack.lastIndex)
-        return true
+        if (backStack.isNotEmpty()) {
+            _currentScreen.value = backStack.removeAt(backStack.lastIndex)
+            return true
+        }
+        // Tab roots (except Home): one Back returns Home before the system exits the app.
+        val cur = _currentScreen.value
+        if (cur in tabRoots && cur != DeenScreen.DASHBOARD) {
+            _currentScreen.value = DeenScreen.DASHBOARD
+            return true
+        }
+        return false
     }
 
     /** Return from a Quran sub-reader to the Quran tab without leaving a stale loop in history. */

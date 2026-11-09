@@ -44,7 +44,7 @@ fun BookmarksScreen(viewModel: DeenViewModel) {
                     .padding(top = 48.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
+                IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DASHBOARD) }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
