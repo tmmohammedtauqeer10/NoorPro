@@ -110,7 +110,7 @@ internal fun FreeNowPlayingBar() {
     val q by AlNoorAudioSession.player.queue.collectAsState()
     val pb by AlNoorAudioSession.player.playback.collectAsState()
     val t = q.currentTrack ?: return
-    if (!t.id.startsWith("free-") && !t.id.startsWith("pod-")) return
+    if (!t.id.startsWith("free-") && !t.id.startsWith("pod-") && !t.id.startsWith("mp3q-")) return
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stitchPrimary().copy(alpha = 0.12f))
             .border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).padding(12.dp),
@@ -280,7 +280,7 @@ internal fun AudioSourcesContent(onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Audio sources", color = stitchPrimary(), fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
-            FreeAudioCatalog.sources.forEach { s ->
+            FreeAudioCatalog.allSources().forEach { s ->
                 Column {
                     Text(s.name, color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(s.by, color = stitchMutedText(), fontSize = 12.sp)

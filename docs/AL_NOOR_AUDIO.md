@@ -135,3 +135,11 @@ Rejected: everyayah.com (no clear license), mp3quran (terms unclear), NC-license
 ## 1.0.71 — Bengali podcasts + Nasheeds tab
 
 Bengali podcasts: NAK Bangla (buzzsprout), Seerah in Bangla (Yasir Qadhi, translated). Nasheeds tab reuses the podcast RSS pipeline (`kind = "nasheed"`), artists'/publishers' own official feeds only: Abu Hassan Nasheeds (EN), Naat by Moin (UR), Badsha Baitul Haque (BN), Naat Geceleri / Çağlayan Dergisi (TR). Rejected: archive.org nasheed items whose PD mark was applied by third-party uploaders, Pixabay (would require bundling files or hotlinking its CDN), commercial label albums. No Bengali Quran tarjuma/tafsir audio with a clear license was found (islamic.network has none; archive.org Bengali items carry uploader-applied PD marks).
+
+## Quran Recitations (MP3Quran.net) — 1.1.9
+
+Curated Hafs recitations stream from [MP3Quran.net](https://www.mp3quran.net) via their public API
+(`api/v3/reciters`) and CDN. Audio is never bundled in the AAB. Credit shown in-app:
+**Audio: MP3Quran.net**. Source terms (eng/privacy) allow copying material and using links.
+Runtime fetch with on-disk cache and offline-safe fallback servers. Plays through the shared
+Al Noor `MediaSession` player (background + car mode).

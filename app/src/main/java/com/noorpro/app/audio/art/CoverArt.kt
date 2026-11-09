@@ -33,6 +33,7 @@ object CoverArt {
         t.id.startsWith("tafsir-") -> "TAFSIR"
         t.id.startsWith("maf-") -> "NASHEED"
         t.id.startsWith("pod-") -> "PODCAST"
+        t.id.startsWith("mp3q-") -> "QURAN"
         t.language?.startsWith("ur") == true -> "URDU"
         t.language?.startsWith("bn") == true -> "BENGALI"
         else -> "AL-NOOR AUDIO"

@@ -77,6 +77,9 @@ object FreeAudioCatalog {
 
     val sources = listOf(hisn, quranicDuas, islamicNetwork, wahid)
 
+    /** Includes MP3Quran (defined in [Mp3QuranCatalog] to avoid init cycles). */
+    fun allSources(): List<AudioSource> = sources + listOf(Mp3QuranCatalog.source)
+
     private fun track(id: String, title: String, artist: String, url: String, src: AudioSource, lang: String?, durMs: Long = 0L) = Track(
         id = "free-$id", title = title, artistId = src.key, artistName = artist, audioUrl = url, durationMs = durMs,
         license = src.license, attributionText = "${src.by} · ${src.licenseLabel}", sourceUrl = src.sourceUrl,
