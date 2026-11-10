@@ -100,6 +100,7 @@ data class UmmahGroup(
     val memberNames: Map<String, String> = emptyMap(),
     val lastMessage: String,
     val updatedAt: Long,
+    val lastSenderUid: String = "",
     /** 1.1.5: "all" | "sisters" | "brothers" (client-enforced circles, flagged). */
     val audience: String = "all"
 )
@@ -1500,6 +1501,7 @@ class UmmahRepository {
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
                         updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        lastSenderUid = document.getString("lastSenderUid").orEmpty(),
                         audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }.sortedByDescending { it.updatedAt }
@@ -1554,6 +1556,7 @@ class UmmahRepository {
                         memberNames = document.get("memberNames") as? Map<String, String> ?: emptyMap(),
                         lastMessage = document.getString("lastMessage").orEmpty(),
                         updatedAt = document.getTimestamp("updatedAt")?.toDate()?.time ?: 0L,
+                        lastSenderUid = document.getString("lastSenderUid").orEmpty(),
                         audience = document.getString("audience").orEmpty().ifBlank { "all" }
                     )
                 }

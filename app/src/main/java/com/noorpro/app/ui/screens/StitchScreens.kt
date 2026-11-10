@@ -146,6 +146,10 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.PersonAddAlt
 import androidx.compose.material.icons.filled.GridOn
@@ -253,6 +257,7 @@ import com.noorpro.app.data.Surah
 import com.noorpro.app.data.UmmahChat
 import com.noorpro.app.data.UmmahComment
 import com.noorpro.app.data.UmmahFollowUser
+import com.noorpro.app.data.GroupReadMarks
 import com.noorpro.app.data.UmmahGroup
 import com.noorpro.app.data.UmmahMessage
 import com.noorpro.app.data.UmmahPost
@@ -5781,9 +5786,6 @@ fun StitchUmmahActivityScreen(viewModel: DeenViewModel) {
                 }
             }
             when {
-                selectedTab == "Constitution" -> item {
-                    StitchConstitutionContent()
-                }
                 !viewModel.isLoggedIn -> item {
                     StitchUmmahEmptyCard(
                         title = "Sign in to see activity",
@@ -9519,6 +9521,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
     var peopleQuery by remember { mutableStateOf("") }
     var showMyQr by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
+    var showRules by remember { mutableStateOf(false) }
     val groupTermsGate = rememberUgcTermsGate()
     var groupName by remember { mutableStateOf("") }
     var groupDescription by remember { mutableStateOf("") }
@@ -9579,6 +9582,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
         if (targetGroupId.isNotBlank()) {
             selectedTab = "Groups"
             groups.firstOrNull { it.id == targetGroupId }?.let { group ->
+                GroupReadMarks.mark(context, group.id)
                 selectedGroup = group
                 viewModel.consumeGroupInviteFocus()
             }
@@ -9605,38 +9609,17 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(stitchSurface()),
-            contentPadding = PaddingValues(start = 20.dp, top = 0.dp, end = 20.dp, bottom = 90.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 90.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
                 StitchMessagesHubTopBar(
                     initials = userInitials,
                     onSearch = { selectedTab = "People" },
                     onQr = { showMyQr = true },
-                    onAdd = { showCreateGroup = true }
+                    onAdd = { showCreateGroup = true },
+                    onRules = { showRules = true }
                 )
-            }
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 42.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "Private Ummah messaging",
-                        color = stitchPrimary(),
-                        fontSize = 24.sp,
-                        lineHeight = 30.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        "Engage in private, respectful, and beneficial conversations within the community.",
-                        color = stitchMutedText(),
-                        fontSize = 17.sp,
-                        lineHeight = 26.sp
-                    )
-                }
             }
             item {
                 Row(
@@ -9647,7 +9630,7 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    listOf("Chats", "People", "Groups", "Constitution").forEach { tab ->
+                    listOf("Chats", "People", "Groups").forEach { tab ->
                         StitchMessageTab(
                             label = tab,
                             selected = selectedTab == tab,
@@ -9775,19 +9758,23 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
                         item {
                             StitchUmmahEmptyCard(
                                 title = "No groups yet",
-                                message = "Create a clean Islamic, education, or motivation group for your community.",
+                                message = "Start a study or reminder group for your community, or use Discover to join one that already exists.",
                                 action = "Create group",
                                 onAction = { showCreateGroup = true }
                             )
                         }
                     } else {
                         items(groups, key = { it.id }) { group ->
-                            StitchCommunityGroupRow(group = group, onOpen = { selectedGroup = group })
+                            StitchCommunityGroupRow(
+                                group = group,
+                                currentUid = currentUid,
+                                onOpen = {
+                                    GroupReadMarks.mark(context, group.id)
+                                    selectedGroup = group
+                                }
+                            )
                         }
                     }
-                }
-                selectedTab == "Constitution" -> item {
-                    StitchConstitutionContent()
                 }
             }
         }
@@ -9866,6 +9853,39 @@ fun StitchMessagesScreen(viewModel: DeenViewModel) {
             }
         )
     }
+
+    if (showRules) {
+        StitchCommunityRulesOverlay(onBack = { showRules = false })
+    }
+}
+
+@Composable
+private fun StitchCommunityRulesOverlay(onBack: () -> Unit) {
+    StitchScreen {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(stitchSurface())
+                .statusBarsPadding()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
+                }
+                Text("Community rules", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { StitchConstitutionContent() }
+            }
+        }
+    }
 }
 
 @Composable
@@ -9873,18 +9893,19 @@ private fun StitchMessagesHubTopBar(
     initials: String,
     onSearch: () -> Unit,
     onQr: () -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onRules: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .height(64.dp),
+            .height(56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(if (!com.noorpro.app.ui.components.isStitchLight()) stitchSoftSurface() else Color(0xFFE2E9EC)),
             contentAlignment = Alignment.Center
@@ -9892,18 +9913,21 @@ private fun StitchMessagesHubTopBar(
             Text(
                 initials.take(2),
                 color = stitchPrimary(),
-                fontSize = 20.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
         }
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             "Ummah",
             color = stitchPrimary(),
-            fontSize = 25.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
+        IconButton(onClick = onRules) {
+            Icon(Icons.Default.Gavel, contentDescription = "Community rules", tint = stitchPrimary(), modifier = Modifier.size(22.dp))
+        }
         IconButton(onClick = onSearch) {
             Icon(Icons.Default.Search, contentDescription = "Search messages", tint = stitchPrimary(), modifier = Modifier.size(29.dp))
         }
@@ -10067,30 +10091,53 @@ private fun StitchMessagePersonRow(
 }
 
 @Composable
-private fun StitchCommunityGroupRow(group: UmmahGroup, onOpen: () -> Unit) {
-    StitchCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen), shape = RoundedCornerShape(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+private fun StitchCommunityGroupRow(group: UmmahGroup, currentUid: String, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val unread = GroupReadMarks.isUnread(context, group, currentUid)
+    val time = if (group.updatedAt > 0L) noorChatListTime(group.updatedAt) else ""
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(48.dp).clip(CircleShape).background(stitchPrimary()),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier.size(46.dp).clip(CircleShape).background(stitchPrimary()),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White)
+            Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                group.name,
+                color = stitchText(),
+                fontSize = 16.sp,
+                fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                group.lastMessage.ifBlank { group.description.ifBlank { "${group.memberUids.size} members" } },
+                color = stitchMutedText(),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            if (time.isNotBlank()) {
+                Text(time, color = if (unread) stitchPrimary() else stitchMutedText(), fontSize = 11.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(group.name, color = stitchText(), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(
-                    group.lastMessage.ifBlank { group.description.ifBlank { "${group.memberUids.size} member(s)" } },
-                    color = stitchMutedText(),
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            if (unread) {
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier.size(10.dp).clip(CircleShape).background(stitchPrimary())
                 )
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = stitchMutedText())
         }
     }
 }
@@ -10316,6 +10363,10 @@ private fun StitchGroupChatPanel(
     var highlightedGroupMessageId by remember(group.id) { mutableStateOf("") }
     val displayedGroupMessages = messages.filter { it.senderUid !in blockedUids }.asReversed()
 
+    LaunchedEffect(group.id, group.updatedAt) {
+        GroupReadMarks.mark(context, group.id)
+    }
+
     fun openGroupReplyTarget(messageId: String) {
         if (messageId.isBlank()) return
         val index = displayedGroupMessages.indexOfFirst { it.id == messageId }
@@ -10353,36 +10404,49 @@ private fun StitchGroupChatPanel(
                 StitchChatDottedBackground(modifier = Modifier.fillMaxSize())
                 LazyColumn(
                     state = groupListState,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
                     reverseLayout = true,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp)
                 ) {
-                    items(displayedGroupMessages, key = { it.id }) { message ->
+                    itemsIndexed(displayedGroupMessages, key = { _, message -> message.id }) { index, message ->
                         val mineMsg = message.senderUid == currentUid
-                        StitchChatMessageBubble(
-                            message = message,
-                            mine = mineMsg,
-                            canDelete = mineMsg,
-                            currentUid = currentUid,
-                            highlighted = highlightedGroupMessageId == message.id,
-                            onReport = {
-                                messageReport = ReportTarget("group_message", "${group.id}/${message.id}", message.senderUid, message.senderName, message.text)
-                            },
-                            onReply = { replyTarget = it },
-                            onOpenReplyTarget = ::openGroupReplyTarget,
-                            onReact = { emoji ->
-                                val current = message.reactions[currentUid]
-                                repository.reactToGroupMessage(group.id, message.id, if (emoji == current) "" else emoji)
-                            },
-                            onDelete = { repository.deleteGroupMessage(group.id, message.id) }
-                        )
+                        val older = displayedGroupMessages.getOrNull(index + 1)
+                        val newer = displayedGroupMessages.getOrNull(index - 1)
+                        val nowish = message.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis()
+                        val olderTs = older?.createdAt?.takeIf { it > 0 } ?: 0L
+                        val newDay = older == null || olderTs == 0L || !sameChatDay(olderTs, nowish)
+                        val firstOfGroup = newDay || older?.senderUid != message.senderUid
+                        val lastOfGroup = newer == null || newer.senderUid != message.senderUid
+                        val replyThumb = displayedGroupMessages.firstOrNull { it.id == message.replyToMessageId }?.mediaUrl.orEmpty()
+                        Column(Modifier.padding(top = if (firstOfGroup) 6.dp else 1.5.dp, bottom = if (lastOfGroup) 2.dp else 0.dp)) {
+                            if (newDay) NoorDateChip(chatDayLabel(message.createdAt))
+                            NoorSwipeToReply(onReply = { replyTarget = message }) {
+                                StitchChatMessageBubble(
+                                    message = message,
+                                    mine = mineMsg,
+                                    canDelete = mineMsg,
+                                    currentUid = currentUid,
+                                    highlighted = highlightedGroupMessageId == message.id,
+                                    onReport = {
+                                        messageReport = ReportTarget("group_message", "${group.id}/${message.id}", message.senderUid, message.senderName, message.text)
+                                    },
+                                    onReply = { replyTarget = it },
+                                    onOpenReplyTarget = ::openGroupReplyTarget,
+                                    onReact = { emoji ->
+                                        val current = message.reactions[currentUid]
+                                        repository.reactToGroupMessage(group.id, message.id, if (emoji == current) "" else emoji)
+                                    },
+                                    onDelete = { repository.deleteGroupMessage(group.id, message.id) },
+                                    showSenderName = !mineMsg && firstOfGroup,
+                                    showAvatar = !mineMsg && firstOfGroup,
+                                    compactMedia = true,
+                                    replyThumbUrl = replyThumb,
+                                )
+                            }
+                        }
                     }
                     item {
                         StitchGroupConstitutionNotice()
-                    }
-                    item {
-                        StitchChatDateChip()
                     }
                 }
             }
@@ -10463,9 +10527,19 @@ private fun StitchGroupChatPanel(
                 sending = sending,
                 hasPendingMedia = pendingMedia != null,
                 attachmentsOpen = showAttachments,
+                isRecording = isRecording,
                 onDraftChange = { draft = it.take(2000) },
                 onAddClick = { showAttachments = !showAttachments },
-                onSend = { sendGroupPayload() }
+                onSend = { sendGroupPayload() },
+                onMic = {
+                    if (isRecording) {
+                        stopVoiceRecordingAndSend()
+                    } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        startVoiceRecording()
+                    } else {
+                        audioPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
             )
         }
     }
@@ -10495,72 +10569,52 @@ private fun StitchGroupChatHeader(
     onInfo: () -> Unit,
     onAdd: () -> Unit
 ) {
+    val memberLabel = if (group.memberUids.size == 1) "1 member" else "${group.memberUids.size} members"
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .statusBarsPadding()
             .fillMaxWidth()
             .background(stitchSurface())
-            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.75f)))
-            .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
+            .border(BorderStroke(1.dp, stitchLine().copy(alpha = 0.6f)))
+            .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 6.dp)
     ) {
         IconButton(onClick = onBack) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 tint = stitchText(),
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(stitchPrimary())
                 .clickable(onClick = onInfo),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+            Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         Column(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .clickable(onClick = onInfo)
                 .padding(vertical = 2.dp)
         ) {
-            Text(group.name, color = stitchText(), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                "${group.memberUids.size} members • tap for\ngroup info",
-                color = stitchMutedText(),
-                fontSize = 16.sp,
-                lineHeight = 21.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(group.name, color = stitchText(), fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(memberLabel, color = stitchMutedText(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (group.ownerUid == currentUid) {
-            Button(
-                onClick = onAdd,
-                colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = Color.White),
-                shape = RoundedCornerShape(999.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
-                modifier = Modifier.height(46.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("Add", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = onAdd) {
+                Icon(Icons.Default.PersonAdd, contentDescription = "Add members", tint = stitchPrimary(), modifier = Modifier.size(22.dp))
             }
-            Spacer(Modifier.width(8.dp))
         }
         IconButton(onClick = onInfo) {
-            Icon(
-                Icons.Default.Info,
-                contentDescription = "Group info",
-                tint = stitchPrimary(),
-                modifier = Modifier.size(30.dp)
-            )
+            Icon(Icons.Default.Info, contentDescription = "Group info", tint = stitchPrimary(), modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -10601,8 +10655,8 @@ private fun StitchGroupConstitutionNotice() {
             Text(
                 "Keep this group Islamic, educational, motivational and clean. Harmful or non-Islamic content can be removed under the App Constitution.",
                 color = stitchMutedText(),
-                fontSize = 16.sp,
-                lineHeight = 26.sp,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)
             )
@@ -10701,64 +10755,104 @@ private fun StitchGroupMessageComposer(
     sending: Boolean,
     hasPendingMedia: Boolean,
     attachmentsOpen: Boolean,
+    isRecording: Boolean = false,
     onDraftChange: (String) -> Unit,
     onAddClick: () -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onMic: () -> Unit = {}
 ) {
     val canSend = draft.trim().isNotBlank() || hasPendingMedia
-    Row(
+    var emojiOpen by remember { mutableStateOf(false) }
+    val emojis = listOf("🙂", "😄", "🙏", "🤲", "❤️", "🤍", "🌿", "✨", "🌹", "🌙", "⭐", "👍", "🤝", "✅")
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(stitchSurface())
             .navigationBarsPadding()
             .imePadding()
-            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onAddClick) {
-            Icon(
-                if (attachmentsOpen) Icons.Default.Close else Icons.Default.Add,
-                contentDescription = if (attachmentsOpen) "Close attachments" else "Add attachment",
-                tint = if (attachmentsOpen) stitchPrimary() else stitchMutedText(),
-                modifier = Modifier.size(32.dp)
-            )
+        if (emojiOpen) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                emojis.forEach { e ->
+                    Text(
+                        e,
+                        fontSize = 22.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onDraftChange(draft + e) }
+                            .padding(4.dp)
+                    )
+                }
+            }
         }
-        OutlinedTextField(
-            value = draft,
-            onValueChange = onDraftChange,
-            placeholder = { Text("Message group") },
-            trailingIcon = {
-                Text("☺", color = stitchMutedText(), fontSize = 21.sp)
-            },
-            modifier = Modifier.weight(1f),
-            maxLines = 4,
-            shape = RoundedCornerShape(999.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = stitchSoftSurface(),
-                unfocusedContainerColor = stitchSoftSurface(),
-                disabledContainerColor = stitchSoftSurface(),
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            )
-        )
-        Spacer(Modifier.width(10.dp))
-        Button(
-            enabled = !sending && canSend,
-            onClick = onSend,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = stitchPrimary(),
-                contentColor = Color.White,
-                disabledContainerColor = stitchSoftSurface(),
-                disabledContentColor = stitchMutedText()
-            ),
-            shape = RoundedCornerShape(999.dp),
-            contentPadding = PaddingValues(horizontal = 22.dp),
-            modifier = Modifier.height(58.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            if (sending) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Text("Send", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            IconButton(onClick = onAddClick, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    if (attachmentsOpen) Icons.Default.Close else Icons.Default.Add,
+                    contentDescription = if (attachmentsOpen) "Close attachments" else "Attach",
+                    tint = if (attachmentsOpen) stitchPrimary() else stitchMutedText(),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            OutlinedTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                placeholder = { Text("Message", fontSize = 14.sp) },
+                trailingIcon = {
+                    IconButton(onClick = { emojiOpen = !emojiOpen }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            if (emojiOpen) Icons.Default.Keyboard else Icons.Default.EmojiEmotions,
+                            contentDescription = "Emoji",
+                            tint = stitchMutedText(),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                },
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp, max = 120.dp),
+                maxLines = 4,
+                shape = RoundedCornerShape(22.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = stitchSoftSurface(),
+                    unfocusedContainerColor = stitchSoftSurface(),
+                    disabledContainerColor = stitchSoftSurface(),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            sending -> stitchPrimary()
+                            canSend -> stitchPrimary()
+                            isRecording -> Color(0xFFE5484D)
+                            else -> stitchSoftSurface()
+                        }
+                    )
+                    .clickable(enabled = !sending && (canSend || true)) {
+                        if (canSend) onSend() else onMic()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    sending -> CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    canSend -> Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(20.dp))
+                    else -> Icon(Icons.Default.Mic, contentDescription = if (isRecording) "Stop recording" else "Record voice message", tint = if (isRecording) Color.White else stitchPrimary(), modifier = Modifier.size(22.dp))
+                }
             }
         }
     }
@@ -11058,10 +11152,10 @@ fun StitchAppConstitutionScreen(viewModel: DeenViewModel) {
 
 @Composable
 private fun StitchConstitutionContent() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Noor Pro Constitution", color = stitchText(), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Noor Pro Constitution", color = stitchText(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "A beneficial Ummah space for Islamic learning, education, motivation, family-safe creativity and sincere reminders.",
                     color = stitchMutedText(),
@@ -11072,54 +11166,68 @@ private fun StitchConstitutionContent() {
         }
         StitchConstitutionRule(
             "Allowed content",
-            "Quran and Hadith reminders with respect, Islamic education, beneficial motivation, clean community posts, charity awareness, study groups, and family-safe creativity."
+            "Quran and Hadith reminders with respect, Islamic education, beneficial motivation, clean community posts, charity awareness, study groups, and family-safe creativity.",
+            Icons.Default.AutoStories
         )
         StitchConstitutionRule(
             "Not allowed",
-            "Obscene material, harassment, fraud, hate, sectarian abuse, extremist propaganda, harmful misinformation, mockery of Islam, or content against Islamic adab and clean community standards."
+            "Obscene material, harassment, fraud, hate, sectarian abuse, extremist propaganda, harmful misinformation, mockery of Islam, or content against Islamic adab and clean community standards.",
+            Icons.Default.NotInterested,
+            Color(0xFFB42318)
         )
         StitchConstitutionRule(
             "Uploading content",
-            "Only upload what you own or have clear permission to share. Give credit to scholars, reciters, and original creators. No copyrighted films, music, or books without rights. Keep media family-safe (no nudity, violence, or background music that contradicts Islamic adab). Arabic Quran/Hadith must be quoted accurately with correct references."
+            "Only upload what you own or have clear permission to share. Give credit to scholars, reciters, and original creators. No copyrighted films, music, or books without rights. Keep media family-safe (no nudity, violence, or background music that contradicts Islamic adab). Arabic Quran/Hadith must be quoted accurately with correct references.",
+            Icons.Default.CloudUpload
         )
         StitchConstitutionRule(
             "Sharing & reposting",
-            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact — do not edit verses or narrations out of context."
+            "Share to benefit others, not for fame or fitnah. Do not spread unverified news, rumours, or chain messages. Do not screenshot or forward private chats without consent. When you share a reminder, keep the source and meaning intact — do not edit verses or narrations out of context.",
+            Icons.Default.Share
         )
         StitchConstitutionRule(
             "Moderation",
-            "Every post, reel, comment, message and group has a Report option, and you can block any member. Reports are reviewed within 24 hours; content against the Constitution is removed and repeat or serious violations lead to restricted posting, suspension or account removal. Contact: noorpro.official@gmail.com."
+            "Every post, reel, comment, message and group has a Report option, and you can block any member. Reports are reviewed within 24 hours; content against the Constitution is removed and repeat or serious violations lead to restricted posting, suspension or account removal. Contact: noorpro.official@gmail.com.",
+            Icons.Default.Flag
         )
         StitchConstitutionRule(
             "Groups and popularity",
-            "Groups, badges and popular placement should reward benefit, knowledge, good manners and community safety, not shock content or empty fame."
+            "Groups, badges and popular placement should reward benefit, knowledge, good manners and community safety, not shock content or empty fame.",
+            Icons.Default.Groups
         )
         StitchConstitutionRule(
             "Privacy and security",
-            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful — never share someone's private messages without their consent."
+            "Messages and groups are private and member-only, protected by server-side security rules. Keep private conversations respectful — never share someone's private messages without their consent.",
+            Icons.Default.Lock
         )
         StitchConstitutionRule(
             "Religious care",
-            "The app can share general reminders, but binding fatwa/rulings should be checked with qualified scholars."
+            "The app can share general reminders, but binding fatwa/rulings should be checked with qualified scholars.",
+            Icons.Default.Mosque
         )
     }
 }
 
 @Composable
-private fun StitchConstitutionRule(title: String, body: String) {
-    StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+private fun StitchConstitutionRule(
+    title: String,
+    body: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color = stitchPrimary()
+) {
+    StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             Box(
-                modifier = Modifier.size(38.dp).clip(CircleShape).background(stitchSoftSurface()),
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(body, color = stitchMutedText(), fontSize = 13.sp, lineHeight = 19.sp)
+                Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(3.dp))
+                Text(body, color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp)
             }
         }
     }
@@ -11579,24 +11687,27 @@ private fun StitchReplyQuote(
     replyText: String,
     mine: Boolean,
     replyMessageId: String = "",
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    replyType: String = "",
+    thumbUrl: String = "",
 ) {
     val quoteBg = if (mine) Color.White.copy(alpha = 0.16f) else stitchPrimary().copy(alpha = 0.08f)
     val quoteText = if (mine) Color.White else stitchText()
     val quoteAccent = if (mine) StitchGold else stitchPrimary()
     val clickModifier = if (replyMessageId.isNotBlank()) Modifier.clickable(onClick = onClick) else Modifier
+    val mediaType = replyType in listOf("image", "video", "reel")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(quoteBg)
             .then(clickModifier)
-            .padding(9.dp),
+            .padding(7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.width(3.dp).height(36.dp).clip(RoundedCornerShape(999.dp)).background(quoteAccent))
+        Box(modifier = Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(999.dp)).background(quoteAccent))
         Spacer(Modifier.width(8.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 replyName.ifBlank { "Replied message" },
                 color = quoteAccent,
@@ -11609,9 +11720,35 @@ private fun StitchReplyQuote(
                 replyText,
                 color = quoteText.copy(alpha = 0.86f),
                 fontSize = 12.sp,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        if (mediaType || thumbUrl.isNotBlank()) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(stitchSoftSurface()),
+                contentAlignment = Alignment.Center
+            ) {
+                if (thumbUrl.isNotBlank()) {
+                    coil.compose.AsyncImage(
+                        model = thumbUrl,
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                if (replyType == "video" || replyType == "reel") {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                } else if (thumbUrl.isBlank()) {
+                    Icon(
+                        if (replyType == "audio") Icons.Default.Mic else Icons.Default.Image,
+                        contentDescription = null,
+                        tint = stitchPrimary(),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -11739,7 +11876,8 @@ private fun StitchSharedMediaCard(
     message: UmmahMessage,
     mine: Boolean,
     onOpen: () -> Unit,
-    onMenu: () -> Unit
+    onMenu: () -> Unit,
+    compactMedia: Boolean = false,
 ) {
     val isVideo = message.type == "video" || message.type == "reel"
     val cardBg = if (mine) stitchPrimary().copy(alpha = 0.92f) else Color(0xFFE3E9EB)
@@ -11748,7 +11886,7 @@ private fun StitchSharedMediaCard(
         url = message.mediaUrl,
         isVideo = isVideo,
         contentDescription = message.text.ifBlank { noorMessageTypeLabel(message.type) },
-        width = 250.dp,
+        width = if (compactMedia) 184.dp else 250.dp,
         background = cardBg,
         modifier = Modifier.clickable(onClick = onOpen),
     ) {
@@ -11843,7 +11981,11 @@ internal fun StitchChatMessageBubble(
     /** 1.0.92: WhatsApp-style 1:1 look (tails, grouping, no avatars, voice-note bubble). */
     modern: Boolean = false,
     tail: Boolean = true,
-    onForward: (() -> Unit)? = null
+    onForward: (() -> Unit)? = null,
+    showSenderName: Boolean = !mine && !modern,
+    showAvatar: Boolean = !mine && !modern,
+    compactMedia: Boolean = false,
+    replyThumbUrl: String = "",
 ) {
     val context = LocalContext.current
     val cc = chatColors()
@@ -11898,7 +12040,7 @@ internal fun StitchChatMessageBubble(
     }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        if (!mine && !modern) {
+        if (!mine && showAvatar) {
             StitchChatAvatar(name = message.senderName, mine = false)
             Spacer(Modifier.width(8.dp))
         }
@@ -11906,7 +12048,7 @@ internal fun StitchChatMessageBubble(
             horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
             modifier = Modifier.widthIn(max = if (modern) 318.dp else 292.dp)
         ) {
-            if (!mine && !modern && message.senderName.isNotBlank()) {
+            if (!mine && showSenderName && message.senderName.isNotBlank()) {
                 Text(
                     message.senderName,
                     color = stitchMutedText(),
@@ -11945,14 +12087,16 @@ internal fun StitchChatMessageBubble(
                             replyText = message.replyToText.ifBlank { noorMessageTypeLabel(message.replyToType) },
                             mine = mine,
                             replyMessageId = message.replyToMessageId,
-                            onClick = { onOpenReplyTarget(message.replyToMessageId) }
+                            onClick = { onOpenReplyTarget(message.replyToMessageId) },
+                            replyType = message.replyToType,
+                            thumbUrl = replyThumbUrl,
                         )
                     }
                     when {
-                        message.type == "image" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
-                        message.type == "video" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
+                        message.type == "image" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true }, compactMedia = compactMedia)
+                        message.type == "video" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true }, compactMedia = compactMedia)
                         message.type == "post_share" -> SharedPostCard(message, blockedUids) { p -> onOpenShared?.invoke(p) }
-                        message.type == "reel" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true })
+                        message.type == "reel" && hasMedia -> StitchSharedMediaCard(message = message, mine = mine, onOpen = ::openMedia, onMenu = { menuOpen = true }, compactMedia = compactMedia)
                         message.type == "audio" && hasMedia -> if (modern) VoiceNoteBubble(message, mine, textColor) else StitchVoiceMessagePlayer(url = message.mediaUrl, accent = textColor, mine = mine)
                         message.type == "location" && hasMedia -> StitchMessageMediaRow(Icons.Default.LocationOn, "Open shared location", textColor, hasMenu = false, onClick = ::openMedia)
                         message.type == "pdf" && hasMedia -> StitchMessageMediaRow(Icons.Default.Article, "Open PDF", textColor, hasMenu = true, onClick = ::openMedia, onMenu = { menuOpen = true })
@@ -12053,7 +12197,7 @@ internal fun StitchChatMessageBubble(
                 }
             }
         }
-        if (mine && !modern) {
+        if (mine && showAvatar) {
             Spacer(Modifier.width(8.dp))
             StitchChatAvatar(name = message.senderName, mine = true)
         }
