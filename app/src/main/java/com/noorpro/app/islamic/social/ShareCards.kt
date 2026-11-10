@@ -37,7 +37,28 @@ enum class CardTranslation(val key: String, val label: String, val rtl: Boolean 
     DEFAULT("en.ahmedraza", "English (default)"), SAHIH("en.sahih", "Sahih International"), URDU("ur.kanzuliman", "اردو · Kanz-ul-Iman", rtl = true);
 }
 
-enum class CardDesign(val label: String) { NOOR("Noor"), PARCHMENT("Parchment"), NIGHT("Night sky"), DAWN("Fajr"), MINIMAL("Minimal") }
+enum class CardDesign(val label: String) {
+    NOOR("Noor"), PARCHMENT("Parchment"), NIGHT("Night sky"), DAWN("Fajr"),
+    MINIMAL("Minimal"), MIHRAB("Mihrab"), INK("Ink")
+}
+
+enum class CardAlign(val label: String) { START("Left"), CENTER("Centre"), END("Right") }
+
+/** Colour overlays the user can apply on top of a template. TEMPLATE keeps the design's own palette. */
+enum class CardColorway(val label: String) {
+    TEMPLATE("Template"), EMERALD("Emerald"), CREAM("Cream"), MIDNIGHT("Midnight"),
+    FAJR("Fajr rose"), CHARCOAL("Charcoal"), GOLD("Gold leaf")
+}
+
+/** Live-editable options for the share card, used by both the preview and the export. */
+data class CardStyle(
+    val showArabic: Boolean = true,
+    val showTranslation: Boolean = true,
+    val showReference: Boolean = true,
+    val fontScale: Float = 1f,
+    val align: CardAlign = CardAlign.CENTER,
+    val colorway: CardColorway = CardColorway.TEMPLATE,
+)
 
 enum class CardFormat(val label: String, val w: Int, val h: Int) { SQUARE("Square · feed", 1080, 1080), STORY("Story · 9:16", 1080, 1920) }
 
@@ -59,6 +80,74 @@ object ShareCardLogic {
     val COLLECTIONS = mapOf("bukhari" to "Sahih al-Bukhari", "muslim" to "Sahih Muslim")
 
     private val AYAH_COUNTS = intArrayOf(7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6)
+
+    /** English surah names for the picker (1-based index via [surahName]). */
+    val SURAH_NAMES = listOf(
+        "Al-Fatiha", "Al-Baqarah", "Aal-E-Imran", "An-Nisa", "Al-Ma'idah", "Al-An'am", "Al-A'raf", "Al-Anfal",
+        "At-Tawbah", "Yunus", "Hud", "Yusuf", "Ar-Ra'd", "Ibrahim", "Al-Hijr", "An-Nahl", "Al-Isra", "Al-Kahf",
+        "Maryam", "Ta-Ha", "Al-Anbiya", "Al-Hajj", "Al-Mu'minun", "An-Nur", "Al-Furqan", "Ash-Shu'ara", "An-Naml",
+        "Al-Qasas", "Al-Ankabut", "Ar-Rum", "Luqman", "As-Sajdah", "Al-Ahzab", "Saba", "Fatir", "Ya-Sin", "As-Saffat",
+        "Sad", "Az-Zumar", "Ghafir", "Fussilat", "Ash-Shura", "Az-Zukhruf", "Ad-Dukhan", "Al-Jathiyah", "Al-Ahqaf",
+        "Muhammad", "Al-Fath", "Al-Hujurat", "Qaf", "Adh-Dhariyat", "At-Tur", "An-Najm", "Al-Qamar", "Ar-Rahman",
+        "Al-Waqi'ah", "Al-Hadid", "Al-Mujadila", "Al-Hashr", "Al-Mumtahanah", "As-Saff", "Al-Jumu'ah", "Al-Munafiqun",
+        "At-Taghabun", "At-Talaq", "At-Tahrim", "Al-Mulk", "Al-Qalam", "Al-Haqqah", "Al-Ma'arij", "Nuh", "Al-Jinn",
+        "Al-Muzzammil", "Al-Muddaththir", "Al-Qiyamah", "Al-Insan", "Al-Mursalat", "An-Naba", "An-Nazi'at", "Abasa",
+        "At-Takwir", "Al-Infitar", "Al-Mutaffifin", "Al-Inshiqaq", "Al-Buruj", "At-Tariq", "Al-A'la", "Al-Ghashiyah",
+        "Al-Fajr", "Al-Balad", "Ash-Shams", "Al-Layl", "Ad-Duhaa", "Ash-Sharh", "At-Tin", "Al-Alaq", "Al-Qadr",
+        "Al-Bayyinah", "Az-Zalzalah", "Al-Adiyat", "Al-Qari'ah", "At-Takathur", "Al-Asr", "Al-Humazah", "Al-Fil",
+        "Quraysh", "Al-Ma'un", "Al-Kawthar", "Al-Kafirun", "An-Nasr", "Al-Masad", "Al-Ikhlas", "Al-Falaq", "An-Nas"
+    )
+
+    const val MAX_AYAH_RANGE = 7
+
+    fun ayahCount(surah: Int): Int = if (surah in 1..114) AYAH_COUNTS[surah - 1] else 0
+    fun surahName(surah: Int): String = SURAH_NAMES.getOrNull(surah - 1) ?: "Surah $surah"
+
+    /** Step to the previous or next ayah, crossing surah boundaries when needed. */
+    fun stepAyah(surah: Int, ayah: Int, delta: Int): Pair<Int, Int> {
+        var s = surah.coerceIn(1, 114)
+        var a = ayah + delta
+        while (a < 1) {
+            if (s <= 1) return 1 to 1
+            s -= 1
+            a += ayahCount(s)
+        }
+        while (a > ayahCount(s)) {
+            if (s >= 114) return 114 to ayahCount(114)
+            a -= ayahCount(s)
+            s += 1
+        }
+        return s to a
+    }
+
+    /** Clamp a same-surah range to at most [MAX_AYAH_RANGE] ayahs. */
+    fun clampRange(surah: Int, start: Int, end: Int): Pair<Int, Int> {
+        val count = ayahCount(surah)
+        if (count <= 0) return 1 to 1
+        val from = start.coerceIn(1, count)
+        val to = end.coerceIn(from, minOf(from + MAX_AYAH_RANGE - 1, count))
+        return from to to
+    }
+
+    fun formatAyahRef(surah: Int, start: Int, end: Int): String =
+        if (end <= start) "$surah:$start" else "$surah:$start–$end"
+
+    fun parseAyahRange(s: String): Triple<Int, Int, Int>? {
+        val t = s.trim().replace('–', '-').replace('—', '-')
+        val m = Regex("""^\s*(\d{1,3})\s*[:.]\s*(\d{1,3})(?:\s*-\s*(?:(\d{1,3})\s*[:.]\s*)?(\d{1,3}))?\s*$""").find(t)
+            ?: return null
+        val su = m.groupValues[1].toInt()
+        val start = m.groupValues[2].toInt()
+        val otherSurah = m.groupValues[3]
+        val endRaw = m.groupValues[4]
+        if (otherSurah.isNotBlank() && otherSurah.toInt() != su) return null
+        val end = if (endRaw.isBlank()) start else endRaw.toInt()
+        if (su !in 1..114) return null
+        val (from, to) = clampRange(su, start, end)
+        if (start < 1 || start > ayahCount(su)) return null
+        return Triple(su, from, to)
+    }
+
 
     /** "2:255", "2 : 255", "2.255" → (2, 255); null when out of range. */
     fun parseAyah(s: String): Pair<Int, Int>? {
@@ -112,14 +201,20 @@ object ShareCardLogic {
 
 /** Reads card text from the bundled assets. Call off the main thread. */
 object ShareCardSource {
-    fun ayah(ctx: Context, surah: Int, ayah: Int, tr: CardTranslation = CardTranslation.DEFAULT): CardContent? = runCatching {
+    fun ayah(ctx: Context, surah: Int, ayah: Int, tr: CardTranslation = CardTranslation.DEFAULT, endAyah: Int = ayah): CardContent? = runCatching {
+        val (from, to) = ShareCardLogic.clampRange(surah, ayah, endAyah)
         val core = OfflineQuranAssets.loadCore(ctx)
-        val a = core.ayahs.firstOrNull { it.surah == surah && it.ayah == ayah } ?: return null
         val basmala = core.ayahs.first().arabic
-        val arabic = ShareCardLogic.stripBasmala(a.arabic, basmala, surah, ayah)
-        val text = OfflineQuranAssets.bundledTranslation(ctx, tr.key, surah, ayah)?.trim() ?: a.english
-        val name = core.surahNames.getOrNull(surah - 1)?.first ?: "Surah $surah"
-        CardContent(CardKind.AYAH, arabic, text, "Surah $name $surah:$ayah", "$surah:$ayah")
+        val slices = (from..to).map { n ->
+            core.ayahs.firstOrNull { it.surah == surah && it.ayah == n } ?: return null
+        }
+        val arabic = slices.map { ShareCardLogic.stripBasmala(it.arabic, basmala, surah, it.ayah) }.filter { it.isNotBlank() }.joinToString("  ")
+        val text = slices.map { a ->
+            OfflineQuranAssets.bundledTranslation(ctx, tr.key, surah, a.ayah)?.trim() ?: a.english
+        }.filter { it.isNotBlank() }.joinToString("\n")
+        val name = core.surahNames.getOrNull(surah - 1)?.first ?: ShareCardLogic.surahName(surah)
+        val ref = ShareCardLogic.formatAyahRef(surah, from, to)
+        CardContent(CardKind.AYAH, arabic, text, "Surah $name $ref", ref)
     }.getOrNull()
 
     fun hadith(ctx: Context, collection: String, number: Int): CardContent? = runCatching {
@@ -140,7 +235,7 @@ object ShareCardSource {
     }.getOrNull()
 
     fun load(ctx: Context, ref: String, tr: CardTranslation = CardTranslation.DEFAULT): CardContent? =
-        ShareCardLogic.parseAyah(ref)?.let { (s, a) -> ayah(ctx, s, a, tr) }
+        ShareCardLogic.parseAyahRange(ref)?.let { (s, a, e) -> ayah(ctx, s, a, tr, e) }
             ?: ShareCardLogic.parseHadith(ref)?.let { (c, n) -> hadith(ctx, c, n) }
 }
 
@@ -156,18 +251,36 @@ object ShareCardRenderer {
         CardDesign.NIGHT -> Palette(0xFF0E1A2B.toInt(), 0xFF1D3150.toInt(), 0xFFFFFFFF.toInt(), 0xE0E8EEF7.toInt(), 0xFFE9C46A.toInt(), 0xFFE9C46A.toInt(), 0x55E9C46A)
         CardDesign.DAWN -> Palette(0xFFF8E7DA.toInt(), 0xFFE8B9A0.toInt(), 0xFF5A2A27.toInt(), 0xFF5A2A27.toInt(), 0xFF9C4A35.toInt(), 0xFF9C4A35.toInt(), 0x669C4A35)
         CardDesign.MINIMAL -> Palette(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFF111111.toInt(), 0xFF3C3C3C.toInt(), 0xFF0B6243.toInt(), 0xFF0B6243.toInt(), 0xFFD4AF37.toInt())
+        CardDesign.MIHRAB -> Palette(0xFFF7F1E3.toInt(), 0xFFE7E0CC.toInt(), 0xFF07402C.toInt(), 0xFF1E3A2F.toInt(), 0xFF0B6243.toInt(), 0xFF0B6243.toInt(), 0xFFC9A227.toInt())
+        CardDesign.INK -> Palette(0xFF161513.toInt(), 0xFF2A241C.toInt(), 0xFFF6EFD9.toInt(), 0xE6EDE6D6.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt())
+    }
+
+    private fun applyColorway(base: Palette, way: CardColorway): Palette = when (way) {
+        CardColorway.TEMPLATE -> base
+        CardColorway.EMERALD -> Palette(0xFF0B6243.toInt(), 0xFF07402C.toInt(), 0xFFFDF9F0.toInt(), 0xE6FDF9F0.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt())
+        CardColorway.CREAM -> Palette(0xFFFDF9F0.toInt(), 0xFFF3E8D2.toInt(), 0xFF07402C.toInt(), 0xFF3B2F1E.toInt(), 0xFFA9842A.toInt(), 0xFF0B6243.toInt(), 0xFF0B6243.toInt())
+        CardColorway.MIDNIGHT -> Palette(0xFF0E1A2B.toInt(), 0xFF1D3150.toInt(), 0xFFFFFFFF.toInt(), 0xE0E8EEF7.toInt(), 0xFFE9C46A.toInt(), 0xFFE9C46A.toInt(), 0x55E9C46A)
+        CardColorway.FAJR -> Palette(0xFFF8E7DA.toInt(), 0xFFE8B9A0.toInt(), 0xFF5A2A27.toInt(), 0xFF5A2A27.toInt(), 0xFF9C4A35.toInt(), 0xFF9C4A35.toInt(), 0x669C4A35)
+        CardColorway.CHARCOAL -> Palette(0xFF1A1A1A.toInt(), 0xFF2C2C2C.toInt(), 0xFFF5F0E6.toInt(), 0xE6E8E0D0.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt(), 0xFFD4AF37.toInt())
+        CardColorway.GOLD -> Palette(0xFF3D2E12.toInt(), 0xFF1F180A.toInt(), 0xFFF8E7C1.toInt(), 0xE6F3E2B8.toInt(), 0xFFE8C872.toInt(), 0xFFE8C872.toInt(), 0xFFE8C872.toInt())
     }
 
     private fun font(ctx: Context, id: Int, fallback: Typeface) = runCatching { ResourcesCompat.getFont(ctx, id) }.getOrNull() ?: fallback
 
     fun render(ctx: Context, c: CardContent, design: CardDesign, format: CardFormat, scale: Float = 1f,
-               tr: CardTranslation = CardTranslation.DEFAULT): Result {
+               tr: CardTranslation = CardTranslation.DEFAULT, style: CardStyle = CardStyle()): Result {
         val w = (format.w * scale).toInt(); val h = (format.h * scale).toInt()
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
         cv.scale(scale, scale)
         val W = format.w.toFloat(); val H = format.h.toFloat()
-        val p = palette(design)
+        val p = applyColorway(palette(design), style.colorway)
+        val userScale = style.fontScale.coerceIn(0.7f, 1.45f)
+        val alignment = when (style.align) {
+            CardAlign.START -> Layout.Alignment.ALIGN_NORMAL
+            CardAlign.CENTER -> Layout.Alignment.ALIGN_CENTER
+            CardAlign.END -> Layout.Alignment.ALIGN_OPPOSITE
+        }
         background(cv, design, p, W, H)
 
         val naskh = font(ctx, R.font.noto_naskh_arabic, Typeface.SERIF)
@@ -189,20 +302,24 @@ object ShareCardRenderer {
         val urduMain = tr.rtl && c.kind == CardKind.AYAH
         var fits = false
         var layouts: List<Pair<StaticLayout, Float>> = emptyList()
-        var f = 1f
-        while (f >= 0.5f) {
+        var f = 1f * userScale
+        while (f >= 0.45f * userScale) {
             val out = mutableListOf<Pair<StaticLayout, Float>>()
-            if (c.arabic.isNotBlank()) {
+            val showAr = style.showArabic && c.arabic.isNotBlank()
+            val showTr = style.showTranslation && c.text.isNotBlank()
+            if (showAr) {
                 val ap = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = p.arabic; textSize = (if (story) 74f else 64f) * f; typeface = naskh }
-                out += layout(c.arabic, ap, textW, rtl = true, spacing = 1.45f) to 34f * f
-                if (design != CardDesign.MINIMAL) out += divider() to 30f * f
+                out += layout(c.arabic, ap, textW, rtl = true, spacing = 1.45f, alignment = alignment) to 34f * f
+                if (design != CardDesign.MINIMAL && showTr) out += divider() to 30f * f
             }
+            if (showTr) {
             val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = p.text
                 textSize = (if (c.kind == CardKind.HADITH) (if (story) 50f else 44f) else (if (story) 42f else 36f)) * f * (if (urduMain) 1.1f else 1f)
                 typeface = if (urduMain) naskh else if (c.kind == CardKind.HADITH) caslon else caslonItalic
             }
-            out += layout(if (c.kind == CardKind.HADITH) c.text else "“${ShareCardLogic.unquote(c.text)}”", tp, textW, rtl = urduMain, spacing = if (urduMain) 1.5f else 1.3f) to 0f
+            out += layout(if (c.kind == CardKind.HADITH) c.text else "“${ShareCardLogic.unquote(c.text)}”", tp, textW, rtl = urduMain, spacing = if (urduMain) 1.5f else 1.3f, alignment = alignment) to 0f
+            }
             val total = out.sumOf { (it.first.height + it.second).toDouble() }.toFloat()
             if (total <= bottom - top - 70f) { layouts = out; fits = true; break }
             layouts = out
@@ -217,8 +334,20 @@ object ShareCardRenderer {
             y += l.height + gap
         }
         // Reference
-        val refP = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = p.accent; textSize = 30f; typeface = sans; textAlign = Paint.Align.CENTER; letterSpacing = 0.04f }
-        cv.drawText(c.reference, W / 2, (y + 46f).coerceAtMost(bottom + 20f), refP)
+        if (style.showReference) {
+            val refAlign = when (style.align) {
+                CardAlign.START -> Paint.Align.LEFT
+                CardAlign.CENTER -> Paint.Align.CENTER
+                CardAlign.END -> Paint.Align.RIGHT
+            }
+            val refX = when (style.align) {
+                CardAlign.START -> side
+                CardAlign.CENTER -> W / 2
+                CardAlign.END -> W - side
+            }
+            val refP = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = p.accent; textSize = 30f; typeface = sans; textAlign = refAlign; letterSpacing = 0.04f }
+            cv.drawText(c.reference, refX, (y + 46f).coerceAtMost(bottom + 20f), refP)
+        }
 
         // Footer wordmark
         val foot = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = p.label; alpha = 200; textSize = 24f; typeface = sansReg; textAlign = Paint.Align.CENTER; letterSpacing = 0.12f }
@@ -231,9 +360,10 @@ object ShareCardRenderer {
     private const val DIVIDER = "\u2063"
     private fun divider(): StaticLayout = layout(DIVIDER, TextPaint().apply { textSize = 20f }, 10, false, 1f)
 
-    private fun layout(text: String, paint: TextPaint, width: Int, rtl: Boolean, spacing: Float): StaticLayout =
+    private fun layout(text: String, paint: TextPaint, width: Int, rtl: Boolean, spacing: Float,
+                       alignment: Layout.Alignment = Layout.Alignment.ALIGN_CENTER): StaticLayout =
         StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
-            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .setAlignment(alignment)
             .setLineSpacing(0f, spacing)
             .setTextDirection(if (rtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.FIRSTSTRONG_LTR)
             .setIncludePad(true)
@@ -306,6 +436,30 @@ object ShareCardRenderer {
                 cv.drawRect(0f, 0f, 14f, H, Paint().apply { color = p.accent })
                 cv.drawRect(W - 220f, 90f, W - 90f, 94f, Paint().apply { color = p.frame })
                 cv.drawRect(90f, H - 94f, 220f, H - 90f, Paint().apply { color = p.frame })
+            }
+            CardDesign.MIHRAB -> {
+                val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = RadialGradient(W / 2, H * 0.2f, W * 0.7f, intArrayOf(0x33FFFFFF, 0x00000000), null, Shader.TileMode.CLAMP)
+                }
+                cv.drawRect(0f, 0f, W, H, wash)
+                val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.accent; alpha = 28 }
+                val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.frame; style = Paint.Style.STROKE; strokeWidth = 3.5f }
+                val arch = Path().apply {
+                    moveTo(100f, H - 80f); lineTo(100f, 360f)
+                    quadTo(100f, 120f, W / 2, 80f); quadTo(W - 100f, 120f, W - 100f, 360f); lineTo(W - 100f, H - 80f)
+                    close()
+                }
+                cv.drawPath(arch, fill); cv.drawPath(arch, stroke)
+                star(cv, W / 2, 80f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.frame })
+            }
+            CardDesign.INK -> {
+                val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.accent; strokeWidth = 3f }
+                cv.drawLine(90f, 160f, 90f, H - 160f, rule)
+                val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.frame; style = Paint.Style.STROKE; strokeWidth = 1.6f; alpha = 140 }
+                cv.drawRect(56f, 56f, W - 56f, H - 56f, frame)
+                val gold = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.accent }
+                star(cv, 56f, 56f, 14f, gold); star(cv, W - 56f, 56f, 14f, gold)
+                star(cv, 56f, H - 56f, 14f, gold); star(cv, W - 56f, H - 56f, 14f, gold)
             }
         }
     }

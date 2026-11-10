@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,11 +49,20 @@ data class ShareCardsUi(
     val tr: CardTranslation = CardTranslation.DEFAULT,
     val design: CardDesign = CardDesign.NOOR,
     val format: CardFormat = CardFormat.SQUARE,
+    val showArabic: Boolean = true,
+    val showTranslation: Boolean = true,
+    val showReference: Boolean = true,
+    val fontScale: Float = 1f,
+    val align: CardAlign = CardAlign.CENTER,
+    val colorway: CardColorway = CardColorway.TEMPLATE,
     val content: CardContent? = null,
     val notFound: Boolean = false,
     val fits: Boolean = true,
     val busy: Boolean = false,
-)
+) {
+    val style: CardStyle get() = CardStyle(showArabic, showTranslation, showReference, fontScale, align, colorway)
+    val range: Triple<Int, Int, Int>? get() = ShareCardLogic.parseAyahRange(ref)
+}
 
 class ShareCardsActions(
     val onBack: () -> Unit = {},
@@ -62,6 +72,15 @@ class ShareCardsActions(
     val onTranslation: (CardTranslation) -> Unit = {},
     val onDesign: (CardDesign) -> Unit = {},
     val onFormat: (CardFormat) -> Unit = {},
+    val onStep: (Int) -> Unit = {},
+    val onSurahStep: (Int) -> Unit = {},
+    val onRangeEnd: (Int) -> Unit = {},
+    val onToggleArabic: () -> Unit = {},
+    val onToggleTranslation: () -> Unit = {},
+    val onToggleReference: () -> Unit = {},
+    val onFontScale: (Float) -> Unit = {},
+    val onAlign: (CardAlign) -> Unit = {},
+    val onColorway: (CardColorway) -> Unit = {},
     val onFeed: () -> Unit = {},
     val onStory: () -> Unit = {},
     val onExternal: () -> Unit = {},
@@ -83,14 +102,14 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
         val c = withContext(Dispatchers.IO) { ShareCardSource.load(ctx, ui.ref, ui.tr) }
         ui = ui.copy(content = c, notFound = c == null)
     }
-    LaunchedEffect(ui.content, ui.design, ui.format) {
+    LaunchedEffect(ui.content, ui.design, ui.format, ui.showArabic, ui.showTranslation, ui.showReference, ui.fontScale, ui.align, ui.colorway) {
         val c = ui.content ?: run { preview = null; return@LaunchedEffect }
-        val r = withContext(Dispatchers.Default) { ShareCardRenderer.render(ctx, c, ui.design, ui.format, 0.5f, ui.tr) }
+        val r = withContext(Dispatchers.Default) { ShareCardRenderer.render(ctx, c, ui.design, ui.format, 0.5f, ui.tr, ui.style) }
         preview = r.bitmap.asImageBitmap(); ui = ui.copy(fits = r.fits)
     }
-    LaunchedEffect(ui.content) {
+    LaunchedEffect(ui.content, ui.colorway) {
         val c = ui.content ?: return@LaunchedEffect
-        thumbs = withContext(Dispatchers.Default) { CardDesign.entries.associateWith { ShareCardRenderer.render(ctx, c, it, CardFormat.SQUARE, 0.16f, ui.tr).bitmap.asImageBitmap() } }
+        thumbs = withContext(Dispatchers.Default) { CardDesign.entries.associateWith { ShareCardRenderer.render(ctx, c, it, CardFormat.SQUARE, 0.16f, ui.tr, ui.style).bitmap.asImageBitmap() } }
     }
 
     fun export(then: (java.io.File, CardContent) -> Unit) {
@@ -98,7 +117,7 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
         if (!ui.fits) { toast("This one is long for a card. Try the story size or another passage."); return }
         ui = ui.copy(busy = true)
         scope.launch {
-            val f = withContext(Dispatchers.Default) { ShareCardExport.savePng(ctx, ShareCardRenderer.render(ctx, c, ui.design, ui.format, 1f, ui.tr).bitmap) }
+            val f = withContext(Dispatchers.Default) { ShareCardExport.savePng(ctx, ShareCardRenderer.render(ctx, c, ui.design, ui.format, 1f, ui.tr, ui.style).bitmap) }
             ui = ui.copy(busy = false)
             then(f, c)
         }
@@ -123,6 +142,35 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
         onTranslation = { ui = ui.copy(tr = it) },
         onDesign = { ui = ui.copy(design = it) },
         onFormat = { ui = ui.copy(format = it) },
+        onStep = { delta ->
+            val cur = ShareCardLogic.parseAyahRange(ui.ref)
+            if (cur != null) {
+                val (s, a) = ShareCardLogic.stepAyah(cur.first, cur.second, delta)
+                val span = cur.third - cur.second
+                val (from, to) = ShareCardLogic.clampRange(s, a, a + span)
+                ui = ui.copy(ref = ShareCardLogic.formatAyahRef(s, from, to), custom = "")
+            }
+        },
+        onSurahStep = { delta ->
+            val cur = ShareCardLogic.parseAyahRange(ui.ref) ?: (1 to 1).let { Triple(it.first, it.second, it.second) }
+            val s = (cur.first + delta).coerceIn(1, 114)
+            val a = cur.second.coerceIn(1, ShareCardLogic.ayahCount(s))
+            val (from, to) = ShareCardLogic.clampRange(s, a, a)
+            ui = ui.copy(ref = ShareCardLogic.formatAyahRef(s, from, to), custom = "")
+        },
+        onRangeEnd = { end ->
+            val cur = ShareCardLogic.parseAyahRange(ui.ref)
+            if (cur != null) {
+                val (from, to) = ShareCardLogic.clampRange(cur.first, cur.second, end)
+                ui = ui.copy(ref = ShareCardLogic.formatAyahRef(cur.first, from, to), custom = "")
+            }
+        },
+        onToggleArabic = { ui = ui.copy(showArabic = !ui.showArabic) },
+        onToggleTranslation = { ui = ui.copy(showTranslation = !ui.showTranslation) },
+        onToggleReference = { ui = ui.copy(showReference = !ui.showReference) },
+        onFontScale = { ui = ui.copy(fontScale = it) },
+        onAlign = { ui = ui.copy(align = it) },
+        onColorway = { ui = ui.copy(colorway = it) },
         onFeed = { toComposer(ComposerDestination.FEED) },
         onStory = { ui = ui.copy(format = CardFormat.STORY); toComposer(ComposerDestination.STORY) },
         onExternal = { export { f, c -> runCatching { ctx.startActivity(ShareCardExport.externalIntent(ctx, f, c)) }.onFailure { toast("No app available to share to") } } },
@@ -145,6 +193,58 @@ fun ShareCardsContent(ui: ShareCardsUi, preview: ImageBitmap?, thumbs: Map<CardD
                 tag = "cards_custom", maxLen = 24)
             if (ui.notFound) Text("That reference isn't in the app's bundled text. Check the number.", color = IkAmber, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp).testTag("cards_not_found"))
+            if (ui.kind == CardKind.AYAH) {
+                Spacer(Modifier.height(10.dp))
+                val range = ui.range
+                if (range != null) {
+                    val (surah, start, end) = range
+                    CardStepperRow(
+                        label = ShareCardLogic.surahName(surah) + "  ($surah)",
+                        onPrev = { actions.onSurahStep(-1) },
+                        onNext = { actions.onSurahStep(1) },
+                        prevEnabled = surah > 1,
+                        nextEnabled = surah < 114,
+                        tag = "cards_surah"
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    CardStepperRow(
+                        label = if (end > start) "Ayahs $start–$end" else "Ayah $start",
+                        onPrev = { actions.onStep(-1) },
+                        onNext = { actions.onStep(1) },
+                        prevEnabled = surah > 1 || start > 1,
+                        nextEnabled = surah < 114 || end < ShareCardLogic.ayahCount(surah),
+                        tag = "cards_ayah"
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("Range", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (0 until ShareCardLogic.MAX_AYAH_RANGE).forEach { extra ->
+                            val endAyah = start + extra
+                            val enabled = endAyah <= ShareCardLogic.ayahCount(surah)
+                            IkPill(
+                                if (extra == 0) "1 ayah" else "${extra + 1} ayahs",
+                                selected = enabled && end == endAyah,
+                                tag = "cards_range_${extra + 1}"
+                            ) { if (enabled) actions.onRangeEnd(endAyah) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Show on the card", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IkPill("Arabic", ui.showArabic, tag = "cards_toggle_arabic", onClick = actions.onToggleArabic)
+                    IkPill("Translation", ui.showTranslation, tag = "cards_toggle_translation", onClick = actions.onToggleTranslation)
+                    IkPill("Reference", ui.showReference, tag = "cards_toggle_reference", onClick = actions.onToggleReference)
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IkPill("Text", ui.showTranslation, tag = "cards_toggle_translation", onClick = actions.onToggleTranslation)
+                    IkPill("Reference", ui.showReference, tag = "cards_toggle_reference", onClick = actions.onToggleReference)
+                }
+            }
             Spacer(Modifier.height(12.dp))
             val ratio = ui.format.w.toFloat() / ui.format.h
             Box(Modifier.fillMaxWidth(if (ui.format == CardFormat.STORY) 0.62f else 1f).align(Alignment.CenterHorizontally).aspectRatio(ratio)
@@ -176,6 +276,27 @@ fun ShareCardsContent(ui: ShareCardsUi, preview: ImageBitmap?, thumbs: Map<CardD
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CardFormat.entries.forEach { f -> IkPill(f.label, f == ui.format, icon = if (f == CardFormat.SQUARE) Icons.Outlined.CropSquare else Icons.Outlined.CropPortrait, tag = "cards_format_${f.name}") { actions.onFormat(f) } }
             }
+            IkSection("Text size", Modifier.padding(top = 14.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(0.8f to "Small", 1f to "Medium", 1.2f to "Large", 1.4f to "Extra large").forEach { (scale, label) ->
+                    IkPill(label, kotlin.math.abs(ui.fontScale - scale) < 0.05f, tag = "cards_size_${scale}") { actions.onFontScale(scale) }
+                }
+            }
+            IkSection("Alignment", Modifier.padding(top = 14.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CardAlign.entries.forEach { a ->
+                    IkPill(a.label, a == ui.align, tag = "cards_align_${a.name}") { actions.onAlign(a) }
+                }
+            }
+            IkSection("Colours", Modifier.padding(top = 14.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CardColorway.entries.forEach { c ->
+                    IkPill(c.label, c == ui.colorway, tag = "cards_color_${c.name}") { actions.onColorway(c) }
+                }
+            }
             if (ui.kind == CardKind.AYAH) {
                 IkSection("Translation", Modifier.padding(top = 14.dp))
                 Spacer(Modifier.height(6.dp))
@@ -200,5 +321,28 @@ fun ShareCardsContent(ui: ShareCardsUi, preview: ImageBitmap?, thumbs: Map<CardD
             }
         }
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun CardStepperRow(
+    label: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    prevEnabled: Boolean,
+    nextEnabled: Boolean,
+    tag: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onPrev, enabled = prevEnabled, modifier = Modifier.testTag("${tag}_prev").size(40.dp)) {
+            Icon(Icons.Outlined.ChevronLeft, contentDescription = "Previous", tint = if (prevEnabled) stitchText() else stitchMutedText())
+        }
+        Text(label, color = stitchText(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).testTag(tag), maxLines = 1)
+        IconButton(onClick = onNext, enabled = nextEnabled, modifier = Modifier.testTag("${tag}_next").size(40.dp)) {
+            Icon(Icons.Outlined.ChevronRight, contentDescription = "Next", tint = if (nextEnabled) stitchText() else stitchMutedText())
+        }
     }
 }

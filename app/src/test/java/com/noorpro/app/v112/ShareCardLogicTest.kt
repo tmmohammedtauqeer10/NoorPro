@@ -43,4 +43,32 @@ class ShareCardLogicTest {
         assertEquals("Narrated 'Aisha: Allah's Messenger said, \"Do good deeds\"", ShareCardLogic.tidyHadith("Narrated 'Aisha:Allah's Messenger  said, \"Do good deeds"))
         assertEquals("Ratio 3:2 kept", ShareCardLogic.tidyHadith("Ratio 3:2 kept"))
     }
+
+    @Test fun ayahRangesAndStepping() {
+        assertEquals(Triple(2, 255, 255), ShareCardLogic.parseAyahRange("2:255"))
+        assertEquals(Triple(2, 6, 7), ShareCardLogic.parseAyahRange("2:6-7"))
+        assertEquals(Triple(2, 6, 7), ShareCardLogic.parseAyahRange("2:6–7"))
+        assertEquals(Triple(2, 6, 7), ShareCardLogic.parseAyahRange("2:6-2:7"))
+        assertNull(ShareCardLogic.parseAyahRange("2:6-3:7"))
+        assertEquals(7, ShareCardLogic.MAX_AYAH_RANGE)
+        assertEquals(2 to 8, ShareCardLogic.clampRange(2, 2, 20))
+        assertEquals("2:6–7", ShareCardLogic.formatAyahRef(2, 6, 7))
+        assertEquals("2:6", ShareCardLogic.formatAyahRef(2, 6, 6))
+        assertEquals(2 to 286, ShareCardLogic.stepAyah(3, 1, -1))
+        assertEquals(3 to 1, ShareCardLogic.stepAyah(2, 286, 1))
+        assertEquals(1 to 1, ShareCardLogic.stepAyah(1, 1, -1))
+        assertEquals(114 to 6, ShareCardLogic.stepAyah(114, 6, 1))
+        assertEquals(114, ShareCardLogic.SURAH_NAMES.size)
+        assertEquals("Al-Baqarah", ShareCardLogic.surahName(2))
+        assertEquals(286, ShareCardLogic.ayahCount(2))
+    }
+
+    @Test fun defaultStyleShowsEveryLayer() {
+        val style = CardStyle()
+        assertTrue(style.showArabic && style.showTranslation && style.showReference)
+        assertEquals(1f, style.fontScale, 0.0f)
+        assertEquals(CardAlign.CENTER, style.align)
+        assertEquals(CardColorway.TEMPLATE, style.colorway)
+        assertEquals(7, CardDesign.entries.size)
+    }
 }
