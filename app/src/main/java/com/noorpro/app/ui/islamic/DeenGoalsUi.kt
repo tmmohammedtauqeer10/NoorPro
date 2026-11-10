@@ -13,6 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BarChart
@@ -79,16 +83,34 @@ fun DeenGoalsScreen(viewModel: DeenViewModel) {
     val logs by logsFlow.collectAsState(initial = emptyList())
     var tick by remember { mutableIntStateOf(0) }
     var cfg by remember { mutableStateOf(store.config()) }
-    val days = remember(logs, tick) { store.merged(logs) }
-    val ui = remember(days, cfg) {
-        val streak = DeenGoalsLogic.streak(days, cfg, today)
-        DeenTodayUi(days[today] ?: DeenDay(today), cfg, streak, DeenGoalsLogic.week(days, cfg, today))
+    var viewingDay by rememberSaveable { mutableStateOf(today) }
+    var weekOffset by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        store.migrateSunnahIfNeeded(ctx)
+        cfg = store.config()
+        tick++
     }
-    LaunchedEffect(ui) { store.saveWidget(DeenGoalsLogic.snapshot(ui.today, ui.cfg, ui.streak)) }
+    val days = remember(logs, tick) { store.merged(logs) }
+    val ui = remember(days, cfg, viewingDay, weekOffset) {
+        val streak = DeenGoalsLogic.streak(days, cfg, today)
+        DeenTodayUi(
+            today = days[viewingDay] ?: DeenDay(viewingDay),
+            cfg = cfg,
+            streak = streak,
+            week = DeenGoalsLogic.week(days, cfg, today),
+        )
+    }
+    LaunchedEffect(days, cfg, ui.streak) {
+        val todayDay = days[today] ?: DeenDay(today)
+        store.saveWidget(DeenGoalsLogic.snapshot(todayDay, cfg, ui.streak))
+    }
     var page by rememberSaveable { mutableStateOf("today") }
     var ai by remember { mutableStateOf<DeenAiState>(DeenAiState.Idle) }
     val scope = rememberCoroutineScope()
-    BackHandler(page != "today") { page = "today" }
+    BackHandler(page != "today" || viewingDay != today) {
+        if (page != "today") page = "today" else viewingDay = today
+    }
+    val editDay = viewingDay
     when (page) {
         "week" -> DeenWeekContent(ui.week, ai, onBack = { page = "today" }) {
             ai = DeenAiState.Loading
@@ -98,10 +120,21 @@ fun DeenGoalsScreen(viewModel: DeenViewModel) {
             }
         }
         "settings" -> DeenGoalsSettingsContent(cfg, onBack = { page = "today" }) { c -> store.setConfig(c); cfg = store.config() }
-        else -> DeenTodayContent(ui, onBack = { viewModel.goBack() }, onWeek = { page = "week" }, onSettings = { page = "settings" },
-            onSalah = { i -> viewModel.toggleDailyPrayer(SALAH_NAMES[i]) },
-            onPages = { d -> store.addPages(today, d); tick++ },
-            onToggle = { g -> store.toggle(today, g); tick++ })
+        else -> DeenTodayContent(
+            ui = ui,
+            todayEpoch = today,
+            weekDays = DeenGoalsLogic.calendarWeek(today, weekOffset),
+            allDays = days,
+            onBack = { if (viewingDay != today) viewingDay = today else viewModel.goBack() },
+            onWeek = { page = "week" },
+            onSettings = { page = "settings" },
+            onSalah = { i -> if (editDay == today) viewModel.toggleDailyPrayer(SALAH_NAMES[i]) },
+            onPages = { d -> store.addPages(editDay, d); tick++ },
+            onToggle = { g -> store.toggle(editDay, g); tick++ },
+            onSunnah = { i -> store.toggleSunnah(editDay, i); tick++ },
+            onPickDay = { day -> if (day <= today) viewingDay = day },
+            onWeekOffset = { weekOffset = it },
+        )
     }
 }
 
@@ -114,12 +147,34 @@ private fun CheckDot(done: Boolean, size: Int = 30, partial: Float = 0f) {
 }
 
 @Composable
-fun DeenTodayContent(ui: DeenTodayUi, onBack: () -> Unit, onWeek: () -> Unit, onSettings: () -> Unit,
-                     onSalah: (Int) -> Unit, onPages: (Int) -> Unit, onToggle: (DeenGoal) -> Unit) {
-    val cfg = ui.cfg; val d = ui.today
+fun DeenTodayContent(
+    ui: DeenTodayUi,
+    onBack: () -> Unit,
+    onWeek: () -> Unit,
+    onSettings: () -> Unit,
+    onSalah: (Int) -> Unit,
+    onPages: (Int) -> Unit,
+    onToggle: (DeenGoal) -> Unit,
+    todayEpoch: Long = ui.today.day,
+    weekDays: List<Long> = DeenGoalsLogic.calendarWeek(ui.today.day),
+    allDays: Map<Long, DeenDay> = mapOf(ui.today.day to ui.today),
+    onSunnah: (Int) -> Unit = {},
+    onPickDay: (Long) -> Unit = {},
+    onWeekOffset: (Int) -> Unit = {},
+) {
+    val cfg = ui.cfg
+    val d = ui.today
+    val isToday = d.day == todayEpoch
     val done = DeenGoalsLogic.completed(d, cfg)
+    val todayDay = allDays[todayEpoch] ?: DeenDay(todayEpoch)
+    val todayPct = DeenGoalsLogic.completionPercent(todayDay, cfg)
+    val dateFmt = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)
     Column(Modifier.ikScreen().verticalScroll(rememberScrollState()).testTag("deen_today")) {
-        IkHeader("Daily Deen", LocalDate.ofEpochDay(d.day).format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)), onBack) {
+        IkHeader(
+            "Daily Deen",
+            LocalDate.ofEpochDay(d.day).format(dateFmt),
+            onBack,
+        ) {
             Box(Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onSettings).testTag("deen_settings"), contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.Settings, "Goals", tint = stitchText())
             }
@@ -134,17 +189,40 @@ fun DeenTodayContent(ui: DeenTodayUi, onBack: () -> Unit, onWeek: () -> Unit, on
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("TODAY", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                    Text(if (done == cfg.goals.size && done > 0) "All done — Alhamdulillah" else "Small deeds, done with love",
-                        color = Color.White, fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 19.sp, lineHeight = 23.sp)
+                    Text(if (isToday) "TODAY" else "LOOKING BACK", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                    Text(
+                        if (done == cfg.goals.size && done > 0) "All done — Alhamdulillah"
+                        else if (isToday) "Small deeds, done with love"
+                        else "A day from your journey",
+                        color = Color.White, fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 19.sp, lineHeight = 23.sp,
+                    )
                     Spacer(Modifier.height(6.dp))
-                    Text(DeenGoalsLogic.streakLine(ui.streak, done), color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 16.sp,
+                    Text(DeenGoalsLogic.streakLine(ui.streak, DeenGoalsLogic.completed(todayDay, cfg)), color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.testTag("deen_streak"))
                 }
             }
         }
         Spacer(Modifier.height(10.dp))
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().testTag("deen_stats")) {
+                DeenStatCard(Modifier.weight(1f), Icons.Default.LocalFireDepartment, "${ui.streak}", if (ui.streak == 1) "Day streak" else "Day streak")
+                DeenStatCard(Modifier.weight(1f), Icons.Default.CheckCircle, "$todayPct%", "Today")
+            }
+            DeenWeekCalendar(
+                weekDays = weekDays,
+                allDays = allDays,
+                cfg = cfg,
+                todayEpoch = todayEpoch,
+                selected = d.day,
+                onPickDay = onPickDay,
+                onWeekOffset = onWeekOffset,
+            )
+            if (!isToday) {
+                Text(
+                    "Viewing " + LocalDate.ofEpochDay(d.day).format(dateFmt) + " — tap today to return.",
+                    color = stitchMutedText(), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp).testTag("deen_history_hint"),
+                )
+            }
             cfg.goals.forEach { g ->
                 when (g) {
                     DeenGoal.SALAH -> IkCard(Modifier.testTag("deen_goal_salah")) {
@@ -153,14 +231,40 @@ fun DeenTodayContent(ui: DeenTodayUi, onBack: () -> Unit, onWeek: () -> Unit, on
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             SALAH_NAMES.forEachIndexed { i, n ->
                                 val on = d.salah and (1 shl i) != 0
-                                Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) IkGreen else ikSoft())
-                                    .clickable { onSalah(i) }.padding(vertical = 8.dp).testTag("deen_salah_$i"), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) IkGreen else ikSoft())
+                                        .clickable(enabled = isToday) { onSalah(i) }.padding(vertical = 8.dp).testTag("deen_salah_$i"),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
                                     Icon(if (on) Icons.Default.Check else Icons.Outlined.Favorite, null, tint = if (on) Color.White else ikAccentText().copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
                                     Text(n, color = if (on) Color.White else ikAccentText(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
-                        Text("Synced with your prayer tracker", color = stitchMutedText(), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                        if (cfg.sunnahMode) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Optional sunnah", color = stitchMutedText(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                SALAH_NAMES.forEachIndexed { i, n ->
+                                    val on = DeenGoalsLogic.sunnahOn(d.sunnah, i)
+                                    Column(
+                                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                            .background(if (on) IkGold.copy(alpha = 0.22f) else ikSoft())
+                                            .border(1.dp, if (on) IkGold else stitchLine(), RoundedCornerShape(12.dp))
+                                            .clickable { onSunnah(i) }.padding(vertical = 7.dp).testTag("deen_sunnah_$i"),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(n, color = if (on) ikAccentText() else stitchMutedText(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text(if (on) "Sunnah" else "Add", color = if (on) IkGold else stitchMutedText(), fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                        }
+                        Text(
+                            if (isToday) "Synced with your prayer tracker" else "Prayer ticks stay on the shared tracker",
+                            color = stitchMutedText(), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp),
+                        )
                     }
                     DeenGoal.QURAN -> IkCard(Modifier.testTag("deen_goal_quran")) {
                         GoalTitle(g, "${d.pages} of ${cfg.quranPages} pages", DeenGoalsLogic.complete(g, d, cfg))
@@ -191,22 +295,126 @@ fun DeenTodayContent(ui: DeenTodayUi, onBack: () -> Unit, onWeek: () -> Unit, on
                 }
             }
             if (cfg.goals.isEmpty()) IkNotice("No goals switched on", "Pick the goals that suit you in settings — even one is enough.", tag = "deen_none")
-            IkSection("This week")
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(ikCard()).border(1.dp, stitchLine(), RoundedCornerShape(20.dp))
-                .clickable(onClick = onWeek).padding(14.dp).testTag("deen_week_open"), verticalAlignment = Alignment.Bottom) {
-                ui.week.days.forEachIndexed { i, day ->
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        WeekBar(ui.week.dayScores[i], 46)
-                        Text(LocalDate.ofEpochDay(day).dayOfWeek.name.take(1), color = if (day == d.day) ikAccentText() else stitchMutedText(), fontSize = 11.sp,
-                            fontWeight = if (day == d.day) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.padding(top = 4.dp))
-                    }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(ikCard()).border(1.dp, stitchLine(), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onWeek).padding(14.dp).testTag("deen_week_open"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.BarChart, null, tint = ikAccentText(), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("This week", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(ui.week.headline, color = stitchMutedText(), fontSize = 12.sp, maxLines = 2)
                 }
-                Icon(Icons.Outlined.BarChart, null, tint = ikAccentText(), modifier = Modifier.padding(start = 6.dp).size(20.dp))
             }
-            Text(ui.week.headline, color = stitchMutedText(), fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(horizontal = 4.dp))
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun DeenStatCard(modifier: Modifier, icon: ImageVector, value: String, label: String) {
+    Row(
+        modifier.clip(RoundedCornerShape(20.dp)).background(ikCard()).border(1.dp, stitchLine(), RoundedCornerShape(20.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = IkGold, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(value, color = stitchText(), fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text(label, color = stitchMutedText(), fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun DeenWeekCalendar(
+    weekDays: List<Long>,
+    allDays: Map<Long, DeenDay>,
+    cfg: DeenGoalsConfig,
+    todayEpoch: Long,
+    selected: Long,
+    onPickDay: (Long) -> Unit,
+    onWeekOffset: (Int) -> Unit,
+) {
+    val monthLabel = remember(weekDays) {
+        val first = LocalDate.ofEpochDay(weekDays.first())
+        val last = LocalDate.ofEpochDay(weekDays.last())
+        val fmt = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)
+        if (first.month == last.month) first.format(fmt) else first.format(DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH)) + " – " + last.format(fmt)
+    }
+    IkCard(Modifier.testTag("deen_calendar")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(monthLabel, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Box(Modifier.size(30.dp).clip(CircleShape).clickable { onWeekOffsetWeek(-1, weekDays, todayEpoch, onWeekOffset) }.testTag("deen_cal_prev"), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.ChevronLeft, "Previous week", tint = stitchMutedText(), modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(4.dp))
+            Box(Modifier.size(30.dp).clip(CircleShape).clickable { onWeekOffsetWeek(1, weekDays, todayEpoch, onWeekOffset) }.testTag("deen_cal_next"), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.ChevronRight, "Next week", tint = stitchMutedText(), modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach {
+                Text(it, color = stitchMutedText(), fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth()) {
+            weekDays.forEach { day ->
+                val score = DeenGoalsLogic.score(allDays[day] ?: DeenDay(day), cfg)
+                val isToday = day == todayEpoch
+                val isSelected = day == selected
+                val future = day > todayEpoch
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.size(36.dp).clip(CircleShape)
+                            .background(when {
+                                isSelected && isToday -> IkGreen
+                                isSelected -> IkGold
+                                else -> Color.Transparent
+                            })
+                            .border(
+                                if (isToday && !isSelected) 2.dp else 1.dp,
+                                when {
+                                    isSelected -> Color.Transparent
+                                    isToday -> IkGreen
+                                    score >= 1f -> IkGold
+                                    else -> stitchLine()
+                                },
+                                CircleShape,
+                            )
+                            .clickable(enabled = !future) { onPickDay(day) }
+                            .testTag("deen_cal_$day"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (score > 0f && score < 1f && !isSelected) {
+                            Box(Modifier.size(36.dp).clip(CircleShape).background(IkGreen.copy(alpha = 0.12f + 0.25f * score)))
+                        }
+                        Text(
+                            "${LocalDate.ofEpochDay(day).dayOfMonth}",
+                            color = when {
+                                isSelected -> Color.White
+                                future -> stitchMutedText().copy(alpha = 0.45f)
+                                else -> stitchText()
+                            },
+                            fontSize = 13.sp,
+                            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    }
+                }
+            }
+        }
+        Text("Tap a day to look back.", color = stitchMutedText(), fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+    }
+}
+
+private fun onWeekOffsetWeek(delta: Int, weekDays: List<Long>, todayEpoch: Long, onWeekOffset: (Int) -> Unit) {
+    val todayWeek = DeenGoalsLogic.calendarWeek(todayEpoch)
+    val currentStart = weekDays.firstOrNull() ?: todayWeek.first()
+    val offset = ((currentStart - todayWeek.first()) / 7).toInt() + delta
+    onWeekOffset(offset)
 }
 
 @Composable
@@ -326,6 +534,17 @@ fun DeenGoalsSettingsContent(cfg: DeenGoalsConfig, onBack: () -> Unit, modifier:
                             StepButton(Icons.Default.Add, "deen_target_plus", cfg.quranPages < DeenGoalsLogic.MAX_PAGES_TARGET) { onChange(cfg.copy(quranPages = cfg.quranPages + 1)) }
                         }
                     }
+                }
+            }
+            IkCard(padding = 14.dp, modifier = Modifier.testTag("deen_sunnah_mode")) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Optional sunnah prayers", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Fold sunnah in beside the five daily prayers", color = stitchMutedText(), fontSize = 12.sp)
+                    }
+                    Switch(cfg.sunnahMode, { onChange(cfg.copy(sunnahMode = it)) }, Modifier.testTag("deen_switch_sunnah"),
+                        colors = SwitchDefaults.colors(checkedTrackColor = IkGreen, checkedThumbColor = Color.White,
+                            uncheckedTrackColor = if (isStitchLight()) Color(0xFFE5E7E4) else Color(0xFF2A3430), uncheckedBorderColor = stitchLine()))
                 }
             }
             IkNotice("Gentle by design", "A day counts when you do anything at all, and one quiet day never breaks your streak. Everything stays on this phone.", tag = "deen_gentle")

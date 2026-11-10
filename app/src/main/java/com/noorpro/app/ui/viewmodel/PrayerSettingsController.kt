@@ -89,6 +89,7 @@ class PrayerSettingsController(private val context: Context) {
         prefs.edit().putBoolean("alarm_enabled_$prayerName", enabled).apply()
         CoroutineScope(Dispatchers.IO).launch {
             userPrefsRepo.setAlarmEnabled(prayerName, enabled)
+            com.noorpro.app.prayer.PrayerScheduler.rescheduleAsync(context)
         }
     }
 

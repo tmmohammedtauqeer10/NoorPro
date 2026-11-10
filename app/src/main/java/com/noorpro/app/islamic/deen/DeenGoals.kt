@@ -25,12 +25,12 @@ enum class DeenGoal(val id: String, val title: String, val sub: String) {
 
 val SALAH_NAMES = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
 
-data class DeenGoalsConfig(val enabled: Set<DeenGoal> = DeenGoal.entries.toSet(), val quranPages: Int = 2) {
+data class DeenGoalsConfig(val enabled: Set<DeenGoal> = DeenGoal.entries.toSet(), val quranPages: Int = 2, val sunnahMode: Boolean = false) {
     val goals: List<DeenGoal> get() = DeenGoal.entries.filter { it in enabled }
 }
 
 /** One day. [salah] is a 5-bit mask (Fajr = bit 0). */
-data class DeenDay(val day: Long, val salah: Int = 0, val pages: Int = 0, val done: Set<DeenGoal> = emptySet())
+data class DeenDay(val day: Long, val salah: Int = 0, val pages: Int = 0, val done: Set<DeenGoal> = emptySet(), val sunnah: Int = 0)
 
 data class GoalWeek(val goal: DeenGoal, val days: List<Boolean>) { val count get() = days.count { it } }
 data class DeenWeekSummary(
@@ -113,6 +113,40 @@ object DeenGoalsLogic {
             "hadith such as 'the most beloved deeds to Allah are the most consistent, even if small' (Bukhari, Muslim). No lists, no headings."
     }
 
+    fun sunnahMask(names: Collection<String>): Int =
+        SALAH_NAMES.foldIndexed(0) { i, m, n -> if (names.any { it.equals(n, ignoreCase = true) }) m or (1 shl i) else m }
+    fun sunnahCount(mask: Int) = Integer.bitCount(mask and 0b11111)
+    fun sunnahOn(mask: Int, index: Int) = mask and (1 shl index) != 0
+    fun history(days: Map<Long, DeenDay>, day: Long): DeenDay = days[day] ?: DeenDay(day)
+    fun completionPercent(d: DeenDay, cfg: DeenGoalsConfig): Int =
+        if (cfg.goals.isEmpty()) 0 else ((completed(d, cfg) * 100f) / cfg.goals.size).toInt()
+    /** Sunday-start calendar week containing [anchor] (epoch day). */
+    fun calendarWeek(anchor: Long, weekOffset: Int = 0): List<Long> {
+        val d = java.time.LocalDate.ofEpochDay(anchor).plusWeeks(weekOffset.toLong())
+        val start = d.minusDays(d.dayOfWeek.value % 7L) // Sunday
+        return (0..6).map { start.toEpochDay() + it }
+    }
+    data class LegacySunnah(val mode: Boolean, val byDay: Map<Long, Int>)
+    /** Parse the old Spiritual Progress prefs ("noor_sunnah") so they can be merged once. */
+    fun parseLegacySunnah(mode: Boolean, entries: Map<String, Set<String>>): LegacySunnah {
+        val byDay = entries.mapNotNull { (k, names) ->
+            val key = k.removePrefix("sunnah_")
+            if (key.isEmpty() || key == "mode") null else dayOf(key)?.let { it to sunnahMask(names) }
+        }.toMap()
+        return LegacySunnah(mode, byDay)
+    }
+    fun mergeStored(stored: Map<Long, DeenDay>, prayerLogs: List<PrayerLogEntity>, sunnahByDay: Map<Long, Int> = emptyMap()): Map<Long, DeenDay> {
+        val m = stored.toMutableMap()
+        prayerLogs.forEach { log ->
+            val day = dayOf(log.date) ?: return@forEach
+            m[day] = (m[day] ?: DeenDay(day)).copy(salah = salahMask(log))
+        }
+        sunnahByDay.forEach { (day, mask) ->
+            m[day] = (m[day] ?: DeenDay(day)).copy(sunnah = mask or (m[day]?.sunnah ?: 0))
+        }
+        return m
+    }
+
     fun snapshot(d: DeenDay, cfg: DeenGoalsConfig, streak: Int) =
         DeenWidgetSnapshot(d.day, completed(d, cfg), cfg.goals.size, streak, nextGoal(d, cfg)?.title, salahCount(d.salah), d.pages, cfg.quranPages)
 
@@ -133,11 +167,12 @@ class DeenGoalsStore(context: Context) {
     fun config(): DeenGoalsConfig {
         val ids = prefs.getString("enabled", null)
         val enabled = ids?.split(',')?.mapNotNull { DeenGoal.of(it) }?.toSet() ?: DeenGoal.entries.toSet()
-        return DeenGoalsConfig(enabled, prefs.getInt("pages", 2).coerceIn(DeenGoalsLogic.MIN_PAGES_TARGET, DeenGoalsLogic.MAX_PAGES_TARGET))
+        return DeenGoalsConfig(enabled, prefs.getInt("pages", 2).coerceIn(DeenGoalsLogic.MIN_PAGES_TARGET, DeenGoalsLogic.MAX_PAGES_TARGET), prefs.getBoolean("sunnah_mode", false))
     }
     fun setConfig(c: DeenGoalsConfig) {
         prefs.edit().putString("enabled", c.enabled.joinToString(",") { it.id })
-            .putInt("pages", c.quranPages.coerceIn(DeenGoalsLogic.MIN_PAGES_TARGET, DeenGoalsLogic.MAX_PAGES_TARGET)).apply()
+            .putInt("pages", c.quranPages.coerceIn(DeenGoalsLogic.MIN_PAGES_TARGET, DeenGoalsLogic.MAX_PAGES_TARGET))
+            .putBoolean("sunnah_mode", c.sunnahMode).apply()
     }
 
     /** Non-salah part of each day (salah is merged from the prayer tracker by the caller). */
@@ -147,14 +182,14 @@ class DeenGoalsStore(context: Context) {
             val day = k.toLongOrNull() ?: return@mapNotNull null
             val v = o.optJSONObject(k) ?: return@mapNotNull null
             val arr = v.optJSONArray("done") ?: JSONArray()
-            day to DeenDay(day, 0, v.optInt("pages").coerceAtLeast(0), (0 until arr.length()).mapNotNull { DeenGoal.of(arr.optString(it)) }.toSet())
+            day to DeenDay(day, 0, v.optInt("pages").coerceAtLeast(0), (0 until arr.length()).mapNotNull { DeenGoal.of(arr.optString(it)) }.toSet(), v.optInt("sunnah"))
         }.toMap()
     }
     private fun put(d: DeenDay) {
         val all = days().toMutableMap(); all[d.day] = d
         val o = JSONObject()
         all.values.filter { it.day > d.day - KEEP_DAYS }.forEach { x ->
-            o.put(x.day.toString(), JSONObject().put("pages", x.pages).put("done", JSONArray(x.done.map { it.id })))
+            o.put(x.day.toString(), JSONObject().put("pages", x.pages).put("done", JSONArray(x.done.map { it.id })).put("sunnah", x.sunnah))
         }
         prefs.edit().putString("days", o.toString()).apply()
     }
@@ -169,13 +204,37 @@ class DeenGoalsStore(context: Context) {
     }
 
     /** Merges salah masks from the prayer tracker into the stored days. */
-    fun merged(prayerLogs: List<PrayerLogEntity>): Map<Long, DeenDay> {
-        val m = days().toMutableMap()
-        prayerLogs.forEach { log ->
-            val day = DeenGoalsLogic.dayOf(log.date) ?: return@forEach
-            m[day] = (m[day] ?: DeenDay(day)).copy(salah = DeenGoalsLogic.salahMask(log))
+    fun merged(prayerLogs: List<PrayerLogEntity>): Map<Long, DeenDay> = DeenGoalsLogic.mergeStored(days(), prayerLogs)
+
+    fun toggleSunnah(day: Long, prayerIndex: Int) {
+        if (prayerIndex !in 0..4) return
+        val d = days()[day] ?: DeenDay(day)
+        put(d.copy(sunnah = d.sunnah xor (1 shl prayerIndex)))
+    }
+
+    /** One-time copy of Spiritual Progress sunnah ticks and the Sunnah Mode flag. Leaves the old prefs in place. */
+    fun migrateSunnahIfNeeded(context: Context) {
+        if (prefs.getBoolean(MIGRATED_SUNNAH, false)) return
+        val legacy = context.applicationContext.getSharedPreferences(LEGACY_SUNNAH_PREFS, Context.MODE_PRIVATE)
+        val entries = mutableMapOf<String, Set<String>>()
+        for ((k, v) in legacy.all) {
+            if (k.startsWith("sunnah_") && k != "sunnah_mode") {
+                val names = if (v is Set<*>) v.map { it.toString() }.toSet() else emptySet()
+                entries[k] = names
+            }
         }
-        return m
+        val parsed = DeenGoalsLogic.parseLegacySunnah(legacy.getBoolean("sunnah_mode", false), entries)
+        if (parsed.mode && !config().sunnahMode) setConfig(config().copy(sunnahMode = true))
+        if (parsed.byDay.isNotEmpty()) {
+            val mergedDays = DeenGoalsLogic.mergeStored(days(), emptyList(), parsed.byDay)
+            val horizon = (mergedDays.keys.maxOrNull() ?: 0) - KEEP_DAYS
+            val o = JSONObject()
+            mergedDays.values.filter { it.day > horizon }.forEach { x ->
+                o.put(x.day.toString(), JSONObject().put("pages", x.pages).put("done", JSONArray(x.done.map { it.id })).put("sunnah", x.sunnah))
+            }
+            prefs.edit().putString("days", o.toString()).apply()
+        }
+        prefs.edit().putBoolean(MIGRATED_SUNNAH, true).apply()
     }
 
     fun saveWidget(s: DeenWidgetSnapshot) { widget.edit().putString("snapshot", DeenGoalsLogic.snapshotJson(s)).apply() }
@@ -185,5 +244,7 @@ class DeenGoalsStore(context: Context) {
         const val KEEP_DAYS = 120
         /** Read by a home-screen widget: a JSON [DeenWidgetSnapshot] under key "snapshot". */
         const val WIDGET_PREFS = "deen_goals_widget"
+        const val LEGACY_SUNNAH_PREFS = "noor_sunnah"
+        const val MIGRATED_SUNNAH = "sunnah_migrated_v1"
     }
 }

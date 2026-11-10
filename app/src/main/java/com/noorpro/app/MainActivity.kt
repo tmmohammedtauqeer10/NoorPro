@@ -97,6 +97,7 @@ import com.noorpro.app.ui.theme.GlassOverlay
 import com.noorpro.app.ui.theme.GlassBorder
 import com.noorpro.app.ui.theme.LightGold
 import com.noorpro.app.ui.viewmodel.DeenScreen
+import com.noorpro.app.ui.viewmodel.canonical
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
 import com.noorpro.app.ui.theme.LocalAppStrings
@@ -127,7 +128,7 @@ class MainActivity : ComponentActivity() {
         i.getBooleanExtra("OPEN_QURAN", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.QURAN
         i.getBooleanExtra("OPEN_ISLAMIC_CALENDAR", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.ISLAMIC_CALENDAR
         // 1.1.6: local reminders (dua requests, halaqa, challenges, routines) name their screen directly.
-        i.getStringExtra("OPEN_SCREEN") != null -> runCatching { com.noorpro.app.ui.viewmodel.DeenScreen.valueOf(i.getStringExtra("OPEN_SCREEN")!!) }.getOrNull()
+        i.getStringExtra("OPEN_SCREEN") != null -> runCatching { com.noorpro.app.ui.viewmodel.DeenScreen.valueOf(i.getStringExtra("OPEN_SCREEN")!!).canonical() }.getOrNull()
         includePrayer && i.getBooleanExtra("OPEN_PRAYER", false) -> com.noorpro.app.ui.viewmodel.DeenScreen.PRAYER_TIMES
         else -> null
     }
@@ -447,7 +448,7 @@ fun MainLayout() {
                 DeenScreen.UMMAH_MESSAGES -> com.noorpro.app.ui.screens.StitchMessagesScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_CONSTITUTION -> com.noorpro.app.ui.screens.StitchAppConstitutionScreen(viewModel = viewModel)
                 DeenScreen.UMMAH_CHAT -> com.noorpro.app.ui.screens.StitchChatScreen(viewModel = viewModel)
-                DeenScreen.SPIRITUAL_PROGRESS -> com.noorpro.app.ui.screens.StitchSpiritualProgressScreen(viewModel = viewModel)
+                DeenScreen.SPIRITUAL_PROGRESS, DeenScreen.DEEN_GOALS -> com.noorpro.app.ui.islamic.DeenGoalsScreen(viewModel)
                 DeenScreen.ASMA_UL_HUSNA -> com.noorpro.app.ui.screens.AsmaUlHusnaScreen(viewModel = viewModel)
                 DeenScreen.ZAKAT -> com.noorpro.app.ui.screens.ZakatCalculatorScreen(viewModel = viewModel)
                 DeenScreen.HEALTH_WELLNESS -> com.noorpro.app.ui.screens.HealthWellnessScreen(viewModel = viewModel)
@@ -470,8 +471,7 @@ fun MainLayout() {
                 DeenScreen.HIFZ_COACH -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH)) com.noorpro.app.ui.islamic.HifzCoachScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.MASJID_PAGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) com.noorpro.app.ui.islamic.MasjidPagesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
-                DeenScreen.DEEN_GOALS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DEEN_GOALS)) com.noorpro.app.ui.islamic.DeenGoalsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
-                // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md)
+                                // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md)
                 DeenScreen.UMMAH_DUA_REQUESTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS)) com.noorpro.app.ui.islamic.DuaRequestsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_HALAQA -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS)) com.noorpro.app.ui.islamic.HalaqaScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_CHALLENGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CHALLENGES)) com.noorpro.app.ui.islamic.ChallengesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }

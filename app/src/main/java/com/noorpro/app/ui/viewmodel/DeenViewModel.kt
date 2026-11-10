@@ -126,6 +126,10 @@ enum class DeenScreen {
 
 }
 
+/** Spiritual Progress is folded into Daily Deen; old names and deep links still resolve. */
+fun DeenScreen.canonical(): DeenScreen =
+    if (this == DeenScreen.SPIRITUAL_PROGRESS) DeenScreen.DEEN_GOALS else this
+
 /** One track in a curated audio playlist queue — a full surah, or a single ayah (ayah != null). */
 data class AudioQueueItem(val surahId: Int, val ayah: Int?, val title: String, val arabic: String)
 
@@ -2604,6 +2608,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     fun navigateTo(screen: DeenScreen) {
+        val screen = screen.canonical()
         val current = _currentScreen.value
         if (screen == current) return
         if (screen == DeenScreen.DASHBOARD || screen == DeenScreen.LOGIN || screen in tabRoots) {

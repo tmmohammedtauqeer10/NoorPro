@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -80,22 +81,15 @@ fun PrayerTimesScreen(
             // 1. Header: avatar + Al-Noor + bell
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().testTag("prayer_times_header")
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(StitchEmerald)
-                        .clickable { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.PROFILE_DASHBOARD) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                IconButton(onClick = { viewModel.goBack() }, modifier = Modifier.testTag("prayer_times_back")) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchPrimary())
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text("Al-Noor", color = stitchPrimary(), fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = stitchPrimary(), modifier = Modifier.size(26.dp))
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -180,25 +174,25 @@ fun PrayerTimesScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(prayers) { index, prayer ->
+                        val prayed = when (prayer.name) {
+                            "Fajr" -> todayPrayerLog?.fajr == true
+                            "Dhuhr" -> todayPrayerLog?.dhuhr == true
+                            "Asr" -> todayPrayerLog?.asr == true
+                            "Maghrib" -> todayPrayerLog?.maghrib == true
+                            "Isha" -> todayPrayerLog?.isha == true
+                            else -> false
+                        }
                         PrayerTimesRowItem(
                             prayer = prayer,
                             displayTime = viewModel.displayPrayerTime(prayer.time),
-                            isActive = prayer.name == nextPrayerName,
+                            isNext = prayer.name == nextPrayerName,
+                            isCurrent = index == activeIndex && !prayer.name.equals("Sunrise", ignoreCase = true),
                             isPassed = index < nextIndex,
-                            onNotifyToggle = { viewModel.toggleNotification(prayer.name) }
+                            prayed = prayed,
+                            onTogglePrayed = { viewModel.toggleDailyPrayer(prayer.name) },
+                            onNotifyToggle = { viewModel.toggleNotification(prayer.name) },
                         )
                     }
-
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader(title = "Weekly Prayer Tracker")
-
-                    WeeklyStreakCalendar(
-                        weeklyLogs = weeklyLogs,
-                        currentStreak = currentStreak
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
             }
         }
         }
@@ -209,12 +203,16 @@ fun PrayerTimesScreen(
 fun PrayerTimesRowItem(
     prayer: PrayerTime,
     displayTime: String,
-    isActive: Boolean,
+    isNext: Boolean,
+    isCurrent: Boolean,
     isPassed: Boolean,
+    prayed: Boolean,
+    onTogglePrayed: () -> Unit,
     onNotifyToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSunrise = prayer.name.equals("Sunrise", ignoreCase = true)
+    val isActive = isNext
     val nameColor = when {
         isActive -> Color.White
         isPassed || isSunrise -> stitchMutedText()
@@ -232,7 +230,7 @@ fun PrayerTimesRowItem(
         label = "prayerGlyphBg",
     )
     val glyphBorder by animateColorAsState(
-        targetValue = if (isActive) StitchEmerald else stitchLine(),
+        targetValue = if (isActive) StitchEmerald else if (isCurrent) MatteGold else stitchLine(),
         animationSpec = tween(380),
         label = "prayerGlyphBorder",
     )
@@ -242,7 +240,7 @@ fun PrayerTimesRowItem(
         label = "prayerCardBg",
     )
     val highlightSlide by animateDpAsState(
-        targetValue = if (isActive) 6.dp else 0.dp,
+        targetValue = if (isActive || isCurrent) 6.dp else 0.dp,
         animationSpec = tween(380),
         label = "prayerHighlightSlide",
     )
@@ -300,8 +298,9 @@ fun PrayerTimesRowItem(
                 .clip(RoundedCornerShape(18.dp))
                 .background(cardBg)
                 .then(
-                    if (!isActive) Modifier.border(1.dp, if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.outlineVariant else StitchLine, RoundedCornerShape(18.dp))
-                    else Modifier
+                    if (isActive) Modifier
+                    else if (isCurrent) Modifier.border(1.5.dp, MatteGold, RoundedCornerShape(18.dp))
+                    else Modifier.border(1.dp, if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.outlineVariant else StitchLine, RoundedCornerShape(18.dp))
                 )
         ) {
             Row(
@@ -311,14 +310,26 @@ fun PrayerTimesRowItem(
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 16.dp)
             ) {
-                Column {
-                    Text(
-                        text = prayer.name,
-                        fontFamily = LibreCaslon,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = nameColor
-                    )
+                Column(modifier = Modifier.weight(1f).clickable(onClick = onTogglePrayed)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = prayer.name,
+                            fontFamily = LibreCaslon,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = nameColor
+                        )
+                        if (isCurrent || isNext) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isNext) "Next" else "Now",
+                                color = if (isActive) Color.White.copy(alpha = 0.9f) else stitchPrimary(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = displayTime,
@@ -332,10 +343,25 @@ fun PrayerTimesRowItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
-                    // Alarm Toggle Switch button icon
+                    IconButton(
+                        onClick = onTogglePrayed,
+                        modifier = Modifier.size(36.dp).testTag("prayer_mark_${prayer.name}")
+                    ) {
+                        Icon(
+                            imageVector = if (prayed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = if (prayed) "Marked as prayed" else "Mark as prayed",
+                            tint = when {
+                                isActive && prayed -> Color.White
+                                isActive -> Color.White.copy(alpha = 0.8f)
+                                prayed -> stitchPrimary()
+                                else -> stitchMutedText()
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     IconButton(
                         onClick = onNotifyToggle,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(36.dp).testTag("prayer_notify_${prayer.name}")
                     ) {
                         Icon(
                             imageVector = if (prayer.isNotificationEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,

@@ -229,7 +229,7 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
                 }
                 item(key = "hero") {
                     HomePrayerHero(prayers, nextPrayerName, nextPrayerCountdown, location, hasLocation, hijriAdjustment,
-                        viewModel::displayPrayerTime, requestLocation)
+                        viewModel::displayPrayerTime, requestLocation, onOpen = { viewModel.navigateTo(DeenScreen.PRAYER_TIMES) })
                 }
                 item(key = "essentials") {
                     Column {
@@ -254,7 +254,7 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
                 }
                 item(key = "devotion") {
                     HomeDevotionCard(prayersCompleted(todayLog), lastReadSurah.nameEnglish, streak) {
-                        viewModel.navigateTo(DeenScreen.SPIRITUAL_PROGRESS)
+                        viewModel.navigateTo(DeenScreen.DEEN_GOALS)
                     }
                 }
                 item(key = "reflection") {
@@ -323,7 +323,7 @@ private fun HomeBellButton(unread: Boolean, onClick: () -> Unit) {
 @Composable
 private fun HomePrayerHero(
     prayers: List<PrayerTime>, nextPrayerName: String, countdown: String, location: String, hasLocation: Boolean,
-    hijriAdjustment: Int, displayTime: (String) -> String, onLocationClick: () -> Unit
+    hijriAdjustment: Int, displayTime: (String) -> String, onLocationClick: () -> Unit, onOpen: () -> Unit,
 ) {
     val current = prayers.firstOrNull { it.name == nextPrayerName } ?: prayers.firstOrNull()
     val time = current?.let { displayTime(it.time) } ?: "--:--"
@@ -331,7 +331,8 @@ private fun HomePrayerHero(
     val clock = parts.getOrElse(0) { time }
     val meridiem = parts.getOrElse(1) { "" }
     Box(
-        Modifier.fillMaxWidth().height(206.dp).clip(RoundedCornerShape(26.dp)).background(StitchEmeraldDeep).testTag("home_hero")
+        Modifier.fillMaxWidth().height(206.dp).clip(RoundedCornerShape(26.dp)).background(StitchEmeraldDeep)
+            .clickable(onClick = onOpen).testTag("home_hero")
     ) {
         Image(painterResource(R.drawable.noor_home_hero_mosque), null, contentScale = ContentScale.Crop,
             alignment = Alignment.CenterStart, modifier = Modifier.fillMaxSize())

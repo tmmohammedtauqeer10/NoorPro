@@ -750,14 +750,15 @@ private fun StitchHomeHeroArt() {
 /** Format an "HH:MM:SS" / "MM:SS" countdown string into a friendly "in 2h 5m" / "in 45 mins". */
 internal fun friendlyCountdown(countdown: String): String {
     val parts = countdown.split(":").mapNotNull { it.filter(Char::isDigit).toIntOrNull() }
-    val (h, m) = when (parts.size) {
-        3 -> parts[0] to parts[1]
-        2 -> 0 to parts[0]
+    val (h, m, s) = when (parts.size) {
+        3 -> Triple(parts[0], parts[1], parts[2])
+        2 -> Triple(0, parts[0], 0)
         else -> return "soon"
     }
     return when {
         h > 0 -> "in ${h}h ${m}m"
-        m > 0 -> "in $m mins"
+        m > 0 -> "in ${m}m ${s}s"
+        s > 0 -> "in ${s}s"
         else -> "now"
     }
 }
@@ -12592,130 +12593,7 @@ private fun StitchMessageMediaRow(
 
 @Composable
 fun StitchSpiritualProgressScreen(viewModel: DeenViewModel) {
-    val context = LocalContext.current
-    val prayers by viewModel.prayers.collectAsState()
-    val todayLog by viewModel.todayPrayerLog.collectAsState()
-    val weeklyLogs by viewModel.weeklyPrayerLogs.collectAsState()
-    val streak by viewModel.currentStreak.collectAsState()
-
-    val prayerNames = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
-    fun fardDone(name: String) = when (name) {
-        "Fajr" -> todayLog?.fajr == true
-        "Dhuhr" -> todayLog?.dhuhr == true
-        "Asr" -> todayLog?.asr == true
-        "Maghrib" -> todayLog?.maghrib == true
-        "Isha" -> todayLog?.isha == true
-        else -> false
-    }
-    val timeFor = remember(prayers) { prayers.associate { it.name to it.time } }
-
-    // Sunnah completion is stored locally (SharedPreferences)     Fard uses the real Room tracker.
-    val prefs = remember { context.getSharedPreferences("noor_sunnah", android.content.Context.MODE_PRIVATE) }
-    val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
-    var sunnahMode by remember { mutableStateOf(prefs.getBoolean("sunnah_mode", false)) }
-    var sunnahToday by remember { mutableStateOf(prefs.getStringSet("sunnah_$todayStr", emptySet()).orEmpty().toSet()) }
-    fun toggleSunnah(name: String) {
-        val next = sunnahToday.toMutableSet().apply { if (contains(name)) remove(name) else add(name) }
-        sunnahToday = next
-        prefs.edit().putStringSet("sunnah_$todayStr", next).apply()
-    }
-
-    val weekDates = remember { currentWeekDates() }
-    // "Completion" reflects today's five fard prayers.
-    val todayDone = listOf(
-        todayLog?.fajr == true, todayLog?.dhuhr == true, todayLog?.asr == true,
-        todayLog?.maghrib == true, todayLog?.isha == true
-    ).count { it }
-    val completionPct = todayDone * 100 / 5
-    // Weekly yield is out of the full week (5 fard prayers x 7 days).
-    val weeklyPossible = 35
-    val fardWeek = weeklyLogs.sumOf { listOf(it.fajr, it.dhuhr, it.asr, it.maghrib, it.isha).count { d -> d } }
-        .coerceAtMost(weeklyPossible)
-    val sunnahWeek = weekDates.sumOf { d -> prefs.getStringSet("sunnah_$d", emptySet()).orEmpty().size }
-        .coerceAtMost(weeklyPossible)
-    val fardFrac = (fardWeek.toFloat() / weeklyPossible).coerceIn(0f, 1f)
-    val sunnahFrac = (sunnahWeek.toFloat() / weeklyPossible).coerceIn(0f, 1f)
-    val avgScore = if (sunnahMode) (((fardFrac + sunnahFrac) / 2f) * 100).toInt() else (fardFrac * 100).toInt()
-
-    val bestPrayer = remember(weeklyLogs) {
-        mapOf(
-            "Fajr" to weeklyLogs.count { it.fajr },
-            "Dhuhr" to weeklyLogs.count { it.dhuhr },
-            "Asr" to weeklyLogs.count { it.asr },
-            "Maghrib" to weeklyLogs.count { it.maghrib },
-            "Isha" to weeklyLogs.count { it.isha }
-        ).maxByOrNull { it.value }?.key ?: "Fajr"
-    }
-
-    StitchScreen {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.statusBarsPadding().fillMaxWidth()) {
-                    IconButton(onClick = { viewModel.goBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchText())
-                    }
-                    Text("Al-Noor", color = stitchText(), fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = stitchText(), modifier = Modifier.size(24.dp))
-                }
-            }
-            item {
-                Column {
-                    Text("Spiritual Progress", color = stitchText(), fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = com.noorpro.app.ui.theme.LibreCaslon)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "May your devotion bring you peace. Here is your journey through the sacred times of prayer.",
-                        color = stitchMutedText(), fontSize = 14.sp, lineHeight = 20.sp
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                    SpiritualStatCard(Modifier.weight(1f), Icons.Default.LocalFireDepartment, StitchGold, "$streak Days", "Current Streak")
-                    SpiritualStatCard(Modifier.weight(1f), Icons.Default.CheckCircle, StitchEmerald, "$completionPct%", "Completion")
-                }
-            }
-            item { SpiritualCalendar() }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Daily Checklist", color = stitchText(), fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text("Sunnah Mode", color = stitchMutedText(), fontSize = 13.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Switch(
-                        checked = sunnahMode,
-                        onCheckedChange = { sunnahMode = it; prefs.edit().putBoolean("sunnah_mode", it).apply() }
-                    )
-                }
-            }
-            items(prayerNames) { name ->
-                SpiritualPrayerRow(
-                    name = name,
-                    time = formatPrayerClock(timeFor[name].orEmpty()),
-                    fardDone = fardDone(name),
-                    sunnahMode = sunnahMode,
-                    sunnahDone = name in sunnahToday,
-                    onFard = { viewModel.toggleDailyPrayer(name) },
-                    onSunnah = { toggleSunnah(name) }
-                )
-            }
-            item {
-                SpiritualWeeklyYield(
-                    fardFrac = fardFrac,
-                    sunnahFrac = sunnahFrac,
-                    avgScore = avgScore,
-                    fardLabel = "$fardWeek/$weeklyPossible",
-                    sunnahLabel = "$sunnahWeek/$weeklyPossible",
-                    sunnahMode = sunnahMode,
-                    bestPrayer = bestPrayer
-                )
-            }
-        }
-    }
+    com.noorpro.app.ui.islamic.DeenGoalsScreen(viewModel)
 }
 
 @Composable
