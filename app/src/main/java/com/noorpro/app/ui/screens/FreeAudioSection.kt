@@ -43,7 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.noorpro.app.audio.AlNoorAudioSession
+import com.noorpro.app.audio.catalog.FollowAlong
 import com.noorpro.app.audio.catalog.FreeAudioCatalog
+import com.noorpro.app.audio.models.LicenseType
 import com.noorpro.app.audio.models.Track
 import com.noorpro.app.audio.session.AlNoorSessionRouter
 import com.noorpro.app.data.QuranMetaData
@@ -58,6 +60,87 @@ import com.noorpro.app.ui.theme.LibreCaslon
 
 /** Test hook: lets Robolectric previews render without starting ExoPlayer. */
 internal object FreeAudioPreview { var disablePlayer = false }
+
+
+private const val HUSARY_PREFIX = "https://everyayah.com/data/Husary_128kbps/"
+private const val HUSARY_NAME = "Mahmoud Khaleel Al-Husary"
+
+internal fun materializeSpans(spans: List<FollowAlong.Span>, originals: List<Track>): List<Track> {
+    val byId = originals.associateBy { it.id }
+    return spans.map { sp ->
+        val hit = byId[sp.id]
+        if (hit != null) hit.copy(
+            surah = sp.surah, startAyah = sp.start, endAyah = sp.end,
+            ayahKind = sp.kind.name.lowercase(),
+            highlightMode = if (sp.highlight == FollowAlong.Highlight.GROUP) "group" else "ayah",
+        ) else {
+            val tmpl = originals.firstOrNull()
+            Track(
+                id = sp.id,
+                title = if (sp.title.isNotBlank()) sp.title else "Ayah ${sp.start}",
+                artistId = "everyayah",
+                artistName = sp.artist.ifBlank { HUSARY_NAME },
+                audioUrl = sp.url,
+                durationMs = 0L,
+                license = LicenseType.SOURCE_TERMS,
+                attributionText = "${HUSARY_NAME} · EveryAyah.com",
+                sourceUrl = "https://everyayah.com/",
+                licenseUrl = "https://everyayah.com/",
+                language = "ar",
+                surah = sp.surah,
+                startAyah = sp.start,
+                endAyah = sp.end,
+                ayahKind = "arabic",
+                highlightMode = "ayah",
+                translationKey = tmpl?.translationKey,
+                translationLabel = tmpl?.translationLabel,
+            )
+        }
+    }
+}
+
+internal fun playTarjuma(ctx: android.content.Context, edition: FreeAudioCatalog.Edition, surah: Int, fromAyah: Int) {
+    val tracks = edition.surahTracks(surah)
+    val nextS = surah + 1
+    val hasNext = nextS <= 114 && edition.verseByVerse
+    val nextTracks = if (hasNext) edition.surahTracks(nextS) else emptyList()
+    val count = FreeAudioCatalog.AYAH_COUNTS.getOrElse(surah - 1) { 0 }
+    val nextCount = if (hasNext) FreeAudioCatalog.AYAH_COUNTS.getOrElse(nextS - 1) { 0 } else 0
+    val spans = FollowAlong.tarjumaQueue(
+        surah = surah, ayahCount = count, verseByVerse = edition.verseByVerse, fromAyah = fromAyah,
+        tarjumaId = { a -> if (edition.verseByVerse) "free-${edition.key}-$surah-$a" else "free-${edition.key}-$surah" },
+        tarjumaUrl = { a ->
+            val id = if (edition.verseByVerse) "free-${edition.key}-$surah-$a" else "free-${edition.key}-$surah"
+            (tracks + nextTracks).firstOrNull { it.id == id }?.audioUrl.orEmpty()
+        },
+        arabicPrefix = HUSARY_PREFIX, reciterName = HUSARY_NAME, editionTitle = edition.title,
+        plusNextSurah = hasNext, nextSurah = if (hasNext) nextS else null, nextAyahCount = nextCount,
+        nextTarjumaId = if (hasNext) ({ a: Int -> "free-${edition.key}-$nextS-$a" }) else null,
+        nextTarjumaUrl = if (hasNext) ({ a: Int -> nextTracks.firstOrNull { it.id == "free-${edition.key}-$nextS-$a" }?.audioUrl.orEmpty() }) else null,
+    )
+    val q = materializeSpans(spans, tracks + nextTracks)
+    val start = q.firstOrNull { tr -> (tr.startAyah ?: 0) >= fromAyah && tr.surah == surah } ?: q.firstOrNull() ?: return
+    playFree(ctx, start, q)
+}
+
+internal fun playTafsir(ctx: android.content.Context, scholar: FreeAudioCatalog.Scholar, group: FreeAudioCatalog.Group, startTrack: Track) {
+    val all = scholar.surahs.flatMap { it.tracks }
+    // Prefer clips from this surah onward so the queue continues into later parts / next surah groups.
+    val startIdx = all.indexOfFirst { it.id == startTrack.id }.coerceAtLeast(0)
+    val rest = all.drop(startIdx)
+    val clips = rest.mapNotNull { tr ->
+        val s = tr.surah ?: return@mapNotNull null
+        val a = tr.startAyah ?: return@mapNotNull null
+        val b = tr.endAyah ?: a
+        FollowAlong.TafsirClip(tr.id, s, a, b, tr.audioUrl, tr.title, tr.artistName)
+    }
+    if (clips.isEmpty()) { playFree(ctx, startTrack, all); return }
+    val spans = FollowAlong.tafsirQueue(clips, 0, HUSARY_PREFIX, HUSARY_NAME)
+    val q = materializeSpans(spans, rest)
+    val start = q.firstOrNull { it.surah == startTrack.surah && (it.startAyah ?: 0) == (startTrack.startAyah ?: 0) && it.ayahKind == "arabic" }
+        ?: q.firstOrNull() ?: startTrack
+    playFree(ctx, start, q)
+}
 
 internal fun playFree(ctx: android.content.Context, track: Track, queue: List<Track>) {
     if (FreeAudioPreview.disablePlayer) return
@@ -237,7 +320,7 @@ private fun TarjumaList(ctx: android.content.Context) {
         val n = if (showAll) 114 else 10
         (1..n).forEach { s ->
             Row(Modifier.fillMaxWidth().clickable {
-                val tr = ed.surahTracks(s); tr.firstOrNull()?.let { playFree(ctx, it, tr) }
+                playTarjuma(ctx, ed, s, 1)
             }.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("$s", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
                 Column(Modifier.weight(1f)) {
@@ -267,8 +350,8 @@ private fun TafsirList(ctx: android.content.Context) {
     Text("${sc.language} · ${sc.surahs.sumOf { it.tracks.size }} parts across ${sc.surahs.size} surah(s)", color = stitchMutedText(), fontSize = 12.sp)
     sc.surahs.forEach { g ->
         GroupCard(g.title, g.subtitle, open == g.title, { open = if (open == g.title) "" else g.title },
-            { g.tracks.firstOrNull()?.let { playFree(ctx, it, g.tracks) } }) {
-            g.tracks.forEachIndexed { i, t -> TrackRow(i + 1, t) { playFree(ctx, t, g.tracks) } }
+            { g.tracks.firstOrNull()?.let { playTafsir(ctx, sc, g, it) } }) {
+            g.tracks.forEachIndexed { i, t -> TrackRow(i + 1, t) { playTafsir(ctx, sc, g, t) } }
         }
     }
 }

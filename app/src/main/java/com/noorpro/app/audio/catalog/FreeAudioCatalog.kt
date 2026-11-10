@@ -34,14 +34,26 @@ object FreeAudioCatalog {
         val source: AudioSource,
         private val urlFor: (surah: Int, globalAyah: Int) -> String,
     ) {
-        fun surahTracks(surah: Int): List<Track> {
+fun surahTracks(surah: Int): List<Track> {
             val name = QuranMetaData.surahNamesEn.getOrElse(surah - 1) { "Surah $surah" }
+            val count = AYAH_COUNTS[surah - 1]
+            val (trKey, trLabel) = FollowAlong.translationKeyFor(language, key)
             if (!verseByVerse) return listOf(
-                track("$key-$surah", "$surah. $name", title, urlFor(surah, 0), source, language),
+                track(
+                    "$key-$surah", "$surah. $name", title, urlFor(surah, 0), source, language,
+                    surah = surah, startAyah = 1, endAyah = count,
+                    ayahKind = "tarjuma", highlightMode = "group",
+                    translationKey = trKey, translationLabel = trLabel,
+                ),
             )
             val first = AYAH_COUNTS.take(surah - 1).sum()
-            return (1..AYAH_COUNTS[surah - 1]).map { a ->
-                track("$key-$surah-$a", "$name · Ayah $a", title, urlFor(surah, first + a), source, language)
+            return (1..count).map { a ->
+                track(
+                    "$key-$surah-$a", "$name · Ayah $a", title, urlFor(surah, first + a), source, language,
+                    surah = surah, startAyah = a, endAyah = a,
+                    ayahKind = "tarjuma", highlightMode = "ayah",
+                    translationKey = trKey, translationLabel = trLabel,
+                )
             }
         }
     }
@@ -77,10 +89,17 @@ object FreeAudioCatalog {
 
     val sources = listOf(hisn, quranicDuas, islamicNetwork, wahid)
 
-    private fun track(id: String, title: String, artist: String, url: String, src: AudioSource, lang: String?, durMs: Long = 0L) = Track(
+    private fun track(
+        id: String, title: String, artist: String, url: String, src: AudioSource, lang: String?, durMs: Long = 0L,
+        surah: Int? = null, startAyah: Int? = null, endAyah: Int? = null,
+        ayahKind: String? = null, highlightMode: String? = null,
+        translationKey: String? = null, translationLabel: String? = null,
+    ) = Track(
         id = "free-$id", title = title, artistId = src.key, artistName = artist, audioUrl = url, durationMs = durMs,
         license = src.license, attributionText = "${src.by} · ${src.licenseLabel}", sourceUrl = src.sourceUrl,
         licenseUrl = src.licenseUrl, language = lang,
+        surah = surah, startAyah = startAyah, endAyah = endAyah, ayahKind = ayahKind, highlightMode = highlightMode,
+        translationKey = translationKey, translationLabel = translationLabel,
     )
 
     private fun cdnSurah(edition: String) = { s: Int, _: Int -> "https://cdn.islamic.network/quran/audio-surah/128/$edition/$s.mp3" }
@@ -148,15 +167,26 @@ object FreeAudioCatalog {
         fun build(tag: String, src: AudioSource, lang: String): List<Group> = r.filter { it[0] == tag }
             .groupBy { it[1].toInt() }.toSortedMap().map { (s, parts) ->
                 val name = QuranMetaData.surahNamesEn.getOrElse(s - 1) { "Surah $s" }
+                val count = AYAH_COUNTS.getOrElse(s - 1) { 0 }
                 val sorted = parts.sortedBy { it[3].toIntOrNull() ?: 0 }
+                val (trKey, trLabel) = FollowAlong.translationKeyFor(if (lang.startsWith("en")) "English" else lang, src.key)
                 Group("$s. $name", "${sorted.size} parts", sorted.mapIndexed { i, it ->
-                    track("tafsir-$tag-$s-$i", "$name · ${it[2]}", src.by, it[4], src, lang, it[5].toLongOrNull() ?: 0L)
+                    val start = it[3].toIntOrNull() ?: 1
+                    val nextStart = sorted.getOrNull(i + 1)?.getOrNull(3)?.toIntOrNull()
+                    val end = FollowAlong.endAyah(it[2], start, nextStart, count.coerceAtLeast(start))
+                    track(
+                        "tafsir-$tag-$s-$i", "$name · ${it[2]}", src.by, it[4], src, lang, it[5].toLongOrNull() ?: 0L,
+                        surah = s, startAyah = start, endAyah = end,
+                        ayahKind = "tafsir", highlightMode = "group",
+                        translationKey = trKey, translationLabel = trLabel,
+                    )
                 })
             }
         return listOf(
             Scholar("Maulana Wahiduddin Khan", "English", wahid, build("W", wahid, "en")),
         )
     }
+
 
     val AYAH_COUNTS = intArrayOf(
         7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98, 135,

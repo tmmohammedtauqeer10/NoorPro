@@ -29,8 +29,10 @@ object CoverArt {
 
     /** Category label shown above the title, from the track id/tags. */
     fun kicker(t: Track): String = when {
-        t.id.startsWith("dua-") -> "DUA"
-        t.id.startsWith("tafsir-") -> "TAFSIR"
+        t.ayahKind == "tafsir" || t.id.contains("tafsir") -> "TAFSIR"
+        t.ayahKind == "tarjuma" -> "TARJUMA"
+        t.ayahKind == "arabic" -> "QURAN"
+        t.id.startsWith("dua-") || t.id.startsWith("free-dua-") -> "DUA"
         t.id.startsWith("maf-") -> "NASHEED"
         t.id.startsWith("pod-") -> "PODCAST"
         t.language?.startsWith("ur") == true -> "URDU"
@@ -44,7 +46,7 @@ object CoverArt {
 
     fun fileFor(ctx: Context, title: String, kicker: String, seed: String): File {
         val dir = File(ctx.cacheDir, "covers").apply { mkdirs() }
-        val f = File(dir, "c_${(title + kicker + seed).hashCode().toUInt()}.png")
+        val f = File(dir, "c3_${(title + kicker + seed).hashCode().toUInt()}.png")
         if (!f.exists() || f.length() == 0L) f.outputStream().use { render(title, kicker, tintFor(seed)).compress(Bitmap.CompressFormat.PNG, 100, it) }
         return f
     }
@@ -52,22 +54,49 @@ object CoverArt {
     fun render(title: String, kicker: String, tint: Int, size: Int = 512): Bitmap {
         val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
-        val dark = blend(tint, 0xFF000000.toInt(), 0.55f); val light = blend(tint, 0xFFFFFFFF.toInt(), 0.18f)
-        c.drawPaint(Paint().apply { shader = LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), light, dark, Shader.TileMode.CLAMP) })
-        val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = size / 220f; color = 0x2EFFFFFF }
-        val step = size / 4f
-        var y = 0f
-        while (y <= size + step) { var x = 0f; while (x <= size + step) { c.drawPath(star(x, y, step * 0.42f), line); x += step }; y += step }
-        c.drawCircle(size * 0.82f, size * 0.18f, size * 0.32f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF })
-        val pad = size * 0.08f
-        val kp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE9C46A.toInt(); textSize = size * 0.055f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.18f }
-        val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); textSize = size * 0.105f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
-        val sl = StaticLayout.Builder.obtain(title, 0, title.length, tp, (size - pad * 2).toInt()).setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setMaxLines(3).setEllipsize(android.text.TextUtils.TruncateAt.END).setLineSpacing(0f, 1.0f).build()
-        val top = size - pad - sl.height
-        c.drawText(kicker, pad, top - size * 0.035f, kp)
-        c.save(); c.translate(pad, top); sl.draw(c); c.restore()
-        c.drawRect(pad, size - pad * 0.6f, pad + size * 0.12f, size - pad * 0.6f + size / 110f, Paint().apply { color = 0xFFE9C46A.toInt() })
+        val cream = 0xFFF6EFE3.toInt()
+        val emerald = 0xFF0F5D46.toInt()
+        val deep = blend(emerald, 0xFF000000.toInt(), 0.25f)
+        val gold = 0xFFC9A24A.toInt()
+        val ink = 0xFF14352C.toInt()
+        c.drawColor(cream)
+        c.drawRect(0f, 0f, size.toFloat(), size * 0.42f,
+            Paint().apply { shader = LinearGradient(0f, 0f, 0f, size * 0.42f, deep, cream, Shader.TileMode.CLAMP) })
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeWidth = size / 90f; color = gold; strokeCap = Paint.Cap.ROUND
+        }
+        val inset = size * 0.12f
+        val arch = Path().apply {
+            moveTo(inset, size * 0.55f)
+            lineTo(inset, size * 0.36f)
+            cubicTo(inset, size * 0.16f, size - inset, size * 0.16f, size - inset, size * 0.36f)
+            lineTo(size - inset, size * 0.55f)
+        }
+        c.drawPath(arch, stroke)
+        c.drawLine(inset, size * 0.55f, size - inset, size * 0.55f, stroke)
+        // modest corner ornaments — not a repeating pattern
+        val orn = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = size / 180f; color = gold }
+        fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+            c.drawLine(x, y, x + dx * size * 0.08f, y, orn)
+            c.drawLine(x, y, x, y + dy * size * 0.08f, orn)
+            c.drawCircle(x + dx * size * 0.03f, y + dy * size * 0.03f, size * 0.012f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = gold })
+        }
+        val m = size * 0.06f
+        corner(m, m, 1f, 1f); corner(size - m, m, -1f, 1f)
+        corner(m, size - m, 1f, -1f); corner(size - m, size - m, -1f, -1f)
+        val pad = size * 0.12f
+        val kp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = gold; textSize = size * 0.05f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.16f; textAlign = Paint.Align.CENTER
+        }
+        val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ink; textSize = size * 0.085f; typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        }
+        c.drawText(kicker, size / 2f, size * 0.68f, kp)
+        val sl = StaticLayout.Builder.obtain(title, 0, title.length, tp, (size - pad * 2).toInt())
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .setMaxLines(3).setEllipsize(android.text.TextUtils.TruncateAt.END).setLineSpacing(0f, 1.05f).build()
+        c.save(); c.translate(pad, size * 0.71f); sl.draw(c); c.restore()
+        c.drawRect(size * 0.42f, size * 0.93f, size * 0.58f, size * 0.93f + size / 140f, Paint().apply { color = gold })
         return b
     }
 

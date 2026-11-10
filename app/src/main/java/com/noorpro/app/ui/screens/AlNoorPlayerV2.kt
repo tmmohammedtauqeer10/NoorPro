@@ -53,6 +53,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.noorpro.app.audio.catalog.FollowAlong
+import com.noorpro.app.audio.models.Track
+import com.noorpro.app.data.OfflineQuranAssets
+import com.noorpro.app.data.QuranMetaData
 import com.noorpro.app.audio.AlNoorAudioSession
 import com.noorpro.app.audio.models.QueueState
 import com.noorpro.app.audio.models.PlaybackState
@@ -65,12 +69,27 @@ import com.noorpro.app.ui.viewmodel.DeenViewModel
 import kotlinx.coroutines.launch
 
 /** Snapshot of whichever player (Quran VM or free Al-Noor player) is active. Stateless for previews. */
+data class FollowLine(val ayah: Int, val arabic: String, val translation: String)
+
+data class FollowState(
+    val surah: Int,
+    val surahName: String,
+    val start: Int,
+    val end: Int,
+    val group: Boolean,
+    val kindLabel: String,
+    val translationLabel: String?,
+    val note: String?,
+    val lines: List<FollowLine>,
+)
+
 data class NpState(
     val title: String, val subtitle: String, val surah: Surah?, val coverUrl: String?, val tint: Color,
     val playing: Boolean, val progress: Float, val pos: String, val dur: String,
     val shuffle: Boolean, val repeat: Boolean, val lyrics: List<Pair<String, String>>, val activeLine: Int,
     val playingFrom: String, val isFree: Boolean, val attribution: String? = null, val speed: Float = 1f,
     val sleepOn: Boolean = false, val liked: Boolean = false,
+    val follow: FollowState? = null,
 )
 
 class NpActions(
@@ -78,9 +97,68 @@ class NpActions(
     val shuffle: () -> Unit = {}, val repeat: () -> Unit = {}, val like: () -> Unit = {}, val share: () -> Unit = {},
     val queue: () -> Unit = {}, val sleep: (Int?) -> Unit = {}, val speed: (Float) -> Unit = {}, val close: () -> Unit = {},
     val seekBack: () -> Unit = {}, val seekForward: () -> Unit = {},
+    val nextAyah: () -> Unit = {}, val prevAyah: () -> Unit = {}, val jumpAyah: (Int) -> Unit = {},
 )
 
 private fun msFmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "${s / 60}:${(s % 60).toString().padStart(2, '0')}" }
+
+
+private fun Track.toSpan(): FollowAlong.Span? {
+    val s = surah ?: return null
+    val a = startAyah ?: return null
+    val b = endAyah ?: a
+    val kind = when (ayahKind) {
+        "arabic" -> FollowAlong.Kind.ARABIC
+        "tafsir" -> FollowAlong.Kind.TAFSIR
+        "tarjuma" -> FollowAlong.Kind.TARJUMA
+        else -> return null
+    }
+    val hi = if (highlightMode == "group" || a != b) FollowAlong.Highlight.GROUP else FollowAlong.Highlight.PER_AYAH
+    return FollowAlong.Span(s, a, b, kind, hi, id = id, url = audioUrl, title = title, artist = artistName)
+}
+
+private fun followFor(ctx: android.content.Context, t: Track): FollowState? {
+    val s = t.surah ?: return null
+    val start = t.startAyah ?: return null
+    val end = (t.endAyah ?: start).coerceAtLeast(start)
+    val core = OfflineQuranAssets.loadCore(ctx)
+    val name = QuranMetaData.surahNamesEn.getOrElse(s - 1) { core.surahNames.getOrNull(s - 1)?.first ?: "Surah $s" }
+    val count = com.noorpro.app.audio.catalog.FreeAudioCatalog.AYAH_COUNTS.getOrElse(s - 1) { end }
+    val key = t.translationKey ?: "en.sahih"
+    val label = t.translationLabel
+    val byAyah = core.ayahs.filter { it.surah == s }.associateBy { it.ayah }
+    val lines = (1..count).map { a ->
+        val row = byAyah[a]
+        FollowLine(
+            ayah = a,
+            arabic = row?.arabic.orEmpty(),
+            translation = OfflineQuranAssets.bundledTranslation(ctx, key, s, a)?.trim().orEmpty().ifBlank { row?.english.orEmpty() },
+        )
+    }
+    val group = t.highlightMode == "group" || start != end
+    val kindLabel = when (t.ayahKind) {
+        "arabic" -> "Arabic recitation"
+        "tafsir" -> "Tafsir"
+        "tarjuma" -> "Tarjuma"
+        else -> "Al-Noor Audio"
+    }
+    val note = when {
+        t.ayahKind == "tafsir" && group ->
+            "Commentary audio covers verses $start–$end together (no per-ayah timing on this recording). The English below is the bundled ${label ?: "translation"}, not a written transcript of this commentary."
+        t.ayahKind == "tarjuma" && group ->
+            "This edition is a full-surah recording with no per-ayah timing, so the whole surah is highlighted together."
+        t.ayahKind == "arabic" ->
+            "Arabic recitation. Translation or tafsir audio for this ayah follows when the source has it."
+        else -> null
+    }
+    return FollowState(s, name, start, end, group, kindLabel, label, note, lines)
+}
+
+private fun playSpanAt(player: com.noorpro.app.audio.player.AlNoorPlayer, queue: List<Track>, index: Int) {
+    val i = index.coerceIn(0, (queue.size - 1).coerceAtLeast(0))
+    queue.getOrNull(i)?.let { player.playTrack(it, queue) }
+}
+
 
 @Composable
 internal fun rememberNpState(vm: DeenViewModel): Pair<NpState?, NpActions> {
@@ -113,14 +191,34 @@ internal fun rememberNpState(vm: DeenViewModel): Pair<NpState?, NpActions> {
     }
     if (useFree && ft != null) {
         val p = AlNoorAudioSession.player
+        val follow = followFor(ctx, ft)
+        val from = when (ft.ayahKind) {
+            "tafsir" -> "TAFSIR"
+            "tarjuma" -> "TARJUMA"
+            "arabic" -> "QURAN"
+            else -> if (ft.id.startsWith("pod-")) "PODCAST" else "AL-NOOR AUDIO"
+        }
         val st = NpState(ft.title, ft.artistName, null, ft.coverUrl, coverColor(ft.title.hashCode()), fp.isPlaying,
             if (fp.durationMs > 0) fp.positionMs.toFloat() / fp.durationMs else 0f, msFmt(fp.positionMs), msFmt(fp.durationMs),
             fq.shuffle, fq.repeatMode != RepeatMode.OFF, emptyList(), -1,
-            if (ft.id.startsWith("pod-")) "PODCAST" else "AL-NOOR AUDIO", true, ft.attributionText.ifBlank { null }, speed = fp.speed)
+            from, true, ft.attributionText.ifBlank { null }, speed = fp.speed, follow = follow)
+        val spans = fq.tracks.mapNotNull { it.toSpan() }
+        fun jump(index: Int) { playSpanAt(p, fq.tracks, index) }
         return st to NpActions(toggle = { p.togglePlayPause() }, next = { p.skipNext() }, prev = { p.skipPrevious() },
             seek = { f -> p.seekTo((f * fp.durationMs).toLong()) }, shuffle = { p.toggleShuffle() }, repeat = { p.cycleRepeatMode() },
-            share = { share(ft.title + " — " + ft.artistName + "\n" + ft.sourceUrl) }, speed = { p.setPlaybackSpeed(it) },
-            close = { p.clearQueue() }, seekBack = { p.seekTo(fp.positionMs - 10_000L) }, seekForward = { p.seekTo(fp.positionMs + 10_000L) })
+            share = { share(ft.title + " - " + ft.artistName + " | " + ft.sourceUrl) }, speed = { p.setPlaybackSpeed(it) },
+            close = { p.clearQueue() }, seekBack = { p.seekTo(fp.positionMs - 10_000L) }, seekForward = { p.seekTo(fp.positionMs + 10_000L) },
+            nextAyah = {
+                val i = fq.tracks.indexOfFirst { it.id == ft.id }.coerceAtLeast(0)
+                if (spans.size == fq.tracks.size) jump(FollowAlong.stepAyah(spans, i, +1)) else p.skipNext()
+            },
+            prevAyah = {
+                val i = fq.tracks.indexOfFirst { it.id == ft.id }.coerceAtLeast(0)
+                if (spans.size == fq.tracks.size) jump(FollowAlong.stepAyah(spans, i, -1)) else p.skipPrevious()
+            },
+            jumpAyah = { ayah ->
+                if (spans.size == fq.tracks.size) FollowAlong.indexForAyah(spans, ft.surah ?: 0, ayah)?.let { jump(it) }
+            })
     }
     if (surah == null && track == null) return null to NpActions()
     val s = surah
@@ -175,7 +273,7 @@ internal fun NpFull(t: SpTheme, s: NpState, a: NpActions, artModifier: Modifier,
     var dragY by remember { mutableStateOf(0f) }
     Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, lerp(top, base, 0.6f), base)))
         .pointerInput(Unit) { detectVerticalDragGestures(onDragEnd = { if (dragY > 220f) onCollapse(); dragY = 0f }) { _, dy -> dragY += dy } }
-        .statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp)) {
+        .statusBarsPadding().navigationBarsPadding().padding(horizontal = 22.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onCollapse) { Icon(Icons.Default.KeyboardArrowDown, "Collapse", tint = Color.White, modifier = Modifier.size(32.dp)) }
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -193,6 +291,65 @@ internal fun NpFull(t: SpTheme, s: NpState, a: NpActions, artModifier: Modifier,
                 }
             }
         }
+        if (s.follow != null) {
+            val f = s.follow
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                NpArt(s, artModifier.size(88.dp), 8)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(f.kindLabel, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+                    Text(s.title, color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(s.subtitle, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                val sc by animateFloatAsState(if (s.liked) 1.15f else 1f, spring(dampingRatio = 0.4f), label = "lk")
+                IconButton(onClick = a.like) { Icon(if (s.liked) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder, "Like",
+                    tint = if (s.liked) t.accent else Color.White, modifier = Modifier.size(26.dp).graphicsLayer { scaleX = sc; scaleY = sc }) }
+            }
+            Slider(s.progress.coerceIn(0f, 1f), a.seek, colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.25f)))
+            Row { Text(s.pos, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp); Spacer(Modifier.weight(1f)); Text(s.dur, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = a.prev) { Icon(Icons.Default.SkipPrevious, "Previous track", tint = Color.White, modifier = Modifier.size(30.dp)) }
+                IconButton(onClick = a.seekBack) { Icon(Icons.Default.Replay10, "Back 10 seconds", tint = Color.White, modifier = Modifier.size(28.dp)) }
+                Box(Modifier.size(64.dp).clip(CircleShape).background(Color.White).clickable(onClick = a.toggle), contentAlignment = Alignment.Center) {
+                    AnimatedContent(s.playing, label = "pp") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause", tint = Color.Black, modifier = Modifier.size(36.dp)) }
+                }
+                IconButton(onClick = a.seekForward) { Icon(Icons.Default.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(28.dp)) }
+                IconButton(onClick = a.next) { Icon(Icons.Default.SkipNext, "Next track", tint = Color.White, modifier = Modifier.size(30.dp)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = a.prevAyah) { Text("Previous ayah", color = Color.White) }
+                TextButton(onClick = a.nextAyah) { Text("Next ayah", color = Color.White) }
+                IconButton(onClick = a.shuffle) { Icon(Icons.Default.Shuffle, "Shuffle", tint = if (s.shuffle) t.accent else Color.White) }
+                IconButton(onClick = a.repeat) { Icon(Icons.Default.Repeat, "Repeat", tint = if (s.repeat) t.accent else Color.White) }
+                IconButton(onClick = a.queue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue", tint = Color.White) }
+            }
+            if (!f.note.isNullOrBlank()) {
+                Text(f.note, color = Color.White.copy(alpha = 0.72f), fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            val listState = rememberLazyListState()
+            LaunchedEffect(f.surah, f.start) { listState.animateScrollToItem((f.start - 1).coerceAtLeast(0)) }
+            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(f.lines, key = { _, line -> line.ayah }) { _, line ->
+                    val on = line.ayah in f.start..f.end
+                    val bg = if (on) Color.White.copy(alpha = 0.14f) else Color.Transparent
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(bg)
+                            .clickable { a.jumpAyah(line.ayah) }.padding(12.dp)
+                    ) {
+                        Text("${f.surahName}  ${line.ayah}", color = if (on) t.accent else Color.White.copy(alpha = 0.55f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        if (line.arabic.isNotBlank()) {
+                            Text(line.arabic, color = Color.White, fontFamily = QuranArabicFont, fontSize = 22.sp, textAlign = TextAlign.End,
+                                style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                        }
+                        if (line.translation.isNotBlank()) {
+                            Text(line.translation, color = Color.White.copy(alpha = if (on) 0.92f else 0.62f), fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
         Spacer(Modifier.height(28.dp))
         NpArt(s, artModifier.fillMaxWidth().aspectRatio(1f), 10)
         Spacer(Modifier.height(28.dp))
@@ -241,6 +398,8 @@ internal fun NpFull(t: SpTheme, s: NpState, a: NpActions, artModifier: Modifier,
         Spacer(Modifier.height(12.dp))
         NpLyricsCard(s)
         Spacer(Modifier.height(32.dp))
+            }
+        }
     }
 }
 
@@ -365,6 +524,6 @@ fun AlNoorNowPlayingScreen(vm: DeenViewModel) {
         }
         return
     }
-    NpFull(t, s, NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close, a.seekBack, a.seekForward), Modifier, back)
+    NpFull(t, s, NpActions(a.toggle, a.next, a.prev, a.seek, a.shuffle, a.repeat, a.like, a.share, { queue = true }, a.sleep, a.speed, a.close, a.seekBack, a.seekForward, a.nextAyah, a.prevAyah, a.jumpAyah), Modifier, back)
     if (queue) NpQueueSheet(t, vm, s.isFree) { queue = false }
 }
