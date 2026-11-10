@@ -109,7 +109,7 @@ private val exploreTools = listOf(
     ExploreTool("Ummah", "Approved Islamic reels, images, and reminders", "Daily Life", Icons.Default.Public, DeenScreen.UMMAH),
     ExploreTool("Knowledge Quiz", "Test and strengthen Islamic knowledge", "Learning", Icons.Default.Star, DeenScreen.QUIZ_DASHBOARD),
     ExploreTool("99 Names of Allah", "Read and reflect on Asma ul Husna", "Daily Life", Icons.Default.Favorite, DeenScreen.ASMA_UL_HUSNA),
-    ExploreTool("Hijri Calendar", "View Islamic dates and important events", "Daily Life", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
+    ExploreTool("Calendar", "Hijri and Gregorian dates, Islamic and Sufi events", "Daily Life", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
     ExploreTool("Zakat Calculator", "Calculate using current prices you provide", "Daily Life", Icons.Default.Calculate, DeenScreen.ZAKAT),
     ExploreTool("Health & Wellness", "Fasting, hydration, sleep, and Sunnah foods", "Daily Life", Icons.Default.HealthAndSafety, DeenScreen.HEALTH_WELLNESS),
     ExploreTool("Settings", "Prayer methods, appearance, and app preferences", "Personal", Icons.Default.Settings, DeenScreen.SETTINGS)

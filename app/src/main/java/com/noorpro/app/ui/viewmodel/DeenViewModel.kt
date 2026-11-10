@@ -126,9 +126,12 @@ enum class DeenScreen {
 
 }
 
-/** Spiritual Progress is folded into Daily Deen; old names and deep links still resolve. */
-fun DeenScreen.canonical(): DeenScreen =
-    if (this == DeenScreen.SPIRITUAL_PROGRESS) DeenScreen.DEEN_GOALS else this
+/** Older screen names keep resolving after the Daily Deen and Calendar merges. */
+fun DeenScreen.canonical(): DeenScreen = when (this) {
+    DeenScreen.SPIRITUAL_PROGRESS -> DeenScreen.DEEN_GOALS
+    DeenScreen.ISLAMIC_CALENDAR -> DeenScreen.CALENDAR
+    else -> this
+}
 
 /** One track in a curated audio playlist queue — a full surah, or a single ayah (ayah != null). */
 data class AudioQueueItem(val surahId: Int, val ayah: Int?, val title: String, val arabic: String)

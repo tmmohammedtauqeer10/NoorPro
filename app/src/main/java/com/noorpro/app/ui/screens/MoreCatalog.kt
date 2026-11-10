@@ -88,7 +88,7 @@ val moreCatalog: List<MoreCategory> = listOf(
     )),
     MoreCategory("Tools", Icons.Default.Construction, listOf(
         MoreItem("Zakat", "calculator", Icons.Default.Calculate, DeenScreen.ZAKAT),
-        MoreItem("Calendar", "hijri islamic dates events ramadan eid ashura reminders", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
+        MoreItem("Calendar", "hijri islamic dates events ramadan eid ashura reminders sufi tasawwuf urs gyarhween milad", Icons.Default.CalendarMonth, DeenScreen.CALENDAR),
         MoreItem("Health", "fasting wellness", Icons.Default.HealthAndSafety, DeenScreen.HEALTH_WELLNESS),
         MoreItem("Daily Deen", "spiritual progress streak deenpoints goals daily deen my progress", Icons.Default.AutoGraph, DeenScreen.DEEN_GOALS),
         MoreItem("Library", "books hadith islamic library", Icons.Default.LocalLibrary, DeenScreen.LIBRARY_DASHBOARD),

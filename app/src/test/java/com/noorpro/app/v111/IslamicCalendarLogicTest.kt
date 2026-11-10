@@ -27,17 +27,21 @@ class IslamicCalendarLogicTest {
         assertFalse(IslamicFlags.isOn(IslamicFlags.GROUP_KHATM))
     }
 
-    @Test fun moreCatalogHidesFlaggedItemsUntilOn() {
-        val item = com.noorpro.app.ui.screens.moreCatalog.flatMap { it.items }.first { it.flag == IslamicFlags.CALENDAR }
-        assertFalse(item.visible)
-        Reels2Flags.override = mapOf(IslamicFlags.CALENDAR to true)
+    @Test fun moreCatalogShowsMergedCalendarWithoutFlag() {
+        val item = com.noorpro.app.ui.screens.moreCatalog.flatMap { it.items }.first { it.screen == com.noorpro.app.ui.viewmodel.DeenScreen.CALENDAR }
+        assertNull(item.flag)
+        assertTrue(item.visible)
+        Reels2Flags.override = mapOf(IslamicFlags.CALENDAR to false)
         assertTrue(item.visible)
     }
 
     @Test fun catalogHasAllKeyEvents() {
         val ids = IslamicEventCatalog.events.map { it.id }.toSet()
-        listOf("new_year", "ashura", "milad", "meraj", "barat", "ramadan", "qadr21", "qadr23", "qadr25", "qadr27", "qadr29", "eid_fitr", "arafah", "eid_adha")
+        listOf("new_year", "ashura", "milad", "meraj", "barat", "ramadan", "qadr21", "qadr23", "qadr25", "qadr27", "qadr29", "eid_fitr", "arafah", "eid_adha",
+            "gyarhween", "urs_jilani", "urs_chishti", "urs_nizamuddin", "urs_hujwiri", "urs_naqshband", "urs_raza", "urs_farid", "urs_kaki")
             .forEach { assertTrue(it, it in ids) }
+        assertEquals(4, IslamicEventCatalog.byId("urs_nizamuddin")!!.month)
+        assertEquals(EventCategory.SUFI, IslamicEventCatalog.byId("gyarhween")!!.category)
         assertEquals(10, IslamicEventCatalog.byId("ashura")!!.day)
         assertEquals(1 to 10, IslamicEventCatalog.byId("eid_fitr")!!.let { it.month to it.day }.let { it.second to it.first })
         assertTrue(IslamicEventCatalog.events.all { it.acts.isNotEmpty() && it.summary.isNotBlank() })
@@ -73,7 +77,10 @@ class IslamicCalendarLogicTest {
         val list = IslamicCalendarLogic.upcoming(cal, epochDayOf(2026, 10, 28))
         assertEquals(list.sortedBy { it.epochDay }, list)
         assertTrue(IslamicEventCatalog.events.all { e -> list.any { it.event.id == e.id } })
-        list.forEach { assertEquals(it.event.month, it.hijri.month); assertEquals(it.event.day, it.hijri.day) }
+        list.forEach {
+            assertTrue(it.event.id, it.event.covers(it.hijri.month, it.hijri.day))
+            if (!it.event.recurringMonthly && it.hijri.day == it.event.day) assertEquals(it.event.month, it.hijri.month)
+        }
         val qadr27 = list.first { it.event.id == "qadr27" }
         assertEquals(qadr27.epochDay - 1, qadr27.observeEpochDay)
     }
@@ -91,7 +98,7 @@ class IslamicCalendarLogicTest {
         val ram = IslamicCalendarLogic.nextOf(cal, "ramadan", ed)!!
         val rm = IslamicCalendarLogic.monthGrid(cal, ram.epochDay)
         assertEquals(9, rm.month)
-        assertEquals(listOf(1, 21, 23, 25, 27, 29), rm.cells.filterNotNull().filter { it.events.isNotEmpty() }.map { it.hijriDay })
+        assertEquals(listOf(1, 11, 21, 23, 25, 27, 29), rm.cells.filterNotNull().filter { it.events.isNotEmpty() }.map { it.hijriDay })
         // Month navigation round-trips.
         val next = IslamicCalendarLogic.shiftMonth(cal, ed, 1)
         assertEquals(m.startEpochDay, IslamicCalendarLogic.shiftMonth(cal, next, -1))

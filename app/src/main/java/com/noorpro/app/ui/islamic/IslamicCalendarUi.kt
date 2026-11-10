@@ -44,8 +44,9 @@ import com.noorpro.app.ui.theme.LibreCaslon
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 
 /*
- * 1.1.6 Islamic events calendar (Remote Config islamic_calendar_enabled, default OFF).
- * Fully offline: Umm al-Qura via LocalHijri + the existing Hijri adjustment; local reminders.
+ * Merged Calendar: Hijri + Gregorian month grid, Islamic and Sufi/Tasawwuf events,
+ * local reminders, and the user's existing Hijri adjustment. Old Hijri / Islamic Calendar
+ * routes all open this screen.
  */
 
 data class CalendarUi(
@@ -55,7 +56,10 @@ data class CalendarUi(
     val upcoming: List<EventOccurrence>,
     val adjustment: Int,
     val reminders: Set<String>,
+    val categories: Set<EventCategory> = EventCategory.entries.toSet(),
 )
+
+data class DayEventsUi(val hijri: HijriDate, val epochDay: Long, val events: List<EventOccurrence>)
 
 class CalendarActions(
     val onBack: () -> Unit = {},
@@ -63,14 +67,23 @@ class CalendarActions(
     val onAdjust: (Int) -> Unit = {},
     val onOpen: (EventOccurrence) -> Unit = {},
     val onReminder: (String, Boolean) -> Unit = { _, _ -> },
+    val onDay: (DayEventsUi) -> Unit = {},
+    val onCategories: (Set<EventCategory>) -> Unit = {},
 )
 
-fun buildCalendarUi(conv: HijriConverter, adjustment: Int, todayEpochDay: Long, monthOffset: Int, reminders: Set<String>): CalendarUi {
+fun buildCalendarUi(
+    conv: HijriConverter,
+    adjustment: Int,
+    todayEpochDay: Long,
+    monthOffset: Int,
+    reminders: Set<String>,
+    categories: Set<EventCategory> = EventCategory.entries.toSet(),
+): CalendarUi {
     val cal = AdjustedHijri(conv, adjustment)
     val monthStart = IslamicCalendarLogic.shiftMonth(cal, todayEpochDay, monthOffset)
     return CalendarUi(
-        todayEpochDay, cal.hijri(todayEpochDay), IslamicCalendarLogic.monthGrid(cal, monthStart),
-        IslamicCalendarLogic.upcoming(cal, todayEpochDay, 370), cal.adjustment, reminders,
+        todayEpochDay, cal.hijri(todayEpochDay), IslamicCalendarLogic.monthGrid(cal, monthStart, categories),
+        IslamicCalendarLogic.upcoming(cal, todayEpochDay, 370, categories), cal.adjustment, reminders, categories,
     )
 }
 
@@ -80,29 +93,44 @@ fun IslamicCalendarScreen(viewModel: DeenViewModel) {
     val adjustment by viewModel.hijriAdjustment.collectAsState()
     val store = remember { EventReminderStore(ctx) }
     var reminders by remember { mutableStateOf(store.enabled()) }
+    var categories by remember { mutableStateOf(store.categories()) }
     var offset by remember { mutableIntStateOf(0) }
     var open by remember { mutableStateOf<EventOccurrence?>(null) }
+    var dayOpen by remember { mutableStateOf<DayEventsUi?>(null) }
     val today = remember { IslamicCalendarLogic.todayEpochDay() }
-    val ui = remember(adjustment, offset, reminders) { buildCalendarUi(HijriConverter.UmmAlQura, adjustment, today, offset, reminders) }
+    val ui = remember(adjustment, offset, reminders, categories) {
+        buildCalendarUi(HijriConverter.UmmAlQura, adjustment, today, offset, reminders, categories)
+    }
     LaunchedEffect(adjustment, reminders) { runCatching { EventReminderScheduler.sync(ctx, adjustment) } }
     val actions = CalendarActions(
         onBack = { viewModel.goBack() },
         onMonth = { offset += it },
         onAdjust = { viewModel.updateHijriAdjustment(it) },
-        onOpen = { open = it },
+        onOpen = { dayOpen = null; open = it },
         onReminder = { id, on -> reminders = store.set(id, on) },
+        onDay = { dayOpen = it },
+        onCategories = { categories = store.setCategories(it) },
     )
     val sel = open
-    if (sel != null) {
-        BackHandler { open = null }
-        IslamicEventDetail(sel, ui.todayEpochDay, sel.event.id in reminders, onBack = { open = null }, onReminder = { actions.onReminder(sel.event.id, it) })
-    } else IslamicCalendarContent(ui, actions)
+    val day = dayOpen
+    when {
+        sel != null -> {
+            BackHandler { open = null }
+            IslamicEventDetail(sel, ui.todayEpochDay, sel.event.id in reminders, onBack = { open = null }, onReminder = { actions.onReminder(sel.event.id, it) })
+        }
+        day != null -> {
+            BackHandler { dayOpen = null }
+            DayEventsSheet(day, ui.todayEpochDay, ui.reminders, onBack = { dayOpen = null }, onOpen = actions.onOpen, onReminder = actions.onReminder)
+        }
+        else -> IslamicCalendarContent(ui, actions)
+    }
 }
 
 @Composable
 fun IslamicCalendarContent(ui: CalendarUi, a: CalendarActions, modifier: Modifier = Modifier) {
     LazyColumn(modifier.ikScreen().testTag("islamic_calendar"), contentPadding = PaddingValues(bottom = 40.dp)) {
-        item { IkHeader("Islamic Calendar", IslamicCalendarLogic.gregorianLabel(ui.todayEpochDay), a.onBack) }
+        item { IkHeader("Calendar", IslamicCalendarLogic.gregorianLabel(ui.todayEpochDay), a.onBack) }
+        item { CategoryChips(ui.categories, a.onCategories, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
         item { TodayHero(ui, Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
         item { MonthCard(ui, a, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
         item { AdjustCard(ui.adjustment, a.onAdjust, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
@@ -126,7 +154,7 @@ private fun TodayHero(ui: CalendarUi, modifier: Modifier) {
                 Text("TODAY", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Spacer(Modifier.height(4.dp))
                 Text("${ui.today.day} ${ui.today.monthName}", color = IkCream, fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 32.sp)
-                Text("${ui.today.year} AH", color = IkCream.copy(alpha = 0.8f), fontSize = 13.sp)
+                Text("${ui.today.year} AH · ${IslamicCalendarLogic.gregorianLabel(ui.todayEpochDay)}", color = IkCream.copy(alpha = 0.8f), fontSize = 13.sp)
             }
             Text(HIJRI_MONTHS_AR[ui.today.month - 1], color = IkGold, fontFamily = QuranArabicFont, fontSize = 24.sp, modifier = Modifier.padding(top = 6.dp))
         }
@@ -173,7 +201,12 @@ private fun MonthCard(ui: CalendarUi, a: CalendarActions, modifier: Modifier) {
         Spacer(Modifier.height(6.dp))
         m.cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                week.forEach { c -> DayCell(c, ui.todayEpochDay, Modifier.weight(1f)) { c?.let { cell -> cell.events.firstOrNull()?.let { e -> a.onOpen(EventOccurrence(e, cell.epochDay, HijriDate(m.year, m.month, cell.hijriDay))) } } } }
+                week.forEach { c -> DayCell(c, ui.todayEpochDay, Modifier.weight(1f)) {
+                    c?.let { cell ->
+                        val h = HijriDate(m.year, m.month, cell.hijriDay)
+                        a.onDay(DayEventsUi(h, cell.epochDay, cell.events.map { EventOccurrence(it, cell.epochDay, h) }))
+                    }
+                } }
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
             }
         }
@@ -201,7 +234,7 @@ private fun DayCell(c: HijriCell?, today: Long, modifier: Modifier, onClick: () 
         val hasEvent = c.events.isNotEmpty()
         val bg = when { isToday -> IkGreen; hasEvent -> IkGold.copy(alpha = if (isStitchLight()) 0.16f else 0.20f); else -> Color.Transparent }
         Column(
-            Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(bg).clickable(enabled = hasEvent, onClick = onClick)
+            Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(bg).clickable(onClick = onClick)
                 .testTag(if (isToday) "cal_cell_today" else "cal_cell_${c.hijriDay}"),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
@@ -251,7 +284,13 @@ private fun EventRow(o: EventOccurrence, today: Long, reminder: Boolean, onOpen:
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(o.event.name, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (o.event.nightBefore) "From Maghrib, " + IslamicCalendarLogic.gregorianLabel(o.observeEpochDay) else IslamicCalendarLogic.gregorianLabel(o.epochDay), color = stitchMutedText(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                o.event.whenLabel() + " · " + (if (o.event.nightBefore) "From Maghrib, " + IslamicCalendarLogic.gregorianLabel(o.observeEpochDay) else IslamicCalendarLogic.gregorianLabel(o.epochDay)),
+                color = stitchMutedText(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (o.event.category == EventCategory.SUFI) {
+                Text("Sufi & Tasawwuf", color = IkGoldDeep, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+            }
             Spacer(Modifier.height(3.dp))
             Text(IslamicCalendarLogic.countdown(IslamicCalendarLogic.daysUntil(today, o.epochDay)), color = IkGoldDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
@@ -273,7 +312,8 @@ fun IslamicEventDetail(o: EventOccurrence, today: Long, reminder: Boolean, onBac
             Spacer(Modifier.height(4.dp))
             Text(e.name, color = IkCream, fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 28.sp)
             Spacer(Modifier.height(6.dp))
-            Text(IslamicCalendarLogic.gregorianLabel(o.epochDay) + " · " + o.hijri.label(), color = IkCream.copy(alpha = 0.85f), fontSize = 13.sp)
+            Text(e.whenLabel() + " · " + IslamicCalendarLogic.gregorianLabel(o.epochDay), color = IkCream.copy(alpha = 0.85f), fontSize = 13.sp)
+            if (e.category == EventCategory.SUFI) Text("Sufi & Tasawwuf", color = IkGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
             if (e.nightBefore) Text("Begins at Maghrib on " + IslamicCalendarLogic.gregorianLabel(o.observeEpochDay), color = IkGold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 4.dp))
             Spacer(Modifier.height(10.dp))
@@ -305,5 +345,52 @@ fun IslamicEventDetail(o: EventOccurrence, today: Long, reminder: Boolean, onBac
             }
         }
         Spacer(Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun CategoryChips(selected: Set<EventCategory>, onChange: (Set<EventCategory>) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(EventCategory.ISLAMIC to "Islamic events", EventCategory.SUFI to "Sufi & Tasawwuf").forEach { (cat, label) ->
+            val on = cat in selected
+            Box(
+                Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(14.dp))
+                    .background(if (on) IkGreen else ikSoft())
+                    .clickable {
+                        val next = if (on) selected - cat else selected + cat
+                        onChange(next.ifEmpty { setOf(cat) })
+                    }
+                    .testTag("cal_cat_${cat.name}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, color = if (on) Color.White else ikAccentText(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayEventsSheet(
+    day: DayEventsUi,
+    today: Long,
+    reminders: Set<String>,
+    onBack: () -> Unit,
+    onOpen: (EventOccurrence) -> Unit,
+    onReminder: (String, Boolean) -> Unit,
+) {
+    LazyColumn(Modifier.ikScreen().testTag("cal_day_events"), contentPadding = PaddingValues(bottom = 40.dp)) {
+        item { IkHeader(day.hijri.label(), IslamicCalendarLogic.gregorianLabel(day.epochDay), onBack) }
+        if (day.events.isEmpty()) {
+            item {
+                IkCard(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("cal_day_empty")) {
+                    Text("No listed events on this day.", color = stitchText(), fontSize = 14.sp)
+                    Text("Islamic and Sufi observances appear here when they fall on the date you tap.", color = stitchMutedText(), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+        } else {
+            items(day.events, key = { it.event.id }) { o ->
+                EventRow(o, today, o.event.id in reminders, { onOpen(o) }, { onReminder(o.event.id, it) }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            }
+        }
     }
 }

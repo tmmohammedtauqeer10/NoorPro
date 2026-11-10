@@ -54,6 +54,8 @@ class AdjustedHijri(private val base: HijriConverter, adjustment: Int) {
 
 enum class EventKind { DAY, NIGHT, SEASON }
 
+enum class EventCategory { ISLAMIC, SUFI }
+
 /**
  * A key date. [nightBefore]: the night falls on the evening before the Gregorian day of [day]
  * (Islamic days begin at Maghrib). [acts] are short, neutral suggestions written for NoorPro.
@@ -68,7 +70,26 @@ data class IslamicEvent(
     val summary: String,
     val acts: List<String>,
     val nightBefore: Boolean = false,
-)
+    val category: EventCategory = EventCategory.ISLAMIC,
+    val endDay: Int = day,
+    val recurringMonthly: Boolean = false,
+    val primaryDay: Int = day,
+) {
+    fun covers(month: Int, d: Int): Boolean =
+        d in day..endDay.coerceAtLeast(day) && (recurringMonthly || this.month == month)
+
+    /** Upcoming list emits the start of a range; the month grid marks every day in the range. */
+    fun listsOn(month: Int, d: Int): Boolean = covers(month, d) && d == day
+
+    val monthName: String get() = if (recurringMonthly) "every Hijri month" else HIJRI_MONTHS.getOrElse(month - 1) { "" }
+
+    fun whenLabel(): String = when {
+        recurringMonthly -> "${day}th of every Hijri month"
+        endDay > day && primaryDay != day -> "$day–$endDay $monthName · main $primaryDay"
+        endDay > day -> "$day–$endDay $monthName"
+        else -> "$day $monthName"
+    }
+}
 
 object IslamicEventCatalog {
     private const val VARY = "Observances differ between schools and regions; follow the guidance of your local scholars."
@@ -83,7 +104,7 @@ object IslamicEventCatalog {
             listOf("Fast on the 10th, and many also fast the 9th or the 11th with it", "Give in charity and be generous to your family",
                 "Make dua and remember those who stood firm for the truth", VARY)),
         IslamicEvent("milad", "12 Rabi ul Awwal · Milad un Nabi ﷺ", "المولد النبوي", 3, 12, EventKind.DAY,
-            "The month in which the Prophet Muhammad ﷺ was born. Many Muslims mark the 12th with remembrance of his life.",
+            "The month in which the Prophet Muhammad ﷺ was born. Many communities mark Mawlid, also called Eid Milad-un-Nabi, on 12 Rabi ul Awwal; some, especially in parts of the Arab world, observe 17 Rabi ul Awwal instead.",
             listOf("Send abundant salawat (durood) upon the Prophet ﷺ", "Read or listen to a chapter of the Seerah with your family",
                 "Revive one of his sunnahs in your daily life", VARY)),
         IslamicEvent("meraj", "Shab-e-Meraj", "ليلة الإسراء والمعراج", 7, 27, EventKind.NIGHT,
@@ -114,10 +135,58 @@ object IslamicEventCatalog {
         IslamicEvent("eid_adha", "Eid al-Adha", "عيد الأضحى", 12, 10, EventKind.DAY,
             "The festival of sacrifice, remembering the devotion of Ibrahim (AS) and Isma'il (AS).",
             listOf("Pray the Eid salah and say the takbirat", "Offer the qurbani if you are able", "Share the meat with family, neighbours and those in need")),
+        // Sunni-Sufi observances. Dates are well-established Hijri commemorations; regional practice can shift by a day or two with moon sighting.
+        IslamicEvent("gyarhween", "Gyarhween Sharif", "الحادي عشر الشريف", 0, 11, EventKind.DAY,
+            "A monthly gathering on the 11th of every Hijri month in remembrance of Shaykh Abdul Qadir Jilani (Ghaus-e-Azam). The great annual observance, Bari Gyarvi, is 11 Rabi ul Akhir.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, recurringMonthly = true),
+        IslamicEvent("urs_jilani", "Urs of Ghaus-e-Azam", "عرس الشيخ عبد القادر الجيلاني", 4, 11, EventKind.DAY,
+            "The annual urs of Shaykh Abdul Qadir Jilani of Baghdad, widely observed on 11 Rabi ul Akhir (Bari Gyarvi). Some historical accounts place his passing between 8 and 11 of the month, and in Baghdad it is sometimes marked on the 9th.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI),
+        IslamicEvent("urs_chishti", "Urs of Khwaja Moinuddin Chishti", "عرس خواجة معين الدين الجشتي", 7, 1, EventKind.DAY,
+            "The urs of Khwaja Moinuddin Chishti (Gharib Nawaz) at Ajmer Sharif, customarily 1 to 6 Rajab. The main day is 6 Rajab, known as Chhati Sharif. Some programmes continue a few days longer. Dates follow the local moon.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 6, primaryDay = 6),
+        IslamicEvent("urs_nizamuddin", "Urs of Hazrat Nizamuddin Auliya", "عرس نظام الدين أولياء", 4, 17, EventKind.DAY,
+            "The urs of Hazrat Nizamuddin Auliya (Mahbub-e-Ilahi) in Delhi, observed on 17–18 Rabi ul Akhir. His passing is traditionally recorded on 18 Rabi ul Akhir 725 AH. It is sometimes listed as Rabi ul Awwal in error.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 18, primaryDay = 18),
+        IslamicEvent("urs_hujwiri", "Urs of Data Ganj Bakhsh", "عرس علي الهجويري", 2, 18, EventKind.DAY,
+            "The three-day urs of Ali Hujwiri (Data Ganj Bakhsh) at Data Darbar in Lahore, observed 18–20 Safar. Accounts of his passing vary between 18 and 20 Safar 465 AH; the shrine marks the whole window.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 20, primaryDay = 18),
+        IslamicEvent("urs_naqshband", "Urs of Baha-ud-din Naqshband", "عرس بهاء الدين نقشبند", 3, 3, EventKind.DAY,
+            "The urs of Khwaja Baha-ud-din Naqshband of Bukhara, eponym of the Naqshbandi path. His passing is recorded on 3 Rabi ul Awwal 791 AH (2 March 1389).",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI),
+        IslamicEvent("urs_raza", "Urs of Imam Ahmad Raza Khan", "عرس أحمد رضا خان", 2, 23, EventKind.DAY,
+            "Urs-e-Razavi, the urs of Imam Ahmad Raza Khan (Ala Hazrat) of Bareilly. He passed on 25 Safar 1340 AH; the commemoration is commonly held 23–25 Safar, with 25 Safar as the main day. In some years the public programme has been shifted for local reasons.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 25, primaryDay = 25),
+        IslamicEvent("urs_farid", "Urs of Baba Fariduddin Ganjshakar", "عرس فريد الدين كنج شكر", 1, 5, EventKind.DAY,
+            "The urs of Baba Fariduddin Ganjshakar at Pakpattan, beginning on 5 Muharram, the traditional date of his passing in 664 AH. The Bahishti Darwaza is opened on the night of 5 Muharram and the urs continues until 10 Muharram.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 10, primaryDay = 5),
+        IslamicEvent("urs_kaki", "Urs of Khwaja Qutbuddin Bakhtiyar Kaki", "عرس قطب الدين بختيار كاكي", 3, 12, EventKind.DAY,
+            "The urs of Khwaja Qutbuddin Bakhtiyar Kaki at Mehrauli, Delhi. The main day is 14 Rabi ul Awwal; the shrine programme is often held 12–14 Rabi ul Awwal.",
+            listOf("Recite Qur'an and send the reward (isal-e-sawab)", "Give in charity and feed others if you are able",
+                "Remember the saint's teachings of sincerity, service and love of the Prophet ﷺ", VARY),
+            category = EventCategory.SUFI, endDay = 14, primaryDay = 14),
     )
 
     fun byId(id: String): IslamicEvent? = events.firstOrNull { it.id == id }
-    fun on(month: Int, day: Int): List<IslamicEvent> = events.filter { it.month == month && it.day == day }
+    fun on(month: Int, day: Int): List<IslamicEvent> = events.filter { it.covers(month, day) }
+    fun ofCategory(categories: Set<EventCategory>): List<IslamicEvent> =
+        events.filter { it.category in categories }
 }
 
 private const val QADR_SUMMARY = "The Night of Decree is better than a thousand months (Al-Qadr 97:3). It is sought in the odd nights of the last ten of Ramadan."
@@ -136,12 +205,27 @@ data class EventOccurrence(val event: IslamicEvent, val epochDay: Long, val hijr
 
 object IslamicCalendarLogic {
     /** Upcoming events from [fromEpochDay] (inclusive) over the next [days] days, in date order. */
-    fun upcoming(cal: AdjustedHijri, fromEpochDay: Long, days: Int = 400): List<EventOccurrence> =
-        (0 until days).flatMap { i ->
+    fun upcoming(cal: AdjustedHijri, fromEpochDay: Long, days: Int = 400, categories: Set<EventCategory> = EventCategory.entries.toSet()): List<EventOccurrence> {
+        val listed = IslamicEventCatalog.ofCategory(categories)
+        val out = mutableListOf<EventOccurrence>()
+        val todayH = cal.hijri(fromEpochDay)
+        val seenMonthly = mutableSetOf<String>()
+        listed.filter { it.covers(todayH.month, todayH.day) && it.day != todayH.day }.forEach {
+            out += EventOccurrence(it, fromEpochDay, todayH)
+        }
+        (0 until days).forEach { i ->
             val ed = fromEpochDay + i
             val h = cal.hijri(ed)
-            IslamicEventCatalog.on(h.month, h.day).map { EventOccurrence(it, ed, h) }
+            listed.filter { it.listsOn(h.month, h.day) }.forEach { ev ->
+                if (ev.recurringMonthly) {
+                    if (ev.id in seenMonthly) return@forEach
+                    seenMonthly += ev.id
+                }
+                out += EventOccurrence(ev, ed, h)
+            }
         }
+        return out.distinctBy { it.event.id to it.epochDay }.sortedBy { it.epochDay }
+    }
 
     fun nextOf(cal: AdjustedHijri, id: String, fromEpochDay: Long): EventOccurrence? =
         upcoming(cal, fromEpochDay).firstOrNull { it.event.id == id }
@@ -162,7 +246,7 @@ object IslamicCalendarLogic {
         if (cal.hijri(monthStartEpochDay + 29).day == 30) 30 else 29
 
     /** Sunday-first month grid; null cells pad the first week. */
-    fun monthGrid(cal: AdjustedHijri, anyDayInMonth: Long): HijriMonth {
+    fun monthGrid(cal: AdjustedHijri, anyDayInMonth: Long, categories: Set<EventCategory> = EventCategory.entries.toSet()): HijriMonth {
         val start = monthStart(cal, anyDayInMonth)
         val len = monthLength(cal, start)
         val h = cal.hijri(start)
@@ -170,7 +254,8 @@ object IslamicCalendarLogic {
         val days = (0 until len).map { i ->
             val ed = start + i
             val g = utcCalendar(ed)
-            HijriCell(i + 1, ed, g.get(Calendar.DAY_OF_MONTH), g.get(Calendar.MONTH) + 1, IslamicEventCatalog.on(h.month, i + 1))
+            HijriCell(i + 1, ed, g.get(Calendar.DAY_OF_MONTH), g.get(Calendar.MONTH) + 1,
+                IslamicEventCatalog.on(h.month, i + 1).filter { it.category in categories })
         }
         return HijriMonth(h.year, h.month, start, List(weekday) { null } + days)
     }

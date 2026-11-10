@@ -24,6 +24,17 @@ class EventReminderStore(context: Context) {
         p.edit().putStringSet("ids", next).apply()
         return next
     }
+
+    fun categories(): Set<EventCategory> {
+        val raw = p.getString("categories", null) ?: return EventCategory.entries.toSet()
+        val parsed = raw.split(',').mapNotNull { runCatching { EventCategory.valueOf(it) }.getOrNull() }.toSet()
+        return parsed.ifEmpty { EventCategory.entries.toSet() }
+    }
+    fun setCategories(cats: Set<EventCategory>): Set<EventCategory> {
+        val next = cats.ifEmpty { EventCategory.entries.toSet() }
+        p.edit().putString("categories", next.joinToString(",") { it.name }).apply()
+        return next
+    }
 }
 
 object EventReminderTiming {
