@@ -16,6 +16,12 @@ service cloud.firestore {
         || (request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
+    // 1.2.0 (116): restored from firestore-ask-scholar.rules (lost in the 1.2.0 merge; Ask a Scholar answers need it).
+    function isScholar() {
+      return request.auth != null && exists(/databases/$(database)/documents/scholars/$(request.auth.uid))
+        && get(/databases/$(database)/documents/scholars/$(request.auth.uid)).data.verified == true;
+    }
+
     // Per-account private data. Account switching is safe because all reads/writes under
     // users/{uid} require the active Firebase Auth uid to match the path uid.
     match /users/{userId} {
