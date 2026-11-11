@@ -32,6 +32,25 @@ Groq `max_tokens` is clamped to 950. A non-Latin answer with Latin letters glued
 Subtitles use `whisper-large-v3-turbo`; the safety check adds `llama-guard-3-8b`.
 Workers AI free allowance: 10,000 neurons/day (UTC), roughly 400 Gemma answers/day.
 
+## 1.2.0 (114) additions
+- **Madhhab**: `madhhab` = `hanafi` (default) | `shafii` | `maliki` | `hanbali` | `compare`. Fiqh follows the chosen
+  school's relied-upon view, noting other schools when relevant; `compare` lists all four. Aqidah is always
+  Ash'ari/Maturidi, Ahl as-Sunnah wal-Jama'ah with Tasawwuf.
+- **Knowledge base** (`kb/*.json` -> `node kb/build.mjs` -> `src/kb_data.js`): 39 original summaries with classical
+  citations (Tahawiyya, Fiqh al-Akbar, Nasafiyya, Bahar-e-Shariat / Fatawa Ridawiyya, Nur al-Idah, Umdat al-Salik,
+  al-Risala, Umdat al-Fiqh, Ihya, Qushayriyya; Qur'an and hadith numbers). Retrieval: gemini-embedding-001 (256-d)
+  cosine + keyword boost, kept only when the top score is >= 0.75 and within a small spread; keyword-only fallback.
+- **Tiers**: `tier` = `fast` (Flash-Lite first, short) | `balanced` | `research`.
+  `/v1/research` (or `/v1/chat` with `tier: research`) plans queries, searches the KB, then writes a cited answer with
+  the strongest model; with `Accept: text/event-stream` it streams `data: {"type":"stage"|"answer"|"error",...}`.
+  Research costs 4 quota units.
+- **Voice**: `/v1/transcribe` = Groq whisper-large-v3 (language detection; `hint` resolves Hindi/Urdu) then Workers AI
+  Whisper. `/v1/tts` = Gemini TTS (natural voices for Urdu, Hindi, Arabic, English, ...) then MeloTTS (en/fr/es/zh/ja/ko);
+  otherwise `503 {fallback:"device"}` and the app uses Android TTS. Own daily counter (150/user).
+- **Images**: `/v1/image` = flux-1-schnell. Keyword block (people, faces, prophets, Sahabah, Ahl al-Bayt, awliya, angels,
+  animals, immodest or non-Islamic content; en/ur/hi/ar) -> LLM classifier -> generate -> Gemini vision check (fails
+  closed). Localized refusals. Limits: 6/day per user, 3 App Check, 2 anon, 150/day global.
+
 ## Abuse protection (free features only)
 - Identity: Firebase ID token (`Authorization: Bearer`) or Firebase App Check token (`X-Firebase-AppCheck`); anything else is "anon" by IP.
 - Burst: Workers Rate Limiting bindings, 12/min per user, 5/min per anonymous IP.

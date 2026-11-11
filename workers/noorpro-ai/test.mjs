@@ -8,14 +8,21 @@ async function sign(payload, kid = "k1") {
   const sig = await subtle.sign("RSASSA-PKCS1-v1_5", kp.privateKey, new TextEncoder().encode(`${h}.${p}`));
   return `${h}.${p}.${b64u(sig)}`;
 }
+let embedCalls = 0, embedMode = "fail", embedVec = null;
 let groqCalls = 0, groqMode = "ok", gemCalls = [], gemMode = "ok", glmCalls = [], glmMode = "ok";
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.includes("securetoken@system") || u.includes("firebaseappcheck")) return new Response(JSON.stringify({ keys: [{ ...pub, kid: "k1", alg: "RS256" }] }), { headers: { "cache-control": "max-age=600" } });
+  if (u.includes("api.groq.com/openai/v1/audio")) { if (groqMode !== "whisper") return new Response("x", { status: 500 });
+    return new Response(JSON.stringify({ text: "مجھے حج کے بارے میں بتائیں", language: "hindi", segments: [{ start: 0, end: 2, text: "مجھے حج کے بارے میں بتائیں" }] })); }
   if (u.includes("api.groq.com")) { groqCalls++; if (groqMode === "fail") return new Response("x", { status: 429 });
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq answer about focus.\nMETA: {\"fiqh\": false, \"followups\": [\"a\",\"b\"]}" } }] })); }
+  if (u.includes(":embedContent")) { embedCalls++; return embedMode === "ok" ? new Response(JSON.stringify({ embedding: { values: embedVec } })) : new Response("{}", { status: 500 }); }
   if (u.includes("generativelanguage.googleapis.com")) { const m = /models\/([^:]+):/.exec(u)[1]; gemCalls.push({ m, body: JSON.parse(init.body), key: init.headers["x-goog-api-key"] });
     if (gemMode === "slow") await new Promise((r) => setTimeout(r, 6000));
+    if ((gemMode === "vision-clean" || gemMode === "vision-dirty") && init.body.includes("inlineData")) return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: `{"forbidden": ${gemMode === "vision-dirty"}, "what": "x"}` }] } }] }));
+    if (gemMode === "vision-clean" || gemMode === "vision-dirty") return new Response("{}", { status: 503 });
+    if (gemMode === "tts") return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "audio/l16; rate=24000; channels=1", data: Buffer.from(new Uint8Array(480)).toString("base64") } }] } }] }));
     if (gemMode === "fail" || (gemMode === "fail-best" && m === "gemini-3.8-flash")) return new Response("{}", { status: 429 });
     const txt = gemMode === "mixed" ? "حجِ تمattuٰ اور حجِ قیran" : "Gemini answer.\nMETA: {\"fiqh\": false, \"followups\": [\"g\"]}";
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "thinking...", thought: true }, { text: txt }] } }] })); }
@@ -197,3 +204,121 @@ await t("chat fiqh flag needs both model and question", async () => {
   assert.equal((await (await handleChat({ prompt: "Is it halal to work in a bank?" }, e)).json()).fiqh, true);
 });
 console.log(`${n} tests passed (incl. fiqh)`);
+
+// ---------------------------------------------------------------- v114: madhhab, KB, research, image, voice
+const { chatSystemPrompt: csp, madhhabInstruction } = await import("./src/prompts.js");
+const kbm = await import("./src/kb.js");
+const { KB } = await import("./src/kb_data.js");
+const vecOf = (id) => { const e = KB.find((x) => x.id === id); return Array.from(new Float32Array(Uint8Array.from(Buffer.from(e.v, "base64")).buffer)); };
+await t("madhhab normalisation and prompt", () => {
+  assert.equal(kbm.normMadhhab("Shafi'i"), "shafii"); assert.equal(kbm.normMadhhab("ALL"), "compare"); assert.equal(kbm.normMadhhab("x"), "hanafi");
+  assert.match(csp("AskNoor", "en", { madhhab: "maliki" }), /follows the Maliki madhhab/);
+  assert.match(madhhabInstruction("compare"), /Hanafi, Shafi'i, Maliki, Hanbali/);
+  assert.match(csp("AskNoor", "en", { madhhab: "hanbali" }), /Ash'ari\/Maturidi/);
+  assert.match(csp("AskNoor", "en", { tier: "research" }), /Research mode/);
+});
+await t("KB: sources cited, chosen madhhab listed first", () => {
+  assert.ok(KB.length >= 35);
+  for (const e of KB) { assert.ok(e.src?.length, e.id); if (e.positions) for (const m of kbm.MADHHABS) assert.ok(e.positions[m], e.id + m); }
+  const hajj = KB.filter((e) => e.id === "fq-hajj");
+  const b = kbm.kbBlock(hajj, "shafii");
+  assert.ok(b.indexOf("Shafi'i (user's madhhab)") < b.indexOf("Hanafi:"));
+  assert.match(kbm.kbBlock(hajj, "hanafi"), /Fara'id are three: ihram \(a condition\), wuquf at Arafah and Tawaf al-Ziyarah/);
+  assert.match(b, /Safa and Marwah/);
+  assert.deepEqual(kbm.kbCitations("Per [K1] ...", hajj).length, 1);
+});
+await t("KB: embedding retrieval with relative threshold", () => {
+  const q = Float32Array.from(vecOf("fq-wudu-break"));
+  assert.equal(kbm.rank(q, "wudu", 4)[0].id, "fq-wudu-break");
+  assert.equal(kbm.rank(null, "biryani recipe", 4).length, 0);
+  assert.equal(kbm.rank(null, "Mawlid celebration", 2)[0].id, "pr-mawlid");
+});
+await t("chat sends madhhab + KB grounding and returns KB citations", async () => {
+  _resetCooldowns(); embedMode = "ok"; embedVec = vecOf("fq-wudu-break"); let sys = "", user = "";
+  const ai = mkAI((model, input) => { sys = input.messages?.[0]?.content || ""; user = input.messages?.at(-1)?.content || ""; return { response: "In the Shafi'i school touching breaks wudu [K1].\nMETA: {\"fiqh\": true, \"followups\": []}" }; });
+  const j = await (await handleChat({ prompt: "Does touching my wife break wudu?", madhhab: "shafii" }, env({ AI: ai }))).json();
+  assert.match(sys, /Shafi'i madhhab/); assert.match(user, /\[K1\] What breaks wudu/); assert.match(user, /Shafi'i \(user's madhhab\)/);
+  assert.equal(j.madhhab, "shafii"); assert.equal(j.kb[0], "fq-wudu-break"); assert.match(j.citations[0], /What breaks wudu/); assert.equal(j.fiqh, true);
+  embedMode = "fail";
+});
+await t("research mode: plan -> search -> cited answer (JSON and SSE)", async () => {
+  _resetCooldowns(); embedMode = "ok"; embedVec = vecOf("fq-hajj");
+  const ai = mkAI((model, input) => {
+    const last = input.messages?.at(-1)?.content || "";
+    if (/search queries/.test(last)) return { response: '{"queries":["pillars of hajj","wajibat of hajj"]}' };
+    return { response: "## Summary\nHajj pillars [K1].\n## Sources\n- Nur al-Idah\nMETA: {\"fiqh\": false, \"followups\": [\"a\"]}" };
+  });
+  let j = await (await worker.fetch(post("/v1/chat", { prompt: "Explain Hajj pillars in all madhhabs", tier: "research", madhhab: "compare" }), env({ AI: ai }))).json();
+  assert.equal(j.tier, "research"); assert.deepEqual(j.steps.queries, ["pillars of hajj", "wajibat of hajj"]); assert.ok(j.kb.includes("fq-hajj"));
+  const r = await worker.fetch(post("/v1/research", { prompt: "Explain Hajj pillars" }, { accept: "text/event-stream" }), env({ AI: ai }));
+  assert.match(r.headers.get("content-type"), /event-stream/);
+  const txt = await r.text();
+  for (const st of ["planning", "searching", "sources", "writing"]) assert.match(txt, new RegExp(`"stage":"${st}"`));
+  assert.match(txt, /"type":"answer"/);
+  embedMode = "fail";
+});
+const img = await import("./src/image.js");
+let ipn = 0; const ip = () => `10.9.0.${++ipn}`;
+await t("image: keyword guard refuses living beings, prophets, immodest and idols", async () => {
+  for (const p of ["a man praying in a mosque", "portrait of Prophet Musa", "a camel in the desert", "دو پرندے", "bikini", "Ganesh idol", "चेहरा"]) assert.ok(img.blockedByKeywords(p), p);
+  for (const p of ["Kaaba at night", "mosque domes at sunset", "green geometric pattern", "calligraphy poster gold", "mountain lake"]) assert.ok(!img.blockedByKeywords(p), p);
+  const j = await (await worker.fetch(post("/v1/image", { prompt: "a girl reading Quran" }, { "cf-connecting-ip": ip() }), env())).json();
+  assert.equal(j.refused, true); assert.match(j.message, /without people/);
+  const u = await (await worker.fetch(post("/v1/image", { prompt: "پیغمبر کا چہرہ" }, { "cf-connecting-ip": ip() }), env())).json();
+  assert.equal(u.refused, true); assert.match(u.message, /معذرت/);
+});
+await t("image: classifier refusal, vision check, check-unavailable fails closed", async () => {
+  _resetCooldowns();
+  const ai = (cls) => mkAI((model, input) => model.includes("flux") ? { image: "SU1H" } : { response: cls });
+  let j = await (await worker.fetch(post("/v1/image", { prompt: "the face of the Messenger" }, { "cf-connecting-ip": ip() }), env({ AI: ai('{"allow":false,"prompt":""}') }))).json();
+  assert.equal(j.refused, true);
+  j = await (await worker.fetch(post("/v1/image", { prompt: "masjid domes at dawn", style: "mosque" }, { "cf-connecting-ip": ip() }), env({ AI: ai('{"allow":true,"prompt":"Mosque domes at dawn"}') }))).json();
+  assert.equal(j.error, "check_unavailable");   // no Gemini key -> no vision check -> fail closed
+  gemMode = "vision-clean";
+  j = await (await worker.fetch(post("/v1/image", { prompt: "masjid domes at dawn", style: "mosque" }, { "cf-connecting-ip": ip() }), env({ GEMINI_API_KEY: "g", AI: ai('{"allow":true,"prompt":"Mosque domes at dawn"}') }))).json();
+  assert.equal(j.image, "SU1H"); assert.equal(j.checked, true);
+  gemMode = "vision-dirty";
+  j = await (await worker.fetch(post("/v1/image", { prompt: "garden", style: "nature" }, { "cf-connecting-ip": ip() }), env({ GEMINI_API_KEY: "g", AI: ai('{"allow":true,"prompt":"Garden"}') }))).json();
+  assert.equal(j.refused, true); assert.equal(j.reason, "check_failed");
+  gemMode = "ok";
+});
+await t("image quota: per user and global daily caps", async () => {
+  const { takeImageQuota, IMAGE_LIMITS } = await import("./src/quota.js");
+  const id = { tier: "anon", key: "ip:img-test" };
+  for (let i = 0; i < IMAGE_LIMITS.anon; i++) assert.ok(await takeImageQuota({}, id));
+  assert.equal(await takeImageQuota({}, id), false);
+});
+const voice = await import("./src/voice.js");
+await t("tts: WAV header, speakable text, Gemini then device fallback", async () => {
+  const wav = voice.pcmToWav(new Uint8Array(480), 24000);
+  assert.equal(Buffer.from(wav.slice(0, 4)).toString(), "RIFF"); assert.equal(wav.length, 524);
+  assert.equal(voice.speakable("**Hajj** [K1] is `fard`"), "Hajj  is fard");
+  gemMode = "tts";
+  let j = await (await worker.fetch(post("/v1/tts", { text: "حج اسلام کا رکن ہے", lang: "ur" }), env({ GEMINI_API_KEY: "g" }))).json();
+  assert.equal(j.provider, "gemini"); assert.equal(j.mime, "audio/wav"); assert.equal(Buffer.from(j.audio, "base64").slice(0, 4).toString(), "RIFF");
+  gemMode = "fail"; _resetCooldowns();
+  j = await (await worker.fetch(post("/v1/tts", { text: "Salam", lang: "ur" }), env({ GEMINI_API_KEY: "g" }))).json();
+  assert.equal(j.fallback, "device");
+  gemMode = "ok";
+});
+await t("voice STT: Groq Whisper first with language detection, Workers AI fallback", async () => {
+  assert.equal(voice.voiceLanguage("مجھے حج کے بارے میں بتائیں", "hindi"), "ur");
+  assert.equal(voice.voiceLanguage("मुझे हज के बारे में बताइए", "urdu"), "hi");
+  assert.equal(voice.voiceLanguage("hello there", "english"), "en");
+  groqMode = "whisper";
+  let j = await (await worker.fetch(post("/v1/transcribe", { audio: "AAAA" }), env({ GROQ_API_KEY: "q" }))).json();
+  assert.equal(j.provider, "groq"); assert.equal(j.language, "ur"); assert.equal(j.text, "مجھے حج کے بارے میں بتائیں");
+  groqMode = "fail";
+  j = await (await worker.fetch(post("/v1/transcribe", { audio: "AAAA" }), env({ GROQ_API_KEY: "q", AI: mkAI({ text: "كيف أصلي", segments: [], transcription_info: { language: "ar" } }) }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.equal(j.language, "ar");
+  groqMode = "ok";
+});
+await t("v114 fixes: Hindi/Urdu hint, Masjid an-Nabawi allowed, Urdu wudu ruling detected", async () => {
+  assert.equal(voice.hindustani("ur", "hi"), "hi"); assert.equal(voice.hindustani("ur", "en"), "ur"); assert.equal(voice.hindustani("ar", "hi"), "ar");
+  const { blockedByKeywords } = await import("./src/image.js");
+  assert.equal(blockedByKeywords("Prophet's Mosque green dome at dawn"), false);
+  assert.equal(blockedByKeywords("portrait of the prophet"), true);
+  assert.equal(isRulingQuestion("کیا خون نکلنے سے وضو ٹوٹ جاتا ہے؟"), true);
+  assert.equal(isRulingQuestion("kya neend se wudu toot jata hai"), true);
+});
+console.log(`${n} tests passed (incl. v114)`);

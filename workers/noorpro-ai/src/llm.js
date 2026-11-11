@@ -141,7 +141,13 @@ export function buildOrder(env, o = {}) {
   const wa = env.AI ? waList.filter((m) => latin || !m.includes("gpt-oss-20b")).map((m) => ["workers-ai", m]) : [];
   const glm = env.ZHIPU_API_KEY && latin ? ZHIPU_FREE_MODELS.map((m) => ["zhipu", m]) : [];
   let order;
-  if (o.fast) order = [...gem(GEMINI_MODELS.fast), ...(latin ? [...groq, ...wa] : [...wa, ...groq]), ...gem(GEMINI_MODELS.best), ...glm];
+  if (o.tier === "research") {
+    // Deepest answers: best Gemini first with a long timeout, then Gemma 4, then the rest.
+    order = [...gem(GEMINI_MODELS.best), ...wa.slice(0, 1), ...gem(GEMINI_MODELS.fast), ...(latin ? groq : []), ...wa.slice(1), ...glm];
+  } else if (o.tier === "fast" && !o.fast) {
+    // Quickest accurate route: Flash-Lite (2-6 s), then Groq for Latin script, Gemma 4 for others.
+    order = [...gem(GEMINI_MODELS.fast), ...(latin ? [...groq, ...wa] : [...wa.slice(0, 1), ...gem(GEMINI_MODELS.best), ...groq, ...wa.slice(1)]), ...glm];
+  } else if (o.fast) order = [...gem(GEMINI_MODELS.fast), ...(latin ? [...groq, ...wa] : [...wa, ...groq]), ...gem(GEMINI_MODELS.best), ...glm];
   else if (latin) order = [...gem(GEMINI_MODELS.fast), ...groq, ...gem(GEMINI_MODELS.best), ...wa, ...glm];
   else if (env.NON_LATIN_PREFER === "groq") order = [...gem(GEMINI_MODELS.best), ...groq, ...wa.slice(0, 1), ...gem(GEMINI_MODELS.fast), ...wa.slice(1)];
   else order = [...gem(GEMINI_MODELS.best), ...wa.slice(0, 1), ...gem(GEMINI_MODELS.fast), ...groq, ...wa.slice(1)];
@@ -174,7 +180,7 @@ export async function complete(env, messages, opts = {}) {
   const order = buildOrder(env, o);
   const deadline = Date.now() + (o.totalMs || 50_000);
   let start = 0;
-  if (!o.fast && !LATIN_LANGS.has(o.lang || "en") && order[0]?.[1] === GEMINI_MODELS.best && order[1]?.[0] === "workers-ai"
+  if (!o.fast && o.tier !== "research" && o.tier !== "fast" && !LATIN_LANGS.has(o.lang || "en") && order[0]?.[1] === GEMINI_MODELS.best && order[1]?.[0] === "workers-ai"
       && !coolingDown(`gemini:${order[0][1]}`)) {
     const r = await hedged(env, messages, o, order[0], order[1], deadline - Date.now());
     if (r) return r;
@@ -185,7 +191,8 @@ export async function complete(env, messages, opts = {}) {
     if (coolingDown(`${provider}:${model}`)) continue;
     const left = deadline - Date.now();
     if (left < 3000) break;
-    const text = await CALLERS[provider](env, model, messages, { ...o, timeoutMs: Math.min(PROVIDER_TIMEOUT[`${provider}:${model}`] || o.timeoutMs, left) });
+    const pt = o.tier === "research" && provider === "gemini" && model === GEMINI_MODELS.best ? 60_000 : PROVIDER_TIMEOUT[`${provider}:${model}`];
+    const text = await CALLERS[provider](env, model, messages, { ...o, timeoutMs: Math.min(pt || o.timeoutMs, left) });
     if (text && text.length >= (o.minLength || 2)) {
       // Mixed-script guard: a non-Latin answer with Latin letters glued into words is retried on the next model.
       if (hasMixedScriptWords(text, o.lang) && i < order.length - 1) continue;
