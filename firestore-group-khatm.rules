@@ -1,0 +1,63 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Group Khatm (Remote Config group_khatm_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste these blocks inside `match /databases/{database}/documents { ... }` in firestore.rules,
+// run tools/rules-tests/group-khatm-1.1.6.test.js against the emulator, then deploy rules.
+// Data: group_khatms/{CODE}  (CODE = 6 chars from ABCDEFGHJKMNPQRSTUVWXYZ23456789)
+//       group_khatms/{CODE}/paras/{1..30}
+// ─────────────────────────────────────────────────────────────────────────────
+    match /group_khatms/{code} {
+      function signedIn() { return request.auth != null; }
+      function validText(v, max) { return v is string && v.size() <= max; }
+      // Anyone signed in can open a Khatm by its code (the invite link), and list the ones they belong to.
+      allow get: if signedIn();
+      allow list: if signedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if signedIn()
+        && code.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$')
+        && request.resource.data.keys().hasOnly(['title', 'dedication', 'creatorUid', 'creatorName', 'memberUids', 'createdAt'])
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && validText(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+        && validText(request.resource.data.dedication, 200)
+        && validText(request.resource.data.creatorName, 60)
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (
+        // Join: add only yourself, max 100 readers.
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && !(request.auth.uid in resource.data.memberUids)
+          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.memberUids.removeAll(resource.data.memberUids) == [request.auth.uid]
+          && request.resource.data.memberUids.size() <= 100)
+        // Leave: remove only yourself (the organiser stays).
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && request.auth.uid in resource.data.memberUids
+          && request.auth.uid != resource.data.creatorUid
+          && request.resource.data.memberUids == resource.data.memberUids.removeAll([request.auth.uid]))
+        // Organiser edits the title / intention.
+        || (request.auth.uid == resource.data.creatorUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'dedication'])
+          && validText(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+          && validText(request.resource.data.dedication, 200))
+      );
+      allow delete: if signedIn() && request.auth.uid == resource.data.creatorUid;
+
+      match /paras/{para} {
+        function khatm() { return get(/databases/$(database)/documents/group_khatms/$(code)).data; }
+        function member() { return request.auth != null && request.auth.uid in khatm().memberUids; }
+        function validClaim() {
+          return request.resource.data.keys().hasOnly(['uid', 'name', 'status', 'at'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.status in ['claimed', 'done']
+            && request.resource.data.name is string && request.resource.data.name.size() <= 60
+            && request.resource.data.at == request.time;
+        }
+        allow read: if member();
+        // Claim an open para (a second claim on the same para is an update and is denied).
+        allow create: if member() && para.matches('^([1-9]|[12][0-9]|30)$') && validClaim();
+        // Only the reader who claimed it can mark it done / not done.
+        allow update: if member() && resource.data.uid == request.auth.uid && validClaim()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at', 'name']);
+        // Release your own para; the organiser can free a para someone abandoned.
+        allow delete: if request.auth != null
+          && (resource.data.uid == request.auth.uid || khatm().creatorUid == request.auth.uid);
+      }
+    }

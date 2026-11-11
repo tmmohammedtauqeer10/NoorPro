@@ -3,6 +3,7 @@ package com.noorpro.app.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 // Dark theme: same "Sacred Serenity" family as light, translated into deep
 // emerald-navy surfaces with warm cream text and soft gold accents.
@@ -53,3 +54,46 @@ val DhuhrColor = Color(0xFFFFD60A)
 val AsrColor = Color(0xFFE07A5F)
 val MaghribColor = Color(0xFF8338EC)
 val IshaColor = Color(0xFF3A86C8)
+
+// ---- Theme-aware tokens (respect the app's System/Light/Dark setting via MaterialTheme) ----
+/** True when the active app theme is dark (use this, never isSystemInDarkTheme(), inside screens). */
+val isAppDark: Boolean
+    @Composable get() = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+/** Gold accent with enough contrast in both modes (bright gold on dark, deep gold on light). */
+val AppGold: Color
+    @Composable get() = if (isAppDark) Color(0xFFD4AF37) else Color(0xFF8A6A00)
+
+/** Ink colour for Quran Arabic text. */
+val QuranInk: Color
+    @Composable get() = if (isAppDark) Color(0xFFF3EBD9) else Color(0xFF14231D)
+
+/** Tajweed rule colours with separate light/dark variants (readable on cream and on deep green). */
+fun tajweedColor(rule: String?, dark: Boolean): Color = when (rule) {
+    "ghunna" -> if (dark) Color(0xFFFFB04D) else Color(0xFFC46A00)
+    "ikhfa" -> if (dark) Color(0xFFCE93D8) else Color(0xFF8E44AD)
+    "idgham" -> if (dark) Color(0xFF81C784) else Color(0xFF2E7D32)
+    "iqlab" -> if (dark) Color(0xFF90CAF9) else Color(0xFF1E5FBF)
+    "izhar" -> if (dark) Color(0xFF4DD0C1) else Color(0xFF00796B)
+    "qalqala" -> if (dark) Color(0xFFFF8A80) else Color(0xFFC62828)
+    "madd" -> if (dark) Color(0xFFF48FB1) else Color(0xFFAD1457)
+    "tafkheem" -> if (dark) Color(0xFF9FA8DA) else Color(0xFF283593)
+    "tarqeeq" -> if (dark) Color(0xFF81D4FA) else Color(0xFF0277BD)
+    "waqf" -> if (dark) Color(0xFFBDBDBD) else Color(0xFF616161)
+    "hamzawasl" -> if (dark) Color(0xFFB0BEC5) else Color(0xFF607D8B)
+    "special" -> if (dark) Color(0xFFFFD54F) else Color(0xFF9A6B00)
+    else -> Color.Unspecified
+}
+
+private val arabicRun = Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF](?:[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF\\s،]*[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF])?")
+
+/**
+ * Wraps Arabic runs inside a mostly-Latin sentence in Unicode first-strong isolates (FSI … PDI) so
+ * letters like "(ي ن م و)" keep their order and the surrounding brackets/punctuation stay in place.
+ */
+fun isolateArabic(text: String): String {
+    val arabicCount = text.count { it in '\u0600'..'\u06FF' }
+    val latinCount = text.count { it in 'A'..'Z' || it in 'a'..'z' }
+    if (arabicCount == 0 || latinCount == 0) return text
+    return arabicRun.replace(text) { "\u2068" + it.value + "\u2069" }
+}

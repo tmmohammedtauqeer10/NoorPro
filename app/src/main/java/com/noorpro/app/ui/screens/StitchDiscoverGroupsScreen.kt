@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,6 +75,7 @@ fun StitchDiscoverGroupsScreen(viewModel: DeenViewModel) {
     var loading by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
     var joining by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val termsGate = rememberUgcTermsGate()
 
     DisposableEffect(Unit) {
         val repo = UmmahRepository()
@@ -156,6 +158,13 @@ fun StitchDiscoverGroupsScreen(viewModel: DeenViewModel) {
                             onJoin = {
                                 if (!viewModel.isLoggedIn) {
                                     Toast.makeText(context, "Sign in to join groups", Toast.LENGTH_SHORT).show()
+                                } else if (!termsGate.check()) {
+                                    // The terms dialog is showing; the user can tap Join again after accepting.
+                                } else if (com.noorpro.app.data.halal.HalalFlags.circles && !com.noorpro.app.data.halal.SafetyRules.canJoin(
+                                        com.noorpro.app.data.halal.CircleAudience.of(group.audience), com.noorpro.app.data.halal.HalalPrefs.gender)) {
+                                    // 1.1.5 sisters-/brothers-only circle (client-enforced; see docs/HALAL_GUARD_1.1.5.md).
+                                    Toast.makeText(context, com.noorpro.app.data.halal.SafetyRules.joinBlockedReason(
+                                        com.noorpro.app.data.halal.CircleAudience.of(group.audience), com.noorpro.app.data.halal.HalalPrefs.gender), Toast.LENGTH_LONG).show()
                                 } else {
                                     joining = joining + group.id
                                     repository.joinGroup(group.id) { ok, err ->
@@ -207,7 +216,7 @@ private fun StitchDiscoverGroupRow(
             if (joined) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(stitchSoftSurface()).border(1.dp, StitchLine, RoundedCornerShape(999.dp)).padding(horizontal = 14.dp, vertical = 8.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(stitchSoftSurface()).border(1.dp, stitchLine(), RoundedCornerShape(999.dp)).padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = stitchPrimary(), modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(5.dp))

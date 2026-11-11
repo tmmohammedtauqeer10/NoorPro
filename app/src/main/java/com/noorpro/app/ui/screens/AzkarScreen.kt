@@ -42,7 +42,7 @@ fun AzkarScreen(viewModel: DeenViewModel) {
             TopAppBar(
                 title = { Text("Morning & Evening Azkar", color = TextPrimary) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(DeenScreen.DUA_HUB) }) {
+                    IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.DUA_HUB) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MatteGold)
                     }
                 },

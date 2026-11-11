@@ -1,6 +1,10 @@
 package com.noorpro.app
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.testing.WorkManagerTestInitHelper
+import org.junit.Before
 import androidx.compose.ui.test.onRoot
 import com.noorpro.app.ui.theme.MyApplicationTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
@@ -18,6 +22,14 @@ import org.robolectric.annotation.GraphicsMode
 class GreetingScreenshotTest {
 
   @get:Rule val composeTestRule = createComposeRule()
+
+  @Before
+  fun initWorkManager() {
+    WorkManagerTestInitHelper.initializeTestWorkManager(
+      ApplicationProvider.getApplicationContext(),
+      Configuration.Builder().build()
+    )
+  }
 
   @Test
   fun greeting_screenshot() {

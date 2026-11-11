@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98: cream tile with the green N (top-left of the green Next-prayer widget). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp" android:height="40dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#FFFDF9F0" android:pathData="M12,0H36A12,12 0 0 1 48,12V36A12,12 0 0 1 36,48H12A12,12 0 0 1 0,36V12A12,12 0 0 1 12,0Z" />
+    <path android:fillColor="#FF0B6243" android:pathData="M10.14,36.28L10.14,10.8A0.8,0.8 0 0 1 10.94,10L14.78,10A4.37,4.37 0 0 1 18.25,11.71L30.53,27.72L30.53,12.43A2.43,2.43 0 0 1 32.95,10L37.14,10A0.73,0.73 0 0 1 37.86,10.73L37.86,36.5A1.5,1.5 0 0 1 36.37,38L32.44,38A4.24,4.24 0 0 1 29.16,36.44L23.61,29.64C22,27.66 20.08,26.55 18.19,25.14A5.14,5.14 0 0 1 17.29,17.74A5.3,5.3 0 0 0 17.48,28.03L17.48,35.68A2.32,2.32 0 0 1 15.16,38L11.85,38A1.72,1.72 0 0 1 10.14,36.28Z" />
+</vector>

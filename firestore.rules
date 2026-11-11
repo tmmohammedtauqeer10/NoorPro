@@ -9,6 +9,19 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // 1.1.5 Halal Guard (additive): moderators are admin-claim holders OR have an admins/{uid} doc.
+    // isAdmin() keeps its original meaning for the pilgrimage collections.
+    function isModerator() {
+      return isAdmin()
+        || (request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // 1.2.0 (116): restored from firestore-ask-scholar.rules (lost in the 1.2.0 merge; Ask a Scholar answers need it).
+    function isScholar() {
+      return request.auth != null && exists(/databases/$(database)/documents/scholars/$(request.auth.uid))
+        && get(/databases/$(database)/documents/scholars/$(request.auth.uid)).data.verified == true;
+    }
+
     // Per-account private data. Account switching is safe because all reads/writes under
     // users/{uid} require the active Firebase Auth uid to match the path uid.
     match /users/{userId} {
@@ -102,12 +115,86 @@ service cloud.firestore {
       // Admin SDK / Cloud Functions promote from ummah_submissions after review.
       allow read: if resource.data.approved == true && resource.data.status == "published";
       allow create: if false;
-      allow update: if engagementCounterUpdate();
+      // 1.1.4 Creator Studio (additive): the owner may edit the caption, pin the post to their profile,
+      // archive it, or pin one comment. Nothing else (counters, media, approval) can change this way.
+      function ownerStudioUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.auth != null
+          && resource.data.creatorUid == request.auth.uid
+          && changed.hasOnly(["caption", "captionEditedAt", "pinnedToProfile", "archived", "pinnedCommentId"])
+          && (!changed.hasAny(["caption"]) || (request.resource.data.caption is string && request.resource.data.caption.size() <= 2200))
+          && (!changed.hasAny(["captionEditedAt"]) || request.resource.data.captionEditedAt == request.time)
+          && (!changed.hasAny(["pinnedToProfile"]) || request.resource.data.pinnedToProfile is bool)
+          && (!changed.hasAny(["archived"]) || request.resource.data.archived is bool)
+          && (!changed.hasAny(["pinnedCommentId"]) || (request.resource.data.pinnedCommentId is string && request.resource.data.pinnedCommentId.size() <= 128));
+      }
+      allow update: if engagementCounterUpdate() || ownerStudioUpdate();
       allow delete: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
+
+      // 1.0.83 (additive): one view receipt per user per post. Create-once (no update/delete), so a
+      // user can only ever be counted once; the client writes it in the same transaction as the
+      // +1 viewCount increment.
+      match /views/{viewerUid} {
+        allow read: if request.auth != null && request.auth.uid == viewerUid;
+        allow create: if request.auth != null
+          && request.auth.uid == viewerUid
+          && request.resource.data.keys().hasOnly(["uid", "createdAt", "watchedMs"])
+          && request.resource.data.uid == viewerUid
+          && request.resource.data.createdAt == request.time
+          && (!("watchedMs" in request.resource.data) || request.resource.data.watchedMs is int)
+          && exists(/databases/$(database)/documents/ummah_posts/$(postId));
+      }
     }
 
     match /ummah_submissions/{submissionId} {
+      function ownerEngagementCounterUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.auth != null
+          && resource.data.creatorUid == request.auth.uid
+          && request.resource.data.creatorUid == resource.data.creatorUid
+          && changed.hasOnly(["likeCount", "commentCount", "shareCount", "viewCount", "saveCount"])
+          && (!changed.hasAny(["likeCount"])
+            || (request.resource.data.likeCount is int
+              && request.resource.data.likeCount >= 0
+              && ((resource.data.likeCount is int
+                  && (request.resource.data.likeCount == resource.data.likeCount + 1
+                    || request.resource.data.likeCount == resource.data.likeCount - 1))
+                || (!(resource.data.likeCount is int)
+                  && (request.resource.data.likeCount == 0
+                    || request.resource.data.likeCount == 1)))))
+          && (!changed.hasAny(["commentCount"])
+            || (request.resource.data.commentCount is int
+              && request.resource.data.commentCount >= 0
+              && ((resource.data.commentCount is int
+                  && request.resource.data.commentCount == resource.data.commentCount + 1)
+                || (!(resource.data.commentCount is int)
+                  && request.resource.data.commentCount == 1))))
+          && (!changed.hasAny(["shareCount"])
+            || (request.resource.data.shareCount is int
+              && request.resource.data.shareCount >= 0
+              && ((resource.data.shareCount is int
+                  && request.resource.data.shareCount == resource.data.shareCount + 1)
+                || (!(resource.data.shareCount is int)
+                  && request.resource.data.shareCount == 1))))
+          && (!changed.hasAny(["saveCount"])
+            || (request.resource.data.saveCount is int
+              && request.resource.data.saveCount >= 0
+              && ((resource.data.saveCount is int
+                  && (request.resource.data.saveCount == resource.data.saveCount + 1
+                    || request.resource.data.saveCount == resource.data.saveCount - 1))
+                || (!(resource.data.saveCount is int)
+                  && (request.resource.data.saveCount == 0
+                    || request.resource.data.saveCount == 1)))))
+          && (!changed.hasAny(["viewCount"])
+            || (request.resource.data.viewCount is int
+              && request.resource.data.viewCount >= 0
+              && ((resource.data.viewCount is int
+                  && request.resource.data.viewCount == resource.data.viewCount + 1)
+                || (!(resource.data.viewCount is int)
+                  && request.resource.data.viewCount == 1))));
+      }
+
       allow create: if request.auth != null
         && request.resource.data.creatorUid == request.auth.uid
         && request.resource.data.status == "pending"
@@ -117,17 +204,69 @@ service cloud.firestore {
         && request.resource.data.caption.size() <= 2000
         && request.resource.data.arabicText is string
         && request.resource.data.arabicText.size() <= 2000
-        && (request.resource.data.caption.size() > 0 || request.resource.data.arabicText.size() > 0);
+        && (request.resource.data.caption.size() > 0 || request.resource.data.arabicText.size() > 0)
+        // 1.0.75: optional multi-photo carousel. Only image posts, 2..10 entries; the trusted
+        // publisher re-validates every entry is an https string before it goes public.
+        && (!('mediaUrls' in request.resource.data)
+          || (request.resource.data.type == "image"
+            && request.resource.data.mediaUrls is list
+            && request.resource.data.mediaUrls.size() >= 2
+            && request.resource.data.mediaUrls.size() <= 10
+            && request.resource.data.mediaUrls[0] == request.resource.data.mediaUrl))
+        // 1.1.1 composer fields — all optional; validated only when present (older clients unaffected).
+        && (!('aiLabel' in request.resource.data) || request.resource.data.aiLabel is bool)
+        && (!('locationName' in request.resource.data)
+          || (request.resource.data.locationName is string && request.resource.data.locationName.size() <= 80))
+        && (!('visibility' in request.resource.data) || request.resource.data.visibility in ["everyone", "followers"])
+        && (!('poll' in request.resource.data)
+          || (request.resource.data.type in ["text", "image", "video"]
+            && request.resource.data.poll is map
+            && request.resource.data.poll.keys().hasOnly(["options", "endsAt"])
+            && request.resource.data.poll.options is list
+            && request.resource.data.poll.options.size() >= 2
+            && request.resource.data.poll.options.size() <= 4
+            && request.resource.data.poll.endsAt is timestamp
+            && request.resource.data.poll.endsAt > request.time
+            && request.resource.data.poll.endsAt < request.time + duration.value(8, 'd')));
       // Creators can see their own pending submissions; nobody else (admins use Admin SDK).
       allow read: if request.auth != null
         && resource.data.creatorUid == request.auth.uid;
+      // A creator sees their own upload while trusted publication is pending. Permit only the same
+      // bounded engagement deltas as the published document, so its counts do not stay at zero.
+      allow update: if ownerEngagementCounterUpdate();
+      allow delete: if false;
+    }
+
+    // 1.1.1: one vote per member per poll. Signed-in members read the tally; votes are final.
+    match /ummah_posts/{postId}/poll_votes/{voterUid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.uid == voterUid
+        && request.resource.data.keys().hasOnly(["uid", "option", "createdAt"])
+        && request.resource.data.uid == voterUid
+        && request.resource.data.option is int
+        && request.resource.data.option >= 0
+        && request.resource.data.createdAt == request.time
+        && get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll is map
+        && request.resource.data.option < get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll.options.size()
+        && request.time < get(/databases/$(database)/documents/ummah_posts/$(postId)).data.poll.endsAt;
       allow update, delete: if false;
+    }
+
+    // 1.1.1: followers-only posts. Written only by the trusted publisher (Admin SDK); readable by
+    // the creator and by members who follow the creator.
+    match /ummah_follower_posts/{postId} {
+      allow read: if request.auth != null
+        && (resource.data.creatorUid == request.auth.uid
+          || exists(/databases/$(database)/documents/ummah_users/$(request.auth.uid)/following/$(resource.data.creatorUid)));
+      allow write: if false;
     }
 
     match /ummah_users/{userId}/{interaction}/{postId} {
       allow read, create, update, delete: if request.auth != null
         && request.auth.uid == userId
-        && (interaction == "likes" || interaction == "saved" || interaction == "saved_collections" || interaction == "blocked");
+        && (interaction == "likes" || interaction == "saved" || interaction == "saved_collections" || interaction == "blocked"
+            || interaction == "comment_likes");
     }
 
     // Public profile cards (name, @username, photo). Anyone can read so posts/reels can show
@@ -143,7 +282,14 @@ service cloud.firestore {
         && (!('handle' in request.resource.data) || (request.resource.data.handle is string && request.resource.data.handle.size() <= 30))
         && (!('photoUrl' in request.resource.data) || (request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() <= 500))
         && (!('isPrivate' in request.resource.data) || request.resource.data.isPrivate is bool)
-        && (!('hideCounts' in request.resource.data) || request.resource.data.hideCounts is bool);
+        && (!('hideCounts' in request.resource.data) || request.resource.data.hideCounts is bool)
+        // 1.2.0 (115): profile type badge (scholar is only ever set via verification), public city/country,
+        // and owners can never set or change their own scholarBadge / verified flags.
+        && (!('profileType' in request.resource.data) || request.resource.data.profileType in ['regular', 'student', 'creator', 'masjid'])
+        && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() <= 60))
+        && (!('country' in request.resource.data) || (request.resource.data.country is string && request.resource.data.country.size() <= 60))
+        && request.resource.data.get('scholarBadge', false) == (resource == null ? false : resource.data.get('scholarBadge', false))
+        && request.resource.data.get('verified', false) == (resource == null ? false : resource.data.get('verified', false));
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
@@ -162,10 +308,181 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // 1.0.75: 24-hour stories. Signed-in members read unexpired stories; authors create/delete
+    // only their own; no updates. Expiry is enforced by a Firestore TTL policy on expiresAt plus a
+    // scheduled cleanup function (which also removes the Storage file).
+    match /ummah_stories/{storyId} {
+      // Signed-in read (list queries can't be proven against request.time); the client hides
+      // expired stories and TTL + the cleanup function remove them server-side.
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["authorUid", "authorName", "authorHandle", "avatarUrl", "mediaUrl", "mediaPath", "type", "caption", "createdAt", "expiresAt"])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type == "image"
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.mediaUrl.matches("https://.*")
+        && request.resource.data.mediaUrl.size() <= 2000
+        && request.resource.data.mediaPath is string
+        && request.resource.data.mediaPath.matches("ummah_stories/" + request.auth.uid + "/.*")
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 300
+        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 60
+        && request.resource.data.authorHandle is string && request.resource.data.authorHandle.size() <= 40
+        && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm');
+      // 1.0.92 (additive): video stories, max ~60 s. Either an uploaded clip under the author's
+      // own Storage folder, or a re-share of an existing Ummah reel (no upload; the URL must be
+      // the reel's own mediaUrl). The image rule above is unchanged.
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["authorUid", "authorName", "authorHandle", "avatarUrl", "mediaUrl", "mediaPath", "type", "caption", "createdAt", "expiresAt", "durationMs", "thumbUrl", "thumbPath", "sharedPostId"])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type == "video"
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.mediaUrl.matches("https://.*")
+        && request.resource.data.mediaUrl.size() <= 2000
+        && request.resource.data.mediaPath is string
+        && request.resource.data.durationMs is int
+        && request.resource.data.durationMs > 0
+        && request.resource.data.durationMs <= 61000
+        && request.resource.data.thumbUrl is string
+        && request.resource.data.thumbUrl.size() <= 2000
+        && (request.resource.data.thumbUrl == "" || request.resource.data.thumbUrl.matches("https://.*"))
+        && request.resource.data.thumbPath is string
+        && (request.resource.data.thumbPath == "" || request.resource.data.thumbPath.matches("ummah_stories/" + request.auth.uid + "/.*"))
+        && request.resource.data.sharedPostId is string
+        && request.resource.data.sharedPostId.size() <= 128
+        && ((request.resource.data.sharedPostId == ""
+              && request.resource.data.mediaPath.matches("ummah_stories/" + request.auth.uid + "/.*"))
+          || (request.resource.data.sharedPostId != ""
+              && request.resource.data.mediaPath == ""
+              && exists(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId))
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("approved", true) != false
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("status", "") == "published"
+              && get(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId)).data.get("mediaUrl", "") == request.resource.data.mediaUrl))
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 300
+        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 60
+        && request.resource.data.authorHandle is string && request.resource.data.authorHandle.size() <= 40
+        && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm');
+      // 1.1.3 editor pro (additive, client flag StoryInteractive.enabled = false until deployed): an
+      // image story may carry ONE poll / quiz / question sticker as `interactive`. Same checks as the
+      // image rule above plus the shape of `interactive`. The two rules above are unchanged.
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["authorUid", "authorName", "authorHandle", "avatarUrl", "mediaUrl", "mediaPath", "type", "caption", "createdAt", "expiresAt", "interactive"])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.type == "image"
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.mediaUrl.matches("https://.*")
+        && request.resource.data.mediaUrl.size() <= 2000
+        && request.resource.data.mediaPath is string
+        && request.resource.data.mediaPath.matches("ummah_stories/" + request.auth.uid + "/.*")
+        && request.resource.data.caption is string
+        && request.resource.data.caption.size() <= 300
+        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 60
+        && request.resource.data.authorHandle is string && request.resource.data.authorHandle.size() <= 40
+        && request.resource.data.avatarUrl is string && request.resource.data.avatarUrl.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(1450, 'm')
+        && request.resource.data.interactive is map
+        && request.resource.data.interactive.keys().hasOnly(["kind", "prompt", "options", "answer"])
+        && request.resource.data.interactive.prompt is string
+        && request.resource.data.interactive.prompt.size() <= 120
+        && ((request.resource.data.interactive.kind == "question"
+              && !request.resource.data.interactive.keys().hasAny(["options", "answer"]))
+          || (request.resource.data.interactive.kind == "poll"
+              && !request.resource.data.interactive.keys().hasAny(["answer"])
+              && request.resource.data.interactive.options is list
+              && request.resource.data.interactive.options.size() >= 2
+              && request.resource.data.interactive.options.size() <= 4)
+          || (request.resource.data.interactive.kind == "quiz"
+              && request.resource.data.interactive.options is list
+              && request.resource.data.interactive.options.size() >= 2
+              && request.resource.data.interactive.options.size() <= 4
+              && request.resource.data.interactive.answer is int
+              && request.resource.data.interactive.answer >= 0
+              && request.resource.data.interactive.answer < request.resource.data.interactive.options.size()));
+      allow update: if false;
+      allow delete: if request.auth != null && resource.data.authorUid == request.auth.uid;
+
+      // One doc per viewer. A viewer can only write their own doc once (no edits); only the
+      // story author can list viewers; a viewer can read their own marker.
+      match /viewers/{viewerUid} {
+        allow create: if request.auth != null
+          && request.auth.uid == viewerUid
+          && request.resource.data.keys().hasOnly(["viewedAt"])
+          && request.resource.data.viewedAt == request.time
+          && get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid != request.auth.uid;
+        allow read: if request.auth != null
+          && (request.auth.uid == viewerUid
+            || get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid == request.auth.uid);
+        allow update, delete: if false;
+      }
+
+      // 1.1.3 (additive): one answer per viewer for an interactive story. Poll / quiz → `choice`
+      // (option index); question → `text`. Write-once; the viewer reads their own, the author reads all.
+      match /responses/{viewerUid} {
+        allow create: if request.auth != null
+          && request.auth.uid == viewerUid
+          && get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid != request.auth.uid
+          && get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.expiresAt > request.time
+          && request.resource.data.createdAt == request.time
+          && ((get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.get("interactive", {}).get("kind", "") in ["poll", "quiz"]
+                && request.resource.data.keys().hasOnly(["choice", "createdAt"])
+                && request.resource.data.choice is int
+                && request.resource.data.choice >= 0
+                && request.resource.data.choice < get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.interactive.options.size())
+            || (get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.get("interactive", {}).get("kind", "") == "question"
+                && request.resource.data.keys().hasOnly(["text", "createdAt"])
+                && request.resource.data.text is string
+                && request.resource.data.text.size() >= 1
+                && request.resource.data.text.size() <= 200));
+        allow read: if request.auth != null
+          && (request.auth.uid == viewerUid
+            || get(/databases/$(database)/documents/ummah_stories/$(storyId)).data.authorUid == request.auth.uid);
+        allow update, delete: if false;
+      }
+    }
+
     match /ummah_reports/{reportId} {
       allow create: if request.auth != null
         && request.resource.data.reporterUid == request.auth.uid;
       allow read, update, delete: if false;
+      // 1.1.5 (additive): moderators can read reports; decisions go through setModerationDecision.
+      allow read: if isModerator();
+    }
+
+    // 1.1.5 Halal Guard collections. Only Cloud Functions (Admin SDK) write them.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /moderation_queue/{itemId} {
+      allow read: if isModerator();
+      allow write: if false;
+    }
+    match /moderation_audit/{entryId} {
+      allow read: if isModerator();
+      allow write: if false;
+    }
+    match /user_strikes/{uid} {
+      allow read: if isModerator() || (request.auth != null && request.auth.uid == uid);
+      allow write: if false;
+    }
+    match /moderation_notices/{uid}/items/{noticeId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["seen"])
+        && request.resource.data.seen == true;
+      allow create, delete: if false;
     }
 
     match /user_backups/{userId} {
@@ -184,8 +501,87 @@ service cloud.firestore {
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 500;
       // Comments are public to read (Instagram-style comment lists); no edits.
+      // An author can delete their own comment (needed for account deletion).
       allow read: if true;
-      allow update, delete: if false;
+      // 1.0.78: signed-in members may move ONLY likeCount by exactly +/-1 (Instagram comment likes).
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["likeCount"])
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount >= 0
+        && (request.resource.data.likeCount == resource.data.get("likeCount", 0) + 1
+            || request.resource.data.likeCount == resource.data.get("likeCount", 0) - 1);
+      allow delete: if request.auth != null && resource.data.creatorUid == request.auth.uid;
+      // 1.1.4 Creator Studio (additive): the owner of the post may hide/unhide (status only) or delete
+      // any comment on their post.
+      function isPostOwner() {
+        return request.auth != null && resource.data.postId is string
+          && exists(/databases/$(database)/documents/ummah_posts/$(resource.data.postId))
+          && get(/databases/$(database)/documents/ummah_posts/$(resource.data.postId)).data.creatorUid == request.auth.uid;
+      }
+      allow update: if isPostOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["hidden", "published"];
+      allow delete: if isPostOwner();
+    }
+
+    // 1.1.4 Creator Studio: nightly per-creator totals written only by the creatorDailySnapshot function.
+    match /ummah_creator_stats/{uid}/days/{day} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // 1.0.78: FCM device tokens (used only by Cloud Functions for incoming-call pushes).
+    match /ummah_device_tokens/{userId}/tokens/{token} {
+      allow create, update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(["token", "updatedAt", "platform"])
+        && request.resource.data.token == token;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if false;
+    }
+
+    // 1.0.78: online / last-seen presence. Owner writes; signed-in members read.
+    match /ummah_presence/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(["online", "lastSeen"])
+        && request.resource.data.online is bool;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 1.0.78: 1:1 WebRTC call signaling. Only allowed when the callee follows the caller and
+    // neither has blocked the other; only the two participants can read or update.
+    match /ummah_calls/{callId} {
+      function callParticipant() {
+        return request.auth != null
+          && (request.auth.uid == resource.data.callerUid || request.auth.uid == resource.data.calleeUid);
+      }
+      allow read: if callParticipant();
+      allow create: if request.auth != null
+        && request.resource.data.callerUid == request.auth.uid
+        && request.resource.data.calleeUid is string
+        && request.resource.data.calleeUid != request.auth.uid
+        && request.resource.data.status == "ringing"
+        && request.resource.data.video is bool
+        && exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.calleeUid)/following/$(request.auth.uid))
+        && !exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.calleeUid)/blocked/$(request.auth.uid))
+        && !exists(/databases/$(database)/documents/ummah_users/$(request.auth.uid)/blocked/$(request.resource.data.calleeUid));
+      allow update: if callParticipant()
+        && request.resource.data.callerUid == resource.data.callerUid
+        && request.resource.data.calleeUid == resource.data.calleeUid
+        && request.resource.data.video == resource.data.video
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "answer", "offer", "acceptedAt", "endedAt"])
+        && request.resource.data.status in ["ringing", "accepted", "declined", "ended", "missed", "busy"];
+      allow delete: if false;
+
+      match /{side}/{candidateId} {
+        function callDoc() { return get(/databases/$(database)/documents/ummah_calls/$(callId)).data; }
+        allow read: if request.auth != null
+          && (request.auth.uid == callDoc().callerUid || request.auth.uid == callDoc().calleeUid);
+        allow create: if request.auth != null
+          && ((side == "callerCandidates" && request.auth.uid == callDoc().callerUid)
+              || (side == "calleeCandidates" && request.auth.uid == callDoc().calleeUid));
+        allow update, delete: if false;
+      }
     }
 
     match /ummah_chats/{chatId} {
@@ -205,21 +601,59 @@ service cloud.firestore {
       allow update: if isParticipant()
         && request.resource.data.participantUids == resource.data.participantUids;
       allow delete: if false;
+      // 1.1.9 (additive): opening a 1:1 chat that has not been created yet. Chat ids are the two
+      // member uids sorted and joined by "_", so only those two members learn that it does not exist.
+      allow read: if request.auth != null && resource == null
+        && request.auth.uid in chatId.split('_');
+      // 1.1.9 (additive): either member may update metadata even when their client lists the two
+      // participants in the other order. The member SET can never change.
+      allow update: if isParticipant()
+        && request.resource.data.participantUids is list
+        && request.resource.data.participantUids.size() == 2
+        && request.resource.data.participantUids.toSet() == resource.data.participantUids.toSet();
 
       match /messages/{msgId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids;
+        // 1.1.9 (additive): a member may listen to a not-yet-created chat (empty until the first message).
+        allow read: if request.auth != null
+          && !exists(/databases/$(database)/documents/ummah_chats/$(chatId))
+          && request.auth.uid in chatId.split('_');
         allow create: if request.auth != null
           && request.auth.uid in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
           && request.resource.data.senderUid == request.auth.uid
-          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf"]
+          && request.resource.data.type in ["text", "image", "video", "reel", "audio", "location", "file", "pdf", "call", "post_share"]
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 2000
-          && request.resource.data.mediaUrl is string;
+          && request.resource.data.mediaUrl is string
+          // 1.0.82 (additive): Instagram-style shared reel/post card. Only applies to the new type.
+          && (request.resource.data.type != "post_share" || (
+            request.resource.data.text.size() <= 500
+            && request.resource.data.sharedTo is string
+            && request.resource.data.sharedTo != request.auth.uid
+            && request.resource.data.sharedTo in getAfter(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
+            && !exists(/databases/$(database)/documents/ummah_users/$(request.resource.data.sharedTo)/blocked/$(request.auth.uid))
+            && request.resource.data.sharedPostId is string
+            && request.resource.data.sharedPostId.size() > 0
+            && request.resource.data.sharedPostId.size() <= 128
+            && exists(/databases/$(database)/documents/ummah_posts/$(request.resource.data.sharedPostId))
+            && request.resource.data.sharedPostKind in ["reel", "post"]
+            && request.resource.data.sharedThumb is string && request.resource.data.sharedThumb.size() <= 2000
+            && request.resource.data.sharedCreatorUid is string && request.resource.data.sharedCreatorUid.size() <= 128
+            && request.resource.data.sharedCreatorName is string && request.resource.data.sharedCreatorName.size() <= 80
+            && request.resource.data.sharedCreatorPhoto is string && request.resource.data.sharedCreatorPhoto.size() <= 1000
+            && request.resource.data.sharedCaption is string && request.resource.data.sharedCaption.size() <= 300));
         // Participants may add/remove ONLY emoji reactions (no other field may change).
         allow update: if request.auth != null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"])
           && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids;
+        // 1.0.78: "Delete for me" - a participant may append ONLY their own uid to hiddenFor.
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/ummah_chats/$(chatId)).data.participantUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["hiddenFor"])
+          && request.resource.data.hiddenFor is list
+          && request.resource.data.hiddenFor.toSet().difference(resource.data.get("hiddenFor", []).toSet()) == [request.auth.uid].toSet()
+          && request.resource.data.hiddenFor.toSet().hasAll(resource.data.get("hiddenFor", []).toSet());
         // A member can delete their OWN message (WhatsApp/WeChat-style).
         allow delete: if request.auth != null && resource.data.senderUid == request.auth.uid;
       }
@@ -296,5 +730,416 @@ service cloud.firestore {
         allow delete: if request.auth != null && resource.data.senderUid == request.auth.uid;
       }
     }
+  // BEGIN 1.2.0 FEATURE RULES MERGE (additive; NOT deployed by this commit)
+// --- from firestore-ask-scholar.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /scholars/{uid} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /scholar_questions/{qid} {
+      function ownerDoc() { return /databases/$(database)/documents/scholar_question_owners/$(qid); }
+      function asker() { return request.auth != null && exists(ownerDoc()) && get(ownerDoc()).data.uid == request.auth.uid; }
+      function newQ(d) {
+        return d.keys().hasOnly(['text', 'category', 'anonymous', 'name', 'status', 'createdAt'])
+          && d.keys().hasAll(['text', 'category', 'anonymous', 'name', 'status', 'createdAt'])
+          && d.text is string && d.text.size() >= 20 && d.text.size() <= 1000
+          && d.category in ['AQEEDAH', 'SALAH', 'FASTING', 'ZAKAT', 'FAMILY', 'FINANCE', 'QURAN', 'MANNERS', 'OTHER']
+          && d.anonymous is bool && d.name is string && d.name.size() <= 40 && (!d.anonymous || d.name == '')
+          && d.status == 'open' && d.createdAt == request.time;
+      }
+      function scholarAnswer() {
+        let d = request.resource.data;
+        let s = get(/databases/$(database)/documents/scholars/$(request.auth.uid)).data;
+        return isScholar()
+          && d.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'scholarUid', 'scholarName', 'scholarTitle', 'answeredAt'])
+          && d.status == 'answered' && d.answer is string && d.answer.size() >= 40 && d.answer.size() <= 4000
+          && d.scholarUid == request.auth.uid && d.scholarName == s.name && d.scholarTitle is string && d.scholarTitle.size() <= 60
+          && d.answeredAt == request.time
+          // First answer, or the same scholar refining their own answer.
+          && (resource.data.status == 'open' || resource.data.scholarUid == request.auth.uid);
+      }
+
+      allow read: if resource.data.status == 'answered' || isScholar() || asker() || isModerator();
+      allow create: if request.auth != null && newQ(request.resource.data)
+        && getAfter(ownerDoc()).data.uid == request.auth.uid;
+      allow update: if request.auth != null && scholarAnswer();
+      // The asker may withdraw an unanswered question; moderators may remove anything.
+      allow delete: if (asker() && resource.data.status == 'open') || isModerator();
+    }
+
+    match /scholar_question_owners/{qid} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time
+        && !exists(/databases/$(database)/documents/scholar_questions/$(qid))
+        && existsAfter(/databases/$(database)/documents/scholar_questions/$(qid));
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow update: if false;
+    }
+
+// --- from firestore-challenges.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /challenges/{code} {
+      function uid() { return request.auth.uid; }
+      function ch(d) {
+        return d.title is string && d.title.size() >= 3 && d.title.size() <= 60
+          && d.kind in ['QURAN', 'ADHKAR', 'SALAWAT', 'SADAQAH', 'KINDNESS', 'NIGHT', 'CUSTOM']
+          && d.goal is string && d.goal.size() <= 120
+          && d.days in [7, 14, 21, 30, 40]
+          && d.startDay is string && d.startDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.creatorName is string && d.creatorName.size() <= 40;
+      }
+      function onlyMembersChange() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']); }
+      function after() { return request.resource.data.members; }
+      function before() { return resource.data.members; }
+
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && uid() in resource.data.members;
+      allow create: if request.auth != null && code.matches('^[A-HJ-NP-Z2-9]{8}$')
+        && request.resource.data.keys().hasOnly(['title', 'kind', 'goal', 'days', 'startDay', 'createdBy', 'creatorName', 'members', 'createdAt'])
+        && request.resource.data.keys().hasAll(['title', 'kind', 'goal', 'days', 'startDay', 'createdBy', 'creatorName', 'members', 'createdAt'])
+        && ch(request.resource.data) && request.resource.data.createdBy == uid() && after() == [uid()]
+        && request.resource.data.createdAt == request.time;
+      allow update: if request.auth != null && onlyMembersChange() && (
+          // join: append yourself, while there is room
+          (!(uid() in before()) && after() == before().concat([uid()]) && before().size() < 30)
+          // leave: remove only yourself (the creator deletes instead)
+          || (uid() in before() && uid() != resource.data.createdBy && after() == before().removeAll([uid()]))
+          // creator removes someone
+          || (uid() == resource.data.createdBy && before().hasAll(after()) && uid() in after())
+        );
+      allow delete: if request.auth != null && (resource.data.createdBy == uid() || isModerator());
+
+      match /progress/{member} {
+        function parent() { return get(/databases/$(database)/documents/challenges/$(code)).data; }
+        allow read: if request.auth != null && request.auth.uid in parent().members;
+        allow create, update: if request.auth != null && request.auth.uid == member && member in parent().members
+          && request.resource.data.keys().hasOnly(['name', 'done', 'updatedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40
+          && request.resource.data.done is list && request.resource.data.done.size() <= 40
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if request.auth != null && (request.auth.uid == member || request.auth.uid == parent().createdBy || isModerator());
+      }
+    }
+
+// --- from firestore-dua-requests.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /dua_requests/{duaId} {
+      function duaOwner() {
+        return request.auth != null && exists(/databases/$(database)/documents/dua_owners/$(duaId))
+          && get(/databases/$(database)/documents/dua_owners/$(duaId)).data.uid == request.auth.uid;
+      }
+      function newDuaOk(d) {
+        return d.keys().hasOnly(['text', 'category', 'anonymous', 'name', 'authorUid', 'ameenCount', 'prayedCount', 'answered', 'createdAt'])
+          && d.keys().hasAll(['text', 'category', 'anonymous', 'name', 'authorUid', 'ameenCount', 'prayedCount', 'answered', 'createdAt'])
+          && d.text is string && d.text.size() >= 8 && d.text.size() <= 400
+          && d.category in ['HEALTH', 'FAMILY', 'RIZQ', 'STUDIES', 'MARRIAGE', 'FORGIVENESS', 'DEPARTED', 'HARDSHIP', 'OTHER']
+          && d.anonymous is bool && d.name is string && d.name.size() <= 40
+          && (d.anonymous ? (d.authorUid == '' && d.name == '') : d.authorUid == request.auth.uid)
+          && d.ameenCount == 0 && d.prayedCount == 0 && d.answered == false && d.createdAt == request.time;
+      }
+      function respDoc(kind) { return /databases/$(database)/documents/dua_requests/$(duaId)/responses/$(request.auth.uid + '_' + kind); }
+      function counterOk(field, kind) {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field])
+          && ((request.resource.data[field] == resource.data[field] + 1 && !exists(respDoc(kind)) && existsAfter(respDoc(kind)))
+           || (request.resource.data[field] == resource.data[field] - 1 && exists(respDoc(kind)) && !existsAfter(respDoc(kind))));
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null && newDuaOk(request.resource.data)
+        && getAfter(/databases/$(database)/documents/dua_owners/$(duaId)).data.uid == request.auth.uid;
+      allow update: if request.auth != null && (
+           counterOk('ameenCount', 'ameen') || counterOk('prayedCount', 'prayed')
+        || (duaOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answered']) && request.resource.data.answered == true));
+      allow delete: if duaOwner() || isModerator();
+
+      match /responses/{rid} {
+        allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+        allow create: if request.auth != null && rid == request.auth.uid + '_' + request.resource.data.kind
+          && request.resource.data.keys().hasOnly(['uid', 'kind', 'at'])
+          && request.resource.data.uid == request.auth.uid && request.resource.data.kind in ['ameen', 'prayed']
+          && request.resource.data.at == request.time
+          && exists(/databases/$(database)/documents/dua_requests/$(duaId));
+        allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      }
+    }
+
+    match /dua_owners/{duaId} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      // Only together with the request itself (same batch), never for an existing request.
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time
+        && !exists(/databases/$(database)/documents/dua_requests/$(duaId))
+        && existsAfter(/databases/$(database)/documents/dua_requests/$(duaId));
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow update: if false;
+    }
+
+// --- from firestore-group-khatm.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /group_khatms/{code} {
+      function signedIn() { return request.auth != null; }
+      function validText(v, max) { return v is string && v.size() <= max; }
+      // Anyone signed in can open a Khatm by its code (the invite link), and list the ones they belong to.
+      allow get: if signedIn();
+      allow list: if signedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if signedIn()
+        && code.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$')
+        && request.resource.data.keys().hasOnly(['title', 'dedication', 'creatorUid', 'creatorName', 'memberUids', 'createdAt'])
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && validText(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+        && validText(request.resource.data.dedication, 200)
+        && validText(request.resource.data.creatorName, 60)
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (
+        // Join: add only yourself, max 100 readers.
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && !(request.auth.uid in resource.data.memberUids)
+          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.memberUids.removeAll(resource.data.memberUids) == [request.auth.uid]
+          && request.resource.data.memberUids.size() <= 100)
+        // Leave: remove only yourself (the organiser stays).
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && request.auth.uid in resource.data.memberUids
+          && request.auth.uid != resource.data.creatorUid
+          && request.resource.data.memberUids == resource.data.memberUids.removeAll([request.auth.uid]))
+        // Organiser edits the title / intention.
+        || (request.auth.uid == resource.data.creatorUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'dedication'])
+          && validText(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+          && validText(request.resource.data.dedication, 200))
+      );
+      allow delete: if signedIn() && request.auth.uid == resource.data.creatorUid;
+
+      match /paras/{para} {
+        function khatm() { return get(/databases/$(database)/documents/group_khatms/$(code)).data; }
+        function member() { return request.auth != null && request.auth.uid in khatm().memberUids; }
+        function validClaim() {
+          return request.resource.data.keys().hasOnly(['uid', 'name', 'status', 'at'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.status in ['claimed', 'done']
+            && request.resource.data.name is string && request.resource.data.name.size() <= 60
+            && request.resource.data.at == request.time;
+        }
+        allow read: if member();
+        // Claim an open para (a second claim on the same para is an update and is denied).
+        allow create: if member() && para.matches('^([1-9]|[12][0-9]|30)$') && validClaim();
+        // Only the reader who claimed it can mark it done / not done.
+        allow update: if member() && resource.data.uid == request.auth.uid && validClaim()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'at', 'name']);
+        // Release your own para; the organiser can free a para someone abandoned.
+        allow delete: if request.auth != null
+          && (resource.data.uid == request.auth.uid || khatm().creatorUid == request.auth.uid);
+      }
+    }
+
+// --- from firestore-halaqa-rooms.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /halaqa_rooms/{roomId} {
+      function room() { return get(/databases/$(database)/documents/halaqa_rooms/$(roomId)).data; }
+      function isHost() { return request.auth != null && room().hostUid == request.auth.uid; }
+      function memberPath(uid) { return /databases/$(database)/documents/halaqa_rooms/$(roomId)/members/$(uid); }
+      function isMember() { return request.auth != null && exists(memberPath(request.auth.uid)); }
+      function roomOk(d) {
+        return d.keys().hasOnly(['title', 'topic', 'description', 'hostUid', 'hostName', 'status', 'scheduledAt', 'createdAt'])
+          && d.keys().hasAll(['title', 'topic', 'description', 'hostUid', 'hostName', 'status', 'scheduledAt'])
+          && d.title is string && d.title.size() >= 4 && d.title.size() <= 80
+          && d.description is string && d.description.size() <= 280
+          && d.topic in ['QURAN', 'DARS', 'NAAT', 'DHIKR', 'QA'] && d.hostName is string && d.hostName.size() <= 40
+          && d.scheduledAt is timestamp && d.status in ['scheduled', 'live', 'ended'];
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null && roomOk(request.resource.data) && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.status in ['scheduled', 'live'] && request.resource.data.createdAt == request.time
+        && request.resource.data.scheduledAt < request.time + duration.value(60, 'd');
+      allow update: if request.auth != null && resource.data.hostUid == request.auth.uid && roomOk(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'status', 'scheduledAt'])
+        && resource.data.status != 'ended';
+      allow delete: if (request.auth != null && resource.data.hostUid == request.auth.uid) || isModerator();
+
+      match /members/{uid} {
+        function memberOk(d) {
+          return d.keys().hasOnly(['name', 'role', 'hand', 'muted', 'joinedAt']) && d.name is string && d.name.size() <= 40
+            && d.role in ['host', 'speaker', 'listener'] && d.hand is bool && d.muted is bool;
+        }
+        allow read: if true;
+        // Join yourself, only into a room that isn't over; only the room's host may join as host.
+        allow create: if request.auth != null && request.auth.uid == uid && memberOk(request.resource.data)
+          && room().status != 'ended' && request.resource.data.joinedAt == request.time && request.resource.data.muted == true
+          && (request.resource.data.role == 'listener' || (request.resource.data.role == 'host' && room().hostUid == uid))
+          && request.resource.data.hand == false;
+        // Yourself: raise/lower hand, mute/unmute, step down from stage. Host: invite, move down, mute anyone.
+        allow update: if request.auth != null && memberOk(request.resource.data)
+          && request.resource.data.name == resource.data.name && request.resource.data.joinedAt == resource.data.joinedAt
+          && (
+            (request.auth.uid == uid && (request.resource.data.role == resource.data.role
+               || (resource.data.role == 'speaker' && request.resource.data.role == 'listener'))
+               && (request.resource.data.role != 'listener' || request.resource.data.muted == true))
+            || (isHost() && uid != request.auth.uid && request.resource.data.role in ['speaker', 'listener']
+               && (request.resource.data.role == resource.data.role || request.resource.data.muted == true)
+               && (request.resource.data.muted == true || request.resource.data.muted == resource.data.muted))
+          );
+        allow delete: if request.auth != null && (request.auth.uid == uid || isHost()) || isModerator();
+      }
+
+      match /links/{linkId} {
+        function linkOk(d) {
+          return d.keys().hasOnly(['from', 'to', 'offer', 'answer', 'at']) && d.from is string && d.to is string
+            && d.from < d.to && linkId == d.from + '_' + d.to;
+        }
+        allow read: if request.auth != null && (resource == null || request.auth.uid in [resource.data.from, resource.data.to]);
+        allow create, update: if request.auth != null && linkOk(request.resource.data) && isMember()
+          && exists(memberPath(request.resource.data.to)) && exists(memberPath(request.resource.data.from))
+          && ((request.auth.uid == request.resource.data.from && (resource == null || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer', 'answer', 'at'])))
+              || (resource != null && request.auth.uid == resource.data.to && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer'])));
+        allow delete: if request.auth != null && (request.auth.uid in [resource.data.from, resource.data.to] || isHost());
+
+        match /{side}/{cid} {
+          function link() { return get(/databases/$(database)/documents/halaqa_rooms/$(roomId)/links/$(linkId)).data; }
+          allow read: if request.auth != null && request.auth.uid in [link().from, link().to];
+          allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
+            && ((side == 'fromCandidates' && link().from == request.auth.uid) || (side == 'toCandidates' && link().to == request.auth.uid));
+        }
+      }
+    }
+
+// --- from firestore-masjid-pages.rules (additive merge 1.2.0; do not deploy without approval) ---
+    match /masjids/{masjidId} {
+      function timeOk(t) { return t is string && t.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
+      function jamaatOk(j) {
+        return j is map && j.keys().hasOnly(['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'])
+          && (!('Fajr' in j) || timeOk(j.Fajr)) && (!('Dhuhr' in j) || timeOk(j.Dhuhr)) && (!('Asr' in j) || timeOk(j.Asr))
+          && (!('Maghrib' in j) || timeOk(j.Maghrib)) && (!('Isha' in j) || timeOk(j.Isha));
+      }
+      function timesOk(d) {
+        return jamaatOk(d.jamaat) && (d.jummahTime == '' || timeOk(d.jummahTime))
+          && d.jummahBayan is string && d.jummahBayan.size() <= 140;
+      }
+      function listingOk(d) {
+        return d.keys().hasOnly(['name', 'address', 'city', 'lat', 'lng', 'jamaat', 'jummahTime', 'jummahBayan', 'adminUids', 'updatedAt'])
+          && d.keys().hasAll(['name', 'jamaat', 'jummahTime', 'jummahBayan', 'adminUids'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+          && (!('address' in d) || (d.address is string && d.address.size() <= 160))
+          && (!('city' in d) || (d.city is string && d.city.size() <= 60))
+          && (!('lat' in d) || d.lat is number) && (!('lng' in d) || d.lng is number)
+          && d.adminUids is list && d.adminUids.size() <= 10 && timesOk(d);
+      }
+      function manager() { return request.auth != null && request.auth.uid in resource.data.adminUids; }
+
+      // Masjid info is public (shareable, readable before sign-in).
+      allow read: if true;
+      allow create: if isModerator() && listingOk(request.resource.data);
+      allow update: if
+        (isModerator() && listingOk(request.resource.data))
+        // Approved imam / committee: only times, Jummah and bayan topic.
+        || (manager()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['jamaat', 'jummahTime', 'jummahBayan', 'updatedAt'])
+          && timesOk(request.resource.data) && request.resource.data.updatedAt == request.time);
+      allow delete: if isModerator();
+
+      match /announcements/{aid} {
+        function canPost() {
+          return isModerator() || (request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/masjids/$(masjidId)).data.adminUids);
+        }
+        allow read: if true;
+        allow create: if canPost()
+          && request.resource.data.keys().hasOnly(['text', 'by', 'at'])
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+        allow update: if false;
+        allow delete: if canPost();
+      }
+    }
+
+    match /masjid_claims/{claimId} {
+      function claimOk(d) {
+        return d.keys().hasOnly(['masjidId', 'masjidName', 'uid', 'name', 'role', 'contact', 'note', 'status', 'at'])
+          && d.uid == request.auth.uid && claimId == d.masjidId + '_' + request.auth.uid
+          && exists(/databases/$(database)/documents/masjids/$(d.masjidId))
+          && d.masjidName is string && d.masjidName.size() <= 80
+          && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+          && d.role in ['Imam', 'Committee member', 'Volunteer admin']
+          && d.contact is string && d.contact.size() >= 5 && d.contact.size() <= 120
+          && d.note is string && d.note.size() <= 500
+          && d.status == 'pending' && d.at == request.time;
+      }
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow create: if request.auth != null && claimOk(request.resource.data);
+      // Re-apply after a decline.
+      allow update: if (request.auth != null && resource.data.uid == request.auth.uid && resource.data.status == 'rejected' && claimOk(request.resource.data))
+        // Moderator decision (approval also adds the uid to masjids/{id}.adminUids in the same batch).
+        || (isModerator()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedAt'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.decidedBy == request.auth.uid && request.resource.data.decidedAt == request.time);
+      // Withdraw your own pending request.
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid && resource.data.status == 'pending';
+    }
+
+    // users/{uid}/followed_masjids/{id} needs no new rule: the base users/{userId}/{document=**} owner rule covers it.
+  // END 1.2.0 FEATURE RULES MERGE
+
+    // BEGIN 1.2.0 (115) ONBOARDING + SCHOLAR APPLICATION RULES (additive; also merged into firestore.rules)
+    // Unique usernames: usernames/{name} = {uid, at}. Created in a transaction by the onboarding flow.
+    match /usernames/{name} {
+      function usernameOk(n) {
+        return n.matches('^[a-z0-9._]{3,20}$') && !n.matches('^[.].*') && !n.matches('.*[.]$')
+          && !n.matches('.*[.][.].*') && !n.matches('^[0-9]+$');
+      }
+      allow read: if true;
+      allow create: if request.auth != null && usernameOk(name)
+        && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+    }
+
+    // users/{uid}/private/profile: owner read/write is the base users/{userId}/{document=**} rule; admins may read.
+    match /users/{userId}/private/{docId} {
+      allow read: if isModerator();
+    }
+
+    // Public profile: owners can't grant themselves a badge or the scholar type; only admins set scholarBadge / verified.
+    match /ummah_profiles/{userId} {
+      allow update: if isModerator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scholarBadge', 'verified'])
+        && request.resource.data.get('scholarBadge', false) is bool;
+    }
+
+    // scholars/{uid}: written by an admin (claim or admins/{uid} doc) on approve / revoke.
+    match /scholars/{uid} {
+      allow create, update: if isModerator()
+        && request.resource.data.keys().hasOnly(['name', 'title', 'verified', 'approvedBy', 'approvedAt', 'revokedReason'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.verified is bool
+        && request.resource.data.approvedBy == request.auth.uid && request.resource.data.approvedAt == request.time;
+    }
+
+    match /scholar_applications/{uid} {
+      function s(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+      function appOk(d) {
+        return d.keys().hasOnly(['uid', 'name', 'title', 'institution', 'maslak', 'silsila', 'years', 'refName', 'refPhone', 'bio', 'certPath', 'status', 'submittedAt'])
+          && d.uid == uid && s(d.name, 2, 80) && s(d.title, 2, 80) && s(d.institution, 2, 120)
+          && d.maslak in ['hanafi', 'shafii', 'maliki', 'hanbali'] && s(d.silsila, 0, 120)
+          && d.years is int && d.years >= 0 && d.years <= 80
+          && s(d.refName, 2, 80) && s(d.refPhone, 8, 22) && d.refPhone.matches('^[+]?[0-9][0-9 ()-]{6,18}[0-9]$')
+          && s(d.bio, 30, 600) && d.certPath is string && d.certPath.matches('^scholar_certificates/' + uid + '/[^/]{1,80}$')
+          && d.status == 'pending' && d.submittedAt == request.time;
+      }
+      allow read: if request.auth != null && (request.auth.uid == uid || isModerator());
+      allow create: if request.auth != null && request.auth.uid == uid && appOk(request.resource.data);
+      // Resubmit after a rejection / revocation (or edit while pending).
+      allow update: if request.auth != null && request.auth.uid == uid
+        && resource.data.status in ['pending', 'rejected', 'revoked'] && appOk(request.resource.data);
+      // Admin decision: only status / reason / decidedBy / decidedAt change.
+      allow update: if isModerator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'decidedBy', 'decidedAt'])
+        && request.resource.data.status in ['approved', 'rejected', 'revoked']
+        && request.resource.data.get('reason', '') is string && request.resource.data.get('reason', '').size() <= 500
+        && request.resource.data.decidedBy == request.auth.uid && request.resource.data.decidedAt == request.time;
+      allow delete: if request.auth != null && request.auth.uid == uid && resource.data.status in ['pending', 'rejected'];
+    }
+    // END 1.2.0 (115) ONBOARDING + SCHOLAR APPLICATION RULES
   }
 }

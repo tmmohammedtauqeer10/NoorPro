@@ -1,0 +1,700 @@
+[
+ {
+  "id": "fq-wudu-fard",
+  "topic": "Obligatory acts (fara'id) of wudu",
+  "tags": [
+   "wudu",
+   "wudhu",
+   "ablution",
+   "wuzu",
+   "fard of wudu",
+   "farz",
+   "وضو",
+   "فرائض",
+   "वुज़ू"
+  ],
+  "common": "All schools: wash the face, wash the arms including the elbows, wipe the head, wash the feet including the ankles (Qur'an 5:6).",
+  "positions": {
+   "hanafi": "Four fara'id only: face, arms with elbows, wiping a quarter of the head, feet with ankles. Intention (niyyah), sequence and continuity are sunnah, so wudu without intention is valid (though without reward).",
+   "shafii": "Six: intention, face, arms, wiping any part of the head, feet, and the correct order (tartib).",
+   "maliki": "Seven: intention, face, arms, wiping the whole head, feet, rubbing (dalk), and continuity (muwalat/fawr) when remembered and able.",
+   "hanbali": "Face (including rinsing mouth and nose), arms, wiping the whole head with the ears, feet, order and continuity; intention is a condition."
+  },
+  "src": [
+   "Qur'an 5:6",
+   "Nur al-Idah (Hanafi), Kitab al-Taharah",
+   "Safinat al-Naja (Shafi'i), fara'id al-wudu",
+   "al-Risala of Ibn Abi Zayd (Maliki), bab al-wudu",
+   "Umdat al-Fiqh of Ibn Qudama (Hanbali), bab al-wudu"
+  ]
+ },
+ {
+  "id": "fq-wudu-break",
+  "topic": "What breaks wudu",
+  "tags": [
+   "break wudu",
+   "nullify wudu",
+   "wudu toot",
+   "wudu break",
+   "blood",
+   "vomit",
+   "touching wife",
+   "touching woman",
+   "touch private part",
+   "camel meat",
+   "sleep",
+   "وضو ٹوٹ",
+   "نواقض",
+   "वुज़ू टूट"
+  ],
+  "common": "All schools: anything exiting the front or back passage (urine, stool, wind), deep sleep where one is not firmly seated, and loss of consciousness break wudu.",
+  "positions": {
+   "hanafi": "Also flowing blood or pus, a mouthful of vomit, and laughing aloud during a salah with ruku and sujud (for an adult). Touching a woman or one's private part does NOT break wudu.",
+   "shafii": "Also skin-to-skin contact between an adult man and a non-mahram woman (even without desire), and touching the private part (front or back) with the inner palm. Blood and vomit do not break it.",
+   "maliki": "Also touching someone with desire or when pleasure is felt, and touching one's own private part with the palm or inside of the fingers. Blood and vomit do not break it.",
+   "hanbali": "Also touching with desire, touching the private part with the hand, eating camel meat, and a large amount of blood or vomit."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), nawaqid al-wudu",
+   "Safinat al-Naja and Umdat al-Salik (Shafi'i), nawaqid al-wudu",
+   "al-Risala (Maliki), ma yanqud al-wudu",
+   "Umdat al-Fiqh (Hanbali), nawaqid al-wudu",
+   "Sahih Muslim 360 (camel meat)"
+  ]
+ },
+ {
+  "id": "fq-ghusl",
+  "topic": "Ghusl: obligatory acts and when it is required",
+  "tags": [
+   "ghusl",
+   "bath",
+   "janabah",
+   "janabat",
+   "fard ghusl",
+   "غسل",
+   "جنابت",
+   "ग़ुस्ल"
+  ],
+  "common": "Ghusl is required after janabah (intercourse or emission), at the end of menstruation and post-natal bleeding. Washing the entire body so that water reaches all skin and hair roots is required by all.",
+  "positions": {
+   "hanafi": "Three fara'id: rinsing the mouth, rinsing the nose (water to the soft part), and washing the entire body once. Intention is sunnah.",
+   "shafii": "Intention and washing the whole body (removing any barrier); rinsing mouth and nose are sunnah.",
+   "maliki": "Intention, washing the whole body, rubbing (dalk) and continuity.",
+   "hanbali": "Intention (a condition) and washing the whole body including the mouth and nose."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), fara'id al-ghusl",
+   "Bahar-e-Shariat, part 2, ghusl",
+   "Safinat al-Naja (Shafi'i)",
+   "al-Risala (Maliki), bab al-ghusl",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-tayammum",
+  "topic": "Tayammum (dry ablution)",
+  "tags": [
+   "tayammum",
+   "tayamum",
+   "no water",
+   "dust",
+   "تیمم",
+   "तयम्मुम"
+  ],
+  "common": "Permitted when water is unavailable or harmful to use; it replaces both wudu and ghusl, with intention, wiping the face and the hands/arms (Qur'an 4:43, 5:6).",
+  "positions": {
+   "hanafi": "Two strikes on anything of the earth's kind (soil, stone, sand): one for the face, one for the arms up to and including the elbows.",
+   "shafii": "Two strikes with pure dust that has particles: face, then arms to the elbows; order is required.",
+   "maliki": "Any pure earth surface. Face and hands to the wrists are obligatory with one strike; a second strike and wiping to the elbows are sunnah.",
+   "hanbali": "Pure dust; face and hands up to the wrists with one strike is the obligation."
+  },
+  "src": [
+   "Qur'an 4:43, 5:6",
+   "Nur al-Idah (Hanafi), bab al-tayammum",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-hayd",
+  "topic": "Menstruation (hayd): durations and rulings",
+  "tags": [
+   "hayd",
+   "haiz",
+   "haid",
+   "menstruation",
+   "period",
+   "periods",
+   "istihada",
+   "حیض",
+   "ماہواری",
+   "माहवारी"
+  ],
+  "common": "During hayd a woman does not pray (and does not make those prayers up), does not fast (but makes up the fasts), does not perform tawaf, and intercourse is forbidden until she becomes pure and takes ghusl.",
+  "positions": {
+   "hanafi": "Minimum 3 days, maximum 10 days; bleeding beyond 10 days is istihada (irregular bleeding). Minimum purity between two periods is 15 days.",
+   "shafii": "Minimum one day and night (24 hours), maximum 15 days, usually 6 or 7; minimum purity 15 days.",
+   "maliki": "No minimum for the purposes of worship (a single spurt counts); maximum 15 days for most women.",
+   "hanbali": "Minimum one day and night, maximum 15 days; minimum purity 13 days."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), bab al-hayd",
+   "Bahar-e-Shariat, part 2, hayd",
+   "Umdat al-Salik (Shafi'i), hayd",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-times",
+  "topic": "Prayer times differences (Asr, Isha, Fajr)",
+  "tags": [
+   "asr time",
+   "prayer time",
+   "namaz time",
+   "waqt",
+   "isha time",
+   "fajr",
+   "hanafi asr",
+   "shadow",
+   "عصر",
+   "وقت",
+   "असर"
+  ],
+  "common": "Fajr starts at true dawn; Zuhr after the sun's zenith; Maghrib at sunset; Isha after twilight disappears.",
+  "positions": {
+   "hanafi": "According to Imam Abu Hanifa, Asr begins when an object's shadow is twice its length (plus its noon shadow) - the 'Hanafi Asr' time; Isha begins after the white twilight disappears. It is recommended to pray Fajr when the sky has lightened (isfar).",
+   "shafii": "Asr begins when the shadow equals the object's length (plus the noon shadow); Isha after the red twilight. Praying at the beginning of the time is best.",
+   "maliki": "Asr when the shadow equals the object's length; Isha after the red twilight; Fajr early.",
+   "hanbali": "Asr when the shadow equals the object's length; Isha after the red twilight; praying early is generally best except Isha."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), awqat al-salah",
+   "Minhaj al-Talibin (Shafi'i)",
+   "al-Risala (Maliki), awqat al-salah",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-salah-fard",
+  "topic": "Integral parts (arkan/fara'id) of salah",
+  "tags": [
+   "salah",
+   "namaz",
+   "prayer",
+   "farz of namaz",
+   "arkan",
+   "pillars of prayer",
+   "wajibat",
+   "نماز",
+   "فرائض نماز",
+   "नमाज़"
+  ],
+  "common": "All schools: opening takbir, standing (for the able), recitation, ruku, sujud and the final sitting are essential; wudu, covering the 'awrah, facing the qiblah, the time and intention are conditions.",
+  "positions": {
+   "hanafi": "Fara'id: takbir al-tahrimah, qiyam, qira'ah (at least one verse), ruku, two sujud, the final sitting for the length of tashahhud, and leaving by one's own act. Wajibat (sajdah sahw if missed by mistake) include reciting al-Fatiha and a surah, ta'dil al-arkan (calmness), the first sitting, tashahhud, the word 'salam', qunut in witr and the Eid takbirs.",
+   "shafii": "Thirteen/seventeen pillars including intention, al-Fatiha in every rak'ah for everyone, calmness (tuma'ninah) in each position, the final tashahhud, salawat on the Prophet ﷺ after it, the first salam and the correct order.",
+   "maliki": "Pillars include intention, takbir, Fatiha for imam and solo, standing, ruku, rising, sujud, sitting between them, the final sitting for the salam, the salam, calmness and moderation.",
+   "hanbali": "Fourteen pillars including Fatiha, ruku, rising, sujud, calmness, the final tashahhud, sitting for it, salawat on the Prophet ﷺ, the salam and order."
+  },
+  "src": [
+   "Nur al-Idah and Maraqi al-Falah (Hanafi), arkan and wajibat al-salah",
+   "Bahar-e-Shariat, part 3",
+   "Safinat al-Naja (Shafi'i), arkan al-salah",
+   "al-Risala (Maliki), sifat al-salah",
+   "Umdat al-Fiqh (Hanbali), arkan al-salah"
+  ]
+ },
+ {
+  "id": "fq-hands",
+  "topic": "Placing the hands, raising the hands and saying Amin in salah",
+  "tags": [
+   "hands",
+   "folding hands",
+   "navel",
+   "chest",
+   "raf al yadayn",
+   "rafa yadain",
+   "raising hands",
+   "amin",
+   "ameen",
+   "bismillah aloud",
+   "ہاتھ باندھنا",
+   "رفع یدین",
+   "آمین",
+   "रफ़ा यदैन"
+  ],
+  "common": "All schools raise the hands with the opening takbir. These are differences in sunnah acts; the salah is valid either way.",
+  "positions": {
+   "hanafi": "Men fold the right hand over the left below the navel (women on the chest); the hands are raised only for the opening takbir; Bismillah and Amin are said quietly.",
+   "shafii": "Hands folded below the chest and above the navel; hands raised at the opening, before ruku, on rising from ruku and on standing from the first tashahhud; Bismillah is recited aloud as part of al-Fatiha in loud prayers and Amin is said aloud.",
+   "maliki": "The relied-upon practice in obligatory prayers is releasing the arms at the sides (sadl), folding being allowed in voluntary prayers; hands raised only at the opening; Bismillah is not recited in the obligatory prayer; Amin is said quietly.",
+   "hanbali": "Hands folded below the navel; raised at the opening, before ruku and on rising from it; Bismillah quietly; Amin aloud in loud prayers."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), sifat al-salah",
+   "Bahar-e-Shariat, part 3",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-fatiha-imam",
+  "topic": "Reciting al-Fatiha behind the imam",
+  "tags": [
+   "fatiha behind imam",
+   "qirat khalf al imam",
+   "muqtadi",
+   "follower recite",
+   "سورہ فاتحہ امام کے پیچھے",
+   "इमाम के पीछे"
+  ],
+  "common": "The imam and a person praying alone recite al-Fatiha. The schools differ about the follower.",
+  "positions": {
+   "hanafi": "The follower does not recite; the imam's recitation counts for him and he listens and stays silent (Qur'an 7:204; 'whoever has an imam, the imam's recitation is his recitation').",
+   "shafii": "Al-Fatiha is a pillar for every person, including the follower, in every rak'ah of every prayer.",
+   "maliki": "The follower recites in the silent prayers (recommended) and listens silently in the loud ones.",
+   "hanbali": "Recommended for the follower in silent prayers and during the imam's pauses; not obligatory, and he listens when the imam recites aloud."
+  },
+  "src": [
+   "Qur'an 7:204",
+   "Sunan Ibn Majah 850",
+   "Nur al-Idah (Hanafi)",
+   "Minhaj al-Talibin (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-witr-qunut",
+  "topic": "Witr prayer and qunut",
+  "tags": [
+   "witr",
+   "vitr",
+   "qunut",
+   "qunoot",
+   "dua e qunoot",
+   "fajr qunut",
+   "وتر",
+   "قنوت",
+   "वित्र",
+   "क़ुनूत"
+  ],
+  "common": "Witr is an emphasised prayer after Isha until Fajr. The Prophet ﷺ never left it.",
+  "positions": {
+   "hanafi": "Witr is wajib: three rak'at with one salam, sitting after the second; qunut is wajib in the third rak'ah before ruku, all year, after a takbir with raised hands. No regular qunut in Fajr.",
+   "shafii": "Witr is sunnah mu'akkadah, minimum one rak'ah, up to eleven. Qunut is sunnah in Fajr after rising from ruku in the second rak'ah, and in witr in the second half of Ramadan.",
+   "maliki": "Witr is a sunnah of one rak'ah preceded by two (shaf') separated by salam. Qunut is recommended in Fajr, said silently, preferably before ruku; qunut in witr is disliked in the well-known view.",
+   "hanbali": "Witr is sunnah mu'akkadah; qunut in witr is sunnah all year after ruku in the last rak'ah; regular qunut in Fajr is disliked."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), bab al-witr",
+   "Bahar-e-Shariat, part 4",
+   "Minhaj al-Talibin (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)",
+   "Sahih al-Bukhari 1002 (qunut before and after ruku)"
+  ]
+ },
+ {
+  "id": "fq-travel",
+  "topic": "Travel prayer: shortening (qasr) and combining",
+  "tags": [
+   "qasr",
+   "travel",
+   "safar",
+   "musafir",
+   "traveller",
+   "combine prayers",
+   "jam",
+   "shorten",
+   "قصر",
+   "مسافر",
+   "سفر",
+   "क़स्र",
+   "सफ़र"
+  ],
+  "common": "A traveller shortens the four-rak'ah prayers (Zuhr, Asr, Isha) to two; Fajr and Maghrib are not shortened. Sunnah prayers may be left while travelling except as noted.",
+  "positions": {
+   "hanafi": "Travel is a journey of three days' stages, which contemporary Hanafi scholars estimate at about 77-92 km (commonly 48 miles / about 78 km in South Asia). Qasr is wajib. Intending to stay 15 days or more in one place ends travel. Combining two prayers in one time is not allowed except at Arafah and Muzdalifah during Hajj.",
+   "shafii": "About 81-89 km (four burud / 48 Hashimi miles). Qasr is a permitted concession; combining Zuhr-Asr and Maghrib-Isha is allowed on a journey. Intending to stay 4 full days (excluding arrival and departure days) ends travel.",
+   "maliki": "About four burud (around 80-89 km). Qasr is a confirmed sunnah; combining is allowed on a journey. Intending to stay 4 days ends travel.",
+   "hanbali": "About four burud (around 80-89 km). Qasr is better than completing; combining is allowed. Intending to stay more than 4 days (over 20 prayers) ends travel."
+  },
+  "src": [
+   "Qur'an 4:101",
+   "Nur al-Idah (Hanafi), salat al-musafir",
+   "Bahar-e-Shariat, part 4",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-sahw",
+  "topic": "Prostration of forgetfulness (sajdah sahw)",
+  "tags": [
+   "sajda sahw",
+   "sujud sahw",
+   "forget",
+   "mistake in salah",
+   "سجدہ سہو",
+   "सज्दा सहू"
+  ],
+  "common": "It repairs mistakes such as omitting a wajib/sunnah act or adding by mistake; two prostrations are made.",
+  "positions": {
+   "hanafi": "Done after the final tashahhud: give one salam (to the right), make two sujud, then recite tashahhud, salawat and dua, and finish with salam. Required when a wajib is missed or delayed by mistake.",
+   "shafii": "Two prostrations before the final salam, after tashahhud and salawat.",
+   "maliki": "Before the salam for an omission, after the salam for an addition (then tashahhud and salam).",
+   "hanbali": "Generally before the salam, except in specific cases narrated after it (such as finishing early by mistake)."
+  },
+  "src": [
+   "Nur al-Idah (Hanafi), sujud al-sahw",
+   "Minhaj al-Talibin (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-jumuah-eid",
+  "topic": "Jumu'ah and Eid prayers",
+  "tags": [
+   "jumuah",
+   "jummah",
+   "friday prayer",
+   "eid prayer",
+   "eid namaz",
+   "eid takbir",
+   "جمعہ",
+   "عید",
+   "जुमा",
+   "ईद"
+  ],
+  "common": "Jumu'ah is obligatory on free, adult, resident Muslim men and replaces Zuhr; it has a khutbah before it. Eid prayers have extra takbirs and a khutbah after them.",
+  "positions": {
+   "hanafi": "Jumu'ah requires a town/city and at least three men besides the imam. The Eid prayer is wajib, with three extra takbirs in each rak'ah.",
+   "shafii": "Jumu'ah requires forty obligated residents. The Eid prayer is sunnah mu'akkadah with seven extra takbirs in the first rak'ah and five in the second.",
+   "maliki": "Jumu'ah requires a mosque and about twelve men besides the imam. The Eid prayer is sunnah mu'akkadah (six extra takbirs in the first rak'ah after the opening one, five in the second).",
+   "hanbali": "Jumu'ah requires forty obligated residents. The Eid prayer is fard kifayah, with six extra takbirs in the first rak'ah and five in the second."
+  },
+  "src": [
+   "Qur'an 62:9",
+   "Nur al-Idah (Hanafi), bab al-jumu'ah and al-'idayn",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-tarawih",
+  "topic": "Tarawih",
+  "tags": [
+   "tarawih",
+   "taraweeh",
+   "ramadan night prayer",
+   "20 rakat",
+   "تراویح",
+   "तरावीह"
+  ],
+  "common": "Tarawih is a sunnah prayer in Ramadan nights after Isha. The four schools hold twenty rak'at, the practice established in congregation under Umar (Allah be pleased with him); the people of Madinah in Imam Malik's time also prayed thirty-six.",
+  "positions": {
+   "hanafi": "Twenty rak'at sunnah mu'akkadah for men and women, in sets of two, with a pause after every four; a full khatm of the Qur'an in Ramadan is sunnah.",
+   "shafii": "Twenty rak'at, salam after every two.",
+   "maliki": "Twenty (and the older Madinan practice of thirty-six), in pairs.",
+   "hanbali": "Twenty rak'at, preferably in congregation."
+  },
+  "src": [
+   "Muwatta Malik, Kitab al-Salah fi Ramadan",
+   "Nur al-Idah (Hanafi)",
+   "Minhaj al-Talibin (Shafi'i)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-fast",
+  "topic": "Fasting: intention, what breaks it, kaffarah",
+  "tags": [
+   "fast",
+   "roza",
+   "sawm",
+   "siyam",
+   "ramadan",
+   "intention fast",
+   "niyyah",
+   "break fast",
+   "kaffarah",
+   "forget eat",
+   "روزہ",
+   "نیت",
+   "کفارہ",
+   "रोज़ा"
+  ],
+  "common": "Deliberately eating, drinking or intercourse during the day breaks the fast; vomiting deliberately breaks it; the fast is made up (qada). Eating out of forgetfulness does not break the fast (Sahih al-Bukhari 1933) in the Hanafi, Shafi'i and Hanbali schools.",
+  "positions": {
+   "hanafi": "The intention for Ramadan may be made at night or the next morning until before the Islamic midday (al-dahwa al-kubra). Kaffarah (60 consecutive days of fasting) is due for deliberately breaking a Ramadan fast by eating, drinking or intercourse.",
+   "shafii": "An intention is required each night before dawn for every obligatory fast. Kaffarah is only for intercourse.",
+   "maliki": "One intention at the start of Ramadan suffices for the whole month (renewing nightly is recommended). Eating forgetfully in an obligatory fast requires a make-up day without kaffarah. Kaffarah for deliberate eating, drinking or intercourse.",
+   "hanbali": "An intention each night for obligatory fasts. Kaffarah is only for intercourse."
+  },
+  "src": [
+   "Qur'an 2:183-187",
+   "Sahih al-Bukhari 1933",
+   "Nur al-Idah (Hanafi), kitab al-sawm",
+   "Safinat al-Naja (Shafi'i)",
+   "al-Risala (Maliki), bab al-siyam",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-zakat",
+  "topic": "Zakat: nisab, rate, jewellery",
+  "tags": [
+   "zakat",
+   "zakah",
+   "nisab",
+   "gold",
+   "silver",
+   "jewelry",
+   "jewellery",
+   "2.5",
+   "زکوٰۃ",
+   "نصاب",
+   "ज़कात"
+  ],
+  "common": "Zakat is 2.5% of zakatable wealth (cash, gold, silver, trade goods) held for a full lunar year above the nisab: 87.48 g of gold or 612.36 g of silver (common modern conversions).",
+  "positions": {
+   "hanafi": "Zakat is due on gold and silver jewellery even if worn. When wealth is mixed (cash, trade goods, some gold), the lower (silver) nisab is used, which benefits the poor.",
+   "shafii": "No zakat on permissible jewellery that is worn; due on gold and silver kept as savings.",
+   "maliki": "No zakat on permissible worn jewellery.",
+   "hanbali": "No zakat on permissible worn jewellery in the relied-upon view."
+  },
+  "src": [
+   "Qur'an 9:34-35",
+   "Nur al-Idah (Hanafi), kitab al-zakat",
+   "Bahar-e-Shariat, part 5",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-fitr-qurbani",
+  "topic": "Sadaqat al-Fitr and Qurbani (udhiyah)",
+  "tags": [
+   "fitra",
+   "fitrana",
+   "sadaqatul fitr",
+   "zakat ul fitr",
+   "qurbani",
+   "udhiyah",
+   "sacrifice",
+   "eid ul adha",
+   "فطرہ",
+   "قربانی",
+   "फ़ितरा",
+   "क़ुर्बानी"
+  ],
+  "common": "Sadaqat al-Fitr is given before the Eid prayer for every member of the household. The Eid al-Adha sacrifice is offered after the Eid prayer on the days of sacrifice (10-12/13 Dhul Hijjah).",
+  "positions": {
+   "hanafi": "Fitr: half a sa' of wheat or one sa' of dates/barley/raisins, or its value in money, due on whoever owns the nisab beyond basic needs. Qurbani is wajib on every adult, sane, resident Muslim who owns the nisab on those days.",
+   "shafii": "Fitr: one sa' of the local staple food; money is not given in the school. Qurbani is sunnah mu'akkadah.",
+   "maliki": "Fitr: one sa' of the local staple. Qurbani is sunnah mu'akkadah.",
+   "hanbali": "Fitr: one sa' of food; money not accepted in the relied-upon view. Qurbani is sunnah mu'akkadah."
+  },
+  "src": [
+   "Sahih al-Bukhari 1503 (zakat al-fitr)",
+   "Nur al-Idah (Hanafi)",
+   "Bahar-e-Shariat, part 5 and 15",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-hajj",
+  "topic": "Hajj: pillars (arkan) and obligations (wajibat)",
+  "tags": [
+   "hajj",
+   "haj",
+   "umrah",
+   "arkan of hajj",
+   "farz of hajj",
+   "wajibat",
+   "sai",
+   "sa'i",
+   "tawaf",
+   "arafat",
+   "arafah",
+   "muzdalifah",
+   "rami",
+   "ihram",
+   "حج",
+   "عمرہ",
+   "ارکان",
+   "سعی",
+   "طواف",
+   "عرفات",
+   "हज",
+   "उमरा"
+  ],
+  "common": "All schools: standing at Arafah (wuquf) between midday on 9 Dhul Hijjah and dawn on the 10th, and Tawaf al-Ifadah (al-Ziyarah) are essential; missing Arafah means missing Hajj. Sa'i is between Safa and Marwah, seven times starting at Safa. Missing a wajib requires a sacrifice (dam).",
+  "positions": {
+   "hanafi": "Fara'id are three: ihram (a condition), wuquf at Arafah and Tawaf al-Ziyarah (at least four rounds). Wajibat include sa'i, wuquf at Muzdalifah (after dawn on the 10th), stoning (rami), halq/taqsir, the sacrifice for tamattu' and qiran, the order of the 10th's rites, and Tawaf al-Wada' for those from outside the miqat. Qiran is the best type of Hajj in the Hanafi school.",
+   "shafii": "Pillars: ihram, wuquf, Tawaf al-Ifadah, sa'i, shaving/shortening the hair and the correct order. Wajibat include ihram from the miqat, Muzdalifah, Mina nights, stoning and Tawaf al-Wada'. Ifrad is the best type.",
+   "maliki": "Pillars: ihram, wuquf, Tawaf al-Ifadah and sa'i. Halq, Muzdalifah, stoning and the Mina nights are wajib. Ifrad is the best type.",
+   "hanbali": "Pillars: ihram, wuquf, Tawaf al-Ziyarah and sa'i. Wajibat include ihram from the miqat, staying at Arafah until sunset, Muzdalifah, Mina nights, stoning, halq and Tawaf al-Wada'. Tamattu' is the best type."
+  },
+  "src": [
+   "Qur'an 2:196-203, 3:97, 22:29",
+   "Nur al-Idah (Hanafi), kitab al-hajj",
+   "Bahar-e-Shariat, part 6",
+   "al-Idah fi Manasik al-Hajj (Imam al-Nawawi, Shafi'i)",
+   "Mukhtasar Khalil and al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-nikah",
+  "topic": "Nikah: wali, witnesses and mahr",
+  "tags": [
+   "nikah",
+   "marriage",
+   "wali",
+   "guardian",
+   "witnesses",
+   "mahr",
+   "haq mehr",
+   "نکاح",
+   "ولی",
+   "مہر",
+   "निकाह"
+  ],
+  "common": "Nikah requires offer and acceptance, the consent of the bride, witnesses (or public announcement) and a mahr owed to the wife.",
+  "positions": {
+   "hanafi": "An adult sane woman's nikah is valid by her own consent without a wali, though involving the wali is strongly recommended and the wali may object if the match is not suitable (kafa'ah). Two witnesses: two men, or one man and two women. Minimum mahr is ten dirhams of silver.",
+   "shafii": "A wali is required for the validity of the woman's nikah; two upright male witnesses are required.",
+   "maliki": "A wali is required; witnesses must be present before consummation and the marriage must be announced.",
+   "hanbali": "A wali and two upright male witnesses are required."
+  },
+  "src": [
+   "Qur'an 4:4, 2:232",
+   "Nur al-Idah / al-Hidayah (Hanafi), kitab al-nikah",
+   "Bahar-e-Shariat, part 7",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-talaq",
+  "topic": "Talaq (divorce) basics",
+  "tags": [
+   "talaq",
+   "divorce",
+   "triple talaq",
+   "three talaq",
+   "iddah",
+   "khula",
+   "طلاق",
+   "عدت",
+   "خلع",
+   "तलाक़"
+  ],
+  "common": "All four schools hold that three divorces pronounced at once take effect as three (irrevocable, the wife becomes unlawful until she marries another man genuinely), though pronouncing three at once is sinful. The Sunnah way is one divorce in a period of purity without intercourse. Iddah is three menstrual cycles (or three months, or until delivery if pregnant). Khul' is separation at the wife's request for compensation.",
+  "positions": {
+   "hanafi": "Same as above; a revocable divorce can be revoked during the iddah. Always consult a mufti for any specific divorce case.",
+   "shafii": "Same principle; consult a qualified mufti.",
+   "maliki": "Same principle; consult a qualified mufti.",
+   "hanbali": "Same principle in the four schools' relied-upon view; consult a qualified mufti."
+  },
+  "src": [
+   "Qur'an 2:228-232, 65:1-4",
+   "Bahar-e-Shariat, part 8"
+  ]
+ },
+ {
+  "id": "fq-dog-najasa",
+  "topic": "Impurity (najasah): dogs and cleaning",
+  "tags": [
+   "dog",
+   "najis",
+   "impure",
+   "najasat",
+   "najasa",
+   "saliva",
+   "pig",
+   "pak",
+   "ناپاک",
+   "نجاست",
+   "کتا",
+   "कुत्ता",
+   "नापाक"
+  ],
+  "common": "Urine, stool, flowing blood, wine and pig are impure. Impurities are removed by washing until the trace is gone.",
+  "positions": {
+   "hanafi": "A dog's body is not itself impure but its saliva is; a vessel it licks is washed three times. Light and heavy impurity have different amounts that are excused.",
+   "shafii": "Dogs and pigs are heavily impure (mughallazah); what they touch with wetness is washed seven times, one with earth.",
+   "maliki": "Every living animal including the dog is pure; washing a vessel a dog licked seven times is an act of worship (ta'abbudi), not because of impurity.",
+   "hanbali": "Dogs are impure; their saliva requires seven washes, one with earth."
+  },
+  "src": [
+   "Sahih Muslim 279 (washing seven times)",
+   "Nur al-Idah (Hanafi), al-anjas",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ },
+ {
+  "id": "fq-istikhara",
+  "topic": "Salat al-Istikhara",
+  "tags": [
+   "istikhara",
+   "istikharah",
+   "decision",
+   "guidance prayer",
+   "استخارہ",
+   "इस्तिख़ारा"
+  ],
+  "common": "Pray two voluntary rak'at (not at a disliked time), then recite the dua taught by the Prophet ﷺ (Sahih al-Bukhari 1162), naming the matter. Seeing a dream is not required; proceed with what Allah makes easy and the heart inclines to. It is recommended in all four schools to recite al-Kafirun in the first rak'ah and al-Ikhlas in the second, and to also consult people of experience.",
+  "positions": {
+   "hanafi": "As above; it may be repeated up to seven times.",
+   "shafii": "As above; it may be repeated.",
+   "maliki": "As above.",
+   "hanbali": "As above."
+  },
+  "src": [
+   "Sahih al-Bukhari 1162",
+   "Imam al-Nawawi, al-Adhkar (istikhara)",
+   "Radd al-Muhtar (Hanafi), salat al-istikhara"
+  ]
+ },
+ {
+  "id": "fq-hanafi-salah-method",
+  "topic": "How to pray (Hanafi method, brief)",
+  "tags": [
+   "how to pray",
+   "namaz ka tarika",
+   "method of salah",
+   "salah steps",
+   "نماز کا طریقہ",
+   "नमाज़ का तरीक़ा"
+  ],
+  "common": "Make wudu, face the qiblah and make the intention in the heart.",
+  "positions": {
+   "hanafi": "Raise the hands to the earlobes saying Allahu Akbar, fold them below the navel, recite Thana, Ta'awwudh, Bismillah, al-Fatiha, quietly say Amin, then a surah; ruku with 'Subhana Rabbiyal Azim' (3 times), stand with 'Sami Allahu liman hamidah, Rabbana lakal hamd', two sujud with 'Subhana Rabbiyal A'la' (3 times) with calm sitting between them; after two rak'at sit for tashahhud (at-Tahiyyat); in the final sitting add salawat (Durood Ibrahim) and a dua, then salam right and left. Women fold hands on the chest and keep the body compact.",
+   "shafii": "Similar, with hands raised before and after ruku, Bismillah aloud in loud prayers, qunut in Fajr and the tawarruk sitting in the final tashahhud.",
+   "maliki": "Similar, usually with arms at the sides (sadl) in obligatory prayers and without the opening Thana or Bismillah.",
+   "hanbali": "Similar, with hands raised before and after ruku and hands folded below the navel."
+  },
+  "src": [
+   "Nur al-Idah and Maraqi al-Falah (Hanafi)",
+   "Bahar-e-Shariat, part 3",
+   "Umdat al-Salik (Shafi'i)",
+   "al-Risala (Maliki)",
+   "Umdat al-Fiqh (Hanbali)"
+  ]
+ }
+]

@@ -1,0 +1,51 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Good-deed challenges (Remote Config challenges_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste inside `match /databases/{database}/documents { ... }` in firestore.rules (uses isModerator()
+// from the base file), run tools/rules-tests/challenges-1.1.6.test.js against the emulator, then deploy.
+// Data: challenges/{code}                {title, kind, goal, days, startDay, createdBy, creatorName, members[], createdAt}
+//         code = 8-char invite code (A-Z without I/O, 2-9) — knowing it is what lets you read + join
+//       challenges/{code}/progress/{uid} {name, done[yyyy-MM-dd], updatedAt} — members only
+// No ranking data is stored; the app only shows a shared total.
+// ─────────────────────────────────────────────────────────────────────────────
+    match /challenges/{code} {
+      function uid() { return request.auth.uid; }
+      function ch(d) {
+        return d.title is string && d.title.size() >= 3 && d.title.size() <= 60
+          && d.kind in ['QURAN', 'ADHKAR', 'SALAWAT', 'SADAQAH', 'KINDNESS', 'NIGHT', 'CUSTOM']
+          && d.goal is string && d.goal.size() <= 120
+          && d.days in [7, 14, 21, 30, 40]
+          && d.startDay is string && d.startDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.creatorName is string && d.creatorName.size() <= 40;
+      }
+      function onlyMembersChange() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']); }
+      function after() { return request.resource.data.members; }
+      function before() { return resource.data.members; }
+
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && uid() in resource.data.members;
+      allow create: if request.auth != null && code.matches('^[A-HJ-NP-Z2-9]{8}$')
+        && request.resource.data.keys().hasOnly(['title', 'kind', 'goal', 'days', 'startDay', 'createdBy', 'creatorName', 'members', 'createdAt'])
+        && request.resource.data.keys().hasAll(['title', 'kind', 'goal', 'days', 'startDay', 'createdBy', 'creatorName', 'members', 'createdAt'])
+        && ch(request.resource.data) && request.resource.data.createdBy == uid() && after() == [uid()]
+        && request.resource.data.createdAt == request.time;
+      allow update: if request.auth != null && onlyMembersChange() && (
+          // join: append yourself, while there is room
+          (!(uid() in before()) && after() == before().concat([uid()]) && before().size() < 30)
+          // leave: remove only yourself (the creator deletes instead)
+          || (uid() in before() && uid() != resource.data.createdBy && after() == before().removeAll([uid()]))
+          // creator removes someone
+          || (uid() == resource.data.createdBy && before().hasAll(after()) && uid() in after())
+        );
+      allow delete: if request.auth != null && (resource.data.createdBy == uid() || isModerator());
+
+      match /progress/{member} {
+        function parent() { return get(/databases/$(database)/documents/challenges/$(code)).data; }
+        allow read: if request.auth != null && request.auth.uid in parent().members;
+        allow create, update: if request.auth != null && request.auth.uid == member && member in parent().members
+          && request.resource.data.keys().hasOnly(['name', 'done', 'updatedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40
+          && request.resource.data.done is list && request.resource.data.done.size() <= 40
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if request.auth != null && (request.auth.uid == member || request.auth.uid == parent().createdBy || isModerator());
+      }
+    }

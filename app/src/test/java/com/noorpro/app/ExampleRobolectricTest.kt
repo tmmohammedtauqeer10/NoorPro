@@ -2,6 +2,9 @@ package com.noorpro.app
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.testing.WorkManagerTestInitHelper
+import org.junit.Before
 import com.noorpro.app.data.QuranRepository
 import com.noorpro.app.data.TranslationManager
 import com.noorpro.app.ui.viewmodel.DeenViewModel
@@ -17,6 +20,14 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class ExampleRobolectricTest {
+
+  @Before
+  fun initWorkManager() {
+    WorkManagerTestInitHelper.initializeTestWorkManager(
+      ApplicationProvider.getApplicationContext(),
+      Configuration.Builder().build()
+    )
+  }
 
   @Ignore("Maintenance generator mutates the committed Quran database asset")
   @Test

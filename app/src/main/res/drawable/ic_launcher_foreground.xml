@@ -1,11 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.97: NoorPro N-crescent mark (cream). 42dp tall, inside the 66dp safe zone of the 108dp canvas. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#F4C95D" android:pathData="M54,24C40,29 31,39 28,54C31,48 38,43 45,40C39,48 38,58 42,66C47,75 58,78 68,73C61,74 53,71 49,64C44,55 47,44 56,38C62,34 68,33 74,35C70,29 62,25 54,24z" />
-    <path android:fillColor="#FFF8E7" android:pathData="M25,69C35,66 44,67 54,74C64,67 73,66 83,69L79,83C69,80 61,82 54,87C47,82 39,80 29,83z" />
-    <path android:fillColor="#D6A62C" android:pathData="M25,69L54,78L83,69L79,75L54,84L29,75z" />
-    <path android:fillColor="#F4C95D" android:pathData="M75,43l2,4l4,2l-4,2l-2,4l-2,-4l-4,-2l4,-2z" />
+    <path
+        android:fillColor="#FFFDF9F0"
+        android:pathData="M33.2,72.42L33.2,34.2A1.2,1.2 0 0 1 34.41,33L40.17,33A6.56,6.56 0 0 1 45.38,35.57L63.79,59.58L63.79,36.64A3.64,3.64 0 0 1 67.43,33L73.71,33A1.09,1.09 0 0 1 74.8,34.09L74.8,72.75A2.25,2.25 0 0 1 72.55,75L66.66,75A6.35,6.35 0 0 1 61.73,72.66L53.42,62.46C51,59.49 48.12,57.82 45.28,55.71A7.71,7.71 0 0 1 43.93,44.62A7.94,7.94 0 0 0 44.21,60.04L44.21,71.52A3.48,3.48 0 0 1 40.74,75L35.78,75A2.58,2.58 0 0 1 33.2,72.42Z" />
 </vector>

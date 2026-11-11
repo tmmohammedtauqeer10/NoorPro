@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import com.noorpro.app.ui.components.stitchLine
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -9,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -78,22 +81,15 @@ fun PrayerTimesScreen(
             // 1. Header: avatar + Al-Noor + bell
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().testTag("prayer_times_header")
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(StitchEmerald)
-                        .clickable { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.PROFILE_DASHBOARD) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                IconButton(onClick = { viewModel.goBack() }, modifier = Modifier.testTag("prayer_times_back")) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = stitchPrimary())
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text("Al-Noor", color = stitchPrimary(), fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = LibreCaslon)
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = stitchPrimary(), modifier = Modifier.size(26.dp))
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -138,6 +134,16 @@ fun PrayerTimesScreen(
                 Text(todayHijri.ifBlank { todayGregorian }, color = stitchMutedText(), fontSize = 15.sp)
             }
 
+            // 1.1.6 Masjid pages: the followed masjid's jamaat times (flag-gated, cached locally so it works offline).
+            if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val followedMasjid by com.noorpro.app.islamic.masjid.FollowedMasjid.flow(ctx).collectAsState()
+                followedMasjid?.takeIf { it.jamaat.isNotEmpty() || it.jummahTime.isNotBlank() }?.let { m ->
+                    Spacer(modifier = Modifier.height(14.dp))
+                    com.noorpro.app.ui.islamic.FollowedMasjidJamaatCard(m, onOpen = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.MASJID_PAGES) })
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // 3. Vertical Timeline
@@ -147,6 +153,7 @@ fun PrayerTimesScreen(
                     .weight(1f)
             ) {
                 // Draw continuous line for vertical timeline
+                val timelineColor = stitchLine()
                 Canvas(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -154,7 +161,7 @@ fun PrayerTimesScreen(
                         .padding(vertical = 24.dp)
                 ) {
                     drawLine(
-                        color = StitchLine,
+                        color = timelineColor,
                         start = Offset(22.dp.toPx(), 0.0f),
                         end = Offset(22.dp.toPx(), size.height),
                         strokeWidth = 2.dp.toPx(),
@@ -167,25 +174,25 @@ fun PrayerTimesScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(prayers) { index, prayer ->
+                        val prayed = when (prayer.name) {
+                            "Fajr" -> todayPrayerLog?.fajr == true
+                            "Dhuhr" -> todayPrayerLog?.dhuhr == true
+                            "Asr" -> todayPrayerLog?.asr == true
+                            "Maghrib" -> todayPrayerLog?.maghrib == true
+                            "Isha" -> todayPrayerLog?.isha == true
+                            else -> false
+                        }
                         PrayerTimesRowItem(
                             prayer = prayer,
                             displayTime = viewModel.displayPrayerTime(prayer.time),
-                            isActive = prayer.name == nextPrayerName,
+                            isNext = prayer.name == nextPrayerName,
+                            isCurrent = index == activeIndex && !prayer.name.equals("Sunrise", ignoreCase = true),
                             isPassed = index < nextIndex,
-                            onNotifyToggle = { viewModel.toggleNotification(prayer.name) }
+                            prayed = prayed,
+                            onTogglePrayed = { viewModel.toggleDailyPrayer(prayer.name) },
+                            onNotifyToggle = { viewModel.toggleNotification(prayer.name) },
                         )
                     }
-
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader(title = "Weekly Prayer Tracker")
-
-                    WeeklyStreakCalendar(
-                        weeklyLogs = weeklyLogs,
-                        currentStreak = currentStreak
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
             }
         }
         }
@@ -196,12 +203,16 @@ fun PrayerTimesScreen(
 fun PrayerTimesRowItem(
     prayer: PrayerTime,
     displayTime: String,
-    isActive: Boolean,
+    isNext: Boolean,
+    isCurrent: Boolean,
     isPassed: Boolean,
+    prayed: Boolean,
+    onTogglePrayed: () -> Unit,
     onNotifyToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSunrise = prayer.name.equals("Sunrise", ignoreCase = true)
+    val isActive = isNext
     val nameColor = when {
         isActive -> Color.White
         isPassed || isSunrise -> stitchMutedText()
@@ -219,7 +230,7 @@ fun PrayerTimesRowItem(
         label = "prayerGlyphBg",
     )
     val glyphBorder by animateColorAsState(
-        targetValue = if (isActive) StitchEmerald else StitchLine,
+        targetValue = if (isActive) StitchEmerald else if (isCurrent) MatteGold else stitchLine(),
         animationSpec = tween(380),
         label = "prayerGlyphBorder",
     )
@@ -229,7 +240,7 @@ fun PrayerTimesRowItem(
         label = "prayerCardBg",
     )
     val highlightSlide by animateDpAsState(
-        targetValue = if (isActive) 6.dp else 0.dp,
+        targetValue = if (isActive || isCurrent) 6.dp else 0.dp,
         animationSpec = tween(380),
         label = "prayerHighlightSlide",
     )
@@ -287,8 +298,9 @@ fun PrayerTimesRowItem(
                 .clip(RoundedCornerShape(18.dp))
                 .background(cardBg)
                 .then(
-                    if (!isActive) Modifier.border(1.dp, StitchLine, RoundedCornerShape(18.dp))
-                    else Modifier
+                    if (isActive) Modifier
+                    else if (isCurrent) Modifier.border(1.5.dp, MatteGold, RoundedCornerShape(18.dp))
+                    else Modifier.border(1.dp, if (!com.noorpro.app.ui.components.isStitchLight()) MaterialTheme.colorScheme.outlineVariant else StitchLine, RoundedCornerShape(18.dp))
                 )
         ) {
             Row(
@@ -298,14 +310,26 @@ fun PrayerTimesRowItem(
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 16.dp)
             ) {
-                Column {
-                    Text(
-                        text = prayer.name,
-                        fontFamily = LibreCaslon,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = nameColor
-                    )
+                Column(modifier = Modifier.weight(1f).clickable(onClick = onTogglePrayed)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = prayer.name,
+                            fontFamily = LibreCaslon,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = nameColor
+                        )
+                        if (isCurrent || isNext) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isNext) "Next" else "Now",
+                                color = if (isActive) Color.White.copy(alpha = 0.9f) else stitchPrimary(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = displayTime,
@@ -319,10 +343,25 @@ fun PrayerTimesRowItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
-                    // Alarm Toggle Switch button icon
+                    IconButton(
+                        onClick = onTogglePrayed,
+                        modifier = Modifier.size(36.dp).testTag("prayer_mark_${prayer.name}")
+                    ) {
+                        Icon(
+                            imageVector = if (prayed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = if (prayed) "Marked as prayed" else "Mark as prayed",
+                            tint = when {
+                                isActive && prayed -> Color.White
+                                isActive -> Color.White.copy(alpha = 0.8f)
+                                prayed -> stitchPrimary()
+                                else -> stitchMutedText()
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     IconButton(
                         onClick = onNotifyToggle,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(36.dp).testTag("prayer_notify_${prayer.name}")
                     ) {
                         Icon(
                             imageVector = if (prayer.isNotificationEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff,
@@ -334,6 +373,163 @@ fun PrayerTimesRowItem(
                             },
                             modifier = Modifier.size(20.dp)
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeeklyStreakCalendar(
+    weeklyLogs: List<com.noorpro.app.data.PrayerLogEntity>,
+    currentStreak: Int,
+    modifier: Modifier = Modifier
+) {
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    val dayNameFormat = java.text.SimpleDateFormat("E", java.util.Locale.US)
+    val dayNumberFormat = java.text.SimpleDateFormat("d", java.util.Locale.US)
+    
+    val now = java.util.Date()
+    val todayStr = dateFormat.format(now)
+    
+    val c = java.util.Calendar.getInstance()
+    c.firstDayOfWeek = java.util.Calendar.MONDAY
+    c.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+    val weekDays = (0..6).map { i ->
+        val date = c.time
+        c.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        date
+    }
+
+    val history = weeklyLogs.associateBy { it.date }
+
+    androidx.compose.material3.Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = GlassOverlay),
+        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Weekly Consistency",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .background(MatteGold.copy(alpha = 0.1f))
+                        .border(1.dp, MatteGold.copy(alpha = 0.4f), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Default.LocalFireDepartment,
+                            contentDescription = "Streak",
+                            tint = MatteGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$currentStreak Day Streak",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = MatteGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                weekDays.forEach { date ->
+                    val formattedDate = dateFormat.format(date)
+                    val dayName = dayNameFormat.format(date).take(2)
+                    val dayNumber = dayNumberFormat.format(date)
+                    val isToday = formattedDate == todayStr
+                    
+                    val log = history[formattedDate]
+                    var completedCount = 0
+                    if (log != null) {
+                        if (log.fajr) completedCount++
+                        if (log.dhuhr) completedCount++
+                        if (log.asr) completedCount++
+                        if (log.maghrib) completedCount++
+                        if (log.isha) completedCount++
+                    }
+                    val targetCompletion = completedCount / 5f
+                    val completion by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = targetCompletion,
+                        animationSpec = androidx.compose.animation.core.tween(durationMillis = 800, delayMillis = 100, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        label = "calendarDayProgress"
+                    )
+                    val isPerfectDay = targetCompletion == 1.0f
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = dayName,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (isToday) MatteGold else TextSecondary,
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(if (isPerfectDay) MatteGold.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent)
+                                .border(
+                                    width = if (isToday) 2.dp else 1.5.dp,
+                                    color = if (isPerfectDay) MatteGold else if (isToday) MatteGold else TextSecondary.copy(alpha = 0.35f),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (completion > 0f && !isPerfectDay) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = completion,
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = MatteGold.copy(alpha = 0.5f),
+                                    trackColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    strokeWidth = 2.5.dp
+                                )
+                            }
+                            
+                            if (isPerfectDay) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Perfect Day",
+                                    tint = MatteGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = dayNumber,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = if (isToday) MatteGold else TextPrimary,
+                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }

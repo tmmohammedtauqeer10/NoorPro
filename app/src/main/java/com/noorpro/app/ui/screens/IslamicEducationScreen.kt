@@ -67,10 +67,10 @@ fun IslamicEducationScreen(viewModel: DeenViewModel) {
         Spacer(modifier = Modifier.height(16.dp))
 
         EducationCard(
-            title = "Quran Learning Module",
-            description = "Learn Quran interactively with gamification and full recitations.",
+            title = "Quran Reading Course (Qaida to Tajweed)",
+            description = "Step by step: Qaida, tajweed basics, madd and waqf, Juz Amma practice and hifz, advanced rules.",
             icon = Icons.AutoMirrored.Filled.MenuBook,
-            onClick = { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) }
+            onClick = { viewModel.navigateTo(DeenScreen.QAIDA_TUTOR) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -84,14 +84,6 @@ fun IslamicEducationScreen(viewModel: DeenViewModel) {
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        EducationCard(
-            title = "Qaida Digital Tutor",
-            description = "Master Arabic letters, pronunciation, and basic reading rules.",
-            icon = Icons.AutoMirrored.Filled.MenuBook, // Reusing icon for now
-            onClick = { viewModel.navigateTo(DeenScreen.QAIDA_TUTOR) }
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
 
         EducationCard(
             title = "Knowledge Quiz",

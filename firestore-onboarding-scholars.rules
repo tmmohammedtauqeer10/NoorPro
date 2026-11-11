@@ -1,0 +1,62 @@
+    // BEGIN 1.2.0 (115) ONBOARDING + SCHOLAR APPLICATION RULES (additive; also merged into firestore.rules)
+    // Unique usernames: usernames/{name} = {uid, at}. Created in a transaction by the onboarding flow.
+    match /usernames/{name} {
+      function usernameOk(n) {
+        return n.matches('^[a-z0-9._]{3,20}$') && !n.matches('^[.].*') && !n.matches('.*[.]$')
+          && !n.matches('.*[.][.].*') && !n.matches('^[0-9]+$');
+      }
+      allow read: if true;
+      allow create: if request.auth != null && usernameOk(name)
+        && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time;
+      allow update: if false;
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+    }
+
+    // users/{uid}/private/profile: owner read/write is the base users/{userId}/{document=**} rule; admins may read.
+    match /users/{userId}/private/{docId} {
+      allow read: if isModerator();
+    }
+
+    // Public profile: owners can't grant themselves a badge or the scholar type; only admins set scholarBadge / verified.
+    match /ummah_profiles/{userId} {
+      allow update: if isModerator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scholarBadge', 'verified'])
+        && request.resource.data.get('scholarBadge', false) is bool;
+    }
+
+    // scholars/{uid}: written by an admin (claim or admins/{uid} doc) on approve / revoke.
+    match /scholars/{uid} {
+      allow create, update: if isModerator()
+        && request.resource.data.keys().hasOnly(['name', 'title', 'verified', 'approvedBy', 'approvedAt', 'revokedReason'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.verified is bool
+        && request.resource.data.approvedBy == request.auth.uid && request.resource.data.approvedAt == request.time;
+    }
+
+    match /scholar_applications/{uid} {
+      function s(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+      function appOk(d) {
+        return d.keys().hasOnly(['uid', 'name', 'title', 'institution', 'maslak', 'silsila', 'years', 'refName', 'refPhone', 'bio', 'certPath', 'status', 'submittedAt'])
+          && d.uid == uid && s(d.name, 2, 80) && s(d.title, 2, 80) && s(d.institution, 2, 120)
+          && d.maslak in ['hanafi', 'shafii', 'maliki', 'hanbali'] && s(d.silsila, 0, 120)
+          && d.years is int && d.years >= 0 && d.years <= 80
+          && s(d.refName, 2, 80) && s(d.refPhone, 8, 22) && d.refPhone.matches('^[+]?[0-9][0-9 ()-]{6,18}[0-9]$')
+          && s(d.bio, 30, 600) && d.certPath is string && d.certPath.matches('^scholar_certificates/' + uid + '/[^/]{1,80}$')
+          && d.status == 'pending' && d.submittedAt == request.time;
+      }
+      allow read: if request.auth != null && (request.auth.uid == uid || isModerator());
+      allow create: if request.auth != null && request.auth.uid == uid && appOk(request.resource.data);
+      // Resubmit after a rejection / revocation (or edit while pending).
+      allow update: if request.auth != null && request.auth.uid == uid
+        && resource.data.status in ['pending', 'rejected', 'revoked'] && appOk(request.resource.data);
+      // Admin decision: only status / reason / decidedBy / decidedAt change.
+      allow update: if isModerator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'decidedBy', 'decidedAt'])
+        && request.resource.data.status in ['approved', 'rejected', 'revoked']
+        && request.resource.data.get('reason', '') is string && request.resource.data.get('reason', '').size() <= 500
+        && request.resource.data.decidedBy == request.auth.uid && request.resource.data.decidedAt == request.time;
+      allow delete: if request.auth != null && request.auth.uid == uid && resource.data.status in ['pending', 'rejected'];
+    }
+    // END 1.2.0 (115) ONBOARDING + SCHOLAR APPLICATION RULES

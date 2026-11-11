@@ -1,0 +1,317 @@
+{
+  "api_version": "1.0",
+  "last_updated": "2026-06-17",
+  "app_name": "DeenFlow",
+  "content_type": "audio_series",
+  "default_language": "en",
+  "supported_languages": ["en", "ur"],
+  "cdn": "Archive.org",
+  "_note": "Series under 'Seerah & Stories' and the Urdu 'Zahni Sukun' lecture use REAL, verified Archive.org direct-download links and should play as-is. Series whose audio_url contains 'REPLACE_ME' are placeholders showing the schema — fill them with real Archive.org links (format: https://archive.org/download/<identifier>/<url-encoded-file>.mp3) before relying on them.",
+  "total_categories": 4,
+  "categories": [
+    {
+      "category_id": "cat_seerah_audio",
+      "category_name": {
+        "en": "Seerah & Stories",
+        "ur": "سیرت و واقعات"
+      },
+      "icon": "users",
+      "color": "#b7791f",
+      "series": [
+        {
+          "id": "ser_seerah_en_bizry",
+          "title": {
+            "en": "Seerah — The Sealed Nectar",
+            "ur": "سیرت — الرحیق المختوم (انگریزی)"
+          },
+          "narrator": {
+            "en": "Muhammad al-Bizry",
+            "ur": "محمد البزری"
+          },
+          "language": "en",
+          "description": {
+            "en": "The life of the Prophet ﷺ told as an engaging English audio series, based on the award-winning book The Sealed Nectar.",
+            "ur": "نبی کریم ﷺ کی سیرت ایک دلچسپ انگریزی آڈیو سلسلے میں، انعام یافتہ کتاب 'الرحیق المختوم' پر مبنی۔"
+          },
+          "badge": {
+            "en": "English",
+            "ur": "انگریزی"
+          },
+          "cover_color": "#975a16",
+          "cover_url": "https://archive.org/services/img/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Islamic_geometric_pattern.svg/400px-Islamic_geometric_pattern.svg.png",
+          "episodes": [
+            {
+              "id": "ep_bizry_01",
+              "title": {
+                "en": "01 — The Story of Haajar & Ismaeel",
+                "ur": "۱ — حضرت ہاجرہ و اسماعیل علیہ السلام کا واقعہ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2001%20-%20The%20Story%20of%20Haajar%20%26%20Ismaeel.mp3"
+            },
+            {
+              "id": "ep_bizry_02",
+              "title": {
+                "en": "02 — The Prophet's Ancestors",
+                "ur": "۲ — نبی ﷺ کے آباؤ اجداد"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2002%20-%20The%20Prophet%27s%20Ancestors.mp3"
+            },
+            {
+              "id": "ep_bizry_03",
+              "title": {
+                "en": "03 — The Prophet's Full Name & Arabia's Religious Background",
+                "ur": "۳ — نبی ﷺ کا مکمل نام اور عرب کا مذہبی پس منظر"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2003%20-%20The%20Prophet%27s%20full%20name%20%26%20The%20Religious%20Background%20of%20Arabia.mp3"
+            },
+            {
+              "id": "ep_bizry_04",
+              "title": {
+                "en": "04 — The Story of the Elephant",
+                "ur": "۴ — اصحابِ فیل کا واقعہ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2004%20-%20The%20Story%20of%20the%20Elephant.mp3"
+            },
+            {
+              "id": "ep_bizry_05",
+              "title": {
+                "en": "05 — The Prophet's Birth & His Names",
+                "ur": "۵ — نبی ﷺ کی ولادت اور آپ کے اسماء"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2005%20-%20The%20Prophet%27s%20Birth%20%26%20His%20Names.mp3"
+            },
+            {
+              "id": "ep_bizry_06",
+              "title": {
+                "en": "06 — Childhood, Adulthood & Marriage",
+                "ur": "۶ — بچپن، جوانی اور نکاح"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/seerah-based-on-the-sealed-nectar-by-muhammad-al-bizry/Seerah%20-%20Episode%2006%20-%20Prophet%27s%20Childhood%2C%20Adulthood%20%26%20Marriage.mp3"
+            }
+          ]
+        },
+        {
+          "id": "ser_seerah_ur",
+          "title": {
+            "en": "Seerat-un-Nabi (Urdu)",
+            "ur": "سیرت النبی ﷺ (اردو)"
+          },
+          "narrator": {
+            "en": "Various Speakers",
+            "ur": "مختلف مقررین"
+          },
+          "language": "ur",
+          "description": {
+            "en": "The Prophet's biography in clear Urdu — the world before Islam, his birth, and the early years.",
+            "ur": "صاف اردو میں نبی کریم ﷺ کی سیرت — اسلام سے پہلے کا دور، آپ کی ولادت اور ابتدائی سال۔"
+          },
+          "badge": {
+            "en": "Urdu",
+            "ur": "اردو"
+          },
+          "cover_color": "#744210",
+          "cover_url": "https://archive.org/services/img/Seerat-un-nabi-seerah-urdu-mp3-audio",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Islamic_geometric_pattern.svg/400px-Islamic_geometric_pattern.svg.png",
+          "episodes": [
+            {
+              "id": "ep_seerat_ur_01",
+              "title": {
+                "en": "01 — Arabia before the Prophet ﷺ",
+                "ur": "۱ — نبی ﷺ سے پہلے عرب"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2801%29%20Arab%20before%20Muhammad%20%28s%29_-_Seerat-un-Nabi_in_Urdu.mp3"
+            },
+            {
+              "id": "ep_seerat_ur_02",
+              "title": {
+                "en": "02 — Makkah before the Prophet ﷺ",
+                "ur": "۲ — نبی ﷺ سے پہلے مکہ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2802%29%20Makkah%20before%20Muhammad%20%28s%29_-_Seerat-un-Nabi_in_Urdu.mp3"
+            },
+            {
+              "id": "ep_seerat_ur_03",
+              "title": {
+                "en": "03 — Shirk before the Prophet ﷺ",
+                "ur": "۳ — نبی ﷺ سے پہلے شرک"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2803%29%20Shirk%20before%20Muhammad%20%28s%29_-_Seerat-un-Nabi_in_Urdu.mp3"
+            },
+            {
+              "id": "ep_seerat_ur_04",
+              "title": {
+                "en": "04 — Jews & Christians before the Prophet ﷺ",
+                "ur": "۴ — نبی ﷺ سے پہلے یہود و نصاریٰ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2804%29%20Jews%20and%20Christians%20before%20Muhammad%20%28s%29_-_Seerat-un-Nabi_in_Urdu.mp3"
+            },
+            {
+              "id": "ep_seerat_ur_05",
+              "title": {
+                "en": "05 — Character of the People",
+                "ur": "۵ — لوگوں کا کردار"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2805%29%20Character%20of%20people%20before%20Muhammad%20%28s%29_-_Seerat-un-Nabi_in_Urdu.mp3"
+            },
+            {
+              "id": "ep_seerat_ur_06",
+              "title": {
+                "en": "06 — The Story of the Elephant",
+                "ur": "۶ — اصحابِ فیل کا واقعہ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Seerat-un-nabi-seerah-urdu-mp3-audio/%2806%29%20Story%20of%20Elephant_-_Seerat-un-Nabi_in_Urdu.mp3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category_id": "cat_lectures",
+      "category_name": {
+        "en": "Lectures & Bayan",
+        "ur": "لیکچرز اور بیان"
+      },
+      "icon": "microphone",
+      "color": "#6b46c1",
+      "series": [
+        {
+          "id": "ser_wahiduddin",
+          "title": {
+            "en": "Reminders by Maulana Wahiduddin Khan",
+            "ur": "مولانا وحید الدین خان کے بیانات"
+          },
+          "narrator": {
+            "en": "Maulana Wahiduddin Khan",
+            "ur": "مولانا وحید الدین خان"
+          },
+          "language": "ur",
+          "description": {
+            "en": "Thought-provoking Urdu talks on inner peace and a balanced spiritual life.",
+            "ur": "ذہنی سکون اور متوازن روحانی زندگی پر فکر انگیز اردو بیانات۔"
+          },
+          "badge": {
+            "en": "Urdu",
+            "ur": "اردو"
+          },
+          "cover_color": "#553c9a",
+          "cover_url": "https://archive.org/services/img/Zahni_Sukun_Lecture_Urdu",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Islamic_geometric_pattern.svg/400px-Islamic_geometric_pattern.svg.png",
+          "episodes": [
+            {
+              "id": "ep_zahni_sukun",
+              "title": {
+                "en": "Zehni Sukoon (Peace of Mind)",
+                "ur": "ذہنی سکون"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/Zahni_Sukun_Lecture_Urdu/Zahni_Sukun.MP3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category_id": "cat_tafsir_audio",
+      "category_name": {
+        "en": "Tafsir (Audio)",
+        "ur": "تفسیر (آڈیو)"
+      },
+      "icon": "book_open",
+      "color": "#8b4513",
+      "series": [
+        {
+          "id": "ser_tafsir_juz_amma",
+          "title": {
+            "en": "Tafsir of Juz Amma",
+            "ur": "تفسیر پارہ عمّ"
+          },
+          "narrator": {
+            "en": "Various Speakers",
+            "ur": "مختلف مقررین"
+          },
+          "language": "ur",
+          "description": {
+            "en": "Verse-by-verse explanation of the last juz of the Quran, in simple Urdu.",
+            "ur": "قرآن کے آخری پارے کی آیت بہ آیت آسان اردو میں تشریح۔"
+          },
+          "badge": {
+            "en": "Placeholder",
+            "ur": "نمونہ"
+          },
+          "cover_color": "#6b3410",
+          "cover_url": "",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Islamic_geometric_pattern.svg/400px-Islamic_geometric_pattern.svg.png",
+          "episodes": [
+            {
+              "id": "ep_surah_naba",
+              "title": {
+                "en": "01 — Surah An-Naba",
+                "ur": "۱ — سورۃ النبأ"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/REPLACE_ME_tafsir/01_an_naba.mp3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category_id": "cat_nasheed",
+      "category_name": {
+        "en": "Nasheed (Vocals Only)",
+        "ur": "نعت و نشید"
+      },
+      "icon": "music",
+      "color": "#2c7a7b",
+      "series": [
+        {
+          "id": "ser_naat",
+          "title": {
+            "en": "Naat & Hamd",
+            "ur": "نعت و حمد"
+          },
+          "narrator": {
+            "en": "Various Reciters",
+            "ur": "مختلف نعت خواں"
+          },
+          "language": "ur",
+          "description": {
+            "en": "Praise of Allah and His Messenger ﷺ in beautiful voices — vocals only.",
+            "ur": "اللہ اور اس کے رسول ﷺ کی تعریف خوبصورت آوازوں میں — صرف آواز۔"
+          },
+          "badge": {
+            "en": "Placeholder",
+            "ur": "نمونہ"
+          },
+          "cover_color": "#234e52",
+          "cover_url": "",
+          "cover_fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Islamic_geometric_pattern.svg/400px-Islamic_geometric_pattern.svg.png",
+          "episodes": [
+            {
+              "id": "ep_naat_01",
+              "title": {
+                "en": "01 — Hamd",
+                "ur": "۱ — حمد"
+              },
+              "duration_seconds": 0,
+              "audio_url": "https://archive.org/download/REPLACE_ME_naat/01_hamd.mp3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

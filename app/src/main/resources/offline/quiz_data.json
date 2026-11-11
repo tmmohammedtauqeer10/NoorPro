@@ -1,0 +1,348 @@
+{
+  "status": "success",
+  "api_version": "2.0",
+  "last_updated": "2026-06-02",
+  "total_categories": 5,
+  "categories": [
+    {
+      "category_id": "quiz_seerah_01",
+      "category_name": "Seerah (Life of the Prophet)",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_see_001",
+          "text": "In which city was Prophet Muhammad (PBUH) born?",
+          "options": ["Medina", "Mecca", "Taif", "Jerusalem"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_002",
+          "text": "What was the name of the mountain where the Prophet (PBUH) received the first revelation?",
+          "options": ["Mount Uhud", "Mount Safa", "Mount Hira", "Mount Sinai"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_003",
+          "text": "What was the name of the Prophet's (PBUH) mother?",
+          "options": ["Khadijah", "Aminah", "Fatimah", "Halimah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_004",
+          "text": "At what age did Muhammad (PBUH) receive the first revelation?",
+          "options": ["35", "40", "50", "63"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_005",
+          "text": "Who was the first wife of the Prophet (PBUH)?",
+          "options": ["Aisha", "Hafsah", "Sawdah", "Khadijah"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_see_006",
+          "text": "What was the year called when both Abu Talib and Khadijah passed away?",
+          "options": ["Year of the Elephant", "Year of Sorrow", "Year of Migration", "Year of Victory"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_007",
+          "text": "During the Hijrah (migration) to Medina, in which cave did the Prophet hide?",
+          "options": ["Cave Hira", "Cave Thawr", "Cave of Uhud", "Cave of Safa"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_008",
+          "text": "What was the first major battle in Islamic history?",
+          "options": ["Battle of Uhud", "Battle of the Trench", "Battle of Badr", "Battle of Mut'ah"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_009",
+          "text": "What is the name of the Prophet's (PBUH) grandfather?",
+          "options": ["Abu Talib", "Hamza", "Abdul Muttalib", "Abbas"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_010",
+          "text": "In which Islamic year did the Treaty of Hudaybiyyah take place?",
+          "options": ["2 AH", "6 AH", "8 AH", "10 AH"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_quran_01",
+      "category_name": "Al-Quran & Tafsir",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_qur_001",
+          "text": "How many Surahs (chapters) are there in the Quran?",
+          "options": ["110", "112", "114", "120"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_002",
+          "text": "Which is the longest Surah in the Quran?",
+          "options": ["Surah Al-Imran", "Surah Al-Baqarah", "Surah An-Nisa", "Surah Al-Ma'idah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_003",
+          "text": "Which Surah does not begin with 'Bismillah'?",
+          "options": ["Surah At-Tawbah", "Surah Al-Anfal", "Surah Ya-Sin", "Surah Ar-Rahman"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_qur_004",
+          "text": "What was the very first word revealed to Prophet Muhammad (PBUH)?",
+          "options": ["Alhamdulillah", "Bismillah", "Iqra (Read)", "Allahu Akbar"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_005",
+          "text": "Over how many years was the Quran revealed?",
+          "options": ["10 years", "23 years", "33 years", "40 years"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_006",
+          "text": "Which Surah contains two 'Bismillahs'?",
+          "options": ["Surah Al-Kahf", "Surah An-Naml", "Surah Maryam", "Surah Taha"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_007",
+          "text": "Which Surah is considered the 'Heart of the Quran'?",
+          "options": ["Surah Al-Mulk", "Surah Ar-Rahman", "Surah Ya-Sin", "Surah Al-Waqi'ah"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_008",
+          "text": "Which angel was responsible for bringing the revelation to the Prophet?",
+          "options": ["Mika'il", "Israfil", "Izra'il", "Jibril (Gabriel)"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_qur_009",
+          "text": "In which Surah is Ayat al-Kursi (The Verse of the Throne) located?",
+          "options": ["Surah Al-Baqarah", "Surah Al-Imran", "Surah An-Nur", "Surah Al-A'raf"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_qur_010",
+          "text": "Which is the shortest Surah in the Quran?",
+          "options": ["Surah Al-Asr", "Surah Al-Ikhlas", "Surah Al-Kawthar", "Surah Al-Falaq"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_hadith_01",
+      "category_name": "Hadith & Sunnah",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_had_001",
+          "text": "According to the famous first Hadith in Sahih al-Bukhari, actions are judged by what?",
+          "options": ["Their results", "Intentions", "Knowledge", "Effort"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_002",
+          "text": "Which companion narrated the highest number of Hadiths?",
+          "options": ["Abu Hurairah", "Abdullah ibn Umar", "Anas ibn Malik", "Aisha bint Abu Bakr"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_had_003",
+          "text": "What are the two most authentic books of Hadith called?",
+          "options": ["Sunan Abu Dawud & Tirmidhi", "Sahih Bukhari & Sahih Muslim", "Muwatta Malik & Musnad Ahmad", "Sunan Ibn Majah & Nasai"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_004",
+          "text": "Who compiled the famous collection known as 'The Forty Hadith'?",
+          "options": ["Imam Malik", "Imam Ahmad", "Imam An-Nawawi", "Imam Abu Hanifa"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_005",
+          "text": "What is the chain of narrators in a Hadith called?",
+          "options": ["Matn", "Isnad (Sanad)", "Tafsir", "Fiqh"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_006",
+          "text": "What is the actual text or body of the Hadith called?",
+          "options": ["Isnad", "Matn", "Rawi", "Taqwa"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_007",
+          "text": "The Prophet (PBUH) said: 'Cleanliness is half of...' what?",
+          "options": ["Health", "Faith (Iman)", "Wealth", "Life"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_008",
+          "text": "Which tribe did the Prophet Muhammad (PBUH) belong to?",
+          "options": ["Banu Aus", "Banu Khazraj", "Quraish", "Banu Nadir"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_009",
+          "text": "The Prophet (PBUH) said: 'Paradise lies under the feet of...' whom?",
+          "options": ["Scholars", "Martyrs", "Mothers", "Fathers"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_010",
+          "text": "Which of these is NOT a category of Hadith classification?",
+          "options": ["Sahih (Authentic)", "Hasan (Good)", "Da'if (Weak)", "Fard (Obligatory)"],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_fiqh_01",
+      "category_name": "Fiqh (Jurisprudence)",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_fiq_001",
+          "text": "How many pillars of Islam are there?",
+          "options": ["4", "5", "6", "7"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_002",
+          "text": "How many obligatory (Fard) actions are there in Wudu (Ablution)?",
+          "options": ["3", "4", "5", "6"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_003",
+          "text": "What is the standard percentage for calculating Zakat on accumulated wealth?",
+          "options": ["1.5%", "2.0%", "2.5%", "5.0%"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_004",
+          "text": "Which of the following automatically breaks the fast (Sawm)?",
+          "options": ["Using a Miswak", "Accidental swallowing of water", "Applying perfume", "Intentional eating or drinking"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_fiq_005",
+          "text": "If water is unavailable, what is the dry purification alternative called?",
+          "options": ["Ghusl", "Tayammum", "Istinja", "Taharah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_006",
+          "text": "How many Rak'ahs are in the obligatory (Fard) Maghrib prayer?",
+          "options": ["2", "3", "4", "5"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_007",
+          "text": "What is the direction Muslims face during prayer called?",
+          "options": ["Mihrab", "Minbar", "Qibla", "Kaaba"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_008",
+          "text": "Which prayer is performed entirely in congregation without any bowing (Ruku)?",
+          "options": ["Salatul Jumu'ah", "Salatul Janazah (Funeral)", "Salatul Eid", "Salatul Witr"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_009",
+          "text": "In which month is the Hajj pilgrimage performed?",
+          "options": ["Ramadan", "Shawwal", "Dhul-Hijjah", "Muharram"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_010",
+          "text": "What is the term for actions that are highly recommended but not strictly obligatory?",
+          "options": ["Fard", "Wajib", "Sunnah", "Haram"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_history_01",
+      "category_name": "Islamic History",
+      "difficulty": "Hard",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_his_001",
+          "text": "Who was chosen as the first Caliph (Khalifah) of Islam?",
+          "options": ["Umar ibn al-Khattab", "Ali ibn Abi Talib", "Uthman ibn Affan", "Abu Bakr as-Siddiq"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_his_002",
+          "text": "Which companion was given the title 'The Sword of Allah'?",
+          "options": ["Hamza ibn Abdul-Muttalib", "Khalid ibn al-Walid", "Tariq ibn Ziyad", "Salahuddin al-Ayyubi"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_003",
+          "text": "Who was the first person to call the Adhan (Mu'adhin) in Islam?",
+          "options": ["Zaid bin Haritha", "Bilal ibn Rabah", "Abdullah ibn Masud", "Ammar ibn Yasir"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_004",
+          "text": "Which companion suggested digging a trench during the Battle of the Trench (Khandaq)?",
+          "options": ["Salman al-Farsi", "Abu Ubaidah", "Sa'd ibn Mu'adh", "Zubayr ibn al-Awwam"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_his_005",
+          "text": "During whose Caliphate was the Quran fully compiled into a single unified book format?",
+          "options": ["Abu Bakr", "Umar", "Uthman", "Ali"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_006",
+          "text": "In what year did the Conquest of Mecca take place?",
+          "options": ["5 AH", "8 AH", "10 AH", "12 AH"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_007",
+          "text": "The Islamic calendar (Hijri) begins with which major event?",
+          "options": ["Birth of the Prophet", "First Revelation", "Migration to Medina", "Conquest of Mecca"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_008",
+          "text": "What modern-day country encompasses the historical Islamic region of Andalusia?",
+          "options": ["Turkey", "Egypt", "Spain", "Morocco"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_009",
+          "text": "Who recaptured Jerusalem from the Crusaders in 1187 CE?",
+          "options": ["Nur ad-Din", "Salahuddin al-Ayyubi", "Tariq ibn Ziyad", "Muhammad al-Fatih"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_010",
+          "text": "Which Caliph established the first formal police force and public treasury (Baitul Mal)?",
+          "options": ["Abu Bakr", "Umar ibn al-Khattab", "Uthman", "Ali"],
+          "correct_index": 1
+        }
+      ]
+    }
+  ]
+}

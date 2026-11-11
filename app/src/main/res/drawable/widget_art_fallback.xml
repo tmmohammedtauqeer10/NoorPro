@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98: Now playing artwork fallback - N tile (used when the track has no real cover). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="80dp" android:height="80dp"
+    android:viewportWidth="96" android:viewportHeight="96">
+    <path android:fillColor="#FF13774F" android:pathData="M20,0H76A20,20 0 0 1 96,20V76A20,20 0 0 1 76,96H20A20,20 0 0 1 0,76V20A20,20 0 0 1 20,0Z" />
+    <path android:fillColor="#FFFDF9F0" android:pathData="M23.24,69.93L23.24,24.43A1.43,1.43 0 0 1 24.68,23L31.54,23A7.81,7.81 0 0 1 37.73,26.06L59.66,54.65L59.66,27.33A4.33,4.33 0 0 1 63.99,23L71.46,23A1.3,1.3 0 0 1 72.76,24.3L72.76,70.32A2.67,2.67 0 0 1 70.08,73L63.07,73A7.56,7.56 0 0 1 57.21,70.21L47.31,58.07C44.43,54.53 41,52.55 37.62,50.03A9.17,9.17 0 0 1 36.02,36.83A9.46,9.46 0 0 0 36.35,55.19L36.35,68.86A4.14,4.14 0 0 1 32.21,73L26.31,73A3.07,3.07 0 0 1 23.24,69.93Z" />
+</vector>

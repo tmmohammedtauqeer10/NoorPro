@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NoorPro 1.1.6 — Dua requests (Remote Config dua_requests_enabled). ADDITIVE, NOT DEPLOYED.
+// Paste these blocks inside `match /databases/{database}/documents { ... }` in firestore.rules
+// (they use isModerator() from the base file), run
+// tools/rules-tests/dua-requests-1.1.6.test.js against the emulator, then deploy rules.
+// Data: dua_requests/{id}                      public request (anonymous ones carry no uid/name)
+//       dua_requests/{id}/responses/{uid_kind} one "ameen" / "prayed" per person; counts on the parent
+//       dua_owners/{id}                        {uid} — private ownership, owner + moderators only
+// Reports go to the existing ummah_reports collection (targetType "dua_request").
+// ─────────────────────────────────────────────────────────────────────────────
+    match /dua_requests/{duaId} {
+      function duaOwner() {
+        return request.auth != null && exists(/databases/$(database)/documents/dua_owners/$(duaId))
+          && get(/databases/$(database)/documents/dua_owners/$(duaId)).data.uid == request.auth.uid;
+      }
+      function newDuaOk(d) {
+        return d.keys().hasOnly(['text', 'category', 'anonymous', 'name', 'authorUid', 'ameenCount', 'prayedCount', 'answered', 'createdAt'])
+          && d.keys().hasAll(['text', 'category', 'anonymous', 'name', 'authorUid', 'ameenCount', 'prayedCount', 'answered', 'createdAt'])
+          && d.text is string && d.text.size() >= 8 && d.text.size() <= 400
+          && d.category in ['HEALTH', 'FAMILY', 'RIZQ', 'STUDIES', 'MARRIAGE', 'FORGIVENESS', 'DEPARTED', 'HARDSHIP', 'OTHER']
+          && d.anonymous is bool && d.name is string && d.name.size() <= 40
+          && (d.anonymous ? (d.authorUid == '' && d.name == '') : d.authorUid == request.auth.uid)
+          && d.ameenCount == 0 && d.prayedCount == 0 && d.answered == false && d.createdAt == request.time;
+      }
+      function respDoc(kind) { return /databases/$(database)/documents/dua_requests/$(duaId)/responses/$(request.auth.uid + '_' + kind); }
+      function counterOk(field, kind) {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field])
+          && ((request.resource.data[field] == resource.data[field] + 1 && !exists(respDoc(kind)) && existsAfter(respDoc(kind)))
+           || (request.resource.data[field] == resource.data[field] - 1 && exists(respDoc(kind)) && !existsAfter(respDoc(kind))));
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null && newDuaOk(request.resource.data)
+        && getAfter(/databases/$(database)/documents/dua_owners/$(duaId)).data.uid == request.auth.uid;
+      allow update: if request.auth != null && (
+           counterOk('ameenCount', 'ameen') || counterOk('prayedCount', 'prayed')
+        || (duaOwner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answered']) && request.resource.data.answered == true));
+      allow delete: if duaOwner() || isModerator();
+
+      match /responses/{rid} {
+        allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+        allow create: if request.auth != null && rid == request.auth.uid + '_' + request.resource.data.kind
+          && request.resource.data.keys().hasOnly(['uid', 'kind', 'at'])
+          && request.resource.data.uid == request.auth.uid && request.resource.data.kind in ['ameen', 'prayed']
+          && request.resource.data.at == request.time
+          && exists(/databases/$(database)/documents/dua_requests/$(duaId));
+        allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      }
+    }
+
+    match /dua_owners/{duaId} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      // Only together with the request itself (same batch), never for an existing request.
+      allow create: if request.auth != null && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.at == request.time
+        && !exists(/databases/$(database)/documents/dua_requests/$(duaId))
+        && existsAfter(/databases/$(database)/documents/dua_requests/$(duaId));
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isModerator());
+      allow update: if false;
+    }

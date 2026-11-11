@@ -18,4 +18,13 @@ data class Track(
     val licenseUrl: String? = null,
     val tags: List<String> = emptyList(),
     val language: String? = null,
+    val surah: Int? = null,
+    val startAyah: Int? = null,
+    val endAyah: Int? = null,
+    /** arabic | tarjuma | tafsir */
+    val ayahKind: String? = null,
+    /** ayah | group */
+    val highlightMode: String? = null,
+    val translationKey: String? = null,
+    val translationLabel: String? = null,
 )

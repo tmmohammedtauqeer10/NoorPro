@@ -37,10 +37,17 @@ Keep adhan alerts distinct from a quiet ongoing status.
 
 ### Adhan notification
 
-- Retain HIGH channel + optional full-screen intent only if user opted into
-  alarm-style reminders and exact-alarm permission granted.
-- Custom adhan URI when packaged; fall back to system alarm/notification URI
-  (current code path).
+- Fires at the EXACT prayer time (not early) as a heads-up HIGH notification on
+  the `prayer_adhan_*_v3` channels. No full-screen intent and no `setOngoing`
+  (Play policy). Sound = alarm tone / notification tone / silent, chosen in
+  Settings > Advanced. Channels are created once with their sound because
+  Android freezes channel settings after creation (hence the `_v3` ids).
+- Optional extras: pre-prayer reminder (5-30 min), Jumu'ah (30 min before Friday
+  Dhuhr), Suhoor/Iftar in Ramadan, daily ayah at a chosen time.
+- Refresh: `PrayerRefreshWorker` (15 min, independent of the ongoing toggle),
+  silent refresh alarms at every prayer change and 00:01, boot, `DATE_CHANGED`,
+  time/timezone change, exact-alarm permission change and every app start.
+  Widgets use a `Chronometer` count-down so the launcher ticks each second.
 
 ## Home-screen widgets
 
@@ -87,13 +94,15 @@ Manifest (when implemented):
 </receiver>
 ```
 
-Update triggers: periodic `WorkManager` (~15–30 min), exact alarm near prayer,
-boot completed, timezone change (already handled for alarms).
+Update triggers: see "Refresh" above.
 
 ## Permissions already declared
 
 `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`,
-`USE_FULL_SCREEN_INTENT`, location — align runtime prompts with Settings UX.
+location. `PrayerPermissionPrompt` asks for notifications (Android 13+) and
+the exact-alarm "Alarms & reminders" access with an explanation, re-checks on
+resume and can be snoozed for 3 days. (`USE_FULL_SCREEN_INTENT` and
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` were removed in 1.0.35.)
 
 ## Package note
 
@@ -104,7 +113,9 @@ feature files.
 
 ## Battery optimization
 
-Settings → Advanced includes a **Battery optimization tip** that deep-links to
-unrestricted / ignore-battery settings so exact prayer alarms and the ongoing
-shade survive OEM Doze. Prefer user-initiated settings intents over silent
-whitelisting.
+Settings → Advanced includes a **Battery optimization tip** that opens the
+system battery-optimization list / app details page (no direct
+`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, which Play restricts). Exact
+alarms via `setExactAndAllowWhileIdle` do not need an exemption on stock
+Android; some OEMs (Xiaomi, Oppo, Vivo, Samsung "sleeping apps") still need the
+user to allow auto-start / unrestricted battery for Noor Pro.

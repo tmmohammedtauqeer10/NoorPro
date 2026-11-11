@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.98 home-screen widgets: dark-theme variants (green widgets stay green). -->
+<resources>
+    <color name="widget_green">#FF0B6243</color>
+    <color name="widget_green_deep">#FF084F36</color>
+    <color name="widget_on_green">#FFFDF9F0</color>
+    <color name="widget_on_green_muted">#C7FDF9F0</color>
+    <color name="widget_card_bg">#FF111D18</color>
+    <color name="widget_card_stroke">#FF23392F</color>
+    <color name="widget_ink">#FFEFF5F1</color>
+    <color name="widget_ink_muted">#FF9DB0A6</color>
+    <color name="widget_accent_text">#FF62CC9A</color>
+    <color name="widget_mint_bg">#FF132A22</color>
+    <color name="widget_mint_stroke">#FF1F4033</color>
+    <color name="widget_mint_pill">#FF1C4535</color>
+    <color name="widget_divider">#FF22362D</color>
+    <color name="widget_pill_button">#FF0B6243</color>
+    <color name="widget_pill_button_text">#FFFDF9F0</color>
+    <color name="widget_progress_track">#40FDF9F0</color>
+</resources>

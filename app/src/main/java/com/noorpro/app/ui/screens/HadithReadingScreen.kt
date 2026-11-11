@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,7 +55,7 @@ fun HadithReadingScreen(viewModel: DeenViewModel) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { viewModel.navigateTo(DeenScreen.HADITH_CHAPTERS) }) {
+            IconButton(onClick = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.HADITH_CHAPTERS) }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
@@ -98,6 +99,13 @@ fun HadithReadingScreen(viewModel: DeenViewModel) {
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = colors.primary)
+            }
+        } else if (hadiths.isEmpty()) {
+            Column(Modifier.fillMaxSize().padding(32.dp).testTag("hadith_empty"), verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Couldn't load this chapter. Check your connection and try again.", color = colors.onSurfaceVariant, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(14.dp))
+                OutlinedButton(onClick = { viewModel.hadithRetry() }) { Text("Try again") }
             }
         } else {
             LazyColumn(

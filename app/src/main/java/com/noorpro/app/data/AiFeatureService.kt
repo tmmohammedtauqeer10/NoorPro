@@ -3,6 +3,7 @@ package com.noorpro.app.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import android.os.Build
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -59,34 +60,428 @@ data class NoorAiMessage(
     val isUser: Boolean
 )
 
+/** A parsed Noor AI answer: visible body plus the hidden trailing metadata lines. */
+data class NoorAiAnswerMeta(val body: String, val followups: List<String>, val fiqh: Boolean?, val language: String?)
+
+/** Result of an online-only Noor AI call (Worker first, then the askNoorAi Cloud Function). */
+data class NoorAiReply(val text: String, val language: String, val fiqh: Boolean, val followups: List<String>, val source: String)
+
+/** One Research-mode progress step streamed by the Worker (planning, searching, sources, writing). */
+data class NoorResearchStage(val stage: String, val label: String, val items: List<String> = emptyList())
+
+/** Speech-to-text result for the voice assistant: text plus the detected language code (ur, hi, ar, en ...). */
+data class NoorVoiceTranscript(val text: String, val language: String)
+
+/** Image Studio result. */
+sealed interface NoorImageResult {
+    class Image(val bytes: ByteArray, val mime: String) : NoorImageResult
+    data class Refused(val message: String) : NoorImageResult
+    data class Failed(val message: String) : NoorImageResult
+}
+
+/** Extra context sent with a question (e.g. the ayah being memorised in Hifz Coach). */
+data class NoorAiContext(
+    val surah: String = "", val ayahRef: String = "", val arabic: String = "", val translation: String = "", val note: String = "",
+)
+
 object AiFeatureService {
+    // Self-host is only reachable from the Android emulator (10.0.2.2 -> host loopback). On real phones it
+    // would just burn the connect timeout, so it is skipped unless an explicit non-default override is set.
+    internal const val NOOR_AI_SELFHOST_URL = "http://10.0.2.2:8080/v1/chat"
+
+    /**
+     * 1.2.0 (113): free Noor AI backend, the Cloudflare Worker `noorpro-ai` (Workers AI; Groq when a key is set
+     * as a Worker secret). No key or secret is in the app. Remote Config `noor_ai_url` can move it.
+     */
+    const val DEFAULT_WORKER_URL = "https://noorpro-ai.noorpro.workers.dev"
+    internal const val REMOTE_CONFIG_URL_KEY = "noor_ai_url"
+
+    /** Optional explicit self-host URL (set at app start, or NOOR_AI_SELFHOST_URL env). Non-default only. */
+    @Volatile
+    var selfHostUrlOverride: String? = null
+
+    /** Answer language: [NoorAiLanguage.AUTO] (match the question) or a fixed code. Set from the chat screen. */
+    @Volatile
+    var answerLanguage: String = NoorAiLanguage.AUTO
+
+    /** 1.2.0 (114): fiqh school for answers (hanafi, shafii, maliki, hanbali or compare). Set from Noor AI settings. */
+    @Volatile
+    var madhhab: String = NoorAiOptions.HANAFI
+
+    /** 1.2.0 (114): answer depth chosen in the chat (fast, balanced, research). Other features use balanced. */
+    @Volatile
+    var tier: String = NoorAiOptions.BALANCED
+
+    /** Language of the most recent answer (for the chat header). */
+    @Volatile
+    var lastLanguage: String = "en"
+
     private const val NOOR_AI_FUNCTION_URL =
         "https://us-central1-noor-pro-d87e3.cloudfunctions.net/askNoorAi"
     private const val SAFE_DISCLAIMER =
         "Note: Noor AI can make mistakes. For fatwa, divorce, inheritance, medical, legal, or serious personal issues, consult a qualified scholar."
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(28, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
+        // Mobile networks (and a cold-started Cloud Function) routinely need more than 2s to connect.
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        // Whole-call cap (blocking execute is not cancelled by coroutine timeouts).
+        .callTimeout(50, TimeUnit.SECONDS)
         .build()
+    private val workerClient = client.newBuilder().callTimeout(55, TimeUnit.SECONDS).build()
+    private val uploadClient = client.newBuilder().writeTimeout(60, TimeUnit.SECONDS).callTimeout(90, TimeUnit.SECONDS).build()
+    /** Research streams progress for up to ~2.5 minutes. */
+    private val researchClient = client.newBuilder().readTimeout(130, TimeUnit.SECONDS).callTimeout(170, TimeUnit.SECONDS).build()
+    private val mediaClient = client.newBuilder().readTimeout(40, TimeUnit.SECONDS).callTimeout(45, TimeUnit.SECONDS).build()
 
+    /** Worker base URL: Remote Config override if it is a valid https URL, else the built-in default. */
+    internal fun resolveWorkerUrl(remote: String?): String {
+        val r = remote?.trim()?.trimEnd('/').orEmpty()
+        return if (r.startsWith("https://") && r.length > 12 && !r.contains(' ')) r else DEFAULT_WORKER_URL
+    }
+
+    private fun workerUrl(path: String): String = resolveWorkerUrl(
+        runCatching { com.google.firebase.remoteconfig.FirebaseRemoteConfig.getInstance().getString(REMOTE_CONFIG_URL_KEY) }.getOrNull()
+    ) + path
+
+    /**
+     * Noor AI chat: Worker -> askNoorAi -> offline. The returned text carries hidden FOLLOWUPS / NOORMETA lines
+     * that [parseMeta] strips for display.
+     */
     suspend fun generateResponse(
         prompt: String,
         mode: NoorAiMode,
-        history: List<NoorAiMessage> = emptyList()
+        history: List<NoorAiMessage> = emptyList(),
+        tier: String = this.tier,
+        language: String = answerLanguage,
+        context: NoorAiContext? = null,
+        onStage: ((NoorResearchStage) -> Unit)? = null,
     ): String = withContext(Dispatchers.IO) {
-        callNoorAiFunction(prompt.trim(), mode, history) ?: run {
-            delay(120)
-            buildLocalGuidedResponse(prompt.trim(), mode)
+        val clean = prompt.trim()
+        val lang = NoorAiLanguage.resolve(language, clean)
+        val selfHostUrl = resolveSelfHostUrl(isEmulator(), selfHostUrlOverride ?: System.getenv("NOOR_AI_SELFHOST_URL"))
+        val effective = NoorAiOptions.effectiveTier(tier, mode)
+        // Research mode: multi-step, streamed progress; falls back to a normal answer if it can't finish.
+        val researched = if (effective == NoorAiOptions.RESEARCH)
+            kotlinx.coroutines.withTimeoutOrNull(RESEARCH_TIMEOUT_MS) { research(clean, mode, history, language, onStage) }?.also { lastLanguage = it.language }
+        else null
+        if (researched != null) return@withContext encode(researched)
+        // Hard cap on the online attempt so the chat never spins for minutes on a bad network.
+        val reply = kotlinx.coroutines.withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
+            ask(clean, mode, history, context = context, language = language,
+                tier = if (effective == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else effective)?.let { encode(it) }
+                ?: (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, clean, mode, history) else null)
+        }
+        reply ?: offlineFallback(clean, mode, lang).also { lastLanguage = lang }
+    }
+
+    /**
+     * Online-only call for features that need a real answer (Hifz, Reels, Creator, goals): returns null when
+     * offline, so callers never show offline Qur'an/hadith quotes as if they were tips or captions.
+     */
+    suspend fun ask(
+        prompt: String,
+        mode: NoorAiMode,
+        history: List<NoorAiMessage> = emptyList(),
+        context: NoorAiContext? = null,
+        serverMode: String = mode.name,
+        language: String = answerLanguage,
+        usePassages: Boolean = true,
+        tier: String = NoorAiOptions.BALANCED,
+        madhhab: String = this.madhhab,
+    ): NoorAiReply? = withContext(Dispatchers.IO) {
+        val clean = prompt.trim()
+        if (clean.isBlank()) return@withContext null
+        val lang = NoorAiLanguage.resolve(language, clean)
+        kotlinx.coroutines.withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
+            callWorkerChat(clean, serverMode, history, context, language, usePassages && mode != NoorAiMode.DuaGenerator && mode != NoorAiMode.AppGuide,
+                NoorAiOptions.normTier(tier).let { if (it == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else it }, NoorAiOptions.normMadhhab(madhhab))
+                ?: callNoorAiFunctionWithRetry(withContextText(clean, context), mode, history, lang)?.let { raw ->
+                    val meta = parseMeta(raw)
+                    NoorAiReply(meta.body, lang, false, meta.followups, "askNoorAi")
+                }
+        }?.also { lastLanguage = it.language }
+    }
+
+    /** Same as [ask] but returns plain answer text (no hidden lines) or null. */
+    suspend fun generateOnline(prompt: String, mode: NoorAiMode = NoorAiMode.AskNoor, language: String = answerLanguage): String? =
+        ask(prompt, mode, language = language, usePassages = false)?.text
+
+    private fun withContextText(prompt: String, ctx: NoorAiContext?): String {
+        if (ctx == null) return prompt
+        val parts = listOfNotNull(
+            ctx.surah.takeIf { it.isNotBlank() }?.let { "Surah: $it" }, ctx.ayahRef.takeIf { it.isNotBlank() }?.let { "Ayah: $it" },
+            ctx.arabic.takeIf { it.isNotBlank() }?.let { "Arabic: ${it.take(800)}" }, ctx.translation.takeIf { it.isNotBlank() }?.let { "Translation: ${it.take(800)}" },
+        )
+        return (parts + prompt).joinToString("\n").take(3800)
+    }
+
+    /** Text stored in the chat: body, then hidden NOORMETA and FOLLOWUPS lines. */
+    internal fun encode(r: NoorAiReply): String = buildString {
+        append(r.text.trimEnd())
+        append("\nNOORMETA: lang=").append(r.language).append(";fiqh=").append(if (r.fiqh) "1" else "0")
+        if (r.followups.isNotEmpty()) append("\nFOLLOWUPS: ").append(r.followups.joinToString(" | "))
+    }
+
+    /** Splits hidden trailing FOLLOWUPS / NOORMETA lines off an answer. */
+    fun parseMeta(answer: String): NoorAiAnswerMeta {
+        val lines = answer.trimEnd().lines().toMutableList()
+        var followups = emptyList<String>()
+        var fiqh: Boolean? = null
+        var lang: String? = null
+        while (lines.isNotEmpty()) {
+            val last = lines.last().trim()
+            when {
+                last.startsWith("FOLLOWUPS:", ignoreCase = true) -> {
+                    followups = last.substringAfter(':').split("|").map { it.replace("**", "").trim() }.filter { it.isNotEmpty() }.take(3)
+                }
+                last.startsWith("NOORMETA:") -> last.substringAfter(':').split(';').forEach { kv ->
+                    val (k, v) = kv.trim().split('=', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+                    if (k == "lang" && v.isNotBlank()) lang = v
+                    if (k == "fiqh") fiqh = v == "1"
+                }
+                last.isEmpty() -> Unit
+                else -> break
+            }
+            lines.removeAt(lines.lastIndex)
+        }
+        return NoorAiAnswerMeta(lines.joinToString("\n").trimEnd(), followups, fiqh, lang)
+    }
+
+    /** Splits the trailing "FOLLOWUPS: a | b | c" line (and hidden metadata) off an answer. */
+    fun splitFollowups(answer: String): Pair<String, List<String>> = parseMeta(answer).let { it.body to it.followups }
+
+    /** True for the localized "can't reach the server" notes (never for real answers). */
+    fun isOffline(text: String?): Boolean {
+        val t = text?.trim().orEmpty()
+        return t.isEmpty() || t == UNAVAILABLE_MESSAGE || NoorAiLanguage.allUnavailable.any { t.endsWith(it) }
+    }
+
+    /**
+     * Shown only when the real AI could not be reached. App Help keeps its static feature map (it is
+     * not an AI answer anyway); other modes show only strongly related saved passages, or a short
+     * localized "offline" note - never a dump of loosely related hadith.
+     */
+    internal fun offlineFallback(prompt: String, mode: NoorAiMode, lang: String = NoorAiLanguage.detect(prompt)): String =
+        if (mode == NoorAiMode.AppGuide) buildLocalGuidedResponse(prompt, mode)
+        else (if (mode == NoorAiMode.DuaGenerator || lang != "en") null else NoorAiLocalCorpus.answer(prompt, lang)) ?: NoorAiLanguage.unavailable(lang)
+
+    private const val ONLINE_TIMEOUT_MS = 75_000L
+    private const val RESEARCH_TIMEOUT_MS = 170_000L
+
+    internal val UNAVAILABLE_MESSAGE: String get() = NoorAiLanguage.unavailable("en")
+
+    private fun chatPayload(
+        prompt: String, serverMode: String, history: List<NoorAiMessage>, ctx: NoorAiContext?, language: String, usePassages: Boolean,
+        tier: String, madhhab: String,
+    ): JSONObject {
+        val historyJson = org.json.JSONArray()
+        trimHistoryForRequest(history, prompt).forEach { m ->
+            historyJson.put(JSONObject().put("role", if (m.isUser) "user" else "assistant").put("content", parseMeta(m.text).body.take(2500)))
+        }
+        val passages = org.json.JSONArray()
+        if (usePassages) NoorAiLocalCorpus.passages(prompt).forEach { (ref, text) -> passages.put(JSONObject().put("ref", ref).put("text", text)) }
+        val payload = JSONObject()
+            .put("prompt", prompt.take(4000))
+            .put("mode", serverMode)
+            .put("language", language.ifBlank { NoorAiLanguage.AUTO })
+            .put("history", historyJson)
+            .put("passages", passages)
+            .put("tier", tier)
+            .put("madhhab", madhhab)
+        if (ctx != null) payload.put("context", JSONObject().put("surah", ctx.surah).put("ayahRef", ctx.ayahRef)
+            .put("arabic", ctx.arabic.take(1500)).put("translation", ctx.translation.take(1500)).put("note", ctx.note.take(600)))
+        return payload
+    }
+
+    private suspend fun callWorkerChat(
+        prompt: String, serverMode: String, history: List<NoorAiMessage>, ctx: NoorAiContext?, language: String, usePassages: Boolean,
+        tier: String = NoorAiOptions.BALANCED, madhhab: String = this.madhhab,
+    ): NoorAiReply? {
+        val root = postWorker("/v1/chat", chatPayload(prompt, serverMode, history, ctx, language, usePassages, tier, madhhab), workerClient) ?: return null
+        return parseWorkerChat(root)
+    }
+
+    /**
+     * Research mode (114): the Worker plans search queries, searches the Sunni knowledge base (aqidah, four-madhhab
+     * fiqh, tasawwuf), then writes a long cited answer with the strongest model. Progress arrives as Server-Sent
+     * Events and is reported through [onStage]. Null when offline or if it fails (the caller falls back).
+     */
+    suspend fun research(
+        prompt: String, mode: NoorAiMode, history: List<NoorAiMessage>, language: String = answerLanguage,
+        onStage: ((NoorResearchStage) -> Unit)? = null,
+    ): NoorAiReply? = withContext(Dispatchers.IO) {
+        val payload = chatPayload(prompt.trim(), mode.name, history, null, language, mode != NoorAiMode.DuaGenerator && mode != NoorAiMode.AppGuide,
+            NoorAiOptions.RESEARCH, NoorAiOptions.normMadhhab(madhhab))
+        try {
+            val rb = Request.Builder().url(workerUrl("/v1/research")).post(payload.toString().toRequestBody(jsonMediaType))
+                .addHeader("Content-Type", "application/json").addHeader("Accept", "text/event-stream")
+            FirebaseCallableHeaders.idToken()?.let { rb.addHeader("Authorization", "Bearer $it") }
+            FirebaseCallableHeaders.appCheckToken()?.let { rb.addHeader("X-Firebase-AppCheck", it) }
+            researchClient.newCall(rb.build()).execute().use { r ->
+                if (!r.isSuccessful) return@withContext null
+                val src = r.body?.source() ?: return@withContext null
+                if (r.header("Content-Type").orEmpty().contains("application/json")) {
+                    return@withContext parseWorkerChat(JSONObject(src.readUtf8()))
+                }
+                while (true) {
+                    val line = src.readUtf8Line() ?: break
+                    val data = NoorAiOptions.sseData(line) ?: continue
+                    val j = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                    when (j.optString("type")) {
+                        "stage" -> {
+                            val items = (j.optJSONArray("sources") ?: j.optJSONArray("queries"))
+                                ?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty()
+                            onStage?.invoke(NoorResearchStage(j.optString("stage"), j.optString("label"), items))
+                        }
+                        "answer" -> return@withContext parseWorkerChat(j)
+                        "error" -> return@withContext null
+                    }
+                }
+                null
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+    }
+
+    /**
+     * Natural cloud voice (114): Gemini TTS on the Worker (Urdu, Hindi, Arabic, English, ...), Workers AI MeloTTS as a
+     * backup for English. Returns audio bytes and MIME type, or null so the caller uses the phone's own voice.
+     */
+    suspend fun speech(text: String, lang: String, voice: String = "female"): Pair<ByteArray, String>? = withContext(Dispatchers.IO) {
+        if (text.isBlank()) return@withContext null
+        val root = postWorker("/v1/tts", JSONObject().put("text", text.take(700)).put("lang", lang).put("voice", voice), mediaClient) ?: return@withContext null
+        val audio = root.optString("audio").takeIf { it.isNotBlank() } ?: return@withContext null
+        runCatching { android.util.Base64.decode(audio, android.util.Base64.DEFAULT) }.getOrNull()?.let { it to root.optString("mime", "audio/wav") }
+    }
+
+    /** Voice assistant speech-to-text (Whisper on the Worker) with automatic language detection. */
+    suspend fun transcribeVoice(audio: ByteArray, hint: String? = null, format: String = "m4a"): NoorVoiceTranscript? = withContext(Dispatchers.IO) {
+        if (audio.isEmpty() || audio.size > 4_500_000) return@withContext null
+        val payload = JSONObject().put("audio", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP)).put("format", format)
+        if (!hint.isNullOrBlank()) payload.put("hint", hint)
+        val root = postWorker("/v1/transcribe", payload, uploadClient) ?: return@withContext null
+        val text = root.optString("text").trim().takeIf { it.isNotBlank() } ?: return@withContext null
+        NoorVoiceTranscript(text, root.optString("language").ifBlank { NoorAiLanguage.detect(text) })
+    }
+
+    /**
+     * Image Studio (114): Islamic art, calligraphy-style posters, mosque / nature / geometric backgrounds. The Worker
+     * refuses people, faces, animals, prophets, Sahabah, Ahl al-Bayt, awliya and anything immodest or non-Islamic,
+     * and checks every generated image before returning it. Free tier, rate-limited per day.
+     */
+    suspend fun generateImage(prompt: String, style: String, language: String = answerLanguage): NoorImageResult = withContext(Dispatchers.IO) {
+        val payload = JSONObject().put("prompt", prompt.trim().take(600)).put("style", style).put("language", language)
+        try {
+            val rb = Request.Builder().url(workerUrl("/v1/image")).post(payload.toString().toRequestBody(jsonMediaType)).addHeader("Content-Type", "application/json")
+            FirebaseCallableHeaders.idToken()?.let { rb.addHeader("Authorization", "Bearer $it") }
+            FirebaseCallableHeaders.appCheckToken()?.let { rb.addHeader("X-Firebase-AppCheck", it) }
+            mediaClient.newCall(rb.build()).execute().use { r ->
+                val j = runCatching { JSONObject(r.body?.string().orEmpty()) }.getOrNull() ?: JSONObject()
+                when {
+                    r.code == 429 -> NoorImageResult.Failed("You've reached today's free image limit. Please try again tomorrow, in sha Allah.")
+                    j.optBoolean("refused") -> NoorImageResult.Refused(j.optString("message").ifBlank { "Noor AI can't create that image." })
+                    r.isSuccessful && j.optString("image").isNotBlank() ->
+                        NoorImageResult.Image(android.util.Base64.decode(j.optString("image"), android.util.Base64.DEFAULT), j.optString("mime", "image/jpeg"))
+                    else -> NoorImageResult.Failed(j.optString("message").ifBlank { "Image generation isn't available right now. Please try again later." })
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+            NoorImageResult.Failed("Couldn't reach Noor AI. Check your connection and try again.")
         }
     }
 
-    private suspend fun callNoorAiFunction(prompt: String, mode: NoorAiMode, history: List<NoorAiMessage>): String? {
+    internal fun parseWorkerChat(root: JSONObject): NoorAiReply? {
+        val answer = root.optString("answer").trim().takeIf { it.isNotBlank() } ?: return null
+        val fu = root.optJSONArray("followups")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).trim().takeIf { q -> q.isNotEmpty() } } }.orEmpty()
+        val cited = withCitations(answer, jsonRefs(root.optJSONArray("citations")))
+        return NoorAiReply(cited, root.optString("language").ifBlank { "en" }, root.optBoolean("fiqh", false), fu.take(3), "worker")
+    }
+
+    /** Creator tools on the Worker: captions, hooks, hashtags, translate, subtitles, moderate. Null when offline. */
+    suspend fun creator(task: String, text: String, topic: String = "", lang: String = NoorAiLanguage.AUTO, kind: String = "reel"): JSONObject? =
+        withContext(Dispatchers.IO) {
+            postWorker("/v1/creator", JSONObject().put("task", task).put("text", text.take(3000)).put("topic", topic).put("lang", lang).put("kind", kind), workerClient)
+        }
+
+    /** Speech-to-text for reel subtitles (AAC/M4A bytes). Null when offline or too large. */
+    suspend fun transcribe(audio: ByteArray, lang: String? = null): JSONObject? = withContext(Dispatchers.IO) {
+        if (audio.isEmpty() || audio.size > 4_500_000) return@withContext null
+        val payload = JSONObject().put("audio", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))
+        if (!lang.isNullOrBlank()) payload.put("lang", lang)
+        postWorker("/v1/transcribe", payload, uploadClient)
+    }
+
+    private suspend fun postWorker(path: String, payload: JSONObject, http: OkHttpClient): JSONObject? = try {
+        val rb = Request.Builder().url(workerUrl(path)).post(payload.toString().toRequestBody(jsonMediaType)).addHeader("Content-Type", "application/json")
+        FirebaseCallableHeaders.idToken()?.let { rb.addHeader("Authorization", "Bearer $it") }
+        FirebaseCallableHeaders.appCheckToken()?.let { rb.addHeader("X-Firebase-AppCheck", it) }
+        http.newCall(rb.build()).execute().use { r ->
+            if (!r.isSuccessful) null else JSONObject(r.body?.string().orEmpty())
+        }
+    } catch (_: Exception) { null }
+
+    /** Builds the history array sent to the backend: recent turns only, never the question being asked. */
+    internal fun trimHistoryForRequest(history: List<NoorAiMessage>, currentPrompt: String): List<NoorAiMessage> {
+        val turns = history.filter { it.text.isNotBlank() && !isOffline(it.text) }.toMutableList()
+        if (turns.isNotEmpty() && turns.last().isUser && turns.last().text.trim() == currentPrompt.trim()) {
+            turns.removeAt(turns.lastIndex)
+        }
+        // Drop the greeting that the screen seeds as the first assistant message.
+        while (turns.isNotEmpty() && !turns.first().isUser) turns.removeAt(0)
+        return turns.takeLast(10)
+    }
+
+    /** Appends a "Sources" block only when the model did not already include one. */
+    internal fun withCitations(answer: String, refs: List<String>): String {
+        val clean = refs.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(6)
+        if (clean.isEmpty() || Regex("(?im)^\\s*\\**sources?:?\\**\\s*$").containsMatchIn(answer)) return answer
+        return answer.trimEnd() + "\n\nSources:\n" + clean.joinToString("\n") { "- $it" }
+    }
+
+    /** Returns the self-host URL to try, or null to skip straight to Firebase. */
+    internal fun resolveSelfHostUrl(isEmulator: Boolean, override: String?): String? {
+        val custom = override?.trim()?.takeIf { it.isNotEmpty() && it != NOOR_AI_SELFHOST_URL }
+        return custom ?: if (isEmulator) NOOR_AI_SELFHOST_URL else null
+    }
+
+    internal fun isEmulator(
+        fingerprint: String? = Build.FINGERPRINT,
+        model: String? = Build.MODEL,
+        product: String? = Build.PRODUCT,
+        manufacturer: String? = Build.MANUFACTURER,
+        brand: String? = Build.BRAND,
+        device: String? = Build.DEVICE,
+        hardware: String? = Build.HARDWARE
+    ): Boolean {
+        val fp = fingerprint.orEmpty()
+        val md = model.orEmpty()
+        val pr = product.orEmpty()
+        val hw = hardware.orEmpty()
+        return fp.startsWith("generic") ||
+            fp.startsWith("unknown") ||
+            fp.contains("emulator", true) ||
+            md.contains("google_sdk", true) ||
+            md.contains("Emulator", true) ||
+            md.contains("Android SDK built for", true) ||
+            manufacturer.orEmpty().contains("Genymotion", true) ||
+            (brand.orEmpty().startsWith("generic") && device.orEmpty().startsWith("generic")) ||
+            pr.contains("sdk_gphone", true) ||
+            pr.contains("google_sdk", true) ||
+            pr.contains("emulator", true) ||
+            pr.contains("simulator", true) ||
+            pr == "sdk" || pr == "sdk_x86" || pr == "vbox86p" ||
+            hw.contains("goldfish", true) || hw.contains("ranchu", true)
+    }
+
+    private suspend fun callNoorAiSelfHost(
+        url: String,
+        prompt: String,
+        mode: NoorAiMode,
+        history: List<NoorAiMessage>
+    ): String? {
         if (prompt.isBlank()) return null
         return try {
-            // Send the recent conversation so Noor AI remembers context. The backend may cap this,
-            // but giving it a little more recent context improves follow-up answers.
             val historyJson = org.json.JSONArray()
             history.takeLast(10).forEach { message ->
                 historyJson.put(
@@ -96,14 +491,71 @@ object AiFeatureService {
                 )
             }
             val payload = JSONObject()
-                .put("prompt", buildDetailedPrompt(prompt, mode).take(4500))
+                .put("message", prompt.take(4000))
                 .put("mode", mode.name)
-                .put("answerStyle", "detailed_structured_fast")
-                .put("maxWords", 950)
-                .put(
-                    "instructions",
-                    "Give a detailed, practical, Sunni-friendly answer in clear sections. Use simple language, include action steps, and mention when a qualified scholar is needed."
+                .put("history", historyJson)
+                .toString()
+            val request = Request.Builder()
+                .url(url)
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("Content-Type", "application/json")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string().orEmpty()
+                val root = JSONObject(body)
+                val answer = root.optString("answer").takeIf { it.isNotBlank() } ?: return null
+                withCitations(answer, jsonRefs(root.optJSONArray("citations")))
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun jsonRefs(array: org.json.JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { i ->
+            val item = array.opt(i)
+            when (item) {
+                is JSONObject -> item.optString("ref").takeIf { it.isNotBlank() }
+                is String -> item.takeIf { it.isNotBlank() }
+                else -> null
+            }
+        }
+    }
+
+    private suspend fun callNoorAiFunctionWithRetry(
+        prompt: String,
+        mode: NoorAiMode,
+        history: List<NoorAiMessage>,
+        language: String,
+    ): String? {
+        if (prompt.isBlank()) return null
+        repeat(2) { attempt ->
+            callNoorAiFunction(prompt, mode, history, language)?.let { return it }
+            if (attempt == 0) delay(1200)
+        }
+        return null
+    }
+
+    private suspend fun callNoorAiFunction(prompt: String, mode: NoorAiMode, history: List<NoorAiMessage>, language: String): String? {
+        if (prompt.isBlank()) return null
+        return try {
+            // Send the raw question + recent turns. The backend owns the (Sunni-grounded) system prompt;
+            // wrapping the question in a long template used to push it past the server's length cap.
+            val historyJson = org.json.JSONArray()
+            trimHistoryForRequest(history, prompt).forEach { message ->
+                historyJson.put(
+                    JSONObject()
+                        .put("role", if (message.isUser) "user" else "assistant")
+                        .put("content", message.text.take(3500))
                 )
+            }
+            val payload = JSONObject()
+                .put("prompt", prompt.take(3800))
+                .put("mode", mode.name)
+                .put("instructions", mode.styleHint())
+                .put("language", language.substringBefore('-'))
                 .put("history", historyJson)
                 .toString()
 
@@ -122,28 +574,22 @@ object AiFeatureService {
             client.newCall(requestBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val body = response.body?.string().orEmpty()
-                JSONObject(body).optString("answer").takeIf { it.isNotBlank() }
+                val root = JSONObject(body)
+                val answer = root.optString("answer").trim().takeIf { it.isNotBlank() } ?: return null
+                val follow = root.optJSONArray("followups")
+                val fu = if (follow == null) emptyList() else (0 until follow.length()).mapNotNull { follow.optString(it).trim().takeIf { q -> q.isNotEmpty() } }
+                val cited = withCitations(answer, jsonRefs(root.optJSONArray("citations")))
+                if (fu.isEmpty()) cited else cited.trimEnd() + "\nFOLLOWUPS: " + fu.joinToString(" | ")
             }
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun buildDetailedPrompt(prompt: String, mode: NoorAiMode): String {
-        return """
-            Mode: ${mode.title}
-
-            User question:
-            $prompt
-
-            Noor Pro answer requirements:
-            - Give a detailed but clear answer, around 500-900 words when the question needs depth.
-            - Use headings, short paragraphs, and practical action steps.
-            - Keep the tone warm, Sunni-friendly, and respectful.
-            - For Quran or hadith, explain safely and avoid inventing references.
-            - For fatwa, divorce, inheritance, medical, legal, or serious personal issues, advise the user to ask a qualified scholar.
-            - If the user asks how to use the Noor Pro app, answer with exact app steps.
-        """.trimIndent()
+    private fun NoorAiMode.styleHint(): String = when (this) {
+        NoorAiMode.DuaGenerator -> "Keep it concise and heartfelt."
+        NoorAiMode.AppGuide -> "Answer briefly with exact tap-by-tap steps."
+        else -> "Answer the exact question asked, with practical steps; be clear and not longer than needed (about 300-600 words)."
     }
 
     private fun buildLocalGuidedResponse(prompt: String, mode: NoorAiMode): String {
@@ -273,3 +719,4 @@ object AiFeatureService {
         }
     }
 }
+

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.0.97: NoorPro app tile - green rounded square with the cream N (in-app logo, notification large icon fallback). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FF0B6243"
+        android:pathData="M14,0H34A14,14 0 0 1 48,14V34A14,14 0 0 1 34,48H14A14,14 0 0 1 0,34V14A14,14 0 0 1 14,0Z" />
+    <path
+        android:fillColor="#FFFDF9F0"
+        android:pathData="M10.63,35.84L10.63,11.27A0.77,0.77 0 0 1 11.41,10.5L15.11,10.5A4.22,4.22 0 0 1 18.46,12.15L30.3,27.59L30.3,12.84A2.34,2.34 0 0 1 32.63,10.5L36.67,10.5A0.7,0.7 0 0 1 37.37,11.2L37.37,36.06A1.44,1.44 0 0 1 35.92,37.5L32.14,37.5A4.08,4.08 0 0 1 28.97,36L23.63,29.44C22.07,27.53 20.22,26.45 18.4,25.1A4.95,4.95 0 0 1 17.53,17.97A5.11,5.11 0 0 0 17.71,27.88L17.71,35.26A2.24,2.24 0 0 1 15.47,37.5L12.29,37.5A1.66,1.66 0 0 1 10.63,35.84Z" />
+</vector>
