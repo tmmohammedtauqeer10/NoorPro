@@ -21,7 +21,9 @@ data class SpiritualItem(
     val toc: List<String> = emptyList(),
     val blocks: List<Pair<String, String>> = emptyList(),
     val chart: SpiritualChart? = null,
-    val lesson: LessonData? = null
+    val lesson: LessonData? = null,
+    /** 1.2.0 (116): NoorPro's own Hindi meaning. */
+    val hindi: String = ""
 )
 
 data class LessonAyah(val ref: String, val arabic: String, val urdu: String, val english: String)
@@ -126,7 +128,8 @@ object SpiritualContentRepository {
                         toc = strings(o.optJSONArray("toc")),
                         blocks = pairs(o.optJSONArray("blocks")),
                         chart = chart(o.optJSONObject("chart")),
-                        lesson = lesson(o, sectionId)
+                        lesson = lesson(o, sectionId),
+                        hindi = o.optString("hindi")
                     )
                 }
             )

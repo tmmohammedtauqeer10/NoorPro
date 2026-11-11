@@ -13,3 +13,14 @@ Kashf al-Mahjub [en]
 Kimiya-e-Sa'adat [en]
   Source/licence: The Alchemy of Happiness, by al-Ghazzali, translated from the Hindustani by Claud Field, Wisdom of the East series, John Murray, London 1910; public domain (published 1910). Internet Archive scan alchemyofhappine00algh, OCR text.
   Completeness: Claud Field's English abridgement (The Alchemy of Happiness, 1910), 8 chapters; not the complete Kimiya. Cleaned from OCR.
+
+Bidayat al-Hidayah [ar]  (added 1.2.0 (116), via the Deenflow repository)
+  Source: Arabic Wikisource, "بداية الهداية", revision 305860 (https://ar.wikisource.org/w/index.php?oldid=305860).
+  Licence: the transcription is by Wikisource contributors under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/);
+  the classical work itself (al-Ghazali, d. 505 AH / 1111 CE) is public domain. Changes: HTML markup and site navigation removed,
+  text split at the book's own headings; wording unchanged. Not a critical edition. This adapted file stays under CC BY-SA 4.0.
+
+al-Arba'in an-Nawawiyyah [ar]  (added 1.2.0 (116), via the Deenflow repository)
+  Source: Arabic Wikisource, "الأربعون النووية", revision 500107 (https://ar.wikisource.org/w/index.php?oldid=500107).
+  Licence: CC BY-SA 4.0 (Wikisource contributors); classical text public domain (an-Nawawi, d. 676 AH).
+  The short "شرح وفوائد" commentary sections come from the Wikisource page and are marked as not an-Nawawi's own words.

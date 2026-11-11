@@ -120,6 +120,8 @@ fun QuizScreen(viewModel: DeenViewModel) {
         if (lang == "en") return@LaunchedEffect
         for (idx in listOf(r.index, r.index + 1)) {
             val q = run?.questions?.getOrNull(idx) ?: continue
+            // 1.2.0 (116): Deenflow questions ship native Urdu/Hindi/Arabic text; no AI call needed.
+            if (q.isTranslated(lang) && q.explanation[lang] != null) continue
             val key = if (q.hasMadhhabVariants) "${q.id}_$madhhab" else q.id
             val cached = store.translation(lang, key)
             val tr = cached ?: if (online(ctx)) {

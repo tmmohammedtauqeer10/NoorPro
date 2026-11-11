@@ -184,6 +184,30 @@ fun DuaHubScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 14.dp)
                 )
 
+                // 1.2.0 (116): masnoon duas and after-salah adhkar (referenced, Hisn al-Muslim / al-Adhkar)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    listOf(Triple("daily", "Daily Masnoon Duas", Icons.Default.AutoStories), Triple("after_salah", "After Salah", Icons.Default.Mosque)).forEach { (tab, label, icon) ->
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("dua_hub_adhkar_$tab")
+                                .clickable { com.noorpro.app.ui.screens.AzkarNav.initialTab = tab; viewModel.navigateTo(DeenScreen.AZKAR) },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MatteGold.copy(alpha = 0.1f)),
+                            border = BorderStroke(1.dp, MatteGold.copy(alpha = 0.3f))
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(icon, contentDescription = null, tint = MatteGold, modifier = Modifier.size(22.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = label, color = MatteGold, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+                }
+
                 // Tasbih & Azkar Actions Row
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),

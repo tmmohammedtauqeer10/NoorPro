@@ -17,6 +17,10 @@ for it in ITEMS:
         assert len(it['wrong']) == 3 and it['correct'] not in it['wrong'] and len(set(it['wrong'])) == 3, it['q']
         opts = [it['correct']] + list(it['wrong']); random.Random(qid).shuffle(opts)
         out.append(dict(id=qid, c=it['cat'], l=it['lvl'], q={'en': it['q']}, o={'en': opts}, a=opts.index(it['correct']), e={'en': it['e']}, s=it['src']))
-print(len(out), Counter(o['c'] for o in out))
+import deenflow_merge
+curated = len(out)
+out += deenflow_merge.merged()
+assert len({o['id'] for o in out}) == len(out)
+print(curated, 'curated +', len(out) - curated, 'Deenflow =', len(out), Counter(o['c'] for o in out))
 dst = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'src', 'main', 'assets', 'quiz', 'bank_v1.json')
 json.dump({'version': 1, 'questions': out}, open(dst, 'w'), ensure_ascii=False, separators=(',', ':'))

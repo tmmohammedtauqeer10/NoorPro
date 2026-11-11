@@ -1,0 +1,244 @@
+{
+ "id": "darood",
+ "title": "Darood Sharif",
+ "titleUr": "درود شریف",
+ "intro": "Salawat upon the Prophet ﷺ. Texts are from the sources cited under each item. Virtues of the classical duroods are reports from scholars and saints, not hadith, and are shown only where the source states them.",
+ "disclaimer": "",
+ "categories": [
+  {
+   "id": "sunnah",
+   "title": "From the Quran & Sunnah",
+   "items": [
+    {
+     "id": "q3356",
+     "title": "The command to send salawat",
+     "arabic": "إِنَّ ٱللَّهَ وَمَلَٰٓئِكَتَهُۥ يُصَلُّونَ عَلَى ٱلنَّبِىِّ ۚ يَٰٓأَيُّهَا ٱلَّذِينَ ءَامَنُوا۟ صَلُّوا۟ عَلَيْهِ وَسَلِّمُوا۟ تَسْلِيمًا ﴿56﴾",
+     "translit": "Innal laaha wa malaaa'i katahoo yusalloona 'alan Nabiyy; yaaa aiyuhal lazeena aamanoo salloo 'alaihi wa sallimoo tasleemaa",
+     "urdu": "بیشک اللہ اور اس کے فرشتے درود بھیجتے ہیں اس غیب بتانے والے (نبی) پر، اے ایمان والو! ان پر درود اور خوب سلام بھیجو",
+     "english": "",
+     "when": "",
+     "virtue": "Allah and His angels send blessings on the Prophet; the believers are commanded to do the same.",
+     "source": "Quran 33:56 (Surah Al-Ahzaab). Arabic: Uthmani text; Urdu: Kanz-ul-Iman (Imam Ahmad Raza Khan); English: Ahmed Raza Khan translation; transliteration: alquran.cloud"
+    },
+    {
+     "id": "ibrahimi",
+     "title": "Durood Ibrahimi",
+     "titleUr": "درودِ ابراہیمی",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ، وَعَلَى آلِ مُحَمَّدٍ، كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ، اللَّهُمَّ بَارِكْ عَلَى مُحَمَّدٍ، وَعَلَى آلِ مُحَمَّدٍ، كَمَا بَارَكْتَ عَلَى إِبْرَاهِيمَ، وَعَلَى آلِ إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ",
+     "translit": "Allāhumma ṣalli ʿalā Muḥammadin wa ʿalā āli Muḥammad, kamā ṣallayta ʿalā Ibrāhīma wa ʿalā āli Ibrāhīm, innaka Ḥamīdun Majīd. Allāhumma bārik ʿalā Muḥammadin wa ʿalā āli Muḥammad, kamā bārakta ʿalā Ibrāhīma wa ʿalā āli Ibrāhīm, innaka Ḥamīdun Majīd.",
+     "english": "",
+     "when": "Recited in the final sitting of every salah.",
+     "virtue": "Taught by the Prophet ﷺ himself when the Companions asked how to send salat upon him.",
+     "source": "Sahih al-Bukhari 3370. Arabic and English: sunnah.com/bukhari:3370",
+     "urdu": ""
+    },
+    {
+     "id": "short",
+     "title": "Short Durood",
+     "titleUr": "مختصر درود",
+     "arabic": "صَلَّى اللّٰهُ عَلَيْهِ وَسَلَّمَ",
+     "translit": "Ṣalla Llāhu ʿalayhi wa sallam",
+     "english": "",
+     "when": "Whenever the blessed name of the Prophet ﷺ is mentioned.",
+     "virtue": "\"Whoever sends one salat upon me, Allah sends ten upon him.\" (Sahih Muslim 384; Tirmidhi 484 adds ten good deeds are written for him.)",
+     "source": "The standard formula used throughout the hadith collections (e.g. sunnah.com). Virtue: Sahih Muslim 384, Jami at-Tirmidhi 484.",
+     "urdu": ""
+    },
+    {
+     "id": "m384",
+     "title": "Virtue: ten blessings for one",
+     "arabic": "إِذَا سَمِعْتُمُ الْمُؤَذِّنَ فَقُولُوا مِثْلَ مَا يَقُولُ ثُمَّ صَلُّوا عَلَىَّ فَإِنَّهُ مَنْ صَلَّى عَلَىَّ صَلاَةً صَلَّى اللَّهُ عَلَيْهِ بِهَا عَشْرًا ثُمَّ سَلُوا اللَّهَ لِيَ الْوَسِيلَةَ فَإِنَّهَا مَنْزِلَةٌ فِي الْجَنَّةِ لاَ تَنْبَغِي إِلاَّ لِعَبْدٍ مِنْ عِبَادِ اللَّهِ وَأَرْجُو أَنْ أَكُونَ أَنَا هُوَ فَمَنْ سَأَلَ لِيَ الْوَسِيلَةَ حَلَّتْ لَهُ الشَّفَاعَةُ",
+     "translit": "",
+     "urdu": "",
+     "english": "",
+     "when": "",
+     "count": 0,
+     "virtue": "",
+     "source": "Sahih Muslim 384 (grade: Sahih). Arabic and English: sunnah.com/muslim:384"
+    },
+    {
+     "id": "t484",
+     "title": "Virtue: closest on the Day of Judgement",
+     "arabic": "أَوْلَى النَّاسِ بِي يَوْمَ الْقِيَامَةِ أَكْثَرُهُمْ عَلَىَّ صَلاَةً",
+     "translit": "",
+     "urdu": "",
+     "english": "",
+     "when": "",
+     "count": 0,
+     "virtue": "",
+     "source": "Jami' at-Tirmidhi 484 (grade: Hasan (Darussalam)). Arabic and English: sunnah.com/tirmidhi:484"
+    }
+   ]
+  },
+  {
+   "id": "classic",
+   "title": "Classical Duroods",
+   "items": [
+    {
+     "id": "tunajjina",
+     "title": "Durood Tunajjina (Salat al-Munjiya)",
+     "titleUr": "درود تنجینا",
+     "arabic": "اَللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ صَلَاةً تُنْجِينَا بِهَا مِنْ جَمِيعِ الْأَهْوَالِ وَالْآفَاتِ وَتَقْضِي لَنَا بِهَا جَمِيعَ الْحَاجَاتِ وَتُطَهِّرُنَا بِهَا مِنْ جَمِيعِ السَّيِّئَاتِ وَتَرْفَعُنَا بِهَا عِنْدَكَ أَعْلَى الدَّرَجَاتِ وَتُبَلِّغُنَا بِهَا أَقْصَى الْغَايَاتِ مِنْ جَمِيعِ الْخَيْرَاتِ فِي الْحَيَاةِ وَبَعْدَ الْمَمَاتِ",
+     "translit": "Allāhumma ṣalli ʿalā sayyidinā Muḥammadin ṣalātan tunjīnā bihā min jamīʿi l-ahwāli wa-l-āfāt, wa-taqḍī lanā bihā jamīʿa l-ḥājāt, wa-tuṭahhirunā bihā min jamīʿi s-sayyi'āt, wa-tarfaʿunā bihā ʿindaka aʿlā d-darajāt, wa-tuballighunā bihā aqṣā l-ghāyāti min jamīʿi l-khayrāti fi l-ḥayāti wa-baʿda l-mamāt.",
+     "english": "",
+     "when": "Al-Sakhawi (al-Qawl al-Badi') relates the account of Musa al-Darir, who was taught it in a dream during a storm at sea and told to recite it 1000 times.",
+     "virtue": "",
+     "source": "Text and translation: pray.islamic.network/salawaats/salat-at-tunjina (one source reads al-ahwal; the common reading al-ahwal 'terrors' is used here). Account: al-Sakhawi, al-Qawl al-Badi', as cited by islamqa.org",
+     "urdu": ""
+    },
+    {
+     "id": "nariya",
+     "title": "Durood Nariya (Salat al-Tafrijiyya)",
+     "titleUr": "درود ناریہ / صلاۃ تفریجیہ",
+     "arabic": "اللَّهُمَّ صَلِّ صَلَاةً كَامِلَةً وَسَلِّمْ سَلَامًا تَامًّا عَلَى سَيِّدِنَا مُحَمَّدٍ الَّذِي تَنْحَلُّ بِهِ الْعُقَدُ وَتَنْفَرِجُ بِهِ الْكُرَبُ وَتُقْضَى بِهِ الْحَوَائِجُ وَتُنَالُ بِهِ الرَّغَائِبُ وَحُسْنُ الْخَوَاتِمِ وَيُسْتَسْقَى الْغَمَامُ بِوَجْهِهِ الْكَرِيمِ وَعَلَى آلِهِ وَصَحْبِهِ فِي كُلِّ لَمْحَةٍ وَنَفَسٍ بِعَدَدِ كُلِّ مَعْلُومٍ لَكَ",
+     "translit": "Allāhumma ṣalli ṣalātan kāmilatan, wa-sallim salāman tāmman, ʿalā sayyidinā Muḥammadini lladhī tanḥallu bihi l-ʿuqadu, wa-tanfariju bihi l-kurabu, wa-tuqḍā bihi l-ḥawā'iju, wa-tunālu bihi r-raghā'ibu wa-ḥusnu l-khawātimi, wa-yustasqā l-ghamāmu bi-wajhihi l-karīmi, wa-ʿalā ālihi wa-ṣaḥbihi, fī kulli lamḥatin wa-nafasin bi-ʿadadi kulli maʿlūmin lak.",
+     "english": "",
+     "when": "11 times after each obligatory prayer; 41 times after Fajr; 100 times daily (Imam al-Dinawuri, quoted in Khazinat al-Asrar). Collective recitation of 4444 for an important need (Maghrib practice, Khazinat al-Asrar).",
+     "virtue": "Imam al-Qurtubi, as quoted by Shaykh Muhammad Haqqi al-Nazili in Khazinat al-Asrar: regular daily recitation of 141 times or more brings relief from grief and ease in affairs. These are scholars' reports, not hadith.",
+     "source": "Traditionally attributed to Imam al-Qurtubi; closing words added by Shaykh Muhammad al-Sanusi. Text and virtues: salawat.com/durood-nariya (citing Khazinat al-Asrar)",
+     "urdu": ""
+    },
+    {
+     "id": "fatih",
+     "title": "Salat al-Fatih (Durood Fatih)",
+     "titleUr": "درود فاتح",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ الْفَاتِحِ لِمَا أُغْلِقَ وَالْخَاتِمِ لِمَا سَبَقَ نَاصِرِ الْحَقِّ بِالْحَقِّ وَالْهَادِي إِلَى صِرَاطِكَ الْمُسْتَقِيمِ وَعَلَى آلِهِ حَقَّ قَدْرِهِ وَمِقْدَارِهِ الْعَظِيمِ",
+     "translit": "Allāhumma ṣalli ʿalā sayyidinā Muḥammadini l-fātiḥi limā ughliqa, wa-l-khātimi limā sabaqa, nāṣiri l-ḥaqqi bi-l-ḥaqqi, wa-l-hādī ilā ṣirāṭika l-mustaqīmi, wa-ʿalā ālihi ḥaqqa qadrihi wa-miqdārihi l-ʿaẓīm.",
+     "english": "",
+     "when": "100 times daily (Sayyid Ahmad Dahlan; Habib Muhammad al-Haddar). In hardship: after 'Isha, wudu, two rak'ahs, then 10 times (al-Haddar).",
+     "virtue": "Shaykh Ahmad al-Sawi (commentary on al-Dardir's litany) relates that some said one recitation equals 10,000 other prayers. Sayyid Ahmad Dahlan: whoever recites it 100 times daily will have veils lifted and needs facilitated. These are scholars' reports, not hadith.",
+     "source": "Transmitted by Shaykh Muhammad al-Bakri; associated with the Tijaniyya. Text, transliteration, translation and virtues: salawat.com/salatul-fatih",
+     "urdu": ""
+    },
+    {
+     "id": "ghousia",
+     "title": "Darood Ghausia (Salat al-Ghawthiyya)",
+     "titleUr": "درودِ غوثیہ",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ السَّابِقِ لِلْخَلْقِ نُورُهُ وَرَحْمَةً لِلْعَالَمِينَ ظُهُورُهُ عَدَدَ مَنْ مَضَى مِنْ خَلْقِكَ وَمَنْ بَقِيَ وَمَنْ سَعِدَ مِنْهُمْ وَمَنْ شَقِيَ صَلَاةً تَسْتَغْرِقُ الْعَدَّ وَتُحِيطُ بِالْحَدِّ صَلَاةً لَا غَايَةَ لَهَا وَلَا مُنْتَهَى وَلَا اِنْقِضَاءَ صَلَاةً دَائِمَةً بِدَوَامِكَ وَعَلَى آلِهِ وَصَحْبِهِ وَسَلِّمْ تَسْلِيمًا مِثْلَ ذَلِكَ",
+     "translit": "Allāhumma ṣalli ʿalā sayyidinā Muḥammadini s-sābiqi li-l-khalqi nūruhu wa-raḥmatan li-l-ʿālamīna ẓuhūruhu, ʿadada man maḍā min khalqika, wa-man baqiya wa-man saʿida minhum wa-man shaqiya, ṣalātan tastaghriqu l-ʿadda wa-tuḥīṭu bi-l-ḥaddi, ṣalātan lā ghāyata lahā wa-lā muntahā wa-lā nqiḍā'a, ṣalātan dā'imatan bi-dawāmika wa-ʿalā ālihi wa-ṣaḥbihi wa-sallim taslīman mithla dhālik.",
+     "english": "",
+     "when": "10 times in the morning and 10 times in the evening (Shaykh al-Adawi's commentary on Dala'il al-Khayrat, citing Shaykh Muhyi al-Din of Yemen).",
+     "virtue": "Per al-Adawi: earns Allah's pleasure and eases one's affairs. Al-Sakhawi reports some scholars regarded one recitation as equal to 10,000 prayers. Scholars' reports, not hadith.",
+     "source": "Attributed to Shaykh Abd al-Qadir al-Jilani; appears in Dala'il al-Khayrat and Hizb al-A'zam. Text and virtues: salawat.com/darood-ghousia",
+     "urdu": ""
+    },
+    {
+     "id": "mahi",
+     "title": "Darood Mahi (Darood Rahmat)",
+     "titleUr": "درود ماہی",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ خَيْرِ الْخَلَائِقِ وَأَفْضَلِ الْبَشَرِ وَشَفِيعِ الْأُمَمِ يَوْمَ الْحَشْرِ وَالنَّشْرِ وَصَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَعَلَى آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ كُلِّ مَعْلُومٍ لَكَ وَصَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ وَبَارِكْ وَسَلِّمْ وَصَلِّ عَلَى جَمِيعِ الْأَنْبِيَاءِ وَالْمُرْسَلِينَ وَصَلِّ عَلَى كُلِّ الْمَلَائِكَةِ الْمُقَرَّبِينَ وَعَلَى عِبَادِ اللَّهِ الصَّالِحِينَ وَسَلِّمْ تَسْلِيمًا كَثِيرًا كَثِيرًا بِرَحْمَتِكَ وَبِفَضْلِكَ وَبِكَرَمِكَ يَا أَكْرَمَ الْأَكْرَمِينَ بِرَحْمَتِكَ يَا أَرْحَمَ الرَّاحِمِينَ يَا قَدِيمُ يَا دَائِمُ يَا حَيُّ يَا قَيُّومُ يَا وِتْرُ يَا أَحَدُ يَا صَمَدُ يَا مَنْ لَمْ يَلِدْ وَلَمْ يُولَدْ وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ بِرَحْمَتِكَ يَا أَرْحَمَ الرَّاحِمِينَ",
+     "translit": "Allāhumma ṣalli ʿalā Muḥammadin wa-ʿalā āli Muḥammadin, khayri l-khalā'iqi wa-afḍali l-bashari wa-shafīʿi l-umami yawma l-ḥashri wa-n-nashri, wa-ṣalli ʿalā sayyidinā Muḥammadin wa-ʿalā āli sayyidinā Muḥammadin bi-ʿadadi kulli maʿlūmin laka, wa-ṣalli ʿalā Muḥammadin wa-ʿalā āli Muḥammadin wa-bārik wa-sallim, wa-ṣalli ʿalā jamīʿi l-anbiyā'i wa-l-mursalīna, wa-ṣalli ʿalā kulli l-malā'ikati l-muqarrabīna wa-ʿalā ʿibādi Llāhi ṣ-ṣāliḥīna, wa-sallim taslīman kathīran kathīran bi-raḥmatika wa-bi-faḍlika wa-bi-karamika, yā Akrama l-akramīna, bi-raḥmatika yā Arḥama r-rāḥimīna, yā Qadīmu, yā Dā'imu, yā Ḥayyu, yā Qayyūmu, yā Witru, yā Aḥadu, yā Ṣamadu, yā man lam yalid wa-lam yūlad wa-lam yakun lahu kufuwan aḥadun, bi-raḥmatika yā Arḥama r-rāḥimīn.",
+     "english": "",
+     "when": "Devotional tradition (no named authority given by the source): after Fajr for protection through the day, after Maghrib for the night; some recommend 111 times after Fajr.",
+     "virtue": "",
+     "source": "Popular in the Indian subcontinent; author not named by the source. Text: salawat.com/darood-mahi",
+     "urdu": ""
+    },
+    {
+     "id": "razaviya",
+     "title": "Durood Razaviya",
+     "titleUr": "درودِ رضویہ",
+     "arabic": "صَلَّى اللّٰهُ عَلَى النَّبِيِّ الْأُمِّيِّ وَآلِهِ صَلَّى اللّٰهُ عَلَيْهِ وَسَلَّمَ صَلَاةً وَسَلَامًا عَلَيْكَ يَا رَسُولَ اللّٰهِ",
+     "translit": "Ṣalla Llāhu ʿala n-Nabiyyi l-Ummiyyi wa ālihī, ṣalla Llāhu ʿalayhi wa sallam, ṣalātan wa salāman ʿalayka yā Rasūla Llāh.",
+     "english": "",
+     "when": "",
+     "virtue": "",
+     "source": "Associated with Imam Ahmad Raza Khan. Arabic: alislami.net; transliteration: bahar-e-durood. English rendering by NoorPro from the Arabic wording.",
+     "urdu": ""
+    }
+   ]
+  },
+  {
+   "id": "more",
+   "title": "More Classical Duroods & Dala'il al-Khayrat",
+   "items": [
+    {
+     "id": "taj",
+     "title": "Durood-e-Taj",
+     "titleUr": "درودِ تاج",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ، صَاحِبِ التَّاجِ وَالْمِعْرَاجِ وَالْبُرَاقِ وَالْعَلَمِ، دَافِعِ الْبَلآءِ وَالْوَبَآءِ وَالْقَحْطِ وَالْمَرَضِ وَالْأَلَمِ، اِسْمُهُ مَكْتُوبٌ مَرْفُوعٌ مَشْفُوعٌ مَنْقُوشٌ فِي اللَّوْحِ وَالْقَلَمِ، سَيِّدِ الْعَرَبِ وَالْعَجَمِ، جِسْمُهُ مُقَدَّسٌ مُعَطَّرٌ مُطَهَّرٌ مُنَوَّرٌ فِي الْبَيْتِ وَالْحَرَمِ، شَمْسِ الضُّحَى، بَدْرِ الدُّجَى، صَدْرِ الْعُلَى، نُورِ الْهُدَى، كَهْفِ الْوَرَى، مِصْبَاحِ الظُّلَمِ، جَمِيلِ الشِّيَمِ، شَفِيعِ الْأُمَمِ، صَاحِبِ الْجُودِ وَالْكَرَمِ، وَاللهُ عَاصِمُهُ، وَجِبْرِيلُ خَادِمُهُ، وَالْبُرَاقُ مَرْكَبُهُ، وَالْمِعْرَاجُ سَفَرُهُ، وَسِدْرَةُ الْمُنْتَهَى مَقَامُهُ، وَقَابَ قَوْسَيْنِ مَطْلُوبُهُ، وَالْمَطْلُوبُ مَقْصُودُهُ، وَالْمَقْصُودُ مَوْجُودُهُ، سَيِّدِ الْمُرْسَلِينَ، خَاتِمِ النَّبِيِّينَ، شَفِيعِ الْمُذْنِبِينَ، أَنِيسِ الْغَرِيبِينَ، رَحْمَةٍ لِلْعَالَمِينَ، رَاحَةِ الْعَاشِقِينَ، مُرَادِ الْمُشْتَاقِينَ، شَمْسِ الْعَارِفِينَ، سِرَاجِ السَّالِكِينَ، مِصْبَاحِ الْمُقَرَّبِينَ، مُحِبِّ الْفُقَرَاءِ وَالْغُرَبَاءِ وَالْمَسَاكِينِ، سَيِّدِ الثَّقَلَيْنِ، نَبِيِّ الْحَرَمَيْنِ، إِمَامِ الْقِبْلَتَيْنِ، وَسِيلَتِنَا فِي الدَّارَيْنِ، صَاحِبِ قَابَ قَوْسَيْنِ، مَحْبُوبِ رَبِّ الْمَشْرِقَيْنِ وَالْمَغْرِبَيْنِ، جَدِّ الْحَسَنِ وَالْحُسَيْنِ، مَوْلَانَا وَمَوْلَى الثَّقَلَيْنِ، أَبِي الْقَاسِمِ مُحَمَّدِ بْنِ عَبْدِ اللهِ، نُورٍ مِنْ نُورِ اللهِ، يَا أَيُّهَا الْمُشْتَاقُونَ بِنُورِ جَمَالِهِ، صَلّوُا عَلَيْهِ وَآلِهِ وَأَصْحَابِهِ وَسَلِّمُوا تَسْلِيمًا",
+     "translit": "Allāhumma ṣalli ʿalā Sayyidinā wa Mawlānā Muḥammadin, ṣāḥibi t-tāji wa-l-Miʿrāji wa-l-Burāqi wa-l-ʿalami, dāfiʿi l-balā'i wa-l-wabā'i wa-l-qaḥṭi wa-l-maraḍi wa-l-alami, ismuhu maktūbun marfūʿun mashfūʿun manqūshun fi-l-lawḥi wa-l-qalami, sayyidi l-ʿarabi wa-l-ʿajami, jismuhu muqaddasun muʿaṭṭarun muṭahharun munawwarun fi-l-bayti wa-l-ḥarami, shamsi ḍ-ḍuḥā, badri d-dujā, ṣadri l-ʿulā, nūri l-hudā, kahfi l-warā, miṣbāḥi ẓ-ẓulami, jamīli sh-shiyami, shafīʿi l-umami, ṣāḥibi l-jūdi wa-l-karami, wa Llāhu ʿāṣimuhu, wa Jibrīlu khādimuhu, wa-l-Burāqu markabuhu, wa-l-Miʿrāju safaruhu, wa Sidratu l-Muntahā maqāmuhu, wa qāba qawsayni maṭlūbuhu, wa-l-maṭlūbu maqṣūduhu, wa-l-maqṣūdu mawjūduhu, sayyidi l-mursalīna, khātimi n-nabiyyīna, shafīʿi l-mudhnibīna, anīsi l-gharībīna, raḥmatin li-l-ʿālamīna, rāḥati l-ʿāshiqīna, murādi l-mushtāqīna, shamsi l-ʿārifīna, sirāji s-sālikīna, miṣbāḥi l-muqarrabīna, muḥibbi l-fuqarā'i wa-l-ghurabā'i wa-l-masākīni, sayyidi th-thaqalayni, nabiyyi l-ḥaramayni, imāmi l-qiblatayni, wasīlatinā fi-d-dārayni, ṣāḥibi qāba qawsayni, maḥbūbi rabbi l-mashriqayni wa-l-maghribayni, jaddi l-Ḥasani wa-l-Ḥusayn, mawlānā wa mawlā th-thaqalayni, abi l-Qāsimi Muḥammadi bni ʿAbdi Llāhi, nūrin min nūri Llāhi, yā ayyuha l-mushtāqūna bi-nūri jamālihi, ṣallu ʿalayhi wa ālihi wa-aṣḥābihi wa sallimū taslīma",
+     "english": "",
+     "when": "Traditionally 7 times after Fajr, 3 after Asr and 3 after Isha; some recite it 11 times on Friday night.",
+     "virtue": "A wird of the Ba Alawi and South Asian Sufi traditions. Recited for purity of the heart and protection from affliction; the masha'ikh report that persistent recitation brings dreams of the Prophet ﷺ. These are reports of the righteous, not hadith.",
+     "source": "Attributed to Shaykh Abu Bakr bin Salim of Tarim (d. 992 AH); this is the expanded form current in the Indian subcontinent. Text as in Majmu'a of 30 Durood Sharif and traditional Salawat collections.",
+     "count": 7,
+     "urdu": ""
+    },
+    {
+     "id": "shifa",
+     "title": "Durood-e-Shifa (Salat al-Tibb al-Qulub)",
+     "titleUr": "درودِ شفا (طب القلوب)",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ طِبِّ الْقُلُوبِ وَدَوَائِهَا، وَعَافِيَةِ الْأَبْدَانِ وَشِفَائِهَا، وَنُورِ الْأَبْصَارِ وَضِيَائِهَا، وَعَلَى آلِهِ وَصَحْبِهِ وَسَلِّمْ",
+     "translit": "Allāhumma ṣalli ʿalā Sayyidinā Muḥammadin ṭibbi l-qulūbi wa dawā'ihā, wa ʿāfiyati l-abdāni wa shifā'ihā, wa nūri l-abṣāri wa ḍiyā'ihā, wa ʿalā ālihi wa ṣaḥbihi wa sallim.",
+     "english": "",
+     "when": "Recited for healing of heart and body, often 7, 11 or 100 times.",
+     "virtue": "Widely recited in the Shadhili and other traditions with the intention of shifa (healing). A report of the righteous, not hadith.",
+     "source": "Composed by Shaykh Ahmad al-Dardir (d. 1201 AH); found in his salawat and in traditional Salawat collections.",
+     "urdu": ""
+    },
+    {
+     "id": "shifa2",
+     "title": "Durood-e-Shifa (Ruh, Qalb, Jasad, Qabr)",
+     "titleUr": "درودِ شفا",
+     "arabic": "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى رُوحِ سَيِّدِنَا مُحَمَّدٍ فِي الْأَرْوَاحِ، وَصَلِّ وَسَلِّمْ عَلَى قَلْبِ سَيِّدِنَا مُحَمَّدٍ فِي الْقُلُوبِ، وَصَلِّ وَسَلِّمْ عَلَى جَسَدِ سَيِّدِنَا مُحَمَّدٍ فِي الْأَجْسَادِ، وَصَلِّ وَسَلِّمْ عَلَى قَبْرِ سَيِّدِنَا مُحَمَّدٍ فِي الْقُبُورِ",
+     "translit": "Allāhumma ṣalli wa sallim wa bārik ʿalā rūḥi Sayyidinā Muḥammadin fi l-arwāḥi, wa ṣalli wa sallim ʿalā qalbi Sayyidinā Muḥammadin fi l-qulūbi, wa ṣalli wa sallim ʿalā jasadi Sayyidinā Muḥammadin fi l-ajsādi, wa ṣalli wa sallim ʿalā qabri Sayyidinā Muḥammadin fi l-qubūri.",
+     "english": "",
+     "when": "Recited with the intention of healing from illness.",
+     "virtue": "The collection relates, through Ibn Arslan, that it was recited for cure from a severe illness. A report of the righteous, not hadith.",
+     "source": "Majmu'a of 30 Durood Sharif (compiled under Taj al-Shari'ah Mufti Akhtar Raza Khan). A shorter wording appears in the third hizb of Dala'il al-Khayrat.",
+     "urdu": ""
+    },
+    {
+     "id": "lakhi",
+     "title": "Durood-e-Lakhi",
+     "titleUr": "درودِ لکھی",
+     "arabic": "اَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ رَحْمَةِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ فَضْلِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ خَلْقِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ عِلْمِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ بِعَدَدِ كَلِمَاتِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ كَرَمِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ حُرُوفِ كَلامِ اللهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ قَطَرَاتِ الْأَمْطَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ أَوْرَاقِ الْأَشْجَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ رَمْلِ الْقِفَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ مَا خُلِقَ فِي الْبِحَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ الْحُبُوبِ وَالثِّمَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ اللَّيْلِ وَالنَّهَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ مَا أَظْلَمَ عَلَيْهِ اللَّيْلُ وَأَشْرَقَ عَلَيْهِ النَّهَارِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ مَنْ صَلَّى عَلَيْهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ مَنْ لَمْ يُصَلِّ عَلَيْهِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ أَنْفَاسِ الْخَلَآئِقِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ نُجُومِ السَّمَوَاتِ\nاَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَىٰ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِ سَيِّدِنَا مُحَمَّدٍ بِعَدَدِ كُلِّ شَيْءٍ فِي الدُّنْيَا وَالْآخِرَةِ\nصَلَوَاتُ اللهِ تَعَالَى وَمَلَآئِكَتِهِ وَأَنْبِيَآئِهِ وَرُسُلِهِ وَجَمِيعِ الْخَلَآئِقِ عَلَىٰ سَيِّدِ الْمُرْسَلِينَ وَإِمَامِ الْمُتَّقِينَ وَقَائِدِ الْغُرِّ الْمُحَجَّلِينَ وَشَفِيعِ الْمُذْنِبِينَ سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَىٰ آلِهِ وَأَصْحَابِهِ وَأَزْوَاجِهِ وَذُرِّيَّتِهِ وَأَهْلِ بَيْتِهِ وَأَهْلِ طَاعَتِكَ أَجْمَعِينَ مِنْ أَهْلِ السَّمَاوَاتِ وَالْأَرَضِينَ بِرَحْمَتِكَ يَا أَرْحَمَ الرَّاحِمِينَ وَيَا أَكْرَمَ الْأَكْرَمِينَ\nوَصَلَّى اللهُ تَعَالَى عَلَىٰ سَيِّدِنَا مُحَمَّدٍ وَآلِهِ وَأَصْحَابِهِ أَجْمَعِينَ وَسَلِّمْ تَسْلِيمًا دَائِمًا أَبَدًا كَثِيرًا كَثِيرًا وَالْحَمْدُ لِلّٰهِ رَبِّ الْعَالَمِينَ",
+     "translit": "Allāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi raḥmati Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi faḍli Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi khalqi Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi ʿilmi Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi kalimāti Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi karami Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi ḥurūfi kalāmi Llāh\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi qaṭarāti l-amṭār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi awrāqi l-ashjār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi ramli l-qifār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi mā khuliqa fi l-bihār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi l-ḥubūbi wa th-thimār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi l-layli wa n-nahār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi mā aẓlama ʿalayhi l-laylu wa ashraqa ʿalayhi n-nahār\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi man ṣalla ʿalayhi\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi man lam yuṣalli ʿalayhi\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi anfāsi l-khalā'iq\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi nujūmi s-samawāt\nAllāhumma ṣalli wa sallim ʿalā Sayyidinā wa Mawlāna Muḥammadin wa ʿalā āli Sayyidinā Muḥammadin bi ʿadadi kulli shay'in fi d-dunya wa l-ākhirah\nṢalawātu Llāhi taʿāla wa malā'ikatihi wa anbiyā'ihi wa rusulihi wa jamīʿi khalā'iqi ʿalā sayyidi l-mursalīna wa imami l-muttaqīna wa qā'idi l-ghurri l-muḥajjilīna wa shafīʿi l-mudhnibīna Sayyidinā wa Mawlāna Muḥammadin wa ʿalā ālihi wa aṣḥābihi wa azwājihi wa dhurrīyyatihi wa ahli baytihi wa ahli ṭāʿatika ajmāʿina min ahli s-samāwāti wa-l arḍīna bi raḥmatika yā arḥama r-raḥimīna, wa yā akrama l-akramīna\nWa ṣalla Llāhu taʿāla ʿalā Sayyidinā Muḥammadin wa ālihi wa aṣḥābihi ajmāʿina wa sallim taslīman dā'iman abadan kathīran kathīran wa l-ḥamdu li Llāhi rabbi l-ʿālamīn",
+     "english": "",
+     "when": "Traditionally once daily, usually after Fajr.",
+     "virtue": "Traditionally attributed to Sultan Mahmud Ghaznavi, who is said to have been taught it in a dream. Popularly said to equal a lakh (100,000) duroods; this reward is not established by any authentic hadith and is a report of the righteous.",
+     "source": "Traditional Salawat collections of the Indian subcontinent.",
+     "count": 1,
+     "urdu": ""
+    },
+    {
+     "id": "akbar",
+     "title": "Durood-e-Akbar",
+     "titleUr": "درودِ اکبر",
+     "arabic": "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى سَيِّدِنَا مُحَمَّدٍ النَّبِيِّ الْأُمِّيِّ الْعَرَبِيِّ الْقُرَشِيِّ الْهَاشِمِيِّ الْمَكِّيِّ الْمَدَنِيِّ، صَاحِبِ التَّاجِ وَالْمِعْرَاجِ، صَاحِبِ السَّرَايَا وَالْعَطَايَا، صَاحِبِ الْمَقَامِ الْمَحْمُودِ وَالْحَوْضِ الْمَوْرُودِ، صَاحِبِ السُّجُودِ لِلرَّبِّ الْمَعْبُودِ",
+     "translit": "Allāhumma ṣalli wa sallim ʿalā Sayyidinā Muḥammadini n-nabiyyi l-ummiyyi l-ʿarabiyyi l-Qurashiyyi l-Hāshimiyyi l-Makkiyyi l-Madaniyyi, ṣāḥibi t-tāji wa l-miʿrāji, ṣāḥibi s-sarāyā wa l-ʿaṭāyā, ṣāḥibi l-maqāmi l-Maḥmūdi wa l-ḥawḍi l-mawrūdi, ṣāḥibi s-sujūdi li r-Rabbi l-Maʿbūd.",
+     "english": "",
+     "when": "Recited as a daily wird; the collections give no fixed number.",
+     "virtue": "The collection ascribes the disclosure of its benefits to Shaykh al-Akbar Ibn 'Arabi. A report of the righteous, not hadith.",
+     "source": "Majmu'a of 30 Durood Sharif (compiled under Taj al-Shari'ah Mufti Akhtar Raza Khan); the same phrases occur within the longer al-Salat al-Kubra of traditional Salawat collections.",
+     "urdu": ""
+    },
+    {
+     "id": "muqaddas",
+     "title": "Durood-e-Muqaddas",
+     "titleUr": "درودِ مقدس",
+     "arabic": "اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ حَتَّى تَرْضَى، وَصَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ بَعْدَ الرِّضَا، وَصَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ أَبَدًا أَبَدًا",
+     "translit": "Allāhumma ṣalli ʿalā Sayyidinā Muḥammadin ḥattā tarḍā, wa ṣalli ʿalā Sayyidinā Muḥammadin baʿda r-riḍā, wa ṣalli ʿalā Sayyidinā Muḥammadin abadan abadā.",
+     "english": "",
+     "when": "At any time; often recited 3 or 11 times.",
+     "virtue": "Al-Sakhawi narrates this wording (without 'Sayyidina') from Imam Zayn al-Abidin Ali ibn al-Husayn. Merits mentioned in the collections are reports of the righteous, not hadith.",
+     "source": "al-Qawl al-Badi' fi al-Salat 'ala al-Habib al-Shafi' by al-Sakhawi; Majmu'a of 30 Durood Sharif.",
+     "urdu": ""
+    },
+    {
+     "id": "dalail",
+     "title": "Dala'il al-Khayrat — opening of the 1st Hizb (Monday)",
+     "titleUr": "دلائل الخیرات — حزبِ اول",
+     "arabic": "صَلَّى اللَّهُ عَلَى سَيِّدِنَا وَمَوْلَانَا مُحَمَّدٍ وَعَلَى آلِهِ وَصَحْبِهِ وَسَلَّمَ\nاللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَأَزْوَاجِهِ وَذُرِّيَّتِهِ كَمَا صَلَّيْتَ عَلَى سَيِّدِنَا إِبْرَاهِيمَ، وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ وَأَزْوَاجِهِ وَذُرِّيَّتِهِ كَمَا بَارَكْتَ عَلَى آلِ سَيِّدِنَا إِبْرَاهِيمَ، إِنَّكَ حَمِيدٌ مَجِيدٌ\nاللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَعَلَى آلِهِ كَمَا صَلَّيْتَ عَلَى سَيِّدِنَا إِبْرَاهِيمَ، وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّدٍ وَآلِ سَيِّدِنَا مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى آلِ سَيِّدِنَا إِبْرَاهِيمَ فِي الْعَالَمِينَ، إِنَّكَ حَمِيدٌ مَجِيدٌ\nاللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ النَّبِيِّ الْأُمِّيِّ وَعَلَى آلِ سَيِّدِنَا مُحَمَّدٍ\nاللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ عَبْدِكَ وَرَسُولِكَ",
+     "translit": "Ṣalla Llāhu ʿalā Sayyidinā wa Mawlānā Muḥammadin wa ʿalā ālihi wa ṣaḥbihi wa sallam.\nAllāhumma ṣalli ʿalā Sayyidinā Muḥammadin wa azwājihi wa dhurriyyatihi kamā ṣallayta ʿalā Sayyidinā Ibrāhīm, wa bārik ʿalā Sayyidinā Muḥammadin wa azwājihi wa dhurriyyatihi kamā bārakta ʿalā āli Sayyidinā Ibrāhīm, innaka Ḥamīdun Majīd.\nAllāhumma ṣalli ʿalā Sayyidinā Muḥammadin wa ʿalā ālihi kamā ṣallayta ʿalā Sayyidinā Ibrāhīm, wa bārik ʿalā Sayyidinā Muḥammadin wa āli Sayyidinā Muḥammadin kamā bārakta ʿalā āli Sayyidinā Ibrāhīma fi l-ʿālamīn, innaka Ḥamīdun Majīd.\nAllāhumma ṣalli ʿalā Sayyidinā Muḥammadini n-nabiyyi l-ummiyyi wa ʿalā āli Sayyidinā Muḥammad.\nAllāhumma ṣalli ʿalā Sayyidinā Muḥammadin ʿabdika wa rasūlik.",
+     "english": "",
+     "when": "The book is read in eight portions (ahzab) over the week, beginning on Monday:\n1st Hizb: Monday\n2nd Hizb: Tuesday\n3rd Hizb: Wednesday\n4th Hizb: Thursday\n5th Hizb: Friday\n6th Hizb: Saturday\n7th Hizb: Sunday\n8th Hizb: Monday (completion), then the cycle begins again.\nBefore the ahzab come the introduction on the virtues of salawat and the manner of reciting, the intention (niyyah) supplication, the Names of the Prophet ﷺ, and the description of the Rawdah. Many also divide the book into quarters or thirds for a faster reading.",
+     "virtue": "The most widely read book of salawat in the Muslim world, recited daily for over five centuries in North Africa, the Hijaz, Turkey and South Asia. Imam al-Jazuli is reported to have compiled it after meeting a young girl whose rank came from abundant salawat upon the Prophet ﷺ. Only the opening of the first hizb is included here; the full book is long and should be read from a printed edition with an ijazah where possible.",
+     "source": "Dala'il al-Khayrat wa Shawariq al-Anwar fi Dhikr al-Salat 'ala al-Nabi al-Mukhtar by Imam Muhammad ibn Sulayman al-Jazuli (d. 870 AH).",
+     "urdu": ""
+    }
+   ]
+  }
+ ]
+}

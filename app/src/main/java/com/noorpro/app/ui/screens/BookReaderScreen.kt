@@ -273,6 +273,7 @@ private fun ContentsList(t: BookText, title: String, author: String, current: In
             Text("CONTENTS", color = StitchGold, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
             Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 18.sp, fontFamily = ReaderSerif)
             if (author.isNotBlank()) Text(author, color = stitchMutedText(), fontSize = 12.sp)
+            if (t.attribution.isNotBlank()) Text(t.attribution, color = stitchMutedText(), fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 6.dp))
         }
         LazyColumn(state = state, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
             itemsIndexed(t.sections) { i, s ->

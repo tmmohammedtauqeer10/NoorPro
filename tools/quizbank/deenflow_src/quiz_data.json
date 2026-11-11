@@ -1,0 +1,1488 @@
+{
+  "status": "success",
+  "api_version": "2.0",
+  "last_updated": "2026-11-11",
+  "total_categories": 10,
+  "categories": [
+    {
+      "category_id": "quiz_seerah_01",
+      "category_name": "Seerah (Life of the Prophet)",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_see_001",
+          "text": "In which city was Prophet Muhammad (PBUH) born?",
+          "options": ["Medina", "Mecca", "Taif", "Jerusalem"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_002",
+          "text": "What was the name of the mountain where the Prophet (PBUH) received the first revelation?",
+          "options": ["Mount Uhud", "Mount Safa", "Mount Hira", "Mount Sinai"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_003",
+          "text": "What was the name of the Prophet's (PBUH) mother?",
+          "options": ["Khadijah", "Aminah", "Fatimah", "Halimah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_004",
+          "text": "At what age did Muhammad (PBUH) receive the first revelation?",
+          "options": ["35", "40", "50", "63"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_005",
+          "text": "Who was the first wife of the Prophet (PBUH)?",
+          "options": ["Aisha", "Hafsah", "Sawdah", "Khadijah"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_see_006",
+          "text": "What was the year called when both Abu Talib and Khadijah passed away?",
+          "options": ["Year of the Elephant", "Year of Sorrow", "Year of Migration", "Year of Victory"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_007",
+          "text": "During the Hijrah (migration) to Medina, in which cave did the Prophet hide?",
+          "options": ["Cave Hira", "Cave Thawr", "Cave of Uhud", "Cave of Safa"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_see_008",
+          "text": "What was the first major battle in Islamic history?",
+          "options": ["Battle of Uhud", "Battle of the Trench", "Battle of Badr", "Battle of Mut'ah"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_009",
+          "text": "What is the name of the Prophet's (PBUH) grandfather?",
+          "options": ["Abu Talib", "Hamza", "Abdul Muttalib", "Abbas"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_see_010",
+          "text": "In which Islamic year did the Treaty of Hudaybiyyah take place?",
+          "options": ["2 AH", "6 AH", "8 AH", "10 AH"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_quran_01",
+      "category_name": "Al-Quran & Tafsir",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_qur_001",
+          "text": "How many Surahs (chapters) are there in the Quran?",
+          "options": ["110", "112", "114", "120"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_002",
+          "text": "Which is the longest Surah in the Quran?",
+          "options": ["Surah Al-Imran", "Surah Al-Baqarah", "Surah An-Nisa", "Surah Al-Ma'idah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_003",
+          "text": "Which Surah does not begin with 'Bismillah'?",
+          "options": ["Surah At-Tawbah", "Surah Al-Anfal", "Surah Ya-Sin", "Surah Ar-Rahman"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_qur_004",
+          "text": "What was the very first word revealed to Prophet Muhammad (PBUH)?",
+          "options": ["Alhamdulillah", "Bismillah", "Iqra (Read)", "Allahu Akbar"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_005",
+          "text": "Over how many years was the Quran revealed?",
+          "options": ["10 years", "23 years", "33 years", "40 years"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_006",
+          "text": "Which Surah contains two 'Bismillahs'?",
+          "options": ["Surah Al-Kahf", "Surah An-Naml", "Surah Maryam", "Surah Taha"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_qur_007",
+          "text": "Which Surah is considered the 'Heart of the Quran'?",
+          "options": ["Surah Al-Mulk", "Surah Ar-Rahman", "Surah Ya-Sin", "Surah Al-Waqi'ah"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_qur_008",
+          "text": "Which angel was responsible for bringing the revelation to the Prophet?",
+          "options": ["Mika'il", "Israfil", "Izra'il", "Jibril (Gabriel)"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_qur_009",
+          "text": "In which Surah is Ayat al-Kursi (The Verse of the Throne) located?",
+          "options": ["Surah Al-Baqarah", "Surah Al-Imran", "Surah An-Nur", "Surah Al-A'raf"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_qur_010",
+          "text": "Which is the shortest Surah in the Quran?",
+          "options": ["Surah Al-Asr", "Surah Al-Ikhlas", "Surah Al-Kawthar", "Surah Al-Falaq"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_hadith_01",
+      "category_name": "Hadith & Sunnah",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_had_001",
+          "text": "According to the famous first Hadith in Sahih al-Bukhari, actions are judged by what?",
+          "options": ["Their results", "Intentions", "Knowledge", "Effort"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_002",
+          "text": "Which companion narrated the highest number of Hadiths?",
+          "options": ["Abu Hurairah", "Abdullah ibn Umar", "Anas ibn Malik", "Aisha bint Abu Bakr"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_had_003",
+          "text": "What are the two most authentic books of Hadith called?",
+          "options": ["Sunan Abu Dawud & Tirmidhi", "Sahih Bukhari & Sahih Muslim", "Muwatta Malik & Musnad Ahmad", "Sunan Ibn Majah & Nasai"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_004",
+          "text": "Who compiled the famous collection known as 'The Forty Hadith'?",
+          "options": ["Imam Malik", "Imam Ahmad", "Imam An-Nawawi", "Imam Abu Hanifa"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_005",
+          "text": "What is the chain of narrators in a Hadith called?",
+          "options": ["Matn", "Isnad (Sanad)", "Tafsir", "Fiqh"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_006",
+          "text": "What is the actual text or body of the Hadith called?",
+          "options": ["Isnad", "Matn", "Rawi", "Taqwa"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_007",
+          "text": "The Prophet (PBUH) said: 'Cleanliness is half of...' what?",
+          "options": ["Health", "Faith (Iman)", "Wealth", "Life"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_had_008",
+          "text": "Which tribe did the Prophet Muhammad (PBUH) belong to?",
+          "options": ["Banu Aus", "Banu Khazraj", "Quraish", "Banu Nadir"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_009",
+          "text": "The Prophet (PBUH) said: 'Paradise lies under the feet of...' whom?",
+          "options": ["Scholars", "Martyrs", "Mothers", "Fathers"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_had_010",
+          "text": "Which of these is NOT a category of Hadith classification?",
+          "options": ["Sahih (Authentic)", "Hasan (Good)", "Da'if (Weak)", "Fard (Obligatory)"],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_fiqh_01",
+      "category_name": "Fiqh (Jurisprudence)",
+      "difficulty": "Medium",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_fiq_001",
+          "text": "How many pillars of Islam are there?",
+          "options": ["4", "5", "6", "7"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_002",
+          "text": "How many obligatory (Fard) actions are there in Wudu (Ablution)?",
+          "options": ["3", "4", "5", "6"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_003",
+          "text": "What is the standard percentage for calculating Zakat on accumulated wealth?",
+          "options": ["1.5%", "2.0%", "2.5%", "5.0%"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_004",
+          "text": "Which of the following automatically breaks the fast (Sawm)?",
+          "options": ["Using a Miswak", "Accidental swallowing of water", "Applying perfume", "Intentional eating or drinking"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_fiq_005",
+          "text": "If water is unavailable, what is the dry purification alternative called?",
+          "options": ["Ghusl", "Tayammum", "Istinja", "Taharah"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_006",
+          "text": "How many Rak'ahs are in the obligatory (Fard) Maghrib prayer?",
+          "options": ["2", "3", "4", "5"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_007",
+          "text": "What is the direction Muslims face during prayer called?",
+          "options": ["Mihrab", "Minbar", "Qibla", "Kaaba"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_008",
+          "text": "Which prayer is performed entirely in congregation without any bowing (Ruku)?",
+          "options": ["Salatul Jumu'ah", "Salatul Janazah (Funeral)", "Salatul Eid", "Salatul Witr"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_fiq_009",
+          "text": "In which month is the Hajj pilgrimage performed?",
+          "options": ["Ramadan", "Shawwal", "Dhul-Hijjah", "Muharram"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_fiq_010",
+          "text": "What is the term for actions that are highly recommended but not strictly obligatory?",
+          "options": ["Fard", "Wajib", "Sunnah", "Haram"],
+          "correct_index": 2
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_history_01",
+      "category_name": "Islamic History",
+      "difficulty": "Hard",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_his_001",
+          "text": "Who was chosen as the first Caliph (Khalifah) of Islam?",
+          "options": ["Umar ibn al-Khattab", "Ali ibn Abi Talib", "Uthman ibn Affan", "Abu Bakr as-Siddiq"],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_his_002",
+          "text": "Which companion was given the title 'The Sword of Allah'?",
+          "options": ["Hamza ibn Abdul-Muttalib", "Khalid ibn al-Walid", "Tariq ibn Ziyad", "Salahuddin al-Ayyubi"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_003",
+          "text": "Who was the first person to call the Adhan (Mu'adhin) in Islam?",
+          "options": ["Zaid bin Haritha", "Bilal ibn Rabah", "Abdullah ibn Masud", "Ammar ibn Yasir"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_004",
+          "text": "Which companion suggested digging a trench during the Battle of the Trench (Khandaq)?",
+          "options": ["Salman al-Farsi", "Abu Ubaidah", "Sa'd ibn Mu'adh", "Zubayr ibn al-Awwam"],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_his_005",
+          "text": "During whose Caliphate was the Quran fully compiled into a single unified book format?",
+          "options": ["Abu Bakr", "Umar", "Uthman", "Ali"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_006",
+          "text": "In what year did the Conquest of Mecca take place?",
+          "options": ["5 AH", "8 AH", "10 AH", "12 AH"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_007",
+          "text": "The Islamic calendar (Hijri) begins with which major event?",
+          "options": ["Birth of the Prophet", "First Revelation", "Migration to Medina", "Conquest of Mecca"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_008",
+          "text": "What modern-day country encompasses the historical Islamic region of Andalusia?",
+          "options": ["Turkey", "Egypt", "Spain", "Morocco"],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_his_009",
+          "text": "Who recaptured Jerusalem from the Crusaders in 1187 CE?",
+          "options": ["Nur ad-Din", "Salahuddin al-Ayyubi", "Tariq ibn Ziyad", "Muhammad al-Fatih"],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_his_010",
+          "text": "Which Caliph established the first formal police force and public treasury (Baitul Mal)?",
+          "options": ["Abu Bakr", "Umar ibn al-Khattab", "Uthman", "Ali"],
+          "correct_index": 1
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_stories_01",
+      "category_name": "Prophets & Quranic Stories",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_stories_001",
+          "text": "Which prophet built an ark by Allah's command?",
+          "options": [
+            "Nuh",
+            "Yusuf",
+            "Dawud",
+            "Yahya"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_stories_002",
+          "text": "Which prophet was swallowed by a great fish?",
+          "options": [
+            "Idris",
+            "Yunus",
+            "Musa",
+            "Harun"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_stories_003",
+          "text": "Which prophet's staff became a serpent by Allah's permission?",
+          "options": [
+            "Ishaq",
+            "Yaqub",
+            "Musa",
+            "Nuh"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_stories_004",
+          "text": "Who was the father of Prophet Yusuf?",
+          "options": [
+            "Dawud",
+            "Zakariyya",
+            "Harun",
+            "Yaqub"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_stories_005",
+          "text": "What did Yusuf's brothers place him in when they took him away?",
+          "options": [
+            "A well",
+            "A palace",
+            "A ship",
+            "A garden"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_stories_006",
+          "text": "Which prophet interpreted the king's dream about cows and ears of grain?",
+          "options": [
+            "Lut",
+            "Yusuf",
+            "Hud",
+            "Salih"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_stories_007",
+          "text": "Which prophet was given the Zabur?",
+          "options": [
+            "Isa",
+            "Ibrahim",
+            "Dawud",
+            "Musa"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_stories_008",
+          "text": "Which prophet understood the speech of birds?",
+          "options": [
+            "Yaqub",
+            "Yahya",
+            "Idris",
+            "Sulayman"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_stories_009",
+          "text": "Which bird brought Sulayman news of Saba?",
+          "options": [
+            "The hoopoe",
+            "The crow",
+            "The dove",
+            "The eagle"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_stories_010",
+          "text": "Which creature warned its community about Sulayman's approaching army?",
+          "options": [
+            "A locust",
+            "An ant",
+            "A bee",
+            "A spider"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_stories_011",
+          "text": "Which prophet was sent to the people of Thamud?",
+          "options": [
+            "Shuayb",
+            "Yunus",
+            "Salih",
+            "Hud"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_stories_012",
+          "text": "Which animal was a sign given to the people of Salih?",
+          "options": [
+            "A horse",
+            "A cow",
+            "A sheep",
+            "A she-camel"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_stories_013",
+          "text": "Which prophet was sent to the people of Ad?",
+          "options": [
+            "Hud",
+            "Salih",
+            "Yusuf",
+            "Zakariyya"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_stories_014",
+          "text": "Which prophet was sent to Madyan and warned against giving short measure?",
+          "options": [
+            "Dawud",
+            "Shuayb",
+            "Ishaq",
+            "Idris"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_stories_015",
+          "text": "Who helped Musa in his mission to Pharaoh?",
+          "options": [
+            "Lut",
+            "Salih",
+            "Harun",
+            "Yunus"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_stories_016",
+          "text": "Who was the mother of Prophet Isa?",
+          "options": [
+            "Asiyah",
+            "Hajar",
+            "Sarah",
+            "Maryam"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_stories_017",
+          "text": "Which prophet was the father of Yahya?",
+          "options": [
+            "Zakariyya",
+            "Yaqub",
+            "Ibrahim",
+            "Nuh"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_stories_018",
+          "text": "Which prophet spoke while still a baby in the cradle?",
+          "options": [
+            "Hud",
+            "Isa",
+            "Yusuf",
+            "Ishaq"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_stories_019",
+          "text": "Which prophet and his son raised the foundations of the Ka'bah?",
+          "options": [
+            "Dawud and Sulayman",
+            "Zakariyya and Yahya",
+            "Ibrahim and Ismail",
+            "Yaqub and Yusuf"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_stories_020",
+          "text": "Which prophet asked Allah to expand his chest and ease his task?",
+          "options": [
+            "Lut",
+            "Salih",
+            "Ishaq",
+            "Musa"
+          ],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_ethics_01",
+      "category_name": "Quranic Values & Character",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_ethics_001",
+          "text": "According to Quran 49:13, what makes a person most noble in Allah's sight?",
+          "options": [
+            "Righteousness",
+            "Wealth",
+            "Ancestry",
+            "Appearance"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_ethics_002",
+          "text": "What does Quran 49:12 forbid regarding other people's faults?",
+          "options": [
+            "Giving gifts",
+            "Spying",
+            "Seeking advice",
+            "Offering help"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_ethics_003",
+          "text": "What does Quran 49:11 teach about mocking other people?",
+          "options": [
+            "Mock only strangers",
+            "Mock only in private",
+            "Do not ridicule them",
+            "Ridicule is always harmless"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_ethics_004",
+          "text": "What should believers do when two groups of believers fight?",
+          "options": [
+            "Spread rumors",
+            "Encourage revenge",
+            "Ignore all injustice",
+            "Work to reconcile them justly"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_ethics_005",
+          "text": "How does Quran 17:23 instruct people to speak to their parents?",
+          "options": [
+            "With respect",
+            "With contempt",
+            "With ridicule",
+            "With insults"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_ethics_006",
+          "text": "What does Quran 31:18 warn against?",
+          "options": [
+            "Giving charity",
+            "Arrogance toward people",
+            "Helping neighbors",
+            "Speaking gently"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_ethics_007",
+          "text": "What does Quran 31:19 advise about one's voice?",
+          "options": [
+            "Never speak",
+            "Speak only in rhyme",
+            "Lower it",
+            "Always shout"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_ethics_008",
+          "text": "According to Quran 5:8, should hatred of a people prevent justice?",
+          "options": [
+            "Yes, always",
+            "Only in business",
+            "Only when traveling",
+            "No, remain just"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_ethics_009",
+          "text": "What does Quran 4:58 command regarding trusts?",
+          "options": [
+            "Return them to their rightful owners",
+            "Keep them secretly",
+            "Sell them without permission",
+            "Give them only to friends"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_ethics_010",
+          "text": "What does Quran 83:1-3 condemn?",
+          "options": [
+            "Accurate weighing",
+            "Cheating in weights and measures",
+            "Honest trade",
+            "Fair contracts"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_ethics_011",
+          "text": "What does Quran 2:263 say is better than charity followed by hurt?",
+          "options": [
+            "Insults",
+            "Public humiliation",
+            "Kind words and forgiveness",
+            "Boasting"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_ethics_012",
+          "text": "Which quality is praised in Quran 3:134 when a person is angry?",
+          "options": [
+            "Revenge",
+            "Mockery",
+            "Threatening others",
+            "Restraint and forgiveness"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_ethics_013",
+          "text": "What should a person do with news brought by an unreliable person, according to Quran 49:6?",
+          "options": [
+            "Verify it",
+            "Spread it immediately",
+            "Invent details",
+            "Treat every rumor as certain"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_ethics_014",
+          "text": "What does Quran 24:27 require before entering another person's home?",
+          "options": [
+            "An expensive gift",
+            "Permission and greeting",
+            "A loud argument",
+            "A public announcement"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_ethics_015",
+          "text": "What does Quran 16:90 command along with justice?",
+          "options": [
+            "Dishonesty",
+            "Oppression",
+            "Doing good",
+            "Arrogance"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_ethics_016",
+          "text": "What does Quran 7:31 teach about eating and drinking?",
+          "options": [
+            "Always waste leftovers",
+            "Never share food",
+            "Eat only at night",
+            "Avoid excess"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_ethics_017",
+          "text": "How should believers cooperate according to Quran 5:2?",
+          "options": [
+            "In goodness and righteousness",
+            "In wrongdoing",
+            "In aggression",
+            "In deception"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_ethics_018",
+          "text": "According to Quran 41:34, how should evil be repelled?",
+          "options": [
+            "With more injustice",
+            "With what is better",
+            "With slander",
+            "With betrayal"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_ethics_019",
+          "text": "What does Quran 93:9 teach about an orphan?",
+          "options": [
+            "Take the orphan's property",
+            "Refuse all kindness",
+            "Do not oppress the orphan",
+            "Mock the orphan"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_ethics_020",
+          "text": "What does Quran 17:34 teach about commitments?",
+          "options": [
+            "Break them casually",
+            "Hide them from everyone",
+            "Keep only profitable ones",
+            "Fulfill them"
+          ],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_worship_01",
+      "category_name": "Worship & Belief Basics",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_worship_001",
+          "text": "Which pillar of Islam is the declaration of faith?",
+          "options": [
+            "Shahadah",
+            "Sawm",
+            "Hajj",
+            "Zakat"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_worship_002",
+          "text": "What is the Arabic name for the obligatory daily prayer?",
+          "options": [
+            "Tafsir",
+            "Salah",
+            "Sadaqah",
+            "Hijrah"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_worship_003",
+          "text": "During which month is the obligatory annual fast observed?",
+          "options": [
+            "Safar",
+            "Muharram",
+            "Ramadan",
+            "Shawwal"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_worship_004",
+          "text": "Which pillar involves giving obligatory charity?",
+          "options": [
+            "Tawaf",
+            "Itikaf",
+            "Adhan",
+            "Zakat"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_worship_005",
+          "text": "Which pillar involves pilgrimage to the Sacred House for those able to undertake it?",
+          "options": [
+            "Hajj",
+            "Sawm",
+            "Shahadah",
+            "Zakat"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_worship_006",
+          "text": "What is the Arabic word for supplication to Allah?",
+          "options": [
+            "Juz",
+            "Dua",
+            "Sirah",
+            "Isnad"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_worship_007",
+          "text": "Which term means remembering Allah?",
+          "options": [
+            "Ghibah",
+            "Israf",
+            "Dhikr",
+            "Riba"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_worship_008",
+          "text": "What does the phrase Alhamdulillah express?",
+          "options": [
+            "A request for travel",
+            "A farewell only",
+            "A business agreement",
+            "Praise for Allah"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_worship_009",
+          "text": "What does Bismillah mean?",
+          "options": [
+            "In the name of Allah",
+            "Allah is the Greatest",
+            "Glory be to Allah",
+            "Peace be upon you"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_worship_010",
+          "text": "What does Allahu Akbar mean?",
+          "options": [
+            "I seek forgiveness",
+            "Allah is the Greatest",
+            "All praise is for Allah",
+            "In the name of Allah"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_worship_011",
+          "text": "What does SubhanAllah express?",
+          "options": [
+            "A greeting to guests",
+            "A request for food",
+            "Glorifying Allah as free from imperfection",
+            "A promise to travel"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_worship_012",
+          "text": "What does Astaghfirullah mean?",
+          "options": [
+            "I have finished eating",
+            "Welcome to my home",
+            "I am going on a journey",
+            "I seek Allah's forgiveness"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_worship_013",
+          "text": "What does InshaAllah mean?",
+          "options": [
+            "If Allah wills",
+            "Peace be upon you",
+            "All praise is for Allah",
+            "I seek refuge in Allah"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_worship_014",
+          "text": "What is the Islamic greeting that means peace be upon you?",
+          "options": [
+            "Astaghfirullah",
+            "Assalamu alaykum",
+            "Alhamdulillah",
+            "SubhanAllah"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_worship_015",
+          "text": "What is the name of the call announcing prayer?",
+          "options": [
+            "Tawaf",
+            "Suhur",
+            "Adhan",
+            "Ihram"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_worship_016",
+          "text": "Which term refers to the meal eaten before dawn for fasting?",
+          "options": [
+            "Iftar",
+            "Walima",
+            "Aqiqah",
+            "Suhur"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_worship_017",
+          "text": "Which term refers to breaking the daily fast?",
+          "options": [
+            "Iftar",
+            "Suhur",
+            "Ihram",
+            "Ruku"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_worship_018",
+          "text": "What is the name of the circumambulation around the Ka'bah?",
+          "options": [
+            "Adhan",
+            "Tawaf",
+            "Sai",
+            "Wudu"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_worship_019",
+          "text": "What is the name of the walking between Safa and Marwah during pilgrimage?",
+          "options": [
+            "Sujud",
+            "Qunut",
+            "Sai",
+            "Tawaf"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_worship_020",
+          "text": "Which two hills are associated with the pilgrimage rite of Sai?",
+          "options": [
+            "Uhud and Sinai",
+            "Hira and Thawr",
+            "Arafat and Uhud",
+            "Safa and Marwah"
+          ],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_sunnah_manners_01",
+      "category_name": "Hadith & Everyday Manners",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_sunnah_manners_001",
+          "text": "According to Sahih al-Bukhari 6018, what should a believer say or otherwise do?",
+          "options": [
+            "Speak good or remain silent",
+            "Spread every rumor",
+            "Always win arguments",
+            "Mock opponents"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_sunnah_manners_002",
+          "text": "According to Sahih Muslim 2626, should a person dismiss small acts of goodness?",
+          "options": [
+            "Only when greeting friends",
+            "No, even a cheerful meeting matters",
+            "Yes, only large gifts matter",
+            "Yes, kindness has no value"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_sunnah_manners_003",
+          "text": "According to Sahih al-Bukhari 6114, who is truly strong?",
+          "options": [
+            "One who never forgives",
+            "One who intimidates others",
+            "One who controls anger",
+            "One who always shouts"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_sunnah_manners_004",
+          "text": "According to Sahih al-Bukhari 13, what should a believer love for another believer?",
+          "options": [
+            "Only worldly fame",
+            "Constant hardship",
+            "Public humiliation",
+            "What they love for themselves"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_sunnah_manners_005",
+          "text": "According to Sahih Muslim 2699a, what does helping a person in difficulty encourage?",
+          "options": [
+            "Helping and relieving others",
+            "Boasting about wealth",
+            "Ignoring all requests",
+            "Mocking hardship"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_sunnah_manners_006",
+          "text": "According to Sahih al-Bukhari 69, how should teaching and guidance be offered?",
+          "options": [
+            "Use insults as the first step",
+            "Make things easy and give glad tidings",
+            "Make everything difficult",
+            "Drive everyone away"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_sunnah_manners_007",
+          "text": "According to Sahih Muslim 2593, which quality does Allah love?",
+          "options": [
+            "Arrogance",
+            "Deceit",
+            "Gentleness",
+            "Cruelty"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_sunnah_manners_008",
+          "text": "According to Sahih al-Bukhari 6094, truthfulness leads toward what?",
+          "options": [
+            "Hypocrisy",
+            "Injustice",
+            "Arrogance",
+            "Righteousness"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_sunnah_manners_009",
+          "text": "According to Sahih al-Bukhari 33, which behavior is a sign of hypocrisy?",
+          "options": [
+            "Breaking promises",
+            "Keeping trusts",
+            "Speaking truth",
+            "Helping neighbors"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_sunnah_manners_010",
+          "text": "According to Sahih al-Bukhari 10, others should be safe from a Muslim's what?",
+          "options": [
+            "Books and papers",
+            "Tongue and hand",
+            "Clothing and shoes",
+            "Food and drink"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_sunnah_manners_011",
+          "text": "According to Sahih al-Bukhari 6018, how should a believer treat a guest?",
+          "options": [
+            "Ignore the guest completely",
+            "Demand a gift first",
+            "Honor the guest",
+            "Humiliate the guest"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_sunnah_manners_012",
+          "text": "According to Sahih al-Bukhari 6018, what must a believer avoid doing to a neighbor?",
+          "options": [
+            "Greeting the neighbor",
+            "Helping the neighbor",
+            "Showing kindness",
+            "Harming the neighbor"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_sunnah_manners_013",
+          "text": "According to Sahih al-Bukhari 5376, which hand should be used for eating?",
+          "options": [
+            "The right hand",
+            "Either hand is specifically commanded",
+            "Only the left hand",
+            "Neither hand"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_sunnah_manners_014",
+          "text": "According to Sahih al-Bukhari 5376, what should one do before eating?",
+          "options": [
+            "Waste some food",
+            "Mention Allah's name",
+            "Boast about the meal",
+            "Criticize the host"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_sunnah_manners_015",
+          "text": "According to Sahih al-Bukhari 3563, how did the Prophet (PBUH) respond to food he disliked?",
+          "options": [
+            "He threw it at others",
+            "He always demanded a replacement",
+            "He left it without criticizing it",
+            "He insulted the cook"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_sunnah_manners_016",
+          "text": "According to Sahih al-Bukhari 6464, which deeds are most beloved to Allah?",
+          "options": [
+            "Only deeds done for praise",
+            "Only rare dramatic actions",
+            "Deeds followed by boasting",
+            "Consistent deeds, even if small"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_sunnah_manners_017",
+          "text": "According to Sahih Muslim 2588, what does charity not decrease?",
+          "options": [
+            "Wealth",
+            "Sincerity",
+            "Compassion",
+            "Patience"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_sunnah_manners_018",
+          "text": "According to Sahih al-Bukhari 6009, showing mercy to living creatures can bring what?",
+          "options": [
+            "Freedom from every duty",
+            "Reward from Allah",
+            "A reason to boast",
+            "Permission to harm others"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_sunnah_manners_019",
+          "text": "According to Sahih al-Bukhari 1429, which hand is described as better than the lower hand?",
+          "options": [
+            "The pointing hand",
+            "The hidden hand",
+            "The giving hand",
+            "The grasping hand"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_sunnah_manners_020",
+          "text": "According to Sahih Muslim 49a, what is the minimum response to wrongdoing when a person cannot change it by hand or speech?",
+          "options": [
+            "Celebrate it",
+            "Promote it",
+            "Pretend it is a virtue",
+            "Reject it in the heart"
+          ],
+          "correct_index": 3
+        }
+      ]
+    },
+    {
+      "category_id": "quiz_surahs_01",
+      "category_name": "Surah Names & Quran Vocabulary",
+      "difficulty": "Easy",
+      "points_per_question": 50,
+      "questions": [
+        {
+          "question_id": "q_surahs_001",
+          "text": "What does the Surah name Al-Fatihah mean?",
+          "options": [
+            "The Opening",
+            "The Cave",
+            "The Elephant",
+            "The Dawn"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_surahs_002",
+          "text": "What does the Surah name Al-Baqarah mean?",
+          "options": [
+            "The Moon",
+            "The Cow",
+            "The Bee",
+            "The Star"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_surahs_003",
+          "text": "What does the Surah name An-Nisa mean?",
+          "options": [
+            "The Prophets",
+            "The Believers",
+            "The Women",
+            "The Poets"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_surahs_004",
+          "text": "What does the Surah name Al-Maidah refer to?",
+          "options": [
+            "The Mountain",
+            "The Pen",
+            "The Iron",
+            "The Table Spread"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_surahs_005",
+          "text": "What does the Surah name Al-Anam mean?",
+          "options": [
+            "The Cattle",
+            "The Ant",
+            "The Spider",
+            "The Fig"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_surahs_006",
+          "text": "What does the Surah name Al-Anfal mean?",
+          "options": [
+            "The City",
+            "The Spoils of War",
+            "The Night",
+            "The Dawn"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_surahs_007",
+          "text": "What does the Surah name At-Tawbah mean?",
+          "options": [
+            "The Sun",
+            "The Sand Dunes",
+            "Repentance",
+            "Victory"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_surahs_008",
+          "text": "What does the Surah name Ar-Rad mean?",
+          "options": [
+            "Smoke",
+            "Light",
+            "The Wind",
+            "Thunder"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_surahs_009",
+          "text": "What does the Surah name An-Nahl mean?",
+          "options": [
+            "The Bee",
+            "The Ant",
+            "The Spider",
+            "The Elephant"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_surahs_010",
+          "text": "What does the Surah name Al-Kahf mean?",
+          "options": [
+            "The Sea",
+            "The Cave",
+            "The Mountain",
+            "The Well"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_surahs_011",
+          "text": "What does the Surah name Al-Anbiya mean?",
+          "options": [
+            "The Hypocrites",
+            "The Disbelievers",
+            "The Prophets",
+            "The Angels"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_surahs_012",
+          "text": "What does the Surah name An-Nur mean?",
+          "options": [
+            "The Night",
+            "The Smoke",
+            "The Dawn",
+            "The Light"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_surahs_013",
+          "text": "What does the Surah name Ash-Shuara mean?",
+          "options": [
+            "The Poets",
+            "The Romans",
+            "The Believers",
+            "The Pilgrims"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_surahs_014",
+          "text": "What does the Surah name An-Naml mean?",
+          "options": [
+            "The Spider",
+            "The Ant",
+            "The Bee",
+            "The Elephant"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_surahs_015",
+          "text": "What does the Surah name Al-Ankabut mean?",
+          "options": [
+            "The Ant",
+            "The Horse",
+            "The Spider",
+            "The Bee"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_surahs_016",
+          "text": "What does the Surah name Al-Qalam mean?",
+          "options": [
+            "The Book",
+            "The Scroll",
+            "The Tablet",
+            "The Pen"
+          ],
+          "correct_index": 3
+        },
+        {
+          "question_id": "q_surahs_017",
+          "text": "What does the Surah name Al-Fil mean?",
+          "options": [
+            "The Elephant",
+            "The Cow",
+            "The Bee",
+            "The Ant"
+          ],
+          "correct_index": 0
+        },
+        {
+          "question_id": "q_surahs_018",
+          "text": "What does the Surah name Al-Kafirun mean?",
+          "options": [
+            "The Prophets",
+            "The Disbelievers",
+            "The Believers",
+            "The Angels"
+          ],
+          "correct_index": 1
+        },
+        {
+          "question_id": "q_surahs_019",
+          "text": "What does the Surah name An-Nasr mean?",
+          "options": [
+            "The Night",
+            "The Fig",
+            "Help or victory",
+            "The Opening"
+          ],
+          "correct_index": 2
+        },
+        {
+          "question_id": "q_surahs_020",
+          "text": "What does the Surah name An-Nas mean?",
+          "options": [
+            "The Dawn",
+            "The Sincerity",
+            "The Abundance",
+            "Mankind"
+          ],
+          "correct_index": 3
+        }
+      ]
+    }
+  ]
+}

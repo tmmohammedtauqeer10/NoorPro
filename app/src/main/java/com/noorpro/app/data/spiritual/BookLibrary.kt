@@ -9,7 +9,8 @@ import java.util.zip.GZIPInputStream
 data class BookEdition(val lang: String, val file: String, val sections: Int, val completeness: String)
 data class LibraryBook(val id: String, val title: String, val editions: List<BookEdition>, val author: String = "")
 data class BookSection(val title: String, val level: Int, val paras: List<String>)
-data class BookText(val id: String, val lang: String, val title: String, val rtl: Boolean, val sections: List<BookSection>, val author: String = "")
+data class BookText(val id: String, val lang: String, val title: String, val rtl: Boolean, val sections: List<BookSection>, val author: String = "",
+                    /** Licence/attribution line shown in the reader (CC BY-SA texts must carry it). */ val attribution: String = "")
 
 object BookLibrary {
     private const val DIR = "content/books"
@@ -49,7 +50,7 @@ object BookLibrary {
                 val s = secs.getJSONObject(i)
                 val p = s.getJSONArray("p")
                 BookSection(s.optString("t"), s.optInt("l", 1), (0 until p.length()).map { p.getString(it) })
-            }, o.optString("author"))
+            }, o.optString("author"), o.optString("attribution"))
         cached = text
         return text
     }

@@ -78,6 +78,18 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
         StitchScreen { Column(Modifier.fillMaxSize().statusBarsPadding()) { BookReaderScreen(readerBook) { readerBookId = null } } }
         return
     }
+    // 1.2.0 (116): Deenflow 12-week learning path inside the Tasawwuf section.
+    var pathOpen by rememberSaveable(sectionId) { mutableStateOf(false) }
+    if (pathOpen && sectionId == "tasawwuf") {
+        StitchScreen {
+            com.noorpro.app.ui.islamic.TasawwufPathScreen(
+                onClose = { pathOpen = false; done = SpiritualPrefs.completedLessons(context) },
+                onOpenBook = { readerBookId = it },
+                onOpenCategory = { pathOpen = false; categoryId = it },
+            )
+        }
+        return
+    }
     BackHandler(enabled = itemId != null || categoryId != null || query.isNotEmpty()) {
         if (itemId != null) closeItem() else if (levelId != null) levelId = null else if (categoryId != null) categoryId = null else query = ""
     }
@@ -138,7 +150,11 @@ fun SpiritualContentScreen(viewModel: DeenViewModel, sectionId: String) {
                 category != null -> SpiritualItemList(category.items, favourites, null, serif = s.id == "tasawwuf") { itemId = it.id }
                 s.id == "tasawwuf" -> Column {
                     Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)) { SpiritualSearchField(query) { query = it } }
-                    if (query.isBlank()) SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }) { categoryId = it }
+                    if (query.isBlank()) SpiritualCategoryList(s, favourites.count { f -> allItems.any { it.id == f } }, header = {
+                        val path = remember { runCatching { com.noorpro.app.data.spiritual.TasawwufPath.load(context.applicationContext) }.getOrNull() }
+                        val pathDone = remember(pathOpen) { com.noorpro.app.data.spiritual.TasawwufPathStore(context).done() }
+                        com.noorpro.app.ui.islamic.TasawwufPathEntryCard(path, pathDone) { pathOpen = true }
+                    }) { categoryId = it }
                     else {
                         val hits = remember(s, query) { spiritualSearch(s, query) }
                         SpiritualItemList(hits.map { it.second }, favourites, "No results for \"$query\".", serif = true,
@@ -209,8 +225,9 @@ private fun SpiritualDisclaimer(text: String) {
 }
 
 @Composable
-private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, onOpen: (String) -> Unit) {
+private fun SpiritualCategoryList(section: SpiritualSection, favCount: Int, header: (@Composable () -> Unit)? = null, onOpen: (String) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (header != null) item { header() }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (section.titleUr.isNotBlank()) Text(section.titleUr, fontFamily = SpiritualArabicFont, fontSize = 24.sp, color = stitchPrimary())
@@ -277,6 +294,7 @@ private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSect
             if (item.translit.isNotBlank()) { appendLine(); appendLine(item.translit) }
             if (item.urdu.isNotBlank()) { appendLine(); appendLine(item.urdu) }
             if (item.english.isNotBlank()) { appendLine(); appendLine(item.english) }
+            if (item.hindi.isNotBlank()) { appendLine(); appendLine(item.hindi) }
             item.blocks.forEach { (l, t) -> appendLine(); appendLine("$l: $t") }
             appendLine(); append("Source: ").appendLine(item.source)
             append("— NoorPro")
@@ -323,6 +341,7 @@ private fun SpiritualItemDetail(viewModel: DeenViewModel, section: SpiritualSect
         SpiritualTextBlock("Transliteration", item.translit, italic = true)
         if (!isReference) SpiritualTextBlock("اردو", item.urdu, rtl = true)
         SpiritualTextBlock(if (isReference) "Overview" else "English", item.english)
+        if (!isReference) SpiritualTextBlock("हिन्दी", item.hindi)
         if (item.toc.isNotEmpty()) SpiritualToc(item.toc)
         item.blocks.forEach { (label, text) -> SpiritualTextBlock(label, text) }
         item.chart?.let { SpiritualChartView(it) }
