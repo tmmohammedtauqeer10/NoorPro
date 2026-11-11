@@ -168,6 +168,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         val coldStart = savedInstanceState == null
+        // 1.2.0 (114): every AI feature (chat, Hifz, Reels, Creator, goals, bio) follows the saved madhhab.
+        runCatching { com.noorpro.app.data.AiFeatureService.madhhab = com.noorpro.app.ui.screens.NoorAiChatStore.madhhab(this) }
 
         enableEdgeToEdge()
         // Google UMP consent -> then MobileAds.initialize (never throws; no-op under tests).

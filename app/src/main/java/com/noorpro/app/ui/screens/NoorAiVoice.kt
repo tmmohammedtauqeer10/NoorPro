@@ -178,10 +178,14 @@ internal class NoorAiSpeaker(context: Context, private val onState: (Long?) -> U
         } else { pending = null; finished() }
     } }
 
-    private fun finished() { current = null; onState(null) }
+    private var doneCallback: (() -> Unit)? = null
 
-    fun speak(id: Long, plain: String, language: String) {
+    private fun finished() { current = null; onState(null); doneCallback?.let { cb -> doneCallback = null; cb() } }
+
+    /** [onDone] runs once when the whole answer has been read (not when it is stopped). */
+    fun speak(id: Long, plain: String, language: String, onDone: (() -> Unit)? = null) {
         stop()
+        doneCallback = onDone
         current = id; onState(id)
         val run = {
             val segs = ttsSegments(plain, language, arabicOk)
@@ -194,7 +198,7 @@ internal class NoorAiSpeaker(context: Context, private val onState: (Long?) -> U
         if (ready) run() else pending = run
     }
 
-    fun stop() { if (current != null) { runCatching { tts.stop() }; finished() } }
+    fun stop() { doneCallback = null; if (current != null) { runCatching { tts.stop() }; finished() } }
     fun shutdown() { runCatching { tts.stop(); tts.shutdown() } }
 }
 

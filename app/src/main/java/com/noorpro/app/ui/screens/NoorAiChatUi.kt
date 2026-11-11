@@ -18,6 +18,15 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Tune
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -135,9 +144,18 @@ fun NoorAiChatContent(
     onAutoRead: (Boolean) -> Unit = {},
     onRenameConversation: (NoorAiConversation, String) -> Unit = { _, _ -> },
     onPinConversation: (NoorAiConversation) -> Unit = {},
-    searchConversations: ((String) -> List<NoorAiConversation>)? = null,
+    searchConversations: (suspend (String) -> List<NoorAiConversation>)? = null,
+    // 1.2.0 (114): answer depth, madhhab, research progress, voice mode and Image Studio
+    tier: String = com.noorpro.app.data.NoorAiOptions.BALANCED,
+    onTier: (String) -> Unit = {},
+    madhhab: String = com.noorpro.app.data.NoorAiOptions.HANAFI,
+    onMadhhab: (String) -> Unit = {},
+    researchStages: List<com.noorpro.app.data.NoorResearchStage> = emptyList(),
+    onVoiceMode: () -> Unit = {},
+    onImageStudio: () -> Unit = {},
 ) {
-    var showHistory by remember { mutableStateOf(initialHistoryOpen) }
+    val drawerState = rememberDrawerState(if (initialHistoryOpen) DrawerValue.Open else DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val p = remember(dark) { ChatPalette(dark) }
     val listState = rememberLazyListState()
@@ -145,15 +163,32 @@ fun NoorAiChatContent(
     val itemCount = messages.size + (if (isTyping) 1 else 0)
     LaunchedEffect(itemCount, mode) { if (itemCount > 0) listState.animateScrollToItem(itemCount - 1) }
 
+    // ChatGPT-style side drawer with all chats, grouped by date, searchable.
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(drawerContainerColor = p.surface, modifier = Modifier.widthIn(max = 340.dp).testTag("noorai_history_drawer")) {
+                Spacer(Modifier.statusBarsPadding().height(14.dp))
+                HistoryList(p, conversations, currentConversation,
+                    onOpen = { drawerScope.launch { drawerState.close() }; onOpenConversation(it) }, onDelete = onDeleteConversation,
+                    onNew = { drawerScope.launch { drawerState.close() }; onNewChat() }, onRename = onRenameConversation, onPin = onPinConversation,
+                    search = searchConversations)
+            }
+        },
+    ) {
     Column(
         Modifier.fillMaxSize().background(p.bg).statusBarsPadding().navigationBarsPadding().imePadding()
     ) {
-        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { showHistory = true }, onNewChat, autoRead, onAutoRead, detectedLanguage)
+        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { drawerScope.launch { drawerState.open() } }, onNewChat, autoRead, onAutoRead, detectedLanguage, onImageStudio)
         ModeRow(p, mode, onModeChange)
+        AnswerOptionsRow(p, tier, onTier, madhhab, onMadhhab)
         if (showTip) TipRow(p, onDismissTip)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (messages.isEmpty() && !isTyping) {
-                EmptyState(p, mode, onSuggestion, dailyTip)
+                EmptyState(p, mode, onSuggestion, dailyTip,
+                    recent = recentConversations(conversations, currentConversation),
+                    onOpenRecent = onOpenConversation, onAllChats = { drawerScope.launch { drawerState.open() } },
+                    onImageStudio = onImageStudio, onVoiceMode = onVoiceMode)
             } else {
                 LazyColumn(
                     state = listState,
@@ -174,19 +209,13 @@ fun NoorAiChatContent(
                                 ?: (messages.getOrNull(idx - 1)?.let { it.isUser && isFiqhQuestion(it.text) } == true),
                         )
                     }
-                    if (isTyping) item(key = "typing") { TypingRow(p) }
+                    if (isTyping) item(key = "typing") { if (researchStages.isNotEmpty() || tier == com.noorpro.app.data.NoorAiOptions.RESEARCH) ResearchProgress(p, researchStages) else TypingRow(p) }
                 }
             }
         }
         if (voice.phase != VoicePhase.IDLE) VoicePanel(p, voice, onVoiceDone, onVoiceCancel, onVoiceLanguage, onRetry = onVoice)
-        else InputBar(p, input, mode.promptHint, isTyping, onInput, onSend, onStop, onVoice)
+        else InputBar(p, input, mode.promptHint, isTyping, onInput, onSend, onStop, onVoice, onVoiceMode)
     }
-
-    if (showHistory) {
-        HistorySheet(p, conversations, currentConversation, onDismiss = { showHistory = false },
-            onOpen = { showHistory = false; onOpenConversation(it) }, onDelete = onDeleteConversation,
-            onNew = { showHistory = false; onNewChat() }, onRename = onRenameConversation, onPin = onPinConversation,
-            search = searchConversations)
     }
 
     if (showInfo) {
@@ -194,7 +223,7 @@ fun NoorAiChatContent(
             onDismissRequest = { showInfo = false },
             confirmButton = { TextButton(onClick = { showInfo = false }) { Text("OK") } },
             title = { Text("About Noor AI") },
-            text = { Text("Noor AI gives study help grounded in Ahl as-Sunnah wal-Jama'ah and Tasawwuf, with Qur'an and Hadith references. It replies in the language you ask in (Urdu, Hindi, Arabic, English, Roman Urdu and more) unless you pick one in the menu. If it can't reach its server, it says so and only shows saved passages that clearly match your question.\n\n$DISCLAIMER") },
+            text = { Text("Noor AI gives study help grounded in Ahl as-Sunnah wal-Jama'ah (Ash'ari/Maturidi creed) and Tasawwuf, with Qur'an and Hadith references and a knowledge base of classical works (Tahawiyya, Fiqh al-Akbar, Nur al-Idah, Bahar-e-Shariat, Umdat al-Salik, al-Risala, Umdat al-Fiqh, Ihya). Fiqh answers follow the madhhab you choose (Hanafi by default) or compare all four. Fast gives short answers, Balanced detailed ones, and Research a deep, multi-step answer with sources. It replies in the language you ask in (Urdu, Hindi, Arabic, English, Roman Urdu and more) unless you pick one in the menu. If it can't reach its server, it says so and only shows saved passages that clearly match your question.\n\n$DISCLAIMER") },
         )
     }
 }
@@ -204,11 +233,12 @@ private fun ChatHeader(
     p: ChatPalette, onBack: () -> Unit, onInfo: () -> Unit, onClear: () -> Unit, canClear: Boolean,
     language: String, onLanguage: (String) -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit,
     autoRead: Boolean = false, onAutoRead: (Boolean) -> Unit = {}, detectedLanguage: String? = null,
+    onImageStudio: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = p.text) }
-        IconButton(onClick = onHistory) { Icon(Icons.Default.History, "Chat history", tint = p.text) }
+        IconButton(onClick = onHistory, modifier = Modifier.testTag("noorai_history_button")) { Icon(Icons.Default.Menu, "Chats and history", tint = p.text) }
         Avatar(26.dp)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
@@ -220,6 +250,7 @@ private fun ChatHeader(
                     color = p.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.testTag("noorai_header_lang"))
             }
         }
+        IconButton(onClick = onImageStudio, modifier = Modifier.testTag("noorai_image_button")) { Icon(Icons.Default.Image, "Image Studio", tint = p.text) }
         IconButton(onClick = onNewChat) { Icon(Icons.Default.AddComment, "New chat", tint = p.text) }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More", tint = p.muted) }
@@ -237,6 +268,7 @@ private fun ChatHeader(
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = if (autoRead) NoorGreen else p.muted) },
                     trailingIcon = { Switch(checked = autoRead, onCheckedChange = { menu = false; onAutoRead(it) }) },
                     onClick = { menu = false; onAutoRead(!autoRead) })
+                DropdownMenuItem(text = { Text("Image Studio") }, leadingIcon = { Icon(Icons.Default.Image, null) }, onClick = { menu = false; onImageStudio() })
                 DropdownMenuItem(text = { Text("About Noor AI") }, onClick = { menu = false; onInfo() })
                 DropdownMenuItem(text = { Text("Clear this chat") }, enabled = canClear, onClick = { menu = false; onClear() })
             }
@@ -257,7 +289,7 @@ private fun HistorySheet(
     p: ChatPalette, conversations: List<NoorAiConversation>, current: Long?,
     onDismiss: () -> Unit, onOpen: (NoorAiConversation) -> Unit, onDelete: (NoorAiConversation) -> Unit, onNew: () -> Unit,
     onRename: (NoorAiConversation, String) -> Unit = { _, _ -> }, onPin: (NoorAiConversation) -> Unit = {},
-    search: ((String) -> List<NoorAiConversation>)? = null,
+    search: (suspend (String) -> List<NoorAiConversation>)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.surface) {
         HistoryList(p, conversations, current, onOpen, onDelete, onNew, onRename, onPin, search)
@@ -279,15 +311,20 @@ private fun HistoryList(
     p: ChatPalette, conversations: List<NoorAiConversation>, current: Long?,
     onOpen: (NoorAiConversation) -> Unit, onDelete: (NoorAiConversation) -> Unit, onNew: () -> Unit,
     onRename: (NoorAiConversation, String) -> Unit = { _, _ -> }, onPin: (NoorAiConversation) -> Unit = {},
-    search: ((String) -> List<NoorAiConversation>)? = null, initialQuery: String = "",
+    search: (suspend (String) -> List<NoorAiConversation>)? = null, initialQuery: String = "",
 ) {
     var query by remember { mutableStateOf(initialQuery) }
     var renaming by remember { mutableStateOf<NoorAiConversation?>(null) }
     var confirmDelete by remember { mutableStateOf<NoorAiConversation?>(null) }
-    val shown = remember(query, conversations) {
-        if (query.isBlank()) conversations
-        else search?.invoke(query) ?: conversations.filter { it.title.contains(query.trim(), true) }
+    var searched by remember { mutableStateOf<List<NoorAiConversation>?>(null) }
+    LaunchedEffect(query, conversations) {
+        searched = if (query.isBlank()) null else {
+            delay(200)
+            search?.invoke(query) ?: conversations.filter { it.title.contains(query.trim(), true) }
+        }
     }
+    val shown = if (query.isBlank()) conversations else searched ?: conversations.filter { it.title.contains(query.trim(), true) }
+    val sections = remember(shown) { groupConversations(shown) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Your chats", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.Bold,
@@ -320,8 +357,13 @@ private fun HistoryList(
             Text(if (query.isBlank()) "No saved chats yet. Your conversations stay on this phone." else "No chats match “$query”.",
                 color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 18.dp))
         }
-        LazyColumn(Modifier.heightIn(max = 520.dp)) {
-            items(shown, key = { it.id }) { c ->
+        LazyColumn(Modifier.heightIn(max = 900.dp)) {
+          sections.forEach { section ->
+            item(key = "h_" + section.title) {
+                Text(section.title, color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp))
+            }
+            items(section.items, key = { it.id }) { c ->
                 val sel = c.id == current
                 var menu by remember { mutableStateOf(false) }
                 Row(
@@ -335,7 +377,7 @@ private fun HistoryList(
                     Column(Modifier.weight(1f)) {
                         Text(c.title, color = p.text, fontSize = 14.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text("${c.mode.shortTitle} · ${relativeDay(c.updated)}", color = p.muted, fontSize = 11.sp)
+                        Text("${c.mode.shortTitle} · ${if (relativeDay(c.updated) == "Today") timeOf(c.updated) else relativeDay(c.updated)}", color = p.muted, fontSize = 11.sp)
                     }
                     Box {
                         IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
@@ -352,6 +394,7 @@ private fun HistoryList(
                     }
                 }
             }
+          }
         }
     }
     renaming?.let { c ->
@@ -429,7 +472,11 @@ private fun TipRow(p: ChatPalette, onDismiss: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EmptyState(p: ChatPalette, mode: NoorAiMode, onSuggestion: (String) -> Unit, tip: NoorDailyTip?) {
+private fun EmptyState(
+    p: ChatPalette, mode: NoorAiMode, onSuggestion: (String) -> Unit, tip: NoorDailyTip?,
+    recent: List<NoorAiConversation> = emptyList(), onOpenRecent: (NoorAiConversation) -> Unit = {}, onAllChats: () -> Unit = {},
+    onImageStudio: () -> Unit = {}, onVoiceMode: () -> Unit = {},
+) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -461,6 +508,33 @@ private fun EmptyState(p: ChatPalette, mode: NoorAiMode, onSuggestion: (String) 
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onSuggestion("Explain in detail: \"${tip.text}\" (${tip.ref}) — meaning, context and how to act on it today.") }
                         .padding(vertical = 4.dp)
                 )
+            }
+        }
+        if (mode == NoorAiMode.AskNoor) {
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickCard(p, Icons.Default.GraphicEq, "Voice assistant", "Talk in any language", Modifier.weight(1f).testTag("noorai_voice_card"), onVoiceMode)
+                QuickCard(p, Icons.Default.Image, "Image Studio", "Islamic art & backgrounds", Modifier.weight(1f).testTag("noorai_image_card"), onImageStudio)
+            }
+        }
+        if (recent.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.surface).border(1.dp, p.line, RoundedCornerShape(18.dp))
+                .padding(vertical = 6.dp).testTag("noorai_recent")) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.History, null, tint = p.muted, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Recent chats", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("See all", color = NoorGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onAllChats))
+                }
+                recent.forEach { c ->
+                    Row(Modifier.fillMaxWidth().clickable { onOpenRecent(c) }.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ChatBubbleOutline, null, tint = p.muted, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(c.title, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(relativeDay(c.updated), color = p.muted, fontSize = 11.sp)
+                    }
+                }
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -662,7 +736,7 @@ private fun TypingRow(p: ChatPalette) {
 }
 
 @Composable
-private fun InputBar(p: ChatPalette, value: String, hint: String, busy: Boolean, onValue: (String) -> Unit, onSend: () -> Unit, onStop: () -> Unit, onVoice: () -> Unit = {}) {
+private fun InputBar(p: ChatPalette, value: String, hint: String, busy: Boolean, onValue: (String) -> Unit, onSend: () -> Unit, onStop: () -> Unit, onVoice: () -> Unit = {}, onVoiceMode: () -> Unit = {}) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(26.dp)).background(p.surface).border(1.dp, p.line, RoundedCornerShape(26.dp))
@@ -683,14 +757,111 @@ private fun InputBar(p: ChatPalette, value: String, hint: String, busy: Boolean,
             IconButton(onClick = onVoice, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Mic, "Ask by voice", tint = p.text, modifier = Modifier.size(22.dp)) }
             Spacer(Modifier.width(2.dp))
         }
-        val bg = when { busy -> p.text; canSend -> NoorGreen; else -> p.chip }
-        IconButton(
-            onClick = { if (busy) onStop() else if (canSend) onSend() },
-            enabled = busy || canSend,
-            modifier = Modifier.size(38.dp).clip(CircleShape).background(bg),
-        ) {
-            if (busy) Icon(Icons.Default.Stop, "Stop", tint = p.bg, modifier = Modifier.size(18.dp))
-            else Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) Color.White else p.muted, modifier = Modifier.size(18.dp))
+        if (!busy && !canSend) {
+            // ChatGPT-style voice mode button (talk and hear the answer).
+            IconButton(onClick = onVoiceMode, modifier = Modifier.size(38.dp).clip(CircleShape).background(NoorGreen).testTag("noorai_voice_mode")) {
+                Icon(Icons.Default.GraphicEq, "Voice assistant", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        } else {
+            val bg = when { busy -> p.text; canSend -> NoorGreen; else -> p.chip }
+            IconButton(
+                onClick = { if (busy) onStop() else if (canSend) onSend() },
+                enabled = busy || canSend,
+                modifier = Modifier.size(38.dp).clip(CircleShape).background(bg),
+            ) {
+                if (busy) Icon(Icons.Default.Stop, "Stop", tint = p.bg, modifier = Modifier.size(18.dp))
+                else Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) Color.White else p.muted, modifier = Modifier.size(18.dp))
+            }
         }
+    }
+}
+
+
+/** 1.2.0 (114): Fast / Balanced / Research and the madhhab, as two compact pickers under the mode chips. */
+@Composable
+private fun AnswerOptionsRow(p: ChatPalette, tier: String, onTier: (String) -> Unit, madhhab: String, onMadhhab: (String) -> Unit) {
+    val o = com.noorpro.app.data.NoorAiOptions
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OptionPicker(p, Modifier.testTag("noorai_tier"), when (o.normTier(tier)) { o.FAST -> Icons.Default.Bolt; o.RESEARCH -> Icons.Default.Science; else -> Icons.Default.Tune },
+            o.tierLabel(tier), "Answer mode", o.TIERS, o.normTier(tier), onTier)
+        OptionPicker(p, Modifier.testTag("noorai_madhhab"), Icons.Default.Gavel, o.madhhabLabel(madhhab).substringBefore(" ·"), "Madhhab for fiqh answers",
+            o.MADHHABS, o.normMadhhab(madhhab), onMadhhab)
+    }
+}
+
+@Composable
+private fun OptionPicker(
+    p: ChatPalette, modifier: Modifier, icon: ImageVector, label: String, title: String,
+    choices: List<com.noorpro.app.data.NoorAiOptions.Choice>, selected: String, onPick: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(p.chip).clickable { open = true }.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, null, tint = NoorGreen, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(label, color = p.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Default.ArrowDropDown, null, tint = p.muted, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Text(title, color = p.muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            choices.forEach { c ->
+                DropdownMenuItem(
+                    text = { Column { Text(c.label, fontWeight = FontWeight.SemiBold); Text(c.detail, fontSize = 11.sp, color = p.muted) } },
+                    leadingIcon = { if (c.code == selected) Icon(Icons.Default.Check, null, tint = NoorGreen) else Spacer(Modifier.size(24.dp)) },
+                    onClick = { open = false; onPick(c.code) })
+            }
+        }
+    }
+}
+
+/** Research mode progress: the steps streamed by the Worker (planning, searching, sources, writing). */
+@Composable
+private fun ResearchProgress(p: ChatPalette, stages: List<com.noorpro.app.data.NoorResearchStage>) {
+    val steps = listOf("planning" to "Understanding your question", "searching" to "Searching the knowledge base", "sources" to "Reading sources", "writing" to "Writing a cited answer")
+    val reached = stages.map { it.stage }.toSet()
+    val currentIdx = steps.indexOfLast { it.first in reached }.coerceAtLeast(0)
+    Row(Modifier.fillMaxWidth().testTag("noorai_research_progress")) {
+        Avatar(26.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(p.chip).padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Science, null, tint = NoorGreen, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Researching", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
+            steps.forEachIndexed { i, (key, fallback) ->
+                val st = stages.lastOrNull { it.stage == key }
+                val done = i < currentIdx || (key == "sources" && st != null && currentIdx > i)
+                val active = i == currentIdx
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
+                    when {
+                        done -> Icon(Icons.Default.CheckCircle, null, tint = NoorGreen, modifier = Modifier.size(16.dp))
+                        active -> CircularProgressIndicator(Modifier.size(14.dp), color = NoorGreen, strokeWidth = 2.dp)
+                        else -> Box(Modifier.size(14.dp).clip(CircleShape).border(1.dp, p.muted, CircleShape))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(st?.label?.ifBlank { fallback } ?: fallback, color = if (done || active) p.text else p.muted, fontSize = 13.sp)
+                }
+                if (st != null && st.items.isNotEmpty() && (key == "sources" || key == "searching")) {
+                    Text(st.items.take(6).joinToString(" · "), color = p.muted, fontSize = 11.sp, lineHeight = 15.sp,
+                        modifier = Modifier.padding(start = 24.dp, bottom = 2.dp), maxLines = 3)
+                }
+            }
+            Text("Deep answers can take up to a minute.", color = p.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+@Composable
+private fun QuickCard(p: ChatPalette, icon: ImageVector, title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(p.surface).border(1.dp, p.line, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(12.dp)) {
+        Icon(icon, null, tint = NoorGreen, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(title, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, color = p.muted, fontSize = 11.sp)
     }
 }

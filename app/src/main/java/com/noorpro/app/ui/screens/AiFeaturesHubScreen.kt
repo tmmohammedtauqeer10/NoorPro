@@ -19,6 +19,9 @@ import androidx.compose.ui.text.AnnotatedString
 import com.noorpro.app.data.AiFeatureService
 import com.noorpro.app.data.NoorAiMessage
 import com.noorpro.app.data.NoorAiMode
+import com.noorpro.app.data.AssistantEvent
+import com.noorpro.app.data.AssistantState
+import com.noorpro.app.data.reduceAssistant
 import com.noorpro.app.ui.viewmodel.DeenScreen
 import com.noorpro.app.ui.viewmodel.DeenViewModel
 import kotlinx.coroutines.Job
@@ -152,6 +155,14 @@ internal object NoorAiChatStore {
         ?: com.noorpro.app.data.NoorAiLanguage.AUTO
     fun setLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("lang2", code).apply()
 
+    /** 1.2.0 (114): fiqh madhhab (default Hanafi), answer depth (default Balanced) and voice hands-free mode. */
+    fun madhhab(ctx: Context): String = com.noorpro.app.data.NoorAiOptions.normMadhhab(prefs(ctx).getString("madhhab", null))
+    fun setMadhhab(ctx: Context, code: String) = prefs(ctx).edit().putString("madhhab", com.noorpro.app.data.NoorAiOptions.normMadhhab(code)).apply()
+    fun tier(ctx: Context): String = com.noorpro.app.data.NoorAiOptions.normTier(prefs(ctx).getString("tier", null))
+    fun setTier(ctx: Context, code: String) = prefs(ctx).edit().putString("tier", com.noorpro.app.data.NoorAiOptions.normTier(code)).apply()
+    fun handsFree(ctx: Context) = prefs(ctx).getBoolean("hands_free", false)
+    fun setHandsFree(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("hands_free", on).apply()
+
     fun tipDismissed(ctx: Context) = prefs(ctx).getBoolean("tip_dismissed", false)
     fun dismissTip(ctx: Context) = prefs(ctx).edit().putBoolean("tip_dismissed", true).apply()
 }
@@ -199,69 +210,105 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
 
     var mode by remember { mutableStateOf(NoorAiMode.AskNoor) }
     var convId by remember { mutableStateOf(NoorAiChatStore.currentId(context, NoorAiMode.AskNoor) ?: System.currentTimeMillis()) }
-    var messages by remember { mutableStateOf(NoorAiChatStore.load(context, convId)) }
-    var conversations by remember { mutableStateOf(NoorAiChatStore.conversations(context)) }
+    var messages by remember { mutableStateOf(emptyList<NoorAiChatItem>()) }
+    var conversations by remember { mutableStateOf(emptyList<NoorAiConversation>()) }
     var language by remember { mutableStateOf(NoorAiChatStore.language(context)) }
     var input by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
     var revealId by remember { mutableStateOf<Long?>(null) }
     var showTip by remember { mutableStateOf(!NoorAiChatStore.tipDismissed(context)) }
+    // 1.2.0 (114): madhhab, answer depth (Fast / Balanced / Research) and research progress
+    var madhhab by remember { mutableStateOf(NoorAiChatStore.madhhab(context)) }
+    var tier by remember { mutableStateOf(NoorAiChatStore.tier(context)) }
+    var researchStages by remember { mutableStateOf(emptyList<com.noorpro.app.data.NoorResearchStage>()) }
+    var showImageStudio by remember { mutableStateOf(false) }
     AiFeatureService.answerLanguage = language
-    // 1.1.4 voice + spoken answers
+    AiFeatureService.madhhab = madhhab
+    AiFeatureService.tier = tier
+    // 1.1.4 voice + spoken answers; 114 natural cloud voice and voice assistant
     var voice by remember { mutableStateOf(NoorVoiceState(language = NoorAiChatStore.voiceLanguage(context))) }
     var speakingId by remember { mutableStateOf<Long?>(null) }
     var autoRead by remember { mutableStateOf(NoorAiChatStore.autoRead(context)) }
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
     val voiceInput = remember { NoorVoiceInput(context) { e -> mainHandler.post { voice = reduceVoice(voice, e) } } }
-    val speaker = remember { NoorAiSpeaker(context) { id -> mainHandler.post { speakingId = id } } }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceInput.stop(); speaker.shutdown() } }
-    fun speakItem(item: NoorAiChatItem) {
+    val deviceSpeaker = remember { NoorAiSpeaker(context) { id -> mainHandler.post { speakingId = id } } }
+    val speaker = remember { NoorCloudSpeaker(context, deviceSpeaker) { id -> mainHandler.post { speakingId = id } } }
+    val recorder = remember { NoorVoiceRecorder(context) }
+    var assistantOpen by remember { mutableStateOf(false) }
+    var assistant by remember { mutableStateOf(AssistantState(handsFree = NoorAiChatStore.handsFree(context))) }
+    var assistantJob by remember { mutableStateOf<Job?>(null) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { voiceInput.stop(); recorder.release(); speaker.release(); deviceSpeaker.shutdown() }
+    }
+
+    suspend fun refreshConversations() { conversations = NoorAiHistory.conversations(context) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        NoorAiHistory.migrate(context)
+        val loaded = NoorAiHistory.load(context, convId)
+        if (messages.isEmpty()) messages = loaded
+        refreshConversations()
+    }
+
+    fun speakItem(item: NoorAiChatItem, onDone: (() -> Unit)? = null) {
         val plain = NoorAiMarkdown.parse(AiFeatureService.splitFollowups(item.text).first).joinToString("\n") { plainOf(it) }
-        speaker.speak(item.id, plain, answerLanguageOf(item.text, language).substringBefore('-'))
+        speaker.speak(item.id, plain, answerLanguageOf(item.text, language).substringBefore('-')) { mainHandler.post { onDone?.invoke() } }
     }
 
     fun update(list: List<NoorAiChatItem>) {
         messages = list
-        NoorAiChatStore.save(context, mode, convId, list)
-        conversations = NoorAiChatStore.conversations(context)
+        val m = mode; val id = convId
+        scope.launch { NoorAiHistory.save(context, m, id, list); refreshConversations() }
     }
 
-    fun ask(prompt: String, base: List<NoorAiChatItem>) {
+    /** Asks Noor AI. [voiceLang] / [voiceTurn] are set by the voice assistant (answer in the spoken language, short and speakable). */
+    fun ask(prompt: String, base: List<NoorAiChatItem>, voiceLang: String? = null, onAnswer: ((NoorAiChatItem?) -> Unit)? = null) {
         val history = base.dropLast(1).map { NoorAiMessage(AiFeatureService.splitFollowups(it.text).first, it.isUser) }
         val askedMode = mode
         val askedConv = convId
+        val askedTier = if (voiceLang != null && tier == com.noorpro.app.data.NoorAiOptions.RESEARCH) com.noorpro.app.data.NoorAiOptions.BALANCED
+            else if (voiceLang != null) com.noorpro.app.data.NoorAiOptions.FAST else tier
         isTyping = true
+        researchStages = emptyList()
         job = scope.launch {
             val answer = try {
-                AiFeatureService.generateResponse(prompt, askedMode, history)
+                AiFeatureService.generateResponse(
+                    prompt, askedMode, history, tier = askedTier,
+                    language = voiceLang ?: language,
+                    context = if (voiceLang != null) com.noorpro.app.data.NoorAiContext(note = "The user asked by voice and will hear the answer read aloud. Reply in short, natural spoken sentences in the same language, without tables, headings or markdown.") else null,
+                    onStage = { st -> mainHandler.post { if (askedConv == convId) researchStages = researchStages + st } },
+                )
             } catch (e: kotlinx.coroutines.CancellationException) {
-                isTyping = false; throw e
+                isTyping = false; researchStages = emptyList(); onAnswer?.invoke(null); throw e
             } catch (_: Exception) {
-                com.noorpro.app.data.NoorAiLanguage.unavailable(com.noorpro.app.data.NoorAiLanguage.resolve(language, prompt))
+                com.noorpro.app.data.NoorAiLanguage.unavailable(com.noorpro.app.data.NoorAiLanguage.resolve(voiceLang ?: language, prompt))
             }
+            var reply: NoorAiChatItem? = null
             if (askedMode == mode && askedConv == convId) {
-                val reply = NoorAiChatItem(answer, false)
+                reply = NoorAiChatItem(answer, false)
                 revealId = reply.id
                 update(base + reply)
-                if (autoRead && !AiFeatureService.isOffline(answer)) speakItem(reply)
+                if (voiceLang == null && autoRead && !AiFeatureService.isOffline(answer)) speakItem(reply)
             }
             isTyping = false
+            researchStages = emptyList()
+            onAnswer?.invoke(reply)
         }
     }
 
-    fun send(text: String) {
+    fun send(text: String, voiceLang: String? = null, onAnswer: ((NoorAiChatItem?) -> Unit)? = null) {
         val clean = text.trim()
-        if (clean.isBlank() || isTyping) return
+        if (clean.isBlank() || isTyping) { onAnswer?.invoke(null); return }
         val next = messages + NoorAiChatItem(clean, true)
         update(next)
         input = ""
         focusManager.clearFocus()
-        ask(clean, next)
+        ask(clean, next, voiceLang, onAnswer)
     }
 
     fun newChat() {
-        job?.cancel(); isTyping = false; revealId = null; speaker.stop()
+        job?.cancel(); isTyping = false; revealId = null; speaker.stop(); researchStages = emptyList()
         convId = System.currentTimeMillis()
         messages = emptyList()
         NoorAiChatStore.setCurrent(context, mode, null)
@@ -288,12 +335,65 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         voice.finalText?.let { heard -> voice = reduceVoice(voice, VoiceEvent.Consumed); send(heard) }
     }
 
+    // ---- 1.2.0 (114) voice assistant: record -> Whisper (auto language) -> answer -> natural voice -> (hands-free) listen again
+    fun assistantEvent(e: AssistantEvent) { assistant = reduceAssistant(assistant, e) }
+    fun assistantListen() {
+        speaker.stop()
+        assistantJob?.cancel()
+        assistantEvent(AssistantEvent.Listen)
+        recorder.start(onLevel = { l -> assistantEvent(AssistantEvent.Level(l)) }) { bytes, decision ->
+            if (bytes == null) { assistantEvent(if (decision == com.noorpro.app.data.VadDecision.NO_SPEECH) AssistantEvent.NoSpeech else AssistantEvent.Fail("Microphone isn't available right now.")); return@start }
+            assistantEvent(AssistantEvent.Recorded)
+            assistantJob = scope.launch {
+                val hint = language.takeIf { it != com.noorpro.app.data.NoorAiLanguage.AUTO }?.substringBefore('-') ?: voice.language
+                val heard = AiFeatureService.transcribeVoice(bytes, hint)
+                if (heard == null) { assistantEvent(AssistantEvent.Fail("Couldn't reach Noor AI's voice service. Check your connection, or tap ⌨ to type.")); return@launch }
+                // Reply language: the language spoken (a fixed answer language in settings still wins).
+                val replyLang = language.takeIf { it != com.noorpro.app.data.NoorAiLanguage.AUTO } ?: heard.language
+                assistantEvent(AssistantEvent.Heard(heard.text, replyLang))
+                send(heard.text, voiceLang = replyLang) { reply ->
+                    if (reply == null || AiFeatureService.isOffline(reply.text)) {
+                        assistantEvent(AssistantEvent.Fail(reply?.text?.let { AiFeatureService.parseMeta(it).body } ?: "Noor AI couldn't answer right now."))
+                    } else {
+                        assistantEvent(AssistantEvent.Answer(reply.text))
+                        val plain = NoorAiMarkdown.parse(AiFeatureService.splitFollowups(reply.text).first).joinToString("\n") { plainOf(it) }
+                        speaker.speak(reply.id, plain, replyLang) {
+                            mainHandler.post {
+                                val wasSpeaking = assistant.phase == com.noorpro.app.data.AssistantPhase.SPEAKING
+                                assistantEvent(AssistantEvent.SpeakDone)
+                                if (wasSpeaking && assistantOpen && assistant.phase == com.noorpro.app.data.AssistantPhase.LISTENING) assistantListen()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    fun assistantStop() {
+        recorder.cancel(); speaker.stop(); assistantJob?.cancel()
+        if (isTyping) { job?.cancel(); isTyping = false }
+        assistantEvent(AssistantEvent.Stop)
+    }
+    val assistantMicPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) assistantListen() else assistantEvent(AssistantEvent.Fail("Microphone permission is needed to talk to Noor AI."))
+    }
+    fun openAssistant() {
+        assistantOpen = true
+        focusManager.clearFocus()
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) assistantListen() else assistantMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+    }
+    fun closeAssistant() { assistantStop(); assistantOpen = false; assistant = AssistantState(handsFree = assistant.handsFree) }
+
     androidx.compose.runtime.LaunchedEffect(Unit) {
         NoorAiLaunch.pending?.let { q ->
             NoorAiLaunch.pending = null
             if (mode == NoorAiMode.AskNoor) { if (messages.isNotEmpty()) newChat(); send(q) }
         }
     }
+
+    androidx.activity.compose.BackHandler(enabled = assistantOpen) { closeAssistant() }
 
     NoorAiChatContent(
         mode = mode,
@@ -306,13 +406,15 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         onInput = { input = it },
         onSend = { send(input) },
         onSuggestion = { send(it) },
-        onStop = { job?.cancel(); isTyping = false },
+        onStop = { job?.cancel(); isTyping = false; researchStages = emptyList() },
         onModeChange = {
             if (it != mode) {
-                job?.cancel(); isTyping = false
+                job?.cancel(); isTyping = false; researchStages = emptyList()
                 mode = it
-                convId = NoorAiChatStore.currentId(context, it) ?: System.currentTimeMillis()
-                messages = NoorAiChatStore.load(context, convId)
+                val id = NoorAiChatStore.currentId(context, it) ?: System.currentTimeMillis()
+                convId = id
+                messages = emptyList()
+                scope.launch { val loaded = NoorAiHistory.load(context, id); if (convId == id) messages = loaded }
             }
         },
         onClearChat = { job?.cancel(); isTyping = false; update(emptyList()) },
@@ -343,14 +445,13 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         currentConversation = convId,
         onNewChat = { newChat() },
         onOpenConversation = { c ->
-            job?.cancel(); isTyping = false; revealId = null
+            job?.cancel(); isTyping = false; revealId = null; researchStages = emptyList()
             mode = c.mode; convId = c.id
-            messages = NoorAiChatStore.load(context, c.id)
             NoorAiChatStore.setCurrent(context, c.mode, c.id)
+            scope.launch { val loaded = NoorAiHistory.load(context, c.id); if (convId == c.id) messages = loaded }
         },
         onDeleteConversation = { c ->
-            NoorAiChatStore.delete(context, c.id)
-            conversations = NoorAiChatStore.conversations(context)
+            scope.launch { NoorAiHistory.delete(context, c.id); refreshConversations() }
             if (c.id == convId) newChat()
         },
         onVoice = {
@@ -376,11 +477,34 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         onSpeak = { item -> if (speakingId == item.id) speaker.stop() else speakItem(item) },
         autoRead = autoRead,
         onAutoRead = { autoRead = it; NoorAiChatStore.setAutoRead(context, it); if (!it) speaker.stop() },
-        onRenameConversation = { c, t -> NoorAiChatStore.rename(context, c.id, t); conversations = NoorAiChatStore.conversations(context) },
-        onPinConversation = { c -> NoorAiChatStore.setPinned(context, c.id, !c.pinned); conversations = NoorAiChatStore.conversations(context) },
-        searchConversations = { q -> NoorAiChatStore.search(context, q) },
+        onRenameConversation = { c, t -> scope.launch { NoorAiHistory.rename(context, c.id, t); refreshConversations() } },
+        onPinConversation = { c -> scope.launch { NoorAiHistory.setPinned(context, c.id, !c.pinned); refreshConversations() } },
+        searchConversations = { q -> NoorAiHistory.search(context, q) },
         dailyTip = noorDailyTip(),
+        tier = tier,
+        onTier = { tier = com.noorpro.app.data.NoorAiOptions.normTier(it); NoorAiChatStore.setTier(context, tier); AiFeatureService.tier = tier },
+        madhhab = madhhab,
+        onMadhhab = { madhhab = com.noorpro.app.data.NoorAiOptions.normMadhhab(it); NoorAiChatStore.setMadhhab(context, madhhab); AiFeatureService.madhhab = madhhab },
+        researchStages = researchStages,
+        onVoiceMode = { openAssistant() },
+        onImageStudio = { showImageStudio = true },
     )
+
+    if (showImageStudio) NoorImageStudioSheet(onDismiss = { showImageStudio = false }, language = language)
+
+    if (assistantOpen) {
+        NoorVoiceAssistantOverlay(
+            state = assistant,
+            onMic = { assistantListen() },
+            onStop = {
+                // While listening, "stop" means "I'm done talking": send what was recorded.
+                if (assistant.phase == com.noorpro.app.data.AssistantPhase.LISTENING) recorder.finishNow() else assistantStop()
+            },
+            onClose = { closeAssistant() },
+            onHandsFree = { on -> assistantEvent(AssistantEvent.HandsFree(on)); NoorAiChatStore.setHandsFree(context, on) },
+            onKeyboard = { closeAssistant() },
+        )
+    }
 }
 
 internal fun plainOf(b: MdBlock): String = when (b) {

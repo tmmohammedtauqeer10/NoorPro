@@ -6147,10 +6147,33 @@ fun StitchNoorProPlusScreen(viewModel: DeenViewModel) {
                 }
             }
         }
+        // 1.2.0 (114): new Noor AI features, free for everyone (no paywall, nothing to buy)
+        item {
+            StitchCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = StitchGold, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("New in Noor AI · free for everyone", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    listOf(
+                        "Voice assistant: talk in Urdu, Hindi, Arabic or English and hear the answer in a natural voice; hands-free mode",
+                        "Research mode: deep, multi-step answers with sources from classical Sunni works",
+                        "Madhhab choice: Hanafi, Shafi'i, Maliki, Hanbali, or compare all four",
+                        "Image Studio: Islamic art, calligraphy-style posters, mosque and nature backgrounds",
+                        "Chat history: recent chats, search, rename, pin and delete",
+                    ).forEach { Text("• $it", color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp) }
+                    Button(
+                        onClick = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.AI_HUB) },
+                        colors = ButtonDefaults.buttonColors(containerColor = stitchPrimary(), contentColor = stitchOnPrimaryAccent()),
+                        shape = RoundedCornerShape(999.dp), modifier = Modifier.padding(top = 6.dp),
+                    ) { Text("Try Noor AI", fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
         // Planned benefits, grouped
         item { Text("What Plus will add", color = stitchText(), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         val groups = listOf(
-            Triple(Icons.Default.AutoAwesome, "Noor AI", listOf("Longer Ask Noor AI chat history")),
             Triple(Icons.Default.School, "Learning", listOf("Premium learning paths", "Progress insights")),
             Triple(Icons.Default.Groups, "Ummah creators", listOf("Creator tools for reels and posts")),
             Triple(Icons.Default.Bookmark, "Library", listOf("More storage for saved collections")),
@@ -6178,7 +6201,7 @@ fun StitchNoorProPlusScreen(viewModel: DeenViewModel) {
                         Text("Plus", color = StitchGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center) }
                     listOf(
                         "Quran, translations & audio" to true, "Prayer times, adhan & Qibla" to true, "Duas, Darood & Tasawwuf" to true,
-                        "Ask Noor AI" to true, "Quran Reading Course" to true, "Ummah feed & reels" to true,
+                        "Ask Noor AI" to true, "Noor AI voice, Research & Image Studio" to true, "Quran Reading Course" to true, "Ummah feed & reels" to true,
                         "Premium learning paths" to false, "Creator tools" to false, "Extra saved-collection storage" to false,
                     ).forEach { (f, free) ->
                         androidx.compose.material3.HorizontalDivider(color = stitchLine(), modifier = Modifier.padding(vertical = 8.dp))
