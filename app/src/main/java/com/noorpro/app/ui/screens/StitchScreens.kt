@@ -2231,7 +2231,7 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                         StitchHubTile("Quiz", Icons.Default.Quiz, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                        StitchHubTile("Learning", Icons.Default.AutoStories, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.QURAN_LEARNING_DASHBOARD) }
+                        StitchHubTile("Courses", Icons.Default.AutoStories, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.ACADEMY) }
                         StitchHubTile("Hajj & Umrah", Icons.Default.Mosque, Modifier.weight(1f)) { viewModel.navigateTo(DeenScreen.HAJJ_UMRAH) }
                     }
                 }

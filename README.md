@@ -161,3 +161,9 @@ Quran recitation remains under **Audio** / existing Now Playing flows and uses a
 - Al Noor MediaSession / notification controls: **stub** + channel
   `al_noor_playback` (real Media3 session when `media3-session` is added).
 
+
+## NoorPro Academy - Courses & Learning Paths
+
+Open **Explore > NoorPro Academy** for a native course catalog, personal study progress and learning paths. The initial catalog includes 24 offline Ihsan/character reading lessons and ten official external course/program links covering Quran, Urdu tajweed, Seerah, Arabic, Hadith and foundational studies.
+
+Course pages include provider attribution and access requirements. Lectures open in the original provider classroom; external accounts, exams and certificates remain with that provider. See [the Academy guide and researched free-course list](docs/ACADEMY_COURSES.md) for integration details, rights boundaries and tests.

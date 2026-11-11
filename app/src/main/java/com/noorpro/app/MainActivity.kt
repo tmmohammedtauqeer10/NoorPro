@@ -258,6 +258,7 @@ fun MainLayout() {
                 DeenScreen.TASBIH -> com.noorpro.app.ui.screens.TasbihScreen(viewModel = viewModel)
                 DeenScreen.EXPLORE -> com.noorpro.app.ui.screens.ExploreScreen(viewModel = viewModel)
                 DeenScreen.EDUCATION -> com.noorpro.app.ui.screens.IslamicEducationScreen(viewModel = viewModel)
+                DeenScreen.ACADEMY -> com.noorpro.app.learning.AcademyScreen(onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.EDUCATION) })
                 DeenScreen.TAFSIR -> TafsirScreen(viewModel = viewModel)
                 DeenScreen.CALENDAR -> com.noorpro.app.ui.screens.HijriCalendarScreen(viewModel = viewModel)
                 DeenScreen.BOOKMARKS -> com.noorpro.app.ui.screens.BookmarksScreen(viewModel = viewModel)

@@ -45,6 +45,7 @@ enum class DeenScreen {
     TASBIH,
     EXPLORE,
     EDUCATION,
+    ACADEMY,
     TAFSIR,
     CALENDAR,
     BOOKMARKS,

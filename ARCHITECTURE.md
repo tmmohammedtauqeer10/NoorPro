@@ -83,3 +83,7 @@ Remaining:
 - No network Gradle builds on the box when avoidable
 - No secrets / `google-services.json` committed
 - Package rename complete for hand-written Kotlin under `app/src`
+
+## Academy / learning
+
+`com.noorpro.app.learning` supplies the native course catalog and study room. `DeenScreen.ACADEMY` is reachable through Explore, Islamic Learning and the Courses tile. The bundled `learning/catalog.json` provides typed original reading lessons and official external classroom links. Account-scoped local preferences store enrollment, completion and optional notes. Provider attendance, protected media and certificates remain external. See `docs/ACADEMY_COURSES.md`.

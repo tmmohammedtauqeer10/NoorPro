@@ -1,0 +1,1369 @@
+{
+  "version": 1,
+  "title": "NoorPro Academy",
+  "checked_on": "2026-11-11",
+  "providers": [
+    {
+      "id": "noorpro",
+      "name": "NoorPro",
+      "url": "https://github.com/tmmohammedtauqeer10/NoorPro",
+      "access_note": "Original offline reading lessons."
+    },
+    {
+      "id": "uq",
+      "name": "Understand Al Quran Academy",
+      "url": "https://understandquran.com/",
+      "access_note": "Free courses; provider login required. Tutoring and shop products are separate."
+    },
+    {
+      "id": "madinah",
+      "name": "Madinah Arabic",
+      "url": "https://madinaharabic.com/free-content/reading",
+      "access_note": "Free reading and grammar courses; paid tutoring is separate."
+    },
+    {
+      "id": "taa",
+      "name": "Learning Islam / Taa",
+      "url": "https://learningislam.com/",
+      "access_note": "Public lesson pages; provider account features remain on the provider site."
+    },
+    {
+      "id": "seekers",
+      "name": "SeekersGuidance",
+      "url": "https://academy.seekersguidance.org/",
+      "access_note": "Free curricula; account required and individual availability varies."
+    },
+    {
+      "id": "harvard",
+      "name": "Harvard University / edX",
+      "url": "https://pll.harvard.edu/course/islam-through-its-scriptures",
+      "access_note": "Official Harvard listing offers a free audit route; the verified certificate is paid. Enrollment and audit limits are controlled by edX."
+    }
+  ],
+  "learning_paths": [
+    {
+      "id": "start_here",
+      "title": "Start with the foundations",
+      "description": "Choose an available introductory class, then build language and character habits.",
+      "course_ids": [
+        "seekers_curriculum",
+        "madinah_reading",
+        "uq_quran_en",
+        "noor_ihsan"
+      ]
+    },
+    {
+      "id": "urdu_quran",
+      "title": "Quran learning in Urdu",
+      "description": "Follow the provider’s pronunciation and vocabulary sequence.",
+      "course_ids": [
+        "uq_tajweed_ur",
+        "uq_quran_ur"
+      ]
+    },
+    {
+      "id": "arabic_study",
+      "title": "Read, then understand Arabic",
+      "description": "Start with the alphabet before moving to grammar.",
+      "course_ids": [
+        "madinah_reading",
+        "madinah_grammar"
+      ]
+    },
+    {
+      "id": "prophetic_life",
+      "title": "Prophetic guidance & character",
+      "description": "Explore biography, Hadith and everyday conduct.",
+      "course_ids": [
+        "uq_seerah",
+        "taa_hadith",
+        "noor_ihsan"
+      ]
+    }
+  ],
+  "courses": [
+    {
+      "id": "noor_ihsan",
+      "title": "Ihsan & Character: A Practical Beginning",
+      "subject": "Tasawwuf",
+      "language": "English",
+      "level": "Beginner",
+      "provider_id": "noorpro",
+      "instructor": "Self-guided NoorPro reading course",
+      "format": "reading",
+      "description": "Build a thoughtful routine around intention, worship and everyday character through short lessons and knowledge checks.",
+      "access_note": "Free · Offline reading · Editorial draft",
+      "source_url": "https://github.com/tmmohammedtauqeer10/Deenflow/blob/main/tasawwuf_api.json",
+      "checked_on": "2026-11-11",
+      "reuse": "original_content",
+      "certificate": "Local study completion record only; not accredited or an ijazah.",
+      "outcomes": [
+        "Explain Ihsan and the purpose of purification.",
+        "Recognize common harmful habits without judging other people’s hearts.",
+        "Apply practical manners to family, work and community life.",
+        "Read introductory texts with context and appropriate guidance.",
+        "Maintain a manageable routine without treating progress as spiritual rank."
+      ],
+      "prerequisites": "No formal prerequisites. Continue learning practical worship with reliable scholarship.",
+      "modules": [
+        {
+          "id": "tas_module_01",
+          "title": "Foundations of Ihsan",
+          "lessons": [
+            {
+              "id": "tas_lesson_01",
+              "title": "Ihsan and the purpose of learning",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Tasawwuf is approached here as learning about purification, sincere worship and good character. The Hadith of Jibril describes Ihsan through awareness of Allah. Begin with faith, worship and responsibilities; unusual experiences are not a learning goal. Terms and teaching methods differ between scholars and communities.\n\nPractice\nNotice one ordinary responsibility you can carry out with more care today.\n\nReflection\nHow would better character change my reason for studying?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Hadith of Jibril: Ihsan (Nawawi 2)",
+                  "url": "https://sunnah.com/nawawi40:2"
+                },
+                {
+                  "title": "Quran 91:9-10",
+                  "url": "https://quran.com/91/9-10"
+                }
+              ],
+              "quiz": {
+                "question": "What is the main focus of this introductory path?",
+                "options": [
+                  "Sincere worship and good character",
+                  "Collecting claims of spiritual rank",
+                  "Seeking unusual experiences",
+                  "Winning arguments"
+                ],
+                "correct_index": 0,
+                "explanation": "Sincere worship and good character. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_02",
+              "title": "Obligations before extra practices",
+              "format": "reading",
+              "minutes": 15,
+              "body": "A learning plan should support the duties you already owe. Optional routines should not cause missed prayers, neglected family responsibilities or dishonesty at work. Ask a qualified scholar about the worship rules that apply to you instead of replacing fiqh with a spiritual exercise.\n\nPractice\nList your essential responsibilities and choose a realistic time for study.\n\nReflection\nIs an optional routine crowding out something I owe another person?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 29:45: prayer and conduct",
+                  "url": "https://quran.com/29/45"
+                },
+                {
+                  "title": "Hadith of Jibril: Ihsan (Nawawi 2)",
+                  "url": "https://sunnah.com/nawawi40:2"
+                }
+              ],
+              "quiz": {
+                "question": "What should optional practices support?",
+                "options": [
+                  "Avoiding all work",
+                  "Obligatory duties and responsible conduct",
+                  "Neglect of family needs",
+                  "Missed obligatory prayers"
+                ],
+                "correct_index": 1,
+                "explanation": "Obligatory duties and responsible conduct. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_02",
+          "title": "Intention & Repentance",
+          "lessons": [
+            {
+              "id": "tas_lesson_03",
+              "title": "Renewing intention",
+              "format": "reading",
+              "minutes": 15,
+              "body": "A good outward action can be weakened by a desire for attention. Intention is renewed before and during work, learning and worship. Do the helpful action without turning the examination of motives into endless hesitation; noticing a mixed motive is a reason to gently redirect it.\n\nPractice\nChoose one useful action and privately renew why you are doing it.\n\nReflection\nWould I still do this if nobody praised me?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih al-Bukhari 1: intentions",
+                  "url": "https://sunnah.com/bukhari:1"
+                },
+                {
+                  "title": "Quran 98:5: sincere devotion",
+                  "url": "https://quran.com/98/5"
+                }
+              ],
+              "quiz": {
+                "question": "What is a helpful response to noticing a mixed motive?",
+                "options": [
+                  "Demand public praise",
+                  "Judge everyone else's heart",
+                  "Renew the intention and continue the good",
+                  "Stop every good action forever"
+                ],
+                "correct_index": 2,
+                "explanation": "Renew the intention and continue the good. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_04",
+              "title": "Repentance with hope",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Repentance joins hope with responsibility. Recognize the wrong, stop it, regret it and resolve not to return. When another person's rights are involved, seek sound guidance on restitution and repair. Repeated mistakes call for renewed effort, rather than despair or a public performance of guilt.\n\nPractice\nIdentify one practical step that prevents a repeated mistake; avoid recording private sins.\n\nReflection\nWhat can I repair rather than merely regret?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 39:53: hope in Allah’s mercy",
+                  "url": "https://quran.com/39/53"
+                },
+                {
+                  "title": "Quran 59:18: consider what you send ahead",
+                  "url": "https://quran.com/59/18"
+                }
+              ],
+              "quiz": {
+                "question": "Which response best reflects repentance?",
+                "options": [
+                  "Despair of all mercy",
+                  "Continue the wrong intentionally",
+                  "Blame only other people",
+                  "Stop the wrong and work to repair harm"
+                ],
+                "correct_index": 3,
+                "explanation": "Stop the wrong and work to repair harm. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_03",
+          "title": "Worship & Remembrance",
+          "lessons": [
+            {
+              "id": "tas_lesson_05",
+              "title": "Presence in prayer",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Prayer and character belong together. Prepare calmly where possible, learn the meaning of a short portion you recite and return attention when it wanders. Distraction does not make a person worthless. Learn the legal requirements of prayer from a reliable teacher while gradually strengthening attention.\n\nPractice\nLearn the meaning of one phrase you use in prayer.\n\nReflection\nWhat preparation helps me arrive at prayer less hurried?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 29:45: prayer and conduct",
+                  "url": "https://quran.com/29/45"
+                },
+                {
+                  "title": "Hadith of Jibril: Ihsan (Nawawi 2)",
+                  "url": "https://sunnah.com/nawawi40:2"
+                }
+              ],
+              "quiz": {
+                "question": "What should you do when attention wanders?",
+                "options": [
+                  "Gently return attention",
+                  "Abandon every prayer",
+                  "Seek praise for concentration",
+                  "Declare yourself spiritually superior"
+                ],
+                "correct_index": 0,
+                "explanation": "Gently return attention. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_06",
+              "title": "Remembrance and Quran reflection",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Remembrance can accompany daily life without becoming a competition. Read a manageable portion of Quran with meaning, and use established supplications you understand. The study timings in this course are planning suggestions, not newly prescribed ritual numbers or promises of special rewards.\n\nPractice\nRead a short passage with its meaning and note one action it encourages.\n\nReflection\nHow can remembrance affect my next conversation?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 13:28: remembrance and hearts",
+                  "url": "https://quran.com/13/28"
+                },
+                {
+                  "title": "Sahih al-Bukhari 6464: consistent deeds",
+                  "url": "https://sunnah.com/bukhari:6464"
+                }
+              ],
+              "quiz": {
+                "question": "How should this course's study timings be understood?",
+                "options": [
+                  "A replacement for prayer",
+                  "Flexible planning suggestions",
+                  "A newly obligatory ritual",
+                  "A guarantee of spiritual rank"
+                ],
+                "correct_index": 1,
+                "explanation": "Flexible planning suggestions. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_04",
+          "title": "Speech & Adab",
+          "lessons": [
+            {
+              "id": "tas_lesson_07",
+              "title": "Guarding the tongue",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Before speaking or posting, consider truth, benefit and harm. Silence can be better than insult or gossip, but it must not become an excuse to ignore injustice. Advice should be accurate, proportionate and offered with care; a private disagreement need not become public humiliation.\n\nPractice\nPause before forwarding one message and check whether it is true and useful.\n\nReflection\nDid my words help, or did I merely want the last word?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih al-Bukhari 6018: speech, guests, neighbors",
+                  "url": "https://sunnah.com/bukhari:6018"
+                },
+                {
+                  "title": "Quran 5:8: justice",
+                  "url": "https://quran.com/5/8"
+                }
+              ],
+              "quiz": {
+                "question": "Which habit best protects speech?",
+                "options": [
+                  "Humiliating opponents",
+                  "Inventing a story for attention",
+                  "Checking truth, benefit and possible harm",
+                  "Forwarding every rumor"
+                ],
+                "correct_index": 2,
+                "explanation": "Checking truth, benefit and possible harm. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_08",
+              "title": "Listening and disagreement",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Good manners include listening long enough to understand a view before answering. Disagreement in scholarship should be described accurately. You can ask for evidence and preserve boundaries without contempt, personal attacks or claiming to know another person's intention.\n\nPractice\nSummarize another person's point fairly before replying.\n\nReflection\nCan I disagree without making the other person feel small?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih Muslim 2593: gentleness",
+                  "url": "https://sunnah.com/muslim:2593"
+                },
+                {
+                  "title": "Sahih al-Bukhari 6018: speech, guests, neighbors",
+                  "url": "https://sunnah.com/bukhari:6018"
+                }
+              ],
+              "quiz": {
+                "question": "What is a constructive way to disagree?",
+                "options": [
+                  "Invent the person's motives",
+                  "Use ridicule first",
+                  "Refuse to hear any explanation",
+                  "Understand the view and respond respectfully"
+                ],
+                "correct_index": 3,
+                "explanation": "Understand the view and respond respectfully. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_05",
+          "title": "Humility & Envy",
+          "lessons": [
+            {
+              "id": "tas_lesson_09",
+              "title": "Humility without self-contempt",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Humility means accepting truth and treating people with dignity. It does not require denying your abilities, accepting abuse or abandoning responsibility. Notice the wish to be above others, then choose a task or conversation in which service matters more than status.\n\nPractice\nAccept one useful correction without immediately defending yourself.\n\nReflection\nWhere do I confuse being respected with being superior?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 31:18-19: humility and speech",
+                  "url": "https://quran.com/31/18-19"
+                },
+                {
+                  "title": "Sahih Muslim 2593: gentleness",
+                  "url": "https://sunnah.com/muslim:2593"
+                }
+              ],
+              "quiz": {
+                "question": "Which action shows humility?",
+                "options": [
+                  "Accepting a truthful correction",
+                  "Accepting every abusive demand",
+                  "Pretending all ability is worthless",
+                  "Belittling a beginner"
+                ],
+                "correct_index": 0,
+                "explanation": "Accepting a truthful correction. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_10",
+              "title": "Envy and wishing others well",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Envy becomes harmful when another person's blessing feels like a loss you want removed. Notice the comparison and redirect it toward gratitude and permissible effort. Admiring a good example and working toward similar good need not involve wishing harm to the other person.\n\nPractice\nMake a sincere dua for someone whose success triggers comparison.\n\nReflection\nWhat good can I pursue without wishing anyone a loss?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih Muslim 2564a: envy, brotherhood, hearts",
+                  "url": "https://sunnah.com/muslim:2564a"
+                },
+                {
+                  "title": "Quran 14:7: gratitude",
+                  "url": "https://quran.com/14/7"
+                }
+              ],
+              "quiz": {
+                "question": "Which response helps counter destructive envy?",
+                "options": [
+                  "Sabotage their effort",
+                  "Wish others well and pursue good lawfully",
+                  "Wish their blessing would disappear",
+                  "Spread rumors about them"
+                ],
+                "correct_index": 1,
+                "explanation": "Wish others well and pursue good lawfully. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_06",
+          "title": "Anger & Sincerity",
+          "lessons": [
+            {
+              "id": "tas_lesson_11",
+              "title": "Anger and self-command",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Strength includes restraint when anger rises. A pause can prevent speech or actions that require repair later. Address the issue when you can speak clearly. Restraint does not mean tolerating danger or never seeking help; it means choosing a just response rather than an uncontrolled one.\n\nPractice\nPlan one respectful sentence you can use to pause a heated discussion.\n\nReflection\nWhich early sign tells me that I need to slow down?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih al-Bukhari 6114: strength and anger",
+                  "url": "https://sunnah.com/bukhari:6114"
+                },
+                {
+                  "title": "Quran 5:8: justice",
+                  "url": "https://quran.com/5/8"
+                }
+              ],
+              "quiz": {
+                "question": "What does the cited hadith associate with real strength?",
+                "options": [
+                  "Winning every fight",
+                  "Never accepting advice",
+                  "Controlling oneself in anger",
+                  "Intimidating everyone"
+                ],
+                "correct_index": 2,
+                "explanation": "Controlling oneself in anger. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_12",
+              "title": "Sincerity and hidden good",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Praise is not a reliable measure of sincerity, and lack of recognition does not erase a useful deed. Keep some ordinary good private when appropriate, while remembering that public service can also be sincere. Avoid judging others merely because their work is visible.\n\nPractice\nDo one helpful action without seeking credit for it.\n\nReflection\nAm I using service to help someone or to build an image?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 98:5: sincere devotion",
+                  "url": "https://quran.com/98/5"
+                },
+                {
+                  "title": "Sahih al-Bukhari 1: intentions",
+                  "url": "https://sunnah.com/bukhari:1"
+                }
+              ],
+              "quiz": {
+                "question": "Which statement about public good deeds is sound?",
+                "options": [
+                  "They are always insincere",
+                  "They always prove superior faith",
+                  "They remove the need for accountability",
+                  "They can be sincere; visibility alone does not reveal intention"
+                ],
+                "correct_index": 3,
+                "explanation": "They can be sincere; visibility alone does not reveal intention. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_07",
+          "title": "Patience & Gratitude",
+          "lessons": [
+            {
+              "id": "tas_lesson_13",
+              "title": "Patience as steady action",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Patience includes perseverance in good, restraint from wrong and endurance through hardship. It is not passive acceptance of preventable harm. Take appropriate practical steps, seek support when needed and avoid declaring that a difficult feeling is proof of weak faith.\n\nPractice\nChoose one difficult but useful task and complete a manageable part.\n\nReflection\nWhat patient action is possible for me today?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 2:153: patience and prayer",
+                  "url": "https://quran.com/2/153"
+                },
+                {
+                  "title": "Sahih al-Bukhari 6464: consistent deeds",
+                  "url": "https://sunnah.com/bukhari:6464"
+                }
+              ],
+              "quiz": {
+                "question": "What does patience include?",
+                "options": [
+                  "Steady good action alongside appropriate help",
+                  "Refusing every form of assistance",
+                  "Allowing every injustice",
+                  "Pretending hardship never hurts"
+                ],
+                "correct_index": 0,
+                "explanation": "Steady good action alongside appropriate help. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_14",
+              "title": "Gratitude in use, not only words",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Gratitude can be expressed in praise and in the way a blessing is used. Time, ability and relationships offer opportunities for service. Gratitude does not require denying grief, poverty or a problem that needs attention; it can coexist with honest requests for help.\n\nPractice\nUse one ability or resource to benefit someone within your means.\n\nReflection\nWhich blessing am I treating as an entitlement?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 14:7: gratitude",
+                  "url": "https://quran.com/14/7"
+                },
+                {
+                  "title": "Quran 2:263-264: charity without hurt",
+                  "url": "https://quran.com/2/263-264"
+                }
+              ],
+              "quiz": {
+                "question": "Which is a practical expression of gratitude?",
+                "options": [
+                  "Belittling people with less",
+                  "Using a blessing responsibly for good",
+                  "Denying every problem",
+                  "Boasting about possessions"
+                ],
+                "correct_index": 1,
+                "explanation": "Using a blessing responsibly for good. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_08",
+          "title": "Reliance & Hope",
+          "lessons": [
+            {
+              "id": "tas_lesson_15",
+              "title": "Trust with responsible effort",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Reliance on Allah belongs with consultation, decisions and action. Make a reasonable plan, use lawful means and accept that outcomes are not fully controlled by you. Trust is not an instruction to neglect preparation, medical care or obligations.\n\nPractice\nTake one reasonable step on a concern, then make dua without demanding a particular outcome.\n\nReflection\nWhat is my responsibility, and what is outside my control?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 3:159: consultation, resolve, reliance",
+                  "url": "https://quran.com/3/159"
+                },
+                {
+                  "title": "Quran 2:153: patience and prayer",
+                  "url": "https://quran.com/2/153"
+                }
+              ],
+              "quiz": {
+                "question": "What belongs with reliance on Allah?",
+                "options": [
+                  "A guarantee of the desired result",
+                  "Refusing all planning",
+                  "Responsible effort and consultation",
+                  "Deliberate neglect of duties"
+                ],
+                "correct_index": 2,
+                "explanation": "Responsible effort and consultation. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_16",
+              "title": "Hope, fear and returning",
+              "format": "reading",
+              "minutes": 15,
+              "body": "A healthy learning path makes room for hope and accountability. Remembering mercy should support repentance, not excuse harm. Awareness of consequences should encourage repair, not despair. If an exercise fuels persistent distress, simplify it and speak to an appropriate trusted professional or teacher.\n\nPractice\nReplace one hopeless self-judgment with a specific next step toward repair.\n\nReflection\nWhat would hopeful responsibility look like this week?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 39:53: hope in Allah’s mercy",
+                  "url": "https://quran.com/39/53"
+                },
+                {
+                  "title": "Quran 59:18: consider what you send ahead",
+                  "url": "https://quran.com/59/18"
+                }
+              ],
+              "quiz": {
+                "question": "Which balance does this lesson encourage?",
+                "options": [
+                  "Despair without action",
+                  "Carelessness without responsibility",
+                  "Certainty about one's spiritual rank",
+                  "Hope with accountability"
+                ],
+                "correct_index": 3,
+                "explanation": "Hope with accountability. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_09",
+          "title": "Family & Service",
+          "lessons": [
+            {
+              "id": "tas_lesson_17",
+              "title": "Kindness in family life",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Character is tested in familiar relationships as well as formal gatherings. Speak respectfully, share responsibilities and recognize the needs of people around you. Respect does not remove personal safety or lawful boundaries. Discuss difficult family duties with someone qualified who understands the situation.\n\nPractice\nCarry out one agreed household responsibility without seeking praise.\n\nReflection\nWho experiences the everyday version of my character?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 17:23-24: kindness to parents",
+                  "url": "https://quran.com/17/23-24"
+                },
+                {
+                  "title": "Sahih Muslim 2593: gentleness",
+                  "url": "https://sunnah.com/muslim:2593"
+                }
+              ],
+              "quiz": {
+                "question": "Where should good character be practiced?",
+                "options": [
+                  "In family life as well as public settings",
+                  "Only in study circles",
+                  "Only when guests are watching",
+                  "Only when receiving thanks"
+                ],
+                "correct_index": 0,
+                "explanation": "In family life as well as public settings. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_18",
+              "title": "Service without humiliation",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Helping others should preserve their dignity. Ask what is useful instead of assuming, protect privacy and avoid reminding people of favors. Service includes time and attention as well as money. Give within your means without neglecting responsibilities or making unsupported promises.\n\nPractice\nOffer one practical, welcome form of help and respect a refusal.\n\nReflection\nDid I preserve the other person's choice and dignity?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 2:263-264: charity without hurt",
+                  "url": "https://quran.com/2/263-264"
+                },
+                {
+                  "title": "Sahih al-Bukhari 6018: speech, guests, neighbors",
+                  "url": "https://sunnah.com/bukhari:6018"
+                }
+              ],
+              "quiz": {
+                "question": "What should accompany service?",
+                "options": [
+                  "Pressure to accept unwanted help",
+                  "Respect for dignity and privacy",
+                  "Public humiliation",
+                  "Reminders of every favor"
+                ],
+                "correct_index": 1,
+                "explanation": "Respect for dignity and privacy. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_10",
+          "title": "Companionship & Classical Reading",
+          "lessons": [
+            {
+              "id": "tas_lesson_19",
+              "title": "Companionship and teacher selection",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Good companionship encourages honesty, learning and responsible conduct. A teacher should welcome reasonable questions, explain sources and respect boundaries. No claim of spiritual authority removes ordinary accountability. This introductory path does not assign an order, initiation or private devotional regimen.\n\nPractice\nWrite three questions about a prospective teacher's learning, methods and accountability.\n\nReflection\nCan I ask questions and decline a request without coercion?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih Muslim 2593: gentleness",
+                  "url": "https://sunnah.com/muslim:2593"
+                },
+                {
+                  "title": "Quran 5:8: justice",
+                  "url": "https://quran.com/5/8"
+                }
+              ],
+              "quiz": {
+                "question": "What is a healthy sign in a teacher?",
+                "options": [
+                  "Claims to be beyond accountability",
+                  "Pressure to abandon all responsibilities",
+                  "Respect for questions, evidence and boundaries",
+                  "Demands for secrecy about harm"
+                ],
+                "correct_index": 2,
+                "explanation": "Respect for questions, evidence and boundaries. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_20",
+              "title": "Reading classical works responsibly",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Classical books use technical vocabulary, report earlier experiences and may include narrations needing verification. Read the introduction and a reliable explanation before treating a passage as practical instruction. Metaphor, history and legal rulings are not interchangeable, and a translation is an interpretation of its source.\n\nPractice\nChoose a short passage and note one term to ask a teacher about.\n\nReflection\nAm I treating an unfamiliar expression as a rule without context?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Hadith of Jibril: Ihsan (Nawawi 2)",
+                  "url": "https://sunnah.com/nawawi40:2"
+                },
+                {
+                  "title": "Quran 5:8: justice",
+                  "url": "https://quran.com/5/8"
+                }
+              ],
+              "quiz": {
+                "question": "How should a difficult classical passage be approached?",
+                "options": [
+                  "As an automatic personal command",
+                  "As proof no teacher is needed",
+                  "As a reason to dismiss all other scholarship",
+                  "With context, explanation and source checking"
+                ],
+                "correct_index": 3,
+                "explanation": "With context, explanation and source checking. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_11",
+          "title": "Self-accounting & Watchfulness",
+          "lessons": [
+            {
+              "id": "tas_lesson_21",
+              "title": "Gentle self-accounting",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Self-accounting asks what helped, what harmed and what can be repaired. Keep the review brief and practical. A useful review names an action rather than condemning your entire identity. Private confessions are not required, and this app does not rank the purity of a person's heart.\n\nPractice\nReview one helpful action, one repair and one next step without writing sensitive details.\n\nReflection\nWhat small change would make tomorrow more honest or kind?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 59:18: consider what you send ahead",
+                  "url": "https://quran.com/59/18"
+                },
+                {
+                  "title": "Quran 39:53: hope in Allah’s mercy",
+                  "url": "https://quran.com/39/53"
+                }
+              ],
+              "quiz": {
+                "question": "What is useful self-accounting?",
+                "options": [
+                  "A brief review leading to repair",
+                  "Publicly listing private sins",
+                  "Measuring another person's purity",
+                  "Endless condemnation without action"
+                ],
+                "correct_index": 0,
+                "explanation": "A brief review leading to repair. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_22",
+              "title": "Awareness in ordinary work",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Awareness of Allah can inform study, employment, trade and care work. Look for honesty in promises, time and responsibilities. This course uses muraqabah in the introductory sense of watchfulness over conduct; specialized contemplative methods belong with qualified guidance, not automatic app instructions.\n\nPractice\nChoose one work or study commitment and fulfill it accurately.\n\nReflection\nWhere could greater honesty change the way I use my time?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Hadith of Jibril: Ihsan (Nawawi 2)",
+                  "url": "https://sunnah.com/nawawi40:2"
+                },
+                {
+                  "title": "Quran 59:18: consider what you send ahead",
+                  "url": "https://quran.com/59/18"
+                }
+              ],
+              "quiz": {
+                "question": "How is watchfulness introduced here?",
+                "options": [
+                  "A guarantee of special visions",
+                  "Awareness that improves ordinary conduct",
+                  "A claim to know unseen matters",
+                  "A replacement for obligations"
+                ],
+                "correct_index": 1,
+                "explanation": "Awareness that improves ordinary conduct. Review the lesson and its source references."
+              }
+            }
+          ]
+        },
+        {
+          "id": "tas_module_12",
+          "title": "Consistency & Continuing Study",
+          "lessons": [
+            {
+              "id": "tas_lesson_23",
+              "title": "A sustainable personal routine",
+              "format": "reading",
+              "minutes": 15,
+              "body": "A modest routine can be easier to maintain than a dramatic beginning. Choose a realistic amount of reading and reflection that fits your responsibilities. Missed days do not erase learning. Resume gently and revise the plan when circumstances change instead of escalating it to protect a streak.\n\nPractice\nWrite a flexible one-week plan with room for rest and essential duties.\n\nReflection\nCan I continue this routine during an ordinary busy week?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Sahih al-Bukhari 6464: consistent deeds",
+                  "url": "https://sunnah.com/bukhari:6464"
+                },
+                {
+                  "title": "Quran 2:153: patience and prayer",
+                  "url": "https://quran.com/2/153"
+                }
+              ],
+              "quiz": {
+                "question": "What makes a routine sustainable?",
+                "options": [
+                  "Ignoring rest and duties",
+                  "Treating a missed day as total failure",
+                  "Realistic effort with flexibility",
+                  "Ever-increasing pressure"
+                ],
+                "correct_index": 2,
+                "explanation": "Realistic effort with flexibility. Review the lesson and its source references."
+              }
+            },
+            {
+              "id": "tas_lesson_24",
+              "title": "Continuing with humility",
+              "format": "reading",
+              "minutes": 15,
+              "body": "Completion marks study activity, not sainthood, salvation or superiority. Revisit the foundations, keep learning practical fiqh and seek qualified explanation for advanced texts. Choose one area of conduct to improve over the next month and assess it by responsibility and service rather than unusual experiences.\n\nPractice\nSelect one topic to revisit, one book to read and one question for a teacher.\n\nReflection\nWhat has changed in how I treat people?",
+              "url": "",
+              "resources": [
+                {
+                  "title": "Quran 91:9-10",
+                  "url": "https://quran.com/91/9-10"
+                },
+                {
+                  "title": "Sahih al-Bukhari 6464: consistent deeds",
+                  "url": "https://sunnah.com/bukhari:6464"
+                }
+              ],
+              "quiz": {
+                "question": "What does course completion mean?",
+                "options": [
+                  "A certified spiritual rank",
+                  "Freedom from religious duties",
+                  "Proof of superiority over others",
+                  "Completion of study activities only"
+                ],
+                "correct_index": 3,
+                "explanation": "Completion of study activities only. Review the lesson and its source references."
+              }
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "The Beginning of Guidance (Bidayat al-Hidayah)",
+          "url": "https://www.whitethreadpress.com/products/ghazalis-the-beginning-of-guidance-bidayat-al-hidaya"
+        },
+        {
+          "title": "Forty Hadith of Imam an-Nawawi",
+          "url": "https://sunnah.com/nawawi40"
+        },
+        {
+          "title": "Riyad as-Salihin",
+          "url": "https://sunnah.com/riyadussalihin"
+        },
+        {
+          "title": "The Book of Assistance (Risalat al-Muawanah)",
+          "url": "https://fonsvitae.com/product/the-book-of-assistance-imam-abdallah-ibn-alawi-al-haddad-risalatul-muawanah/"
+        },
+        {
+          "title": "Ihya Ulum al-Din (Revival of the Religious Sciences)",
+          "url": "https://www.ghazali.org/ihya/ihya.htm"
+        },
+        {
+          "title": "The Marvels of the Heart (Ihya, Book 21)",
+          "url": "https://fonsvitae.com/product/al-ghazali-the-marvels-of-the-heart-science-of-the-spirit-book-xxi-of-the-revival-of-the-religious-sciences/"
+        },
+        {
+          "title": "Al-Qushayri’s Epistle on Sufism (Al-Risala al-Qushayriyya)",
+          "url": "https://www.garnetpublishing.co.uk/product/al-qushayris-epistle-on-sufism-al-risala-al-qushayriyya-fi-ilm-al-tasawwuf/"
+        },
+        {
+          "title": "The Book of Wisdoms (Kitab al-Hikam with commentary)",
+          "url": "https://www.whitethreadpress.com/products/the-book-of-wisdoms-kitab-al-hikam-with-ikmal-al-shiyam"
+        },
+        {
+          "title": "The Alchemy of Happiness — historical editions",
+          "url": "https://archive.org/details/alchemyofhappine00algh"
+        }
+      ]
+    },
+    {
+      "id": "uq_quran_en",
+      "title": "Understand Quran & Salah — Course 1",
+      "subject": "Quran",
+      "language": "English",
+      "level": "See provider",
+      "provider_id": "uq",
+      "instructor": "Dr. AbdulAzeez AbdulRaheem",
+      "format": "external",
+      "description": "Study common Quranic vocabulary and prayer meanings in the provider classroom.",
+      "access_note": "Free course · Provider login required",
+      "source_url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way/",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "uq_quran_en_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "uq_quran_en_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way/",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way/"
+        }
+      ]
+    },
+    {
+      "id": "uq_quran_ur",
+      "title": "Understand Quran & Salah — Course 1 (Urdu)",
+      "subject": "Quran",
+      "language": "Urdu",
+      "level": "See provider",
+      "provider_id": "uq",
+      "instructor": "Dr. AbdulAzeez AbdulRaheem",
+      "format": "external",
+      "description": "Learn Quranic vocabulary and salah meanings through the Urdu classroom.",
+      "access_note": "Free course · Provider login required",
+      "source_url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way-urdu/",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "uq_quran_ur_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "uq_quran_ur_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way-urdu/",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://understandquran.com/courses/course-1-understand-al-quran-salah-the-easy-way-urdu/"
+        }
+      ]
+    },
+    {
+      "id": "uq_seerah",
+      "title": "Seerah: The Prophet’s Life",
+      "subject": "Seerah",
+      "language": "English",
+      "level": "See provider",
+      "provider_id": "uq",
+      "instructor": "Dr. AbdulAzeez AbdulRaheem",
+      "format": "external",
+      "description": "Follow a structured account of major events in the Makkan and Madinan periods.",
+      "access_note": "Free course · Provider login required",
+      "source_url": "https://understandquran.com/courses/seerah-english/",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "uq_seerah_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "uq_seerah_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://understandquran.com/courses/seerah-english/",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://understandquran.com/courses/seerah-english/"
+        }
+      ]
+    },
+    {
+      "id": "uq_tajweed_ur",
+      "title": "Learn Tajweed the Easy Way (Urdu)",
+      "subject": "Quran",
+      "language": "Urdu",
+      "level": "See provider",
+      "provider_id": "uq",
+      "instructor": "Understand Al Quran Academy teaching team",
+      "format": "external",
+      "description": "Follow Urdu pronunciation and tajweed lessons and seek teacher feedback on recitation.",
+      "access_note": "Free course · Provider login required",
+      "source_url": "https://understandquran.com/courses/learn-tajweed-the-easy-way-urdu/",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "uq_tajweed_ur_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "uq_tajweed_ur_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://understandquran.com/courses/learn-tajweed-the-easy-way-urdu/",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://understandquran.com/courses/learn-tajweed-the-easy-way-urdu/"
+        }
+      ]
+    },
+    {
+      "id": "madinah_reading",
+      "title": "Arabic Reading: Start with the Alphabet",
+      "subject": "Arabic",
+      "language": "English",
+      "level": "See provider",
+      "provider_id": "madinah",
+      "instructor": "Madinah Arabic",
+      "format": "external",
+      "description": "Begin recognizing and reading Arabic script in an interactive self-study course.",
+      "access_note": "Free self-study · Paid tutoring is separate",
+      "source_url": "https://madinaharabic.com/free-content/reading",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "madinah_reading_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "madinah_reading_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://madinaharabic.com/free-content/reading",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://madinaharabic.com/free-content/reading"
+        }
+      ]
+    },
+    {
+      "id": "madinah_grammar",
+      "title": "Arabic Grammar: Build Your Foundations",
+      "subject": "Arabic",
+      "language": "English",
+      "level": "See provider",
+      "provider_id": "madinah",
+      "instructor": "Madinah Arabic",
+      "format": "external",
+      "description": "Follow the self-study grammar sequence after learning to read Arabic script.",
+      "access_note": "Free self-study · Paid tutoring is separate",
+      "source_url": "https://madinaharabic.com/free-content/grammar",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "madinah_grammar_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "madinah_grammar_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://madinaharabic.com/free-content/grammar",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://madinaharabic.com/free-content/grammar"
+        }
+      ]
+    },
+    {
+      "id": "taa_foundations",
+      "title": "Essential Islamic Knowledge — Learning Path",
+      "subject": "Fiqh",
+      "language": "Arabic",
+      "level": "See provider",
+      "provider_id": "taa",
+      "instructor": "Learning Islam / Taa",
+      "format": "external",
+      "description": "Explore a public Arabic learning path covering essential Islamic knowledge.",
+      "access_note": "Public lessons · Provider account for its progress features",
+      "source_url": "https://learningislam.com/track/1",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "taa_foundations_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "taa_foundations_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://learningislam.com/track/1",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://learningislam.com/track/1"
+        }
+      ]
+    },
+    {
+      "id": "taa_hadith",
+      "title": "Hadith & Sunnah — Public Lessons",
+      "subject": "Hadith",
+      "language": "Arabic",
+      "level": "See provider",
+      "provider_id": "taa",
+      "instructor": "Learning Islam / Taa",
+      "format": "external",
+      "description": "Explore public introductory Hadith and Sunnah lessons in their original context.",
+      "access_note": "Public lessons · Provider account for its progress features",
+      "source_url": "https://learningislam.com/topic/20/lessons",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "taa_hadith_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "taa_hadith_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://learningislam.com/topic/20/lessons",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://learningislam.com/topic/20/lessons"
+        }
+      ]
+    },
+    {
+      "id": "seekers_curriculum",
+      "title": "Islamic Studies Curriculum",
+      "subject": "Foundations",
+      "language": "English / Arabic",
+      "level": "See provider",
+      "provider_id": "seekers",
+      "instructor": "SeekersGuidance faculty",
+      "format": "directory",
+      "description": "Find a suitable level and an available course at the official academy.",
+      "access_note": "Free curriculum · Provider account · Availability varies",
+      "source_url": "https://academy.seekersguidance.org/",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Provider certificates require provider enrollment and assessment. NoorPro cannot issue them.",
+      "outcomes": [
+        "Follow the official syllabus and study sequence.",
+        "Record a personal reflection after studying."
+      ],
+      "prerequisites": "Check the official syllabus. Arabic grammar follows reading; Quran vocabulary courses expect Arabic reading ability. Program directories contain courses with different prerequisites.",
+      "modules": [
+        {
+          "id": "seekers_curriculum_module",
+          "title": "Official classroom / learning path",
+          "lessons": [
+            {
+              "id": "seekers_curriculum_classroom",
+              "title": "Study in the official classroom",
+              "format": "external",
+              "minutes": 0,
+              "body": "Start with the official syllabus and check the current requirements. Study the lectures or lessons in the provider classroom, then return to NoorPro to record your study.\n\nNoorPro does not receive attendance, exam results or certificates from this provider. A completion mark here is your personal study log.",
+              "url": "https://academy.seekersguidance.org/",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official syllabus and enrollment",
+          "url": "https://academy.seekersguidance.org/"
+        }
+      ]
+    },
+    {
+      "id": "harvard_islam",
+      "title": "Islam Through Its Scriptures",
+      "subject": "Academic studies",
+      "language": "English",
+      "level": "Introductory",
+      "provider_id": "harvard",
+      "instructor": "Ali S. Asani",
+      "format": "external",
+      "description": "An academic introduction to Quranic interpretation and the roles of scripture in Muslim cultures. This is religious-studies learning, not a practical fiqh qualification.",
+      "access_note": "Free audit option · edX account · Verified certificate is paid",
+      "source_url": "https://pll.harvard.edu/course/islam-through-its-scriptures",
+      "checked_on": "2026-11-11",
+      "reuse": "external_link_only",
+      "certificate": "Harvard/edX controls assessment and its paid verified certificate. NoorPro does not issue or verify it.",
+      "outcomes": [
+        "Explore the Quran in historical and cultural contexts.",
+        "Study diverse approaches to interpretation in an academic setting."
+      ],
+      "prerequisites": "See the official Harvard/edX page for current enrollment, audit limits and requirements.",
+      "modules": [
+        {
+          "id": "harvard_islam_module",
+          "title": "Official academic classroom",
+          "lessons": [
+            {
+              "id": "harvard_islam_classroom",
+              "title": "Study with Harvard / edX",
+              "format": "external",
+              "minutes": 0,
+              "body": "Open the official Harvard listing, then follow its edX enrollment link. Choose the audit route if you want the free learning option. The verified certificate is a separate paid option.\n\nReturn here to record your personal study. NoorPro cannot verify provider attendance or assessments.",
+              "url": "https://pll.harvard.edu/course/islam-through-its-scriptures",
+              "resources": [],
+              "quiz": null
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Official Harvard course listing",
+          "url": "https://pll.harvard.edu/course/islam-through-its-scriptures"
+        }
+      ]
+    }
+  ],
+  "policy": "External courses open with their official providers. No third-party lectures are mirrored and no affiliation or provider certification is implied."
+}

@@ -95,6 +95,7 @@ private val exploreTools = listOf(
     ExploreTool("Al Noor Audio", "Copyright-free nasheed & naat (Islamic Spotify)", "Worship", Icons.Default.Audiotrack, DeenScreen.AL_NOOR_AUDIO),
     ExploreTool("Indo-Pak Quran", "Read with Indo-Pak script styling", "Quran", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.INDOPAK_QURAN),
     ExploreTool("Quran Bookmarks", "Return to saved verses and reading points", "Quran", Icons.Default.Bookmark, DeenScreen.BOOKMARKS),
+    ExploreTool("NoorPro Academy", "Free courses, official lectures, and personal learning paths", "Learning", Icons.Default.School, DeenScreen.ACADEMY),
     ExploreTool("Quran Learning", "Learn Quran with guided progress", "Learning", Icons.Default.School, DeenScreen.QURAN_LEARNING_DASHBOARD),
     ExploreTool("Qaida Tutor", "Practice Arabic letters and foundational reading", "Learning", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
     ExploreTool("Hadith Library", "Browse supported Hadith collections", "Learning", Icons.Default.LibraryBooks, DeenScreen.HADITH_LIBRARY),

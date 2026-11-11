@@ -58,6 +58,14 @@ fun IslamicEducationScreen(viewModel: DeenViewModel) {
         Spacer(modifier = Modifier.height(32.dp))
 
         EducationCard(
+            title = "NoorPro Academy",
+            description = "Find free Islamic courses, study offline lessons, and track your learning.",
+            icon = Icons.Default.AutoStories,
+            onClick = { viewModel.navigateTo(DeenScreen.ACADEMY) }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        EducationCard(
             title = "Islamic Library",
             description = "Explore a vast collection of books, articles, and historical accounts.",
             icon = Icons.AutoMirrored.Filled.LibraryBooks,
