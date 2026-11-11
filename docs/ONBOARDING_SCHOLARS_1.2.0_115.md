@@ -65,3 +65,9 @@ Note: this commit also repairs `firestore.rules`, where the 1.2.0 feature merge 
 - "More questions with Noor AI": Worker `/v1/chat` with the madhhab param; JSON is validated (4 distinct options, answer
   in range, explanation and source present, Sunni/tasawwuf-safe filter), then each question is re-answered independently
   and kept only if both answers agree. Stored locally, marked "Noor AI".
+
+## Release check (115)
+- Unit tests: plain suite 52 classes / 315 tests, v115 + affected render suites 65 tests (v115 24, v112 Halaqa/AskScholar/Dua 33, V99Home 8), all passing. Rules emulator: new suite 74/74, existing 11 suites 415 passing.
+- Signed AAB 1.2.0 (115), cert CN=Noor Pro (SHA-256 0A:04:B9:51:...:D6:BE), sha256 84af056a1b7ccd1dcbca47061fdebdcd223bb37f96a50f66ceff59ecfb8ce2c6. Not uploaded to Play.
+- firestore.rules / storage.rules updated but NOT deployed.
+
