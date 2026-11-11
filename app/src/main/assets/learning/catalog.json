@@ -38,6 +38,12 @@
       "name": "Harvard University / edX",
       "url": "https://pll.harvard.edu/course/islam-through-its-scriptures",
       "access_note": "Official Harvard listing offers a free audit route; the verified certificate is paid. Enrollment and audit limits are controlled by edX."
+    },
+    {
+      "id": "amau",
+      "name": "Al Madrasatu Al Umariyyah",
+      "url": "https://www.youtube.com/channel/UCmTqZ28TaM7V_g7uJVuBAMw",
+      "access_note": "Independent creator; this specific lecture is CC BY 3.0. No affiliation."
     }
   ],
   "learning_paths": [
@@ -49,7 +55,8 @@
         "seekers_curriculum",
         "madinah_reading",
         "uq_quran_en",
-        "noor_ihsan"
+        "noor_ihsan",
+        "seek_knowledge_video"
       ]
     },
     {
@@ -1361,6 +1368,58 @@
         {
           "title": "Official Harvard course listing",
           "url": "https://pll.harvard.edu/course/islam-through-its-scriptures"
+        }
+      ]
+    },
+    {
+      "id": "seek_knowledge_video",
+      "title": "How to Seek Knowledge in Islam",
+      "subject": "Study skills",
+      "language": "English",
+      "level": "Beginner",
+      "provider_id": "amau",
+      "instructor": "Al Madrasatu Al Umariyyah",
+      "format": "video",
+      "description": "A 19-minute introductory lecture on seeking Islamic knowledge, with a personal reflection activity.",
+      "access_note": "Free in-app streaming. Internet required; original video approximately 97 MB.",
+      "source_url": "https://commons.wikimedia.org/wiki/File:How_To_Seek_Knowledge_in_Islam-.webm",
+      "checked_on": "2026-11-11",
+      "reuse": "licensed_media",
+      "certificate": "Personal study log only. No provider-issued certificate or ijazah.",
+      "outcomes": [
+        "Explore an approach to seeking Islamic knowledge.",
+        "Write one practical next step and a question to discuss with a qualified teacher."
+      ],
+      "prerequisites": "No prior course required. Teachings reflect the speaker’s perspective.",
+      "modules": [
+        {
+          "id": "seek_knowledge_module",
+          "title": "Begin with a learning intention",
+          "lessons": [
+            {
+              "id": "seek_knowledge_lecture",
+              "title": "How to Seek Knowledge in Islam",
+              "format": "video",
+              "minutes": 19,
+              "body": "Watch the credited lecture, then note one practical step for your studies and one question for a qualified teacher. The video is presented unchanged; the reflection activity is by NoorPro.",
+              "url": "",
+              "resources": [],
+              "media": {
+                "url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/How_To_Seek_Knowledge_in_Islam-.webm",
+                "creator": "Al Madrasatu Al Umariyyah",
+                "source": "https://commons.wikimedia.org/wiki/File:How_To_Seek_Knowledge_in_Islam-.webm",
+                "license": "CC BY 3.0",
+                "license_url": "https://creativecommons.org/licenses/by/3.0/",
+                "changes": "Video unchanged. NoorPro added the separate reflection activity."
+              }
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Original YouTube publication",
+          "url": "https://www.youtube.com/watch?v=wx-X0wK4khs"
         }
       ]
     }

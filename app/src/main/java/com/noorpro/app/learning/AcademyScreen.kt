@@ -165,7 +165,7 @@ private fun AcademyContent(accountId: String, onBack: () -> Unit) {
                                     Icon(Icons.Default.School, contentDescription = null)
                                     Text("Learn with intention.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                                     Text("Free learning, thoughtful paths, and a little progress every day.")
-                                    Text("24 offline reading lessons · Official external classrooms", style = MaterialTheme.typography.labelMedium)
+                                    Text("24 offline reading lessons · In-app lecture · External classrooms", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -212,7 +212,7 @@ private fun AcademyCourseCard(course: AcademyCourse, provider: String, enrolled:
             Text(provider, style = MaterialTheme.typography.labelLarge)
             Text(course.description, style = MaterialTheme.typography.bodyMedium)
             Text(course.accessNote, style = MaterialTheme.typography.bodySmall)
-            Text(if (course.format == "reading") "${course.lessons.size} reading lessons with knowledge checks" else if (course.format == "directory") "Official program directory" else "Lectures / lessons on the provider platform", style = MaterialTheme.typography.labelMedium)
+            Text(if (course.format == "video") "${course.lessons.size} licensed in-app lecture" else if (course.format == "reading") "${course.lessons.size} reading lessons with knowledge checks" else if (course.format == "directory") "Official program directory" else "Lectures / lessons on the provider platform", style = MaterialTheme.typography.labelMedium)
             if (enrolled) {
                 val count = completedLessonCount(course, completed)
                 LinearProgressIndicator(progress = { count.toFloat() / course.lessons.size }, modifier = Modifier.fillMaxWidth())
@@ -238,29 +238,29 @@ private fun AcademyCourseView(course: AcademyCourse, provider: AcademyProvider, 
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Offered by ${provider.name}", fontWeight = FontWeight.Bold)
                     Text(course.instructor)
-                    Text(if (course.format == "reading") "Original reading lessons. No recorded instructor lectures are claimed for this course." else "Independent provider. NoorPro links to the official classroom; it does not host these lectures.", style = MaterialTheme.typography.bodySmall)
+                    Text(if (course.format == "reading") "Original reading lessons. No recorded instructor lectures are claimed for this course." else if (course.format == "video") "Licensed lecture streamed inside NoorPro. Credit and license are shown in the study room. No provider affiliation is implied." else "Independent provider. NoorPro links to the official classroom; it does not host these lectures.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
         item {
             if (!enrolled) Button(onClick = onEnroll, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text("Add to My learning") }
             else Text("Saved in My learning · ${completedLessonCount(course, completed)} / ${course.lessons.size} activities", color = MaterialTheme.colorScheme.primary)
-            if (course.format != "reading") OutlinedButton(onClick = { onOpenUrl(course.sourceUrl) }, modifier = Modifier.fillMaxWidth()) { Text("Open official classroom") }
+            if (course.format in setOf("external", "directory")) OutlinedButton(onClick = { onOpenUrl(course.sourceUrl) }, modifier = Modifier.fillMaxWidth()) { Text("Open official classroom") }
         }
         item { Text("What you will explore", style = MaterialTheme.typography.titleLarge); course.outcomes.forEach { Text("• $it", Modifier.padding(top = 8.dp)) } }
         item { Text("Before you begin", style = MaterialTheme.typography.titleLarge); Text(course.prerequisites, Modifier.padding(top = 8.dp)) }
-        item { Text(if (course.format == "reading") "Curriculum" else "Your study activity", style = MaterialTheme.typography.titleLarge) }
+        item { Text(if (course.format in setOf("reading", "video")) "Curriculum" else "Your study activity", style = MaterialTheme.typography.titleLarge) }
         items(course.modules, key = { it.id }) { module ->
             Card {
                 Column(Modifier.padding(16.dp)) {
                     Text(module.title, fontWeight = FontWeight.Bold)
                     module.lessons.forEach { lesson ->
                         TextButton(onClick = { onLesson(lesson.id) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(if (lesson.id in completed) Icons.Default.CheckCircle else if (lesson.format == "reading") Icons.Default.MenuBook else Icons.Default.OpenInNew, null)
+                            Icon(if (lesson.id in completed) Icons.Default.CheckCircle else if (lesson.format == "video") Icons.Default.PlayCircle else if (lesson.format == "reading") Icons.Default.MenuBook else Icons.Default.OpenInNew, null)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(lesson.title, modifier = Modifier.fillMaxWidth())
-                                Text(if (lesson.minutes > 0) "${lesson.minutes} min · Reading & practice" else "Provider classroom · Self-reported study", style = MaterialTheme.typography.labelSmall, modifier = Modifier.fillMaxWidth())
+                                Text(if (lesson.format == "video") "${lesson.minutes} min · In-app video" else if (lesson.minutes > 0) "${lesson.minutes} min · Reading & practice" else "Provider classroom · Self-reported study", style = MaterialTheme.typography.labelSmall, modifier = Modifier.fillMaxWidth())
                             }
                         }
                     }
@@ -290,6 +290,17 @@ private fun AcademyLessonView(course: AcademyCourse, lesson: AcademyLesson, done
         Text(course.title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Text(lesson.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(lesson.body, style = MaterialTheme.typography.bodyLarge)
+        lesson.media?.let { media ->
+            LecturePlayer(media)
+            Text("${lesson.title} — ${media.creator}", style = MaterialTheme.typography.labelLarge)
+            Text("${media.license} · ${media.changes}", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { onOpenUrl(media.source) }) { Text("Original source & license evidence") }
+            TextButton(onClick = { onOpenUrl(media.licenseUrl) }) { Text("View ${media.license} license") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = studied, onCheckedChange = { studied = it })
+                Text("I have studied this lecture. This is my personal study log.", Modifier.weight(1f))
+            }
+        }
         if (lesson.format == "external") {
             Button(onClick = { onOpenUrl(lesson.url) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.OpenInNew, null); Spacer(Modifier.width(8.dp)); Text("Open official lectures / lessons") }
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = studied, onCheckedChange = { studied = it }); Text("I have studied this material on the provider platform.", Modifier.weight(1f)) }

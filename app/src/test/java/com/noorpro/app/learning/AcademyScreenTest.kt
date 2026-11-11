@@ -59,4 +59,16 @@ class AcademyScreenTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Mark incomplete").fetchSemanticsNodes().isNotEmpty() }
         assertTrue("tas_lesson_01" in LearningProgressStore(context, "guest").completed())
     }
+
+    @Test fun licensedLectureShowsPlaybackAndAttributionBeforeStartingNetworkMedia() {
+        open(true)
+        compose.onNodeWithText("Search courses, teachers or topics").performTextInput("How to Seek Knowledge")
+        compose.onNodeWithTag("academy_catalog").performScrollToNode(hasText("How to Seek Knowledge in Islam"))
+        compose.onNodeWithText("How to Seek Knowledge in Islam").performClick()
+        compose.onNodeWithTag("academy_course").performScrollToNode(hasText("19 min · In-app video"))
+        compose.onNodeWithText("19 min · In-app video").performClick()
+        compose.onNodeWithText("Play lecture in NoorPro").performScrollTo().assertExists()
+        compose.onNodeWithText("View CC BY 3.0 license").performScrollTo().assertExists()
+        compose.onNodeWithText("Complete lesson").performScrollTo().assertIsNotEnabled()
+    }
 }
