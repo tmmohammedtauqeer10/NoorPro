@@ -1,0 +1,28 @@
+name = "noorpro-ai"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[ai]
+binding = "AI"
+
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "Quota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Quota"]
+
+[[ratelimits]]
+name = "RL_USER"
+namespace_id = "7101"
+simple = { limit = 12, period = 60 }
+
+[[ratelimits]]
+name = "RL_ANON"
+namespace_id = "7102"
+simple = { limit = 5, period = 60 }
+
+[observability]
+enabled = false
