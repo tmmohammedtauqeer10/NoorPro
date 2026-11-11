@@ -28,6 +28,6 @@ simple = { limit = 5, period = 60 }
 enabled = false
 
 [vars]
-# Groq qwen3.8-27b made factual Hajj errors in Urdu (live test 2026-11-11); Gemma 4 on Workers AI was accurate.
-# Non-Latin answers (Urdu, Arabic, Hindi, ...) therefore go to Workers AI first, Groq second. Remove to put Groq first.
+# Non-Latin answers (Urdu, Arabic, Hindi, ...): Gemini 3.8 Flash, then Gemma 4 on Workers AI, then Gemini Flash-Lite,
+# then Groq. Groq qwen3.8-27b made factual Hajj errors in Urdu (live test 2026-11-11). Set to "groq" to move Groq up.
 NON_LATIN_PREFER = "workers-ai"

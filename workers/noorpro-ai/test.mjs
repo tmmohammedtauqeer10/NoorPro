@@ -8,12 +8,19 @@ async function sign(payload, kid = "k1") {
   const sig = await subtle.sign("RSASSA-PKCS1-v1_5", kp.privateKey, new TextEncoder().encode(`${h}.${p}`));
   return `${h}.${p}.${b64u(sig)}`;
 }
-let groqCalls = 0, groqMode = "ok";
+let groqCalls = 0, groqMode = "ok", gemCalls = [], gemMode = "ok", glmCalls = [], glmMode = "ok";
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.includes("securetoken@system") || u.includes("firebaseappcheck")) return new Response(JSON.stringify({ keys: [{ ...pub, kid: "k1", alg: "RS256" }] }), { headers: { "cache-control": "max-age=600" } });
   if (u.includes("api.groq.com")) { groqCalls++; if (groqMode === "fail") return new Response("x", { status: 429 });
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq answer about focus.\nMETA: {\"fiqh\": false, \"followups\": [\"a\",\"b\"]}" } }] })); }
+  if (u.includes("generativelanguage.googleapis.com")) { const m = /models\/([^:]+):/.exec(u)[1]; gemCalls.push({ m, body: JSON.parse(init.body), key: init.headers["x-goog-api-key"] });
+    if (gemMode === "slow") await new Promise((r) => setTimeout(r, 6000));
+    if (gemMode === "fail" || (gemMode === "fail-best" && m === "gemini-3.8-flash")) return new Response("{}", { status: 429 });
+    const txt = gemMode === "mixed" ? "حجِ تمattuٰ اور حجِ قیran" : "Gemini answer.\nMETA: {\"fiqh\": false, \"followups\": [\"g\"]}";
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "thinking...", thought: true }, { text: txt }] } }] })); }
+  if (u.includes("api.z.ai")) { const b = JSON.parse(init.body); glmCalls.push(b.model); if (glmMode === "fail") return new Response("{}", { status: 429 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "GLM answer for focus.\nMETA: {\"fiqh\": false, \"followups\": []}" } }] })); }
   throw new Error("unexpected fetch " + u);
 };
 const { default: worker, parseMeta, handleChat } = await import("./src/worker.js");
@@ -21,6 +28,7 @@ const { detectLanguage, resolveLanguage } = await import("./src/lang.js");
 const { verifyFirebaseIdToken, verifyAppCheckToken, identify } = await import("./src/auth.js");
 const { chatSystemPrompt } = await import("./src/prompts.js");
 const { localCount } = await import("./src/quota.js");
+const { buildOrder, _resetCooldowns, ZHIPU_FREE_MODELS } = await import("./src/llm.js");
 
 let aiCalls = [];
 const mkAI = (reply) => ({ run: async (model, input) => { aiCalls.push({ model, input }); return typeof reply === "function" ? reply(model, input) : reply; } });
@@ -53,17 +61,63 @@ await t("chat passes passages + cites only matched refs", async () => {
   const r = await handleChat({ prompt: "patience", passages: [{ ref: "Qur'an 2:153", text: "O you who believe, seek help through patience" }, { ref: "Sahih al-Bukhari 1", text: "x" }] }, e);
   const j = await r.json(); assert.deepEqual(j.citations, ["Qur'an 2:153"]);
 });
-await t("Groq first when key set, falls back to Workers AI", async () => {
-  groqCalls = 0; groqMode = "ok";
+await t("Groq first when only Groq is set, falls back to Workers AI", async () => {
+  _resetCooldowns(); groqCalls = 0; groqMode = "ok";
   let j = await (await handleChat({ prompt: "focus in salah" }, env({ GROQ_API_KEY: "k" }))).json();
   assert.equal(j.provider, "groq"); assert.equal(groqCalls, 1);
   groqMode = "fail"; groqCalls = 0;
   j = await (await handleChat({ prompt: "focus in salah" }, env({ GROQ_API_KEY: "k" }))).json();
   assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 2);
-  groqCalls = 0;
-  j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GROQ_API_KEY: "k" }))).json();
-  assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 1); // gpt-oss skipped for Urdu
-  groqMode = "ok";
+  groqCalls = 0; // rate-limited Groq models are cooled down, not retried on the next request
+  j = await (await handleChat({ prompt: "focus in salah" }, env({ GROQ_API_KEY: "k" }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 0);
+  groqMode = "ok"; _resetCooldowns();
+});
+await t("routing: English Gemini Flash-Lite first; Urdu Gemini 3.8 Flash then Gemma; GLM only free + Latin", () => {
+  const e = { GEMINI_API_KEY: "g", GROQ_API_KEY: "q", ZHIPU_API_KEY: "z", AI: {} };
+  const en = buildOrder(e, { lang: "en" }).map((x) => x[1]);
+  assert.equal(en[0], "gemini-3.5-flash-lite"); assert.equal(en[1], "qwen/qwen3.8-27b"); assert.deepEqual(en.slice(-2), ["glm-4.7-flash", "glm-4.5-flash"]);
+  const ur = buildOrder(e, { lang: "ur" }).map((x) => x[1]);
+  assert.deepEqual(ur.slice(0, 3), ["gemini-3.8-flash", "@cf/google/gemma-4-26b-a4b-it", "gemini-3.5-flash-lite"]);
+  assert.ok(!ur.some((m) => m.includes("gpt-oss-20b") || m === "openai/gpt-oss-120b" || m.startsWith("glm")));
+  assert.deepEqual(ZHIPU_FREE_MODELS, ["glm-4.7-flash", "glm-4.5-flash"]);
+  assert.equal(buildOrder({ AI: {} }, { lang: "en" })[0][0], "workers-ai");
+});
+await t("Gemini answers first, strips thoughts, sends key only in header", async () => {
+  _resetCooldowns(); gemCalls = []; gemMode = "ok";
+  const j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GEMINI_API_KEY: "gk", GROQ_API_KEY: "k" }))).json();
+  assert.equal(j.provider, "gemini"); assert.equal(j.model, "gemini-3.8-flash"); assert.equal(j.answer, "Gemini answer."); assert.equal(j.language, "ur");
+  assert.equal(gemCalls[0].key, "gk"); assert.match(gemCalls[0].body.systemInstruction.parts[0].text, /Ahl as-Sunnah/);
+});
+await t("Gemini 429 falls through (Urdu -> Gemma) and is cooled down", async () => {
+  _resetCooldowns(); gemCalls = []; gemMode = "fail-best"; aiCalls = [];
+  let j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GEMINI_API_KEY: "gk" }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.equal(gemCalls.length, 1);
+  gemCalls = [];
+  j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GEMINI_API_KEY: "gk" }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.equal(gemCalls.length, 0);
+  gemMode = "ok"; _resetCooldowns();
+});
+await t("mixed-script Gemini answer is rejected", async () => {
+  _resetCooldowns(); gemMode = "mixed";
+  const j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GEMINI_API_KEY: "gk" }))).json();
+  assert.equal(j.provider, "workers-ai"); gemMode = "ok";
+});
+await t("Urdu: slow Gemini loses the race to Gemma after the grace period", async () => {
+  _resetCooldowns(); gemMode = "slow"; const t0 = Date.now();
+  const j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GEMINI_API_KEY: "gk" }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.ok(Date.now() - t0 < 5500, "should not wait for slow Gemini");
+  gemMode = "ok";
+});
+await t("Z.ai GLM is the last English fallback", async () => {
+  _resetCooldowns(); glmCalls = []; gemMode = "fail"; groqMode = "fail";
+  const deadAI = { run: async () => { throw new Error("down"); } };
+  const j = await (await handleChat({ prompt: "focus in salah" }, { AI: deadAI, GEMINI_API_KEY: "g", GROQ_API_KEY: "q", ZHIPU_API_KEY: "z" })).json();
+  assert.equal(j.provider, "zhipu"); assert.deepEqual(glmCalls, ["glm-4.7-flash"]);
+  glmCalls = [];
+  const r = await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, { AI: deadAI, GEMINI_API_KEY: "g", ZHIPU_API_KEY: "z" });
+  assert.equal(r.status, 503); assert.equal(glmCalls.length, 0);
+  gemMode = "ok"; groqMode = "ok"; _resetCooldowns();
 });
 await t("mixed-script detector", async () => {
   const { hasMixedScriptWords } = await import("./src/llm.js");

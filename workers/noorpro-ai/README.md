@@ -13,15 +13,24 @@ and falls back to that URL; the old `askNoorAi` Cloud Function stays as the seco
 | `GET /health` | | `{ok, groq, workersAi}` |
 
 ## Models
-Groq free tier first **only if** the secret `GROQ_API_KEY` is set (`npx wrangler secret put GROQ_API_KEY`, value via stdin):
-`qwen/qwen3.8-27b`, then `openai/gpt-oss-120b` (English / Roman Urdu / Hinglish only; it invented Hajj facts in Urdu).
-Groq free limits are 8k tokens/min and 1k requests/day per model, so `max_tokens` is clamped to 950 and a 429 falls through.
-With `NON_LATIN_PREFER = "workers-ai"` (set in `wrangler.toml`), Urdu/Arabic/Hindi/Bengali/etc. answers go to Gemma 4 first,
-because live tests showed Groq qwen making Hajj errors in Urdu while Gemma 4 was accurate. Groq answers in a non-Latin
-language with Latin letters glued into words are rejected and retried on Workers AI.
-Then Workers AI: `@cf/google/gemma-4-26b-a4b-it` (thinking off, ~22 neurons/answer), `@cf/openai/gpt-oss-120b`.
-Creator tasks may also use `gpt-oss-20b`. Subtitles use `whisper-large-v3-turbo`; safety check adds `llama-guard-3-8b`.
-Free allowance: 10,000 neurons/day (UTC), roughly 400 chat answers/day.
+Each provider is used only if its secret/binding exists (`GEMINI_API_KEY`, `GROQ_API_KEY`, `ZHIPU_API_KEY` as Worker
+secrets set via stdin; `AI` binding). Routing (`buildOrder` in `src/llm.js`, live-evaluated 2026-11-11):
+
+| Request | Order |
+|---|---|
+| Chat, English / Roman Urdu / Hinglish | Gemini `gemini-3.5-flash-lite` → Groq `qwen/qwen3.8-27b` → Groq `openai/gpt-oss-120b` → Gemini `gemini-3.8-flash` → Workers AI Gemma 4 → Workers AI gpt-oss-120b → Z.ai `glm-4.7-flash` → `glm-4.5-flash` |
+| Chat, Urdu / Arabic / Hindi / Bengali / … | **race** Gemini `gemini-3.8-flash` vs Workers AI Gemma 4 (Gemini preferred if it lands within 4 s of Gemma) → Gemini Flash-Lite → Groq qwen → Workers AI gpt-oss-120b |
+| Creator (short tasks) | Gemini Flash-Lite first, then the chat chain for the language |
+
+Why: gemini-3.8-flash gave the most complete Hanafi-correct Urdu Hajj answer (3 fara'id; sa'i, Muzdalifa, rami,
+qurbani, halq, tawaf al-wada as wajibat; Arafat from 9 Dhul Hijjah) but its latency swings 7–50 s; Gemma 4 was also
+correct (12–20 s). Flash-Lite is fast (2–6 s) and accurate in English/Arabic/Hindi but put sa'i under arkan in Urdu.
+Groq qwen made Hajj errors in Urdu; gpt-oss-120b and GLM-4.7-Flash invented Hajj facts in Urdu, so they are Latin-only.
+Only Z.ai's free Flash models are allowed (`ZHIPU_FREE_MODELS`); paid GLM models are never called.
+Free-tier limits: any 429 is skipped and that model is cooled down (Gemini/Z.ai 60 s, Groq 30 s) per isolate.
+Groq `max_tokens` is clamped to 950. A non-Latin answer with Latin letters glued into words is rejected and retried.
+Subtitles use `whisper-large-v3-turbo`; the safety check adds `llama-guard-3-8b`.
+Workers AI free allowance: 10,000 neurons/day (UTC), roughly 400 Gemma answers/day.
 
 ## Abuse protection (free features only)
 - Identity: Firebase ID token (`Authorization: Bearer`) or Firebase App Check token (`X-Firebase-AppCheck`); anything else is "anon" by IP.

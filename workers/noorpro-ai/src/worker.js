@@ -163,7 +163,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health"))
-      return json(200, { ok: true, service: "noorpro-ai", groq: !!env.GROQ_API_KEY, workersAi: !!env.AI });
+      return json(200, { ok: true, service: "noorpro-ai", gemini: !!env.GEMINI_API_KEY, groq: !!env.GROQ_API_KEY, zhipu: !!env.ZHIPU_API_KEY, workersAi: !!env.AI });
     if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
     const route = { "/v1/chat": "chat", "/v1/creator": "creator", "/v1/transcribe": "transcribe" }[url.pathname];
     if (!route) return json(404, { error: "not_found" });
