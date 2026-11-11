@@ -198,11 +198,16 @@ internal class NoorAiSpeaker(context: Context, private val onState: (Long?) -> U
     fun shutdown() { runCatching { tts.stop(); tts.shutdown() } }
 }
 
-/** Questions about rulings get a clear fiqh disclaimer under the answer. */
-internal fun isFiqhQuestion(q: String): Boolean {
-    val t = q.lowercase()
-    val words = listOf("halal", "haram", "makruh", "fard", "wajib", "sunnah or", "permissible", "allowed", "is it ok", "is it okay", "can i ", "can we ",
-        "ruling", "fatwa", "fiqh", "madhhab", "divorce", "talaq", "inheritance", "zakat", "nikah", "mahr", "riba", "interest", "mortgage",
-        "invalid", "break my fast", "breaks wudu", "break wudu", "kaffarah", "حلال", "حرام", "فتوى", "جائز", "طلاق", "جائز ہے", "حرام ہے", "ज़कात", "हलाल", "हराम")
-    return words.any { t.contains(it) }
-}
+/**
+ * Questions about rulings get a clear fiqh disclaimer under the answer. Whole-word matching only, so
+ * practical questions like "How can I improve focus in salah?" never get it (1.2.0 113 fix: "can i " matched).
+ */
+private val FIQH_PATTERNS = listOf(
+    Regex("\\b(halal|haram|makruh|makrooh|mubah|fard|farz|wajib|permissible|permitted|forbidden|ruling|fatwa|fiqh|madhhab|invalid|nullif\\w*|kaffarah|kaffara|fidya|zakat|zakah|nisab|inheritance|talaq|divorce|nikah|mahr|riba|interest|mortgage|insurance)\\b", RegexOption.IGNORE_CASE),
+    Regex("\\b(is it|is this|are we|am i)\\s+(ok|okay|allowed|permissible|halal|haram|a sin|sinful|wajib|fard|sunnah)\\b", RegexOption.IGNORE_CASE),
+    Regex("\\b(can|may) (i|we|a (man|woman|muslim))\\s+(eat|drink|marry|pray|fast|work|keep|wear|listen|take|sell|buy|invest|touch|use)\\b.*\\?", RegexOption.IGNORE_CASE),
+    Regex("\\bbreaks? (my |the )?(fast|wudu|wudhu|salah|namaz)\\b", RegexOption.IGNORE_CASE),
+    Regex("\\b(jaiz|najaiz|na jaiz|gunah hai|haram hai|halal hai|farz hai|wajib hai)\\b", RegexOption.IGNORE_CASE),
+    Regex("(حلال|حرام|فتوى|فتویٰ|جائز|ناجائز|طلاق|زکوٰۃ|زكاة|سود|ربا|کفارہ|हलाल|हराम|ज़कात|जायज़|तलाक़)"),
+)
+internal fun isFiqhQuestion(q: String): Boolean = FIQH_PATTERNS.any { it.containsMatchIn(q) }

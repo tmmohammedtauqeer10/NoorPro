@@ -269,7 +269,11 @@ fun NoorCreateScreen(viewModel: DeenViewModel, reelMode: Boolean) {
         if (s != state.sound) { state.sound = s; state.soundMixed = false; if (s != null) state.credit = "" }
     }, onDismiss = { state.soundPickerOpen = false })
     if (editingCollage) CollageEditorHost(state) { editingCollage = false }
-    if (aiHelperOpen) CreatorAiSheet(initialText = state.text.text, topic = state.topic, onInsert = { t -> state.text = insertAiText(state.text, t) }, onDismiss = { aiHelperOpen = false })
+    if (aiHelperOpen) CreatorAiSheet(
+        initialText = state.text.text, topic = state.topic, onInsert = { t -> state.text = insertAiText(state.text, t) }, onDismiss = { aiHelperOpen = false },
+        videoUri = if (state.destination == ComposerDestination.REEL) state.video else null,
+        kind = if (state.destination == ComposerDestination.REEL) "reel" else "post",
+    )
     }
 
     if (confirmLeave) AlertDialog(

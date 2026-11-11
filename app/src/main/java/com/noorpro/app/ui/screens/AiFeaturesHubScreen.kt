@@ -143,16 +143,31 @@ internal object NoorAiChatStore {
     fun voiceLanguage(ctx: Context): String = prefs(ctx).getString("voice_lang", null) ?: language(ctx).takeIf { l -> NOOR_VOICE_LANGUAGES.any { it.first == l } } ?: "en"
     fun setVoiceLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("voice_lang", code).apply()
 
-    fun language(ctx: Context): String = prefs(ctx).getString("lang", "en") ?: "en"
-    fun setLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("lang", code).apply()
+    /**
+     * 1.2.0 (113): answers default to "auto" (reply in the language of the question). A fixed language
+     * chosen before 113 is kept, except the old implicit "en" default, which becomes auto.
+     */
+    fun language(ctx: Context): String = prefs(ctx).getString("lang2", null)
+        ?: prefs(ctx).getString("lang", null)?.takeIf { it != "en" && NOOR_AI_LANGUAGES.any { l -> l.first == it } }
+        ?: com.noorpro.app.data.NoorAiLanguage.AUTO
+    fun setLanguage(ctx: Context, code: String) = prefs(ctx).edit().putString("lang2", code).apply()
 
     fun tipDismissed(ctx: Context) = prefs(ctx).getBoolean("tip_dismissed", false)
     fun dismissTip(ctx: Context) = prefs(ctx).edit().putBoolean("tip_dismissed", true).apply()
 }
 
 /** Answer languages offered in Noor AI (roadmap: Urdu, Hindi, Bengali answers). */
-internal val NOOR_AI_LANGUAGES = listOf("en" to "English", "ur" to "اردو Urdu", "hi" to "हिन्दी Hindi", "bn" to "বাংলা Bengali", "ar" to "العربية Arabic")
+internal val NOOR_AI_LANGUAGES = listOf(
+    com.noorpro.app.data.NoorAiLanguage.AUTO to "Auto · same as my question",
+    "en" to "English", "ur" to "اردو Urdu", "ur-Latn" to "Roman Urdu", "hi" to "हिन्दी Hindi", "bn" to "বাংলা Bengali", "ar" to "العربية Arabic",
+)
 internal fun speechTag(code: String) = when (code) { "ur" -> "ur-PK"; "hi" -> "hi-IN"; "bn" -> "bn-BD"; "ar" -> "ar-SA"; else -> "en-IN" }
+
+/** Language an answer is in: its stored metadata, else the chosen language, else detected from the text. */
+internal fun answerLanguageOf(text: String, setting: String): String =
+    com.noorpro.app.data.AiFeatureService.parseMeta(text).language
+        ?: setting.takeIf { it != com.noorpro.app.data.NoorAiLanguage.AUTO }
+        ?: com.noorpro.app.data.NoorAiLanguage.detect(text)
 
 /** Daily Islamic tip, rotated by day of year (bundled, offline). */
 data class NoorDailyTip(val text: String, val ref: String)
@@ -203,7 +218,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceInput.stop(); speaker.shutdown() } }
     fun speakItem(item: NoorAiChatItem) {
         val plain = NoorAiMarkdown.parse(AiFeatureService.splitFollowups(item.text).first).joinToString("\n") { plainOf(it) }
-        speaker.speak(item.id, plain, language)
+        speaker.speak(item.id, plain, answerLanguageOf(item.text, language).substringBefore('-'))
     }
 
     fun update(list: List<NoorAiChatItem>) {
@@ -223,13 +238,13 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 isTyping = false; throw e
             } catch (_: Exception) {
-                AiFeatureService.UNAVAILABLE_MESSAGE
+                com.noorpro.app.data.NoorAiLanguage.unavailable(com.noorpro.app.data.NoorAiLanguage.resolve(language, prompt))
             }
             if (askedMode == mode && askedConv == convId) {
                 val reply = NoorAiChatItem(answer, false)
                 revealId = reply.id
                 update(base + reply)
-                if (autoRead && answer != AiFeatureService.UNAVAILABLE_MESSAGE) speakItem(reply)
+                if (autoRead && !AiFeatureService.isOffline(answer)) speakItem(reply)
             }
             isTyping = false
         }
@@ -321,6 +336,8 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         },
         onRevealDone = { revealId = null },
         language = language,
+        detectedLanguage = messages.lastOrNull { !it.isUser }?.let { answerLanguageOf(it.text, language) }
+            ?: messages.lastOrNull { it.isUser }?.let { com.noorpro.app.data.NoorAiLanguage.detect(it.text) },
         onLanguage = { language = it; NoorAiChatStore.setLanguage(context, it); AiFeatureService.answerLanguage = it },
         conversations = conversations,
         currentConversation = convId,

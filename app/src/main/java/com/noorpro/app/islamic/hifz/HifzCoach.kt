@@ -132,7 +132,7 @@ object HifzHide {
     fun hiddenCount(words: Int, level: Int) = (0 until words).count { hidden(it, level) }
 }
 
-data class HifzAyah(val surah: Int, val ayah: Int, val text: String) {
+data class HifzAyah(val surah: Int, val ayah: Int, val text: String, val translation: String = "") {
     val words get() = ArabicNormalizer.displayWords(text)
 }
 
@@ -151,7 +151,7 @@ object HifzQuran {
     }
     fun ayahs(context: Context, r: HifzRange): List<HifzAyah> =
         OfflineQuranAssets.loadCore(context).ayahs.filter { it.surah == r.surah && it.ayah in r.from..r.to }
-            .map { HifzAyah(it.surah, it.ayah, ArabicNormalizer.stripBismillah(it.surah, it.ayah, it.arabic)) }
+            .map { HifzAyah(it.surah, it.ayah, ArabicNormalizer.stripBismillah(it.surah, it.ayah, it.arabic), it.english) }
     fun clamp(r: HifzRange, count: Int): HifzRange {
         val from = r.from.coerceIn(1, count); val to = r.to.coerceIn(from, count)
         return HifzRange(r.surah, from, to)
@@ -193,7 +193,28 @@ object HifzPlanner {
 }
 
 /** Prompt for optional Noor AI memorisation tips (no personal data; transcript summary only). */
+/** 1.2.0 (113): what the learner asked Noor AI about the ayah on screen. */
+enum class HifzAiKind(val label: String) { MEANING("Meaning & tafsir"), TIPS("Memorisation tips"), QUESTION("Your question") }
+
 object HifzAiPrompt {
+    /** Answer language for Hifz AI: the question's language, else a fixed chat choice, else the phone language. */
+    fun language(question: String, chatSetting: String, deviceLanguage: String): String = when {
+        question.isNotBlank() -> com.noorpro.app.data.NoorAiLanguage.detect(question)
+        chatSetting != com.noorpro.app.data.NoorAiLanguage.AUTO && chatSetting.isNotBlank() -> chatSetting
+        deviceLanguage in setOf("ur", "hi", "ar", "bn") -> deviceLanguage
+        else -> "en"
+    }
+
+    /** Short tafsir-style summary of the ayah being memorised (context is sent separately to the Worker). */
+    fun meaning(surahName: String, surah: Int, ayah: Int): String =
+        "Explain the meaning of Surah $surahName, ayah $surah:$ayah, which I am memorising: a simple translation, " +
+            "a short tafsir summary from classical Sunni tafsir, the meaning of 3-5 key Arabic words, and how it links to the ayah before and after. " +
+            "Keep it under 180 words."
+
+    /** Wraps a learner's own question so the model knows which ayah it is about. */
+    fun question(q: String, surahName: String, surah: Int, ayah: Int): String =
+        "${q.trim()}\n\n(About Surah $surahName $surah:$ayah, the ayah I am memorising.)"
+
     fun tips(surahName: String, range: HifzRange, result: RecitationResult?): String = buildString {
         append("I am memorising Surah $surahName, ayahs ${range.from} to ${range.to}. ")
         if (result != null) append("In my last practice I recalled ${result.correct} of ${result.words.size} words; I missed ${result.missed} and mixed up ${result.wrong}. ")

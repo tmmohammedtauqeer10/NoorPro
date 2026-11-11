@@ -282,8 +282,8 @@ fun NoorProfile2EditScreen(viewModel: DeenViewModel) {
             onAskAi = {
                 aiLoading = true; aiError = null
                 scope.launch {
-                    val raw = runCatching { AiFeatureService.generateResponse(Profile2AiPrompts.bio(name, bio, ""), NoorAiMode.AskNoor) }.getOrNull()
-                    val parsed = if (raw.isNullOrBlank() || raw == AiFeatureService.UNAVAILABLE_MESSAGE) emptyList() else Profile2AiPrompts.parseBios(raw)
+                    val raw = runCatching { AiFeatureService.generateOnline(Profile2AiPrompts.bio(name, bio, ""), NoorAiMode.AskNoor, language = "en") }.getOrNull()
+                    val parsed = if (raw.isNullOrBlank()) emptyList() else Profile2AiPrompts.parseBios(raw)
                     suggestions = parsed
                     aiError = if (parsed.isEmpty()) "Noor AI isn't reachable right now. Please try again later." else null
                     aiLoading = false

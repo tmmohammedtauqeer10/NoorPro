@@ -74,18 +74,23 @@ enum class StudioTab(val label: String, val icon: ImageVector) {
     COMMENTS("Comments", Icons.Outlined.ChatBubbleOutline), AI("AI helper", Icons.Default.AutoAwesome)
 }
 
-class CreatorAiState(initialText: String = "", initialTopic: String = "Reminder") {
+class CreatorAiState(initialText: String = "", initialTopic: String = "Reminder", val videoUri: android.net.Uri? = null, val kind: String = "post") {
     var task by mutableStateOf(CreatorAiTask.CAPTIONS)
     var input by mutableStateOf(initialText)
     var topic by mutableStateOf(initialTopic)
-    var lang by mutableStateOf("ar")
+    var lang by mutableStateOf("ur")
+    var subtitles by mutableStateOf<List<com.noorpro.app.data.creator.SubtitleLine>>(emptyList())
+    var moderation by mutableStateOf<com.noorpro.app.data.creator.CreatorModeration?>(null)
+    var status by mutableStateOf<String?>(null)
+    /** Subtitles need a video, so the chip only shows in the reel composer once a video is picked. */
+    val tasks: List<CreatorAiTask> get() = CreatorAiTask.entries.filter { it != CreatorAiTask.SUBTITLES || videoUri != null }
     var busy by mutableStateOf(false)
     var results by mutableStateOf<List<String>>(emptyList())
     var hashtags by mutableStateOf<List<String>>(emptyList())
     var refs by mutableStateOf<List<RefCheck>>(emptyList())
     var error by mutableStateOf<String?>(null)
     var ran by mutableStateOf(false)
-    fun clear() { results = emptyList(); hashtags = emptyList(); refs = emptyList(); error = null; ran = false }
+    fun clear() { results = emptyList(); hashtags = emptyList(); refs = emptyList(); error = null; ran = false; moderation = null; status = null; if (task != CreatorAiTask.SUBTITLES) subtitles = emptyList() }
 }
 
 class CreatorStudioState(initialTab: StudioTab = StudioTab.INSIGHTS) {
@@ -650,41 +655,56 @@ fun CreatorAiPanel(ai: CreatorAiState, onRun: () -> Unit, onInsert: (String) -> 
             Spacer(Modifier.width(10.dp))
             Column {
                 Text("Noor AI for creators", color = stitchText(), fontFamily = LibreCaslon, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                Text("Captions, hashtags, reference checks, translation", color = stitchMutedText(), fontSize = 12.sp)
+                Text("Captions, hooks, hashtags, translation, subtitles and a safety check", color = stitchMutedText(), fontSize = 12.sp)
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            CreatorAiTask.entries.forEach { t -> Chip(t.label, t == ai.task, "ai_task_${t.name}") { ai.task = t; ai.clear() } }
+            ai.tasks.forEach { t -> Chip(t.label, t == ai.task, "ai_task_${t.name}") { ai.task = t; ai.clear() } }
         }
-        Box(
+        if (ai.task != CreatorAiTask.SUBTITLES) Box(
             Modifier.fillMaxWidth().heightIn(min = 96.dp).clip(RoundedCornerShape(18.dp)).background(stitchSurface()).border(1.dp, stitchLine(), RoundedCornerShape(18.dp)).padding(14.dp)
         ) {
             if (ai.input.isEmpty()) Text(
                 when (ai.task) {
-                    CreatorAiTask.CAPTIONS -> "What's your post about? (optional — or paste your draft)"
+                    CreatorAiTask.CAPTIONS -> "What's your ${ai.kind} about? (optional — or paste your draft)"
+                    CreatorAiTask.HOOKS -> "What's your ${ai.kind} about? (optional)"
                     CreatorAiTask.HASHTAGS -> "Paste your caption"
                     CreatorAiTask.CHECK -> "Paste text with references, e.g. “Al-Baqarah 2:286” or “Bukhari 6018”"
                     CreatorAiTask.TRANSLATE -> "Text to translate"
+                    CreatorAiTask.MODERATE -> "Paste your caption — Noor AI checks it before you post"
+                    CreatorAiTask.SUBTITLES -> ""
                 }, color = stitchMutedText(), fontSize = 13.5.sp
             )
             BasicTextField(ai.input, { ai.input = it.take(2000) }, textStyle = TextStyle(color = stitchText(), fontSize = 14.sp, lineHeight = 20.sp),
                 cursorBrush = SolidColor(feedAccent()), modifier = Modifier.fillMaxWidth().testTag("ai_input"))
         }
-        if (ai.task == CreatorAiTask.CAPTIONS || ai.task == CreatorAiTask.HASHTAGS) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (ai.task == CreatorAiTask.SUBTITLES) Text(
+            "Noor AI listens to your reel's audio (up to 3 minutes) and writes timed subtitles. Pick a language to translate them, or keep the original.",
+            color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp,
+        )
+        if (ai.task == CreatorAiTask.CAPTIONS || ai.task == CreatorAiTask.HOOKS || ai.task == CreatorAiTask.HASHTAGS) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Reminder", "Quran", "Dua", "Reflection", "Hadith", "Community").forEach { t -> Chip(t, t == ai.topic) { ai.topic = t } }
         }
-        if (ai.task == CreatorAiTask.TRANSLATE) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (ai.task == CreatorAiTask.TRANSLATE || ai.task == CreatorAiTask.SUBTITLES) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (ai.task == CreatorAiTask.SUBTITLES) Chip("Original", ai.lang == "orig", "ai_lang_orig") { ai.lang = "orig" }
             CreatorAiPrompts.languages.forEach { (code, name) -> Chip(name, code == ai.lang, "ai_lang_$code") { ai.lang = code } }
         }
         Button(
-            onClick = onRun, enabled = !ai.busy && (ai.task == CreatorAiTask.CAPTIONS || ai.input.isNotBlank()),
+            onClick = onRun, enabled = !ai.busy && (ai.task == CreatorAiTask.CAPTIONS || ai.task == CreatorAiTask.HOOKS || ai.task == CreatorAiTask.SUBTITLES || ai.input.isNotBlank()),
             colors = ButtonDefaults.buttonColors(containerColor = feedAccentStrongStudio()), shape = RoundedCornerShape(999.dp),
             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ai_run")
         ) {
-            if (ai.busy) { CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text("Noor AI is thinking…") }
-            else Text(if (ai.task == CreatorAiTask.CHECK) "Check against offline Qur'an & hadith" else "Ask Noor AI", fontWeight = FontWeight.Bold)
+            if (ai.busy) { CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)); Text(ai.status ?: "Noor AI is thinking…") }
+            else Text(when (ai.task) {
+                CreatorAiTask.CHECK -> "Check against offline Qur'an & hadith"
+                CreatorAiTask.SUBTITLES -> if (ai.subtitles.isEmpty()) "Make subtitles" else "Translate subtitles"
+                CreatorAiTask.MODERATE -> "Check before posting"
+                else -> "Ask Noor AI"
+            }, fontWeight = FontWeight.Bold)
         }
         ai.error?.let { Text(it, color = Color(0xFFBA1A1A), fontSize = 12.5.sp) }
+        ai.moderation?.let { m -> ModerationCard(m, insertLabel, onInsert) }
+        if (ai.task == CreatorAiTask.SUBTITLES && ai.subtitles.isNotEmpty()) SubtitlesCard(ai.subtitles, onInsert, onCopy)
         ai.results.forEach { r -> ResultCard(r, insertLabel, onInsert, onCopy) }
         if (ai.hashtags.isNotEmpty()) StudioCard(tag = "ai_hashtags") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -698,6 +718,51 @@ fun CreatorAiPanel(ai: CreatorAiState, onRun: () -> Unit, onInsert: (String) -> 
         ai.refs.forEach { r -> RefCard(r) }
         if (ai.task == CreatorAiTask.CHECK && ai.ran && ai.refs.isEmpty() && !ai.busy) Text("No ayah or hadith references found. Write them like “Al-Baqarah 2:286” or “Sahih Muslim 2564”.", color = stitchMutedText(), fontSize = 12.5.sp)
         Text("AI suggestions can be wrong — read before posting, and never attribute words to Allah or the Prophet ﷺ without a checked source.", color = stitchMutedText(), fontSize = 11.sp, lineHeight = 15.sp)
+    }
+}
+
+@Composable
+private fun ModerationCard(m: com.noorpro.app.data.creator.CreatorModeration, insertLabel: String, onInsert: (String) -> Unit) {
+    val (tint, title, icon) = when (m.verdict) {
+        "ok" -> Triple(feedAccent(), "Looks good to post", Icons.Default.Verified)
+        "block" -> Triple(Color(0xFFBA1A1A), "Please change this before posting", Icons.Default.ErrorOutline)
+        else -> Triple(Color(0xFFB7791F), "Worth a second look", Icons.Default.ErrorOutline)
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tint.copy(alpha = 0.08f))
+            .border(1.dp, tint.copy(alpha = 0.4f), RoundedCornerShape(18.dp)).padding(14.dp).testTag("ai_moderation_${m.verdict}"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+            Text(title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        m.issues.forEach { Text("• $it", color = stitchText(), fontSize = 13.sp, lineHeight = 18.sp) }
+        if (m.suggestion.isNotBlank() && m.verdict != "ok") {
+            Text("Suggested version", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(m.suggestion, color = stitchText(), fontSize = 13.sp, lineHeight = 19.sp)
+            SmallAction(Icons.Default.AddCircleOutline, insertLabel, "ai_insert_suggestion") { onInsert(m.suggestion) }
+        }
+    }
+}
+
+@Composable
+private fun SubtitlesCard(lines: List<com.noorpro.app.data.creator.SubtitleLine>, onInsert: (String) -> Unit, onCopy: (String) -> Unit) {
+    StudioCard(tag = "ai_subtitles") {
+        lines.take(40).forEach { l ->
+            Row(Modifier.padding(vertical = 2.dp)) {
+                Text(com.noorpro.app.data.creator.CreatorSubtitles.clock(l.start), color = feedAccent(), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(42.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(l.translated.ifBlank { l.text }, color = stitchText(), fontSize = 13.sp, lineHeight = 18.sp)
+                    if (l.translated.isNotBlank()) Text(l.text, color = stitchMutedText(), fontSize = 11.5.sp, lineHeight = 16.sp)
+                }
+            }
+        }
+        if (lines.size > 40) Text("+${lines.size - 40} more lines", color = stitchMutedText(), fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SmallAction(Icons.Default.AddCircleOutline, "Add transcript to caption", "ai_insert_transcript") { onInsert(com.noorpro.app.data.creator.CreatorSubtitles.transcript(lines)) }
+            SmallAction(Icons.Default.ContentCopy, "Copy .srt", "ai_copy_srt") { onCopy(com.noorpro.app.data.creator.CreatorSubtitles.toSrt(lines)) }
+        }
     }
 }
 
@@ -733,11 +798,16 @@ private fun RefCard(r: RefCheck) {
     }
 }
 
-/** Runs the selected AI task (askNoorAi with client-side framing; reference checks fully offline). */
+/**
+ * Runs the selected AI task. 1.2.0 (113): the noorpro-ai Worker first (captions, hooks, hashtags, translate,
+ * subtitles, safety check); askNoorAi framing remains a fallback; reference checks stay fully offline.
+ */
 fun runCreatorAi(ai: CreatorAiState, context: Context, scope: CoroutineScope) {
     if (ai.busy) return
+    val keepSubs = ai.task == CreatorAiTask.SUBTITLES
     ai.clear(); ai.busy = true
     val app = context.applicationContext
+    val offline = "Noor AI needs the internet for this. Please check your connection and try again."
     scope.launch {
         try {
             when (ai.task) {
@@ -746,41 +816,67 @@ fun runCreatorAi(ai: CreatorAiState, context: Context, scope: CoroutineScope) {
                     ai.refs = found
                     ai.refs = withContext(Dispatchers.IO) { found.map { ReferenceChecker.withText(app, it) } }
                 }
-                CreatorAiTask.CAPTIONS -> {
-                    val answer = AiFeatureService.generateResponse(CreatorAiPrompts.captions(ai.input, ai.topic), NoorAiMode.AskNoor)
-                    val list = CreatorAiPrompts.parseList(answer)
-                    if (list.isEmpty()) ai.error = "Noor AI couldn't write captions right now. Check your connection and try again."
+                CreatorAiTask.CAPTIONS, CreatorAiTask.HOOKS -> {
+                    var list = CreatorAiPrompts.jsonList(AiFeatureService.creator(ai.task.workerTask!!, ai.input, ai.topic, kind = ai.kind))
+                    if (list.isEmpty() && ai.task == CreatorAiTask.CAPTIONS)
+                        list = AiFeatureService.generateOnline(CreatorAiPrompts.captions(ai.input, ai.topic))?.let { CreatorAiPrompts.parseList(it) }.orEmpty()
+                    if (list.isEmpty()) ai.error = offline
                     ai.results = list
                 }
                 CreatorAiTask.HASHTAGS -> {
                     val local = CreatorAiPrompts.localHashtags(ai.input, ai.topic)
                     ai.hashtags = local
-                    val answer = AiFeatureService.generateResponse(CreatorAiPrompts.hashtags(ai.input, ai.topic), NoorAiMode.AskNoor)
-                    val tags = CreatorAiPrompts.parseHashtags(answer)
+                    var tags = CreatorAiPrompts.jsonList(AiFeatureService.creator("hashtags", ai.input, ai.topic, kind = ai.kind))
+                    if (tags.isEmpty()) tags = AiFeatureService.generateOnline(CreatorAiPrompts.hashtags(ai.input, ai.topic), language = "en")?.let { CreatorAiPrompts.parseHashtags(it) }.orEmpty()
                     ai.hashtags = (tags + local).distinctBy { it.lowercase() }.take(12)
                 }
                 CreatorAiTask.TRANSLATE -> {
-                    val before = AiFeatureService.answerLanguage
-                    AiFeatureService.answerLanguage = ai.lang
-                    val answer = try { AiFeatureService.generateResponse(CreatorAiPrompts.translate(ai.input, ai.lang), NoorAiMode.AskNoor) } finally { AiFeatureService.answerLanguage = before }
-                    if (answer == AiFeatureService.UNAVAILABLE_MESSAGE) ai.error = "Translation needs Noor AI online. Please try again in a moment."
-                    else ai.results = listOf(CreatorAiPrompts.cleanTranslation(answer))
+                    val text = AiFeatureService.creator("translate", ai.input, lang = ai.lang, kind = ai.kind)?.optString("text")?.trim().orEmpty()
+                        .ifBlank { AiFeatureService.generateOnline(CreatorAiPrompts.translate(ai.input, ai.lang), language = ai.lang)?.let { CreatorAiPrompts.cleanTranslation(it) }.orEmpty() }
+                    if (text.isBlank()) ai.error = offline else ai.results = listOf(text)
+                }
+                CreatorAiTask.MODERATE -> {
+                    val m = CreatorAiPrompts.moderation(AiFeatureService.creator("moderate", ai.input, ai.topic, kind = ai.kind))
+                    if (m == null) ai.error = offline else ai.moderation = m
+                }
+                CreatorAiTask.SUBTITLES -> {
+                    val uri = ai.videoUri
+                    var lines = if (keepSubs) ai.subtitles else emptyList()
+                    if (uri == null) { ai.error = "Pick a video first." }
+                    else {
+                        if (lines.isEmpty()) {
+                            ai.status = "Listening to your reel…"
+                            val audio = withContext(Dispatchers.IO) { com.noorpro.app.data.media.ReelAudioExtractor.extractM4a(app, uri) }
+                            if (audio == null) { ai.error = "This video has no audio Noor AI can read (or it's too long)." }
+                            else {
+                                lines = com.noorpro.app.data.creator.CreatorSubtitles.parseSegments(AiFeatureService.transcribe(audio))
+                                if (lines.isEmpty()) ai.error = offline
+                            }
+                        }
+                        if (lines.isNotEmpty() && ai.lang != "orig") {
+                            ai.status = "Translating subtitles…"
+                            val json = AiFeatureService.creator("subtitles", com.noorpro.app.data.creator.CreatorSubtitles.toIndexed(lines), lang = ai.lang, kind = "reel")
+                            lines = com.noorpro.app.data.creator.CreatorSubtitles.applyTranslation(lines.map { it.copy(translated = "") }, json)
+                            if (json == null) ai.error = "Subtitles are ready, but translation needs Noor AI online. Try again in a moment."
+                        }
+                        ai.subtitles = lines
+                    }
                 }
             }
         } catch (e: Exception) {
             ai.error = "Something went wrong: ${e.localizedMessage ?: "try again"}"
         } finally {
-            ai.ran = true; ai.busy = false
+            ai.status = null; ai.ran = true; ai.busy = false
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreatorAiSheet(initialText: String, topic: String, onInsert: (String) -> Unit, onDismiss: () -> Unit) {
+fun CreatorAiSheet(initialText: String, topic: String, onInsert: (String) -> Unit, onDismiss: () -> Unit, videoUri: android.net.Uri? = null, kind: String = "post") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val ai = remember { CreatorAiState(initialText, topic) }
+    val ai = remember { CreatorAiState(initialText, topic, videoUri, kind) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = stitchBackground()) {
         LazyColumn(contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp)) {

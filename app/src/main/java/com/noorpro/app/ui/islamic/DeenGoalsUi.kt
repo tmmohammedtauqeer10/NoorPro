@@ -115,8 +115,9 @@ fun DeenGoalsScreen(viewModel: DeenViewModel) {
         "week" -> DeenWeekContent(ui.week, ai, onBack = { page = "today" }) {
             ai = DeenAiState.Loading
             scope.launch {
-                val raw = runCatching { AiFeatureService.generateResponse(DeenGoalsLogic.aiPrompt(ui.week), NoorAiMode.AskNoor) }.getOrNull()
-                ai = if (!raw.isNullOrBlank() && raw != AiFeatureService.UNAVAILABLE_MESSAGE) DeenAiState.Text(raw.trim()) else DeenAiState.Unavailable
+                // Online only: never show offline Qur'an/hadith quotes as if they were encouragement.
+                val raw = runCatching { AiFeatureService.generateOnline(DeenGoalsLogic.aiPrompt(ui.week), NoorAiMode.AskNoor) }.getOrNull()
+                ai = if (!raw.isNullOrBlank()) DeenAiState.Text(raw.trim()) else DeenAiState.Unavailable
             }
         }
         "settings" -> DeenGoalsSettingsContent(cfg, onBack = { page = "today" }) { c -> store.setConfig(c); cfg = store.config() }

@@ -115,6 +115,7 @@ fun NoorAiChatContent(
     onRevealDone: () -> Unit,
     language: String = "en",
     onLanguage: (String) -> Unit = {},
+    detectedLanguage: String? = null,
     conversations: List<NoorAiConversation> = emptyList(),
     currentConversation: Long? = null,
     onNewChat: () -> Unit = {},
@@ -147,7 +148,7 @@ fun NoorAiChatContent(
     Column(
         Modifier.fillMaxSize().background(p.bg).statusBarsPadding().navigationBarsPadding().imePadding()
     ) {
-        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { showHistory = true }, onNewChat, autoRead, onAutoRead)
+        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { showHistory = true }, onNewChat, autoRead, onAutoRead, detectedLanguage)
         ModeRow(p, mode, onModeChange)
         if (showTip) TipRow(p, onDismissTip)
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -168,7 +169,9 @@ fun NoorAiChatContent(
                             onFeedback = { onFeedback(m, it) }, onRevealDone = onRevealDone,
                             onFollowUp = onSuggestion,
                             speaking = speakingId == m.id, onSpeak = { onSpeak(m) },
-                            fiqh = messages.getOrNull(idx - 1)?.let { it.isUser && isFiqhQuestion(it.text) } == true,
+                            // The Worker decides (model + ruling check); older/offline answers fall back to the local check.
+                            fiqh = com.noorpro.app.data.AiFeatureService.parseMeta(m.text).fiqh
+                                ?: (messages.getOrNull(idx - 1)?.let { it.isUser && isFiqhQuestion(it.text) } == true),
                         )
                     }
                     if (isTyping) item(key = "typing") { TypingRow(p) }
@@ -191,7 +194,7 @@ fun NoorAiChatContent(
             onDismissRequest = { showInfo = false },
             confirmButton = { TextButton(onClick = { showInfo = false }) { Text("OK") } },
             title = { Text("About Noor AI") },
-            text = { Text("Noor AI gives Sunni-grounded study help with Qur'an and Hadith references. If the online assistant is unavailable, it shows related passages saved on your phone.\n\n$DISCLAIMER") },
+            text = { Text("Noor AI gives study help grounded in Ahl as-Sunnah wal-Jama'ah and Tasawwuf, with Qur'an and Hadith references. It replies in the language you ask in (Urdu, Hindi, Arabic, English, Roman Urdu and more) unless you pick one in the menu. If it can't reach its server, it says so and only shows saved passages that clearly match your question.\n\n$DISCLAIMER") },
         )
     }
 }
@@ -200,7 +203,7 @@ fun NoorAiChatContent(
 private fun ChatHeader(
     p: ChatPalette, onBack: () -> Unit, onInfo: () -> Unit, onClear: () -> Unit, canClear: Boolean,
     language: String, onLanguage: (String) -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit,
-    autoRead: Boolean = false, onAutoRead: (Boolean) -> Unit = {},
+    autoRead: Boolean = false, onAutoRead: (Boolean) -> Unit = {}, detectedLanguage: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -213,8 +216,8 @@ private fun ChatHeader(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Shield, null, tint = NoorGreen, modifier = Modifier.size(11.dp))
                 Spacer(Modifier.width(3.dp))
-                Text("Sunni-grounded · " + (NOOR_AI_LANGUAGES.firstOrNull { it.first == language }?.second?.substringAfterLast(' ') ?: "English"),
-                    color = p.muted, fontSize = 11.sp, maxLines = 1)
+                Text("Sunni-grounded · " + noorAiHeaderLanguage(language, detectedLanguage),
+                    color = p.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.testTag("noorai_header_lang"))
             }
         }
         IconButton(onClick = onNewChat) { Icon(Icons.Default.AddComment, "New chat", tint = p.text) }
@@ -241,6 +244,12 @@ private fun ChatHeader(
     }
     HorizontalDivider(color = p.line, thickness = 0.5.dp)
 }
+
+/** Header label: "Auto" until something is asked, then the detected language; a fixed choice shows its name. */
+internal fun noorAiHeaderLanguage(setting: String, detected: String?): String =
+    if (setting == com.noorpro.app.data.NoorAiLanguage.AUTO) {
+        if (detected == null) "Auto language" else com.noorpro.app.data.NoorAiLanguage.shortName(detected).let { if (it == "Urdu" && detected == "ur-Latn") "Roman Urdu" else it }
+    } else com.noorpro.app.data.NoorAiLanguage.shortName(setting)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

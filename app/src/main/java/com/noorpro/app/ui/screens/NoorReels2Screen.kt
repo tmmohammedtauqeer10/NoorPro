@@ -625,8 +625,11 @@ private fun AskAiHost(post: UmmahPost) {
     var simple by remember { mutableStateOf(false) }
     val context = LocalContext.current
     LaunchedEffect(post.id) {
-        val raw = runCatching { AiFeatureService.generateResponse(Reels2AiPrompts.about(post), NoorAiMode.AskNoor) }.getOrNull()
-        answer = if (raw.isNullOrBlank() || raw == AiFeatureService.UNAVAILABLE_MESSAGE) {
+        // Online only (Worker, then askNoorAi); answers in the caption's language.
+        val raw = runCatching {
+            AiFeatureService.generateOnline(Reels2AiPrompts.about(post), NoorAiMode.AskNoor, language = com.noorpro.app.data.NoorAiLanguage.detect(post.caption))
+        }.getOrNull()
+        answer = if (raw.isNullOrBlank()) {
             Reels2AiAnswer("", "", "", "", error = "Noor AI isn't reachable right now. Please try again later.")
         } else {
             val ref = Reels2AiPrompts.section(raw, "REFERENCE").takeUnless { it.contains("none stated", true) }.orEmpty()

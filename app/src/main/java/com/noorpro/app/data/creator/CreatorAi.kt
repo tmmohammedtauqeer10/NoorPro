@@ -12,10 +12,75 @@ import java.util.zip.GZIPInputStream
  * askNoorAi backend with client-side prompt framing (no new backend mode). Ayah/hadith reference
  * checks run fully offline against the Qur'an + hadith already bundled in the app.
  */
-enum class CreatorAiTask(val label: String) { CAPTIONS("Caption ideas"), HASHTAGS("Hashtags"), CHECK("Check references"), TRANSLATE("Translate") }
+/**
+ * Creator AI tools. 1.2.0 (113): served by the noorpro-ai Worker (/v1/creator, /v1/transcribe), with the old
+ * askNoorAi framing kept as a fallback for captions, hashtags and translation.
+ */
+enum class CreatorAiTask(val label: String) {
+    CAPTIONS("Captions"), HOOKS("Titles & hooks"), HASHTAGS("Hashtags"), TRANSLATE("Translate"),
+    SUBTITLES("Subtitles"), MODERATE("Safety check"), CHECK("Check references");
+
+    /** Worker task name, or null for tasks that run fully offline / have their own endpoint. */
+    val workerTask: String? get() = when (this) {
+        CAPTIONS -> "captions"; HOOKS -> "hooks"; HASHTAGS -> "hashtags"; TRANSLATE -> "translate"; MODERATE -> "moderate"
+        SUBTITLES, CHECK -> null
+    }
+}
+
+/** One timed subtitle line (seconds). */
+data class SubtitleLine(val index: Int, val start: Double, val end: Double, val text: String, val translated: String = "")
+
+/** Pre-post review from the Worker. */
+data class CreatorModeration(val verdict: String, val issues: List<String>, val suggestion: String)
+
+object CreatorSubtitles {
+    fun parseSegments(json: org.json.JSONObject?): List<SubtitleLine> {
+        val arr = json?.optJSONArray("segments") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val t = o.optString("text").trim()
+            if (t.isEmpty()) null else SubtitleLine(i + 1, o.optDouble("start", 0.0), o.optDouble("end", 0.0), t)
+        }
+    }
+
+    /** "1|text" lines sent to the Worker for translation. */
+    fun toIndexed(lines: List<SubtitleLine>): String = lines.joinToString("\n") { "${it.index}|${it.text.replace('\n', ' ')}" }
+
+    fun applyTranslation(lines: List<SubtitleLine>, json: org.json.JSONObject?): List<SubtitleLine> {
+        val arr = json?.optJSONArray("lines") ?: return lines
+        val map = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.associate { it.optInt("index") to it.optString("text").trim() }
+        return lines.map { l -> map[l.index]?.takeIf { it.isNotBlank() }?.let { l.copy(translated = it) } ?: l }
+    }
+
+    private fun srtTime(s: Double): String {
+        val ms = (s.coerceAtLeast(0.0) * 1000).toLong()
+        return String.format(java.util.Locale.US, "%02d:%02d:%02d,%03d", ms / 3_600_000, (ms % 3_600_000) / 60_000, (ms % 60_000) / 1000, ms % 1000)
+    }
+
+    /** SubRip text (translated lines when present). */
+    fun toSrt(lines: List<SubtitleLine>): String = lines.joinToString("\n") { l ->
+        "${l.index}\n${srtTime(l.start)} --> ${srtTime(l.end)}\n${l.translated.ifBlank { l.text }}\n"
+    }
+
+    fun transcript(lines: List<SubtitleLine>): String = lines.joinToString(" ") { it.translated.ifBlank { it.text } }.trim()
+
+    fun clock(s: Double): String { val t = s.toLong(); return "%d:%02d".format(t / 60, t % 60) }
+}
 
 object CreatorAiPrompts {
-    val languages = listOf("ar" to "Arabic", "ur" to "Urdu", "en" to "English")
+    val languages = listOf("ur" to "Urdu", "en" to "English", "ar" to "Arabic", "hi" to "Hindi", "ur-Latn" to "Roman Urdu", "bn" to "Bengali")
+
+    fun jsonList(json: org.json.JSONObject?): List<String> {
+        val arr = json?.optJSONArray("items") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { arr.optString(it).trim().takeIf { s -> s.isNotEmpty() } }
+    }
+
+    fun moderation(json: org.json.JSONObject?): CreatorModeration? {
+        json ?: return null
+        val v = json.optString("verdict").takeIf { it in setOf("ok", "review", "block") } ?: return null
+        val issues = json.optJSONArray("issues")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).trim().takeIf { s -> s.isNotEmpty() } } }.orEmpty()
+        return CreatorModeration(v, issues, json.optString("suggestion").trim())
+    }
 
     fun captions(draft: String, topic: String): String =
         "You are helping a Muslim creator on NoorPro write a post caption. Topic: ${topic.ifBlank { "general reminder" }}. " +

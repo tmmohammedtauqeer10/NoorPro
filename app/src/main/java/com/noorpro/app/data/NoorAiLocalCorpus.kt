@@ -49,41 +49,68 @@ object NoorAiLocalCorpus {
         out.also { hadith = it }
     }
 
+    private val SYNONYMS = mapOf(
+        "salah" to "pray", "salat" to "pray", "salaah" to "pray", "namaz" to "pray", "namaaz" to "pray", "prayer" to "pray", "prayers" to "pray",
+        "sabr" to "patien", "patience" to "patien", "patient" to "patien", "dua" to "supplicat", "duaa" to "supplicat",
+        "sawm" to "fast", "roza" to "fast", "fasting" to "fast", "jannah" to "paradise", "jahannam" to "hell", "zakat" to "zakat",
+        "khushu" to "humbl", "focus" to "humbl", "concentration" to "humbl",
+    )
+
     internal fun keywords(prompt: String): List<String> =
         prompt.lowercase().split(Regex("[^\\p{L}\\p{N}']+"))
-            .map { it.trim('\'') }.filter { it.length >= 3 && it !in STOP }.distinct().take(8)
+            .map { it.trim('\'') }.filter { it.length >= 3 && it !in STOP && it.all { c -> c in 'a'..'z' || c == '\'' } }
+            .map { SYNONYMS[it] ?: it }.distinct().take(8)
 
-    private fun score(text: String, kws: List<String>): Int {
+    /** Distinct keywords found at a word start (so "pray" matches "prayer" but "cat" doesn't match "supplicate"). */
+    internal fun score(text: String, kws: List<String>): Int = scoreP(text, patterns(kws))
+    private fun patterns(kws: List<String>) = kws.map { k -> Regex("(^|[^\\p{L}])" + Regex.escape(k)) }
+    private fun scoreP(text: String, pats: List<Regex>): Int {
         val t = text.lowercase()
-        return kws.sumOf { k -> if (t.contains(k)) 1 else 0 }
+        return pats.count { it.containsMatchIn(t) }
     }
 
-    /** Builds the offline answer, or null when nothing relevant is found / assets are unavailable. */
-    fun answer(prompt: String): String? {
+    /** Minimum distinct keyword hits for a passage to count as related (strict, so no loosely related dumps). */
+    internal fun needed(keywordCount: Int): Int = maxOf(2, kotlin.math.ceil(keywordCount * 0.6).toInt())
+
+    /** Retrieval for the online Worker: up to [max] related passages as (reference, text). English questions only. */
+    fun passages(prompt: String, max: Int = 5): List<Pair<String, String>> {
+        val ctx = appContext ?: return emptyList()
+        val kws = keywords(prompt)
+        if (kws.size < 2) return emptyList()
+        return runCatching {
+            val need = 2.coerceAtMost(kws.size)
+            val pats = patterns(kws)
+            val ayat = loadQuran(ctx).asSequence().map { it to scoreP(it.substringBefore('\t'), pats) }
+                .filter { it.second >= need }.sortedByDescending { it.second }.take(3)
+                .map { (l, _) -> "Qur'an ${l.substringAfter('\t')}" to l.substringBefore('\t').take(500) }.toList()
+            val ahadith = loadHadith(ctx).asSequence().map { it to scoreP(it.first, pats) }
+                .filter { it.second >= need }.sortedByDescending { it.second }.take(2)
+                .map { (h, _) -> h.second to h.first.take(500) }.toList()
+            (ayat + ahadith).take(max)
+        }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Offline answer: only strongly related passages (most of the question's keywords present), short quotes,
+     * localized heading. Returns null when nothing clearly matches, so the caller shows a plain "offline" note.
+     */
+    fun answer(prompt: String, lang: String = "en"): String? {
         val ctx = appContext ?: return null
         val kws = keywords(prompt)
-        if (kws.isEmpty()) return null
+        if (kws.size < 2) return null
         return runCatching {
-            val need = if (kws.size >= 3) 2 else 1
-            val ayat = loadQuran(ctx).map { it to score(it.substringBefore('\t'), kws) }
-                .filter { it.second >= need }.sortedByDescending { it.second }.take(3)
-            val ahadith = loadHadith(ctx).map { it to score(it.first, kws) }
+            val need = needed(kws.size)
+            val pats = patterns(kws)
+            val ayat = loadQuran(ctx).map { it to scoreP(it.substringBefore('\t'), pats) }
                 .filter { it.second >= need }.sortedByDescending { it.second }.take(2)
+            val ahadith = loadHadith(ctx).map { it to scoreP(it.first, pats) }
+                .filter { it.second >= need && it.first.first.length <= 700 }.sortedByDescending { it.second }.take(1)
             if (ayat.isEmpty() && ahadith.isEmpty()) return@runCatching null
             buildString {
-                append("Noor AI's online assistant is unavailable right now, so here are related passages from the Qur'an and Hadith saved on your phone. These are quoted texts, not a full answer; please ask a qualified scholar for a ruling.\n")
-                if (ayat.isNotEmpty()) {
-                    append("\nQur'an (Sahih International):\n")
-                    ayat.forEach { (l, _) -> append("- \"${l.substringBefore('\t')}\" (Qur'an ${l.substringAfter('\t')})\n") }
-                }
-                if (ahadith.isNotEmpty()) {
-                    append("\nHadith:\n")
-                    ahadith.forEach { (h, _) ->
-                        val txt = h.first.let { if (it.length > 600) it.take(600).trimEnd() + "…" else it }
-                        append("- \"$txt\" (${h.second})\n")
-                    }
-                }
-                append("\nTap send again later for a full answer.")
+                append(NoorAiLanguage.offlineHeading(lang)).append('\n')
+                ayat.forEach { (l, _) -> append("\n> \"${l.substringBefore('\t').take(320)}\" (Qur'an ${l.substringAfter('\t')})\n") }
+                ahadith.forEach { (h, _) -> append("\n> \"${h.first.take(320).let { if (h.first.length > 320) it.trimEnd() + "…" else it }}\" (${h.second})\n") }
+                append("\n").append(NoorAiLanguage.unavailable(lang))
             }
         }.getOrNull()
     }

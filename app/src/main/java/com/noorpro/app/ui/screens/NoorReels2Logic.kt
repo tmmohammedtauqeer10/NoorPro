@@ -330,7 +330,8 @@ object Reels2AiPrompts {
             (if (post.arabicText.isNotBlank()) " Arabic text shown: \"${post.arabicText.take(400)}\"." else ".") +
             (if (post.sourceReference.isNotBlank()) " Creator's source: ${post.sourceReference}." else "") +
             " Give: SUMMARY: 2 sentences. REFERENCE: the ayah or hadith it refers to with exact source, or 'none stated'. " +
-            "SIMPLE: explain it simply for a 12-year-old in 3 sentences. Do not invent references or give fatwa."
+            "SIMPLE: explain it simply for a 12-year-old in 3 sentences. Do not invent references or give fatwa. " +
+            "Keep the labels SUMMARY:, REFERENCE: and SIMPLE: in English even if you answer in another language."
 
     fun section(answer: String, key: String): String =
         Regex("""$key:\s*(.+?)(?=\n?\s*(?:SUMMARY|REFERENCE|SIMPLE):|$)""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))

@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Mic
@@ -82,6 +83,10 @@ data class HifzPracticeUi(
     val micAvailable: Boolean = true,
     val aiTips: String? = null,
     val aiLoading: Boolean = false,
+    /** 1.2.0 (113): Noor AI about the current ayah (meaning, tips, or the learner's question). */
+    val aiKind: HifzAiKind? = null,
+    val aiQuestion: String = "",
+    val aiError: String? = null,
     val graded: Boolean? = null,
 ) {
     val ayah get() = ayahs.getOrNull(index)
@@ -96,6 +101,8 @@ class HifzActions(
     val onMic: () -> Unit = {},
     val onGrade: (Boolean) -> Unit = {},
     val onTips: () -> Unit = {},
+    val onAi: (HifzAiKind) -> Unit = {},
+    val onAiQuestion: (String) -> Unit = {},
     val onRetry: () -> Unit = {},
 )
 
@@ -141,6 +148,32 @@ fun HifzCoachScreen(viewModel: DeenViewModel) {
         if (ok && pendingMic) listen() else if (!ok) practice = practice?.copy(message = "Microphone permission is needed to check your recitation. You can still grade yourself.")
         pendingMic = false
     }
+    /** Online-only Noor AI about the ayah on screen; never shows offline quotes as an answer. */
+    fun askHifzAi(kind: HifzAiKind) {
+        val cur = practice ?: return
+        val ayah = cur.ayah ?: return
+        if (cur.aiLoading) return
+        val q = cur.aiQuestion.trim()
+        if (kind == HifzAiKind.QUESTION && q.isBlank()) return
+        practice = cur.copy(aiLoading = true, aiKind = kind, aiTips = null, aiError = null)
+        val lang = HifzAiPrompt.language(if (kind == HifzAiKind.QUESTION) q else "", AiFeatureService.answerLanguage, java.util.Locale.getDefault().language)
+        val prompt = when (kind) {
+            HifzAiKind.MEANING -> HifzAiPrompt.meaning(cur.surah.name, ayah.surah, ayah.ayah)
+            HifzAiKind.TIPS -> HifzAiPrompt.tips(cur.surah.name, cur.range, cur.result)
+            HifzAiKind.QUESTION -> HifzAiPrompt.question(q, cur.surah.name, ayah.surah, ayah.ayah)
+        }
+        val ctxInfo = com.noorpro.app.data.NoorAiContext(surah = cur.surah.name, ayahRef = "${ayah.surah}:${ayah.ayah}", arabic = ayah.text, translation = ayah.translation)
+        scope.launch {
+            val reply = runCatching {
+                AiFeatureService.ask(prompt, NoorAiMode.QuranHelper, context = ctxInfo, serverMode = "HifzHelper", language = lang, usePassages = false)
+            }.getOrNull()
+            val now = practice ?: return@launch
+            if (now.ayah != ayah) { practice = now.copy(aiLoading = false); return@launch }
+            practice = if (reply != null && reply.text.isNotBlank()) now.copy(aiLoading = false, aiTips = reply.text.trim(), aiQuestion = if (kind == HifzAiKind.QUESTION) "" else now.aiQuestion)
+            else now.copy(aiLoading = false, aiError = com.noorpro.app.data.NoorAiLanguage.unavailable(lang) +
+                if (kind == HifzAiKind.TIPS) "\n\nTip: repeat each ayah 5 times while reading, then 5 times from memory, and recite it in your next salah." else "")
+        }
+    }
     val p = practice
     if (p == null) {
         HifzHomeContent(home, surahs, onBack = { viewModel.goBack() }, onRange = { range = it }, onTarget = { target = it }, onStart = { startPractice(range) },
@@ -153,21 +186,16 @@ fun HifzCoachScreen(viewModel: DeenViewModel) {
         onLevel = { practice = p.copy(level = it, revealed = emptySet()) },
         onRepeat = { practice = p.copy(repeats = p.repeats + 1).let { n -> if (n.repeats >= n.target && n.level < HifzHide.MAX_LEVEL) n.copy(level = n.level + 1, repeats = 0, revealed = emptySet()) else n } },
         onReveal = { i -> practice = p.copy(revealed = p.revealed + i) },
-        onAyah = { i -> recognizer.stop(); practice = p.copy(index = i, repeats = 0, revealed = emptySet(), result = null, listening = false, message = null, graded = null) },
+        onAyah = { i -> recognizer.stop(); practice = p.copy(index = i, repeats = 0, revealed = emptySet(), result = null, listening = false, message = null, graded = null, aiTips = null, aiKind = null, aiError = null) },
         onMic = {
             if (!p.micAvailable) practice = p.copy(message = HifzRecognizer.UNAVAILABLE)
             else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
             else { pendingMic = true; permission.launch(Manifest.permission.RECORD_AUDIO) }
         },
         onGrade = { ok -> p.ayah?.let { store.grade(it.surah, it.ayah, ok) }; practice = p.copy(graded = ok); tick++ },
-        onTips = {
-            practice = p.copy(aiLoading = true)
-            scope.launch {
-                val raw = runCatching { AiFeatureService.generateResponse(HifzAiPrompt.tips(p.surah.name, p.range, p.result), NoorAiMode.AskNoor) }.getOrNull()
-                val ok = !raw.isNullOrBlank() && raw != AiFeatureService.UNAVAILABLE_MESSAGE
-                practice = practice?.copy(aiLoading = false, aiTips = if (ok) raw!!.trim() else "Noor AI isn't reachable right now. Tip: repeat each ayah 5 times while reading, then 5 times from memory, and recite it in your next salah.")
-            }
-        },
+        onTips = { askHifzAi(HifzAiKind.TIPS) },
+        onAi = { kind -> askHifzAi(kind) },
+        onAiQuestion = { q -> practice = practice?.copy(aiQuestion = q.take(300)) },
         onRetry = { practice = p.copy(result = null, message = null, graded = null) },
     ))
 }
@@ -373,16 +401,8 @@ fun HifzPracticeContent(ui: HifzPracticeUi, a: HifzActions, modifier: Modifier =
                 Spacer(Modifier.weight(1f))
                 IkButton("Next ayah", enabled = ui.index < ui.ayahs.size - 1, tag = "hifz_next") { a.onAyah(ui.index + 1) }
             }
-            // Optional Noor AI tips.
-            IkCard(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("hifz_ai"), padding = 14.dp) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IkIconTile(Icons.Default.AutoAwesome, size = 34.dp, tint = IkGoldDeep, bg = IkGold.copy(alpha = 0.16f))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Memorisation tips from Noor AI", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                    if (ui.aiTips == null) IkPill(if (ui.aiLoading) "Asking…" else "Ask", false, tag = "hifz_ai_ask") { if (!ui.aiLoading) a.onTips() }
-                }
-                ui.aiTips?.let { Text(it, color = stitchText(), fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp)) }
-            }
+            // 1.2.0 (113): Noor AI for the ayah on screen - meaning/tafsir, tips, or the learner's own question.
+            HifzAiCard(ui, a, ayah)
         }
         Text(HIFZ_HELPER_NOTE, color = stitchMutedText(), fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
         Spacer(Modifier.height(30.dp))
@@ -425,5 +445,66 @@ private fun ResultCard(r: RecitationResult, graded: Boolean?, a: HifzActions, mo
 @Composable private fun Key(c: Color, t: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(9.dp).clip(CircleShape).background(c)); Spacer(Modifier.width(5.dp)); Text(t, color = stitchMutedText(), fontSize = 11.sp)
+    }
+}
+
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun HifzAiCard(ui: HifzPracticeUi, a: HifzActions, ayah: HifzAyah) {
+    IkCard(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("hifz_ai"), padding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IkIconTile(Icons.Default.AutoAwesome, size = 34.dp, tint = IkGoldDeep, bg = IkGold.copy(alpha = 0.16f))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Noor AI · ayah ${ayah.surah}:${ayah.ayah}", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Understand it to remember it", color = stitchMutedText(), fontSize = 11.5.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            IkPill(HifzAiKind.MEANING.label, ui.aiKind == HifzAiKind.MEANING, tag = "hifz_ai_meaning") { if (!ui.aiLoading) a.onAi(HifzAiKind.MEANING) }
+            IkPill(HifzAiKind.TIPS.label, ui.aiKind == HifzAiKind.TIPS, tag = "hifz_ai_ask") { if (!ui.aiLoading) a.onAi(HifzAiKind.TIPS) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(ikSoft()).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                if (ui.aiQuestion.isEmpty()) Text("Ask about this ayah, in any language…", color = stitchMutedText(), fontSize = 13.sp, maxLines = 1)
+                androidx.compose.foundation.text.BasicTextField(
+                    ui.aiQuestion, a.onAiQuestion, maxLines = 3,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = stitchText(), fontSize = 13.5.sp, lineHeight = 19.sp),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(IkGreen),
+                    modifier = Modifier.fillMaxWidth().testTag("hifz_ai_input"),
+                )
+            }
+            val canSend = ui.aiQuestion.isNotBlank() && !ui.aiLoading
+            Box(
+                Modifier.size(36.dp).clip(CircleShape).background(if (canSend) IkGreen else stitchLine())
+                    .clickable(enabled = canSend) { a.onAi(HifzAiKind.QUESTION) }.testTag("hifz_ai_send"),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.AutoMirrored.Filled.Send, "Ask Noor AI", tint = Color.White, modifier = Modifier.size(16.dp)) }
+        }
+        if (ui.aiLoading) Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), color = IkGreen, strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+            Text("Noor AI is reading ${ayah.surah}:${ayah.ayah}…", color = stitchMutedText(), fontSize = 12.5.sp)
+        }
+        ui.aiTips?.let { answer ->
+            Spacer(Modifier.height(10.dp))
+            ui.aiKind?.let { Text(it.label, color = IkGoldDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            com.noorpro.app.ui.screens.NoorAiMarkdownText(
+                com.noorpro.app.data.AiFeatureService.splitFollowups(answer).first,
+                com.noorpro.app.ui.screens.NoorAiMdColors(
+                    text = stitchText(), muted = stitchMutedText(), accent = IkGoldDeep, quoteBar = IkGold,
+                    quoteBg = IkGold.copy(alpha = 0.10f), chipBg = ikSoft(), codeBg = ikSoft(),
+                ),
+                Modifier.padding(top = 4.dp).testTag("hifz_ai_answer"),
+            )
+            Text("AI study help — check meanings with your teacher or a trusted tafsir.", color = stitchMutedText(), fontSize = 10.5.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+        ui.aiError?.let { Text(it, color = stitchMutedText(), fontSize = 12.5.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 10.dp).testTag("hifz_ai_error")) }
     }
 }
