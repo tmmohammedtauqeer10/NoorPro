@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Referenced artwork is absent from this checkout. Neutral vectors keep the
+     source buildable without inventing reciter portraits or downloading assets. -->
+<resources>
+    <item type="drawable" name="audio_lib_reciter_1">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="audio_lib_reciter_2">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="audio_lib_reciter_3">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="audio_lib_reciter_4">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="audio_lib_playlist_adhkar">@drawable/noor_fallback_mosque</item>
+    <item type="drawable" name="audio_lib_playlist_sleep">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="audio_lib_playlist_jumuah">@drawable/noor_fallback_book</item>
+    <item type="drawable" name="audio_lib_audio_hero">@drawable/noor_fallback_audio</item>
+    <item type="drawable" name="noor_hero_mosque">@drawable/noor_fallback_mosque</item>
+    <item type="drawable" name="noor_quran_rehal">@drawable/noor_fallback_book</item>
+    <item type="drawable" name="stitch_quran_hero">@drawable/noor_fallback_book</item>
+    <item type="drawable" name="app_logo">@drawable/ic_launcher_foreground</item>
+</resources>
