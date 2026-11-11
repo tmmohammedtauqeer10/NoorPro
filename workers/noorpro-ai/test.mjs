@@ -59,7 +59,17 @@ await t("Groq first when key set, falls back to Workers AI", async () => {
   assert.equal(j.provider, "groq"); assert.equal(groqCalls, 1);
   groqMode = "fail"; groqCalls = 0;
   j = await (await handleChat({ prompt: "focus in salah" }, env({ GROQ_API_KEY: "k" }))).json();
-  assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 3);
+  assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 2);
+  groqCalls = 0;
+  j = await (await handleChat({ prompt: "مجھے حج کے بارے میں جاننا ہے" }, env({ GROQ_API_KEY: "k" }))).json();
+  assert.equal(j.provider, "workers-ai"); assert.equal(groqCalls, 1); // gpt-oss skipped for Urdu
+  groqMode = "ok";
+});
+await t("mixed-script detector", async () => {
+  const { hasMixedScriptWords } = await import("./src/llm.js");
+  assert.equal(hasMixedScriptWords("حجِ تمattuٰ اور حجِ قیran", "ur"), true);
+  assert.equal(hasMixedScriptWords("حج تمتع (Hajj al-Tamattu) اور قران", "ur"), false);
+  assert.equal(hasMixedScriptWords("anything goes", "en"), false);
 });
 await t("503 when every model fails", async () => {
   const r = await handleChat({ prompt: "x?" }, { AI: { run: async () => { throw new Error("down"); } } });

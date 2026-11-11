@@ -69,7 +69,7 @@ export async function handleChat(body, env) {
     ...cleanHistory(body.history),
     { role: "user", content: userParts },
   ];
-  const out = await complete(env, messages, { maxTokens: mode === "DuaGenerator" ? 700 : 1400, temperature: mode === "DuaGenerator" ? 0.6 : 0.3, minLength: 20 });
+  const out = await complete(env, messages, { maxTokens: mode === "DuaGenerator" ? 700 : 1400, temperature: mode === "DuaGenerator" ? 0.6 : 0.3, minLength: 20, lang });
   if (!out) return json(503, { error: "unavailable", language: lang });
   const { body: answer, fiqh, followups } = parseMeta(out.text);
   if (!answer) return json(503, { error: "unavailable", language: lang });
@@ -110,7 +110,7 @@ export async function handleCreator(body, env) {
   let g = null;
   if (task === "moderate") g = await guard(env, text);
   const out = await complete(env, [{ role: "system", content: CREATOR_SYSTEM }, { role: "user", content: prompt }],
-    { maxTokens: task === "subtitles" || task === "translate" ? 1500 : 600, temperature: task === "translate" || task === "subtitles" || task === "moderate" ? 0.1 : 0.7, totalMs: 40_000, fast: task !== "moderate" });
+    { maxTokens: task === "subtitles" || task === "translate" ? 1500 : 600, temperature: task === "translate" || task === "subtitles" || task === "moderate" ? 0.1 : 0.7, totalMs: 40_000, fast: task !== "moderate", lang });
   if (!out) {
     if (task === "moderate" && g) return json(200, { task, verdict: g.safe ? "ok" : "block", issues: g.safe ? [] : ["Flagged by the safety check"], suggestion: "", partial: true });
     return json(503, { error: "unavailable" });

@@ -13,8 +13,13 @@ and falls back to that URL; the old `askNoorAi` Cloud Function stays as the seco
 | `GET /health` | | `{ok, groq, workersAi}` |
 
 ## Models
-Groq free tier first **only if** the secret `GROQ_API_KEY` is set (`npx wrangler secret put GROQ_API_KEY`, value via stdin),
-then Workers AI: `@cf/google/gemma-4-26b-a4b-it` (thinking off, ~22 neurons/answer), `@cf/openai/gpt-oss-120b`.
+Groq free tier first **only if** the secret `GROQ_API_KEY` is set (`npx wrangler secret put GROQ_API_KEY`, value via stdin):
+`qwen/qwen3.8-27b`, then `openai/gpt-oss-120b` (English / Roman Urdu / Hinglish only; it invented Hajj facts in Urdu).
+Groq free limits are 8k tokens/min and 1k requests/day per model, so `max_tokens` is clamped to 950 and a 429 falls through.
+With `NON_LATIN_PREFER = "workers-ai"` (set in `wrangler.toml`), Urdu/Arabic/Hindi/Bengali/etc. answers go to Gemma 4 first,
+because live tests showed Groq qwen making Hajj errors in Urdu while Gemma 4 was accurate. Groq answers in a non-Latin
+language with Latin letters glued into words are rejected and retried on Workers AI.
+Then Workers AI: `@cf/google/gemma-4-26b-a4b-it` (thinking off, ~22 neurons/answer), `@cf/openai/gpt-oss-120b`.
 Creator tasks may also use `gpt-oss-20b`. Subtitles use `whisper-large-v3-turbo`; safety check adds `llama-guard-3-8b`.
 Free allowance: 10,000 neurons/day (UTC), roughly 400 chat answers/day.
 
