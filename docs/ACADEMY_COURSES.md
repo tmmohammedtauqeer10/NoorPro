@@ -2,10 +2,6 @@
 
 NoorPro now has a native Android course hub, accessible from **Explore → NoorPro Academy**, the Islamic Learning screen, and the **Courses** tile in Knowledge & Growth.
 
-## Current release
-
-Includes a licensed in-app video lecture with native playback and attribution. See [licensed lecture details](LICENSED_LECTURES.md).
-
 ## Initial release
 
 - Eleven course/program entries: one original offline reading course and ten official external course, lesson, or curriculum links.

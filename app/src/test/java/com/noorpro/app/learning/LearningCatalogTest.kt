@@ -21,8 +21,8 @@ class LearningCatalogTest {
 
     @Test fun bundledCatalogLoadsOfflineWithCompleteReferences() {
         val data = catalog()
-        assertEquals(12, data.courses.size)
-        assertEquals(7, data.providers.size)
+        assertEquals(11, data.courses.size)
+        assertEquals(6, data.providers.size)
         assertEquals(4, data.paths.size)
         val reading = data.courses.single { it.format == "reading" }
         assertEquals(24, reading.lessons.size)
@@ -32,7 +32,7 @@ class LearningCatalogTest {
     }
 
     @Test fun externalEntriesNeverClaimCopiedLectureMediaOrProviderCertification() {
-        catalog().courses.filter { it.reuse == "external_link_only" }.forEach { c ->
+        catalog().courses.filter { it.format != "reading" }.forEach { c ->
             assertEquals("external_link_only", c.reuse)
             assertTrue(c.lessons.all { it.format == "external" && it.quiz == null })
             assertTrue(c.lessons.all { LearningCatalog.isSafeExternalUrl(it.url) })
@@ -46,21 +46,6 @@ class LearningCatalogTest {
         assertEquals(0, completedLessonCount(course, setOf("removed_lesson")))
         assertFalse(isCourseComplete(course, setOf(course.lessons.first().id)))
         assertTrue(isCourseComplete(course, course.lessons.map { it.id }.toSet() + "old"))
-    }
-
-    @Test fun videoRequiresExplicitSupportedLicenseAndTrustedMediaHost() {
-        val text = context.assets.open("learning/catalog.json").bufferedReader().use { it.readText() }
-        val video = catalog().courses.single { it.format == "video" }
-        assertEquals("licensed_media", video.reuse)
-        assertEquals("Al Madrasatu Al Umariyyah", video.lessons.single().media!!.creator)
-        listOf("license" to "All rights reserved", "url" to "https://example.com/video.webm", "source" to "javascript:alert(1)").forEach { (field, value) ->
-            val root = JSONObject(text)
-            val courses = root.getJSONArray("courses")
-            val media = (0 until courses.length()).map { courses.getJSONObject(it) }.single { it.getString("format") == "video" }
-                .getJSONArray("modules").getJSONObject(0).getJSONArray("lessons").getJSONObject(0).getJSONObject("media")
-            media.put(field, value)
-            assertThrows(IllegalArgumentException::class.java) { LearningCatalog.parse(root.toString()) }
-        }
     }
 
     @Test fun progressPersistsAcrossStoreInstances() {

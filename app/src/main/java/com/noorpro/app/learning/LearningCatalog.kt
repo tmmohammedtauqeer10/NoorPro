@@ -9,10 +9,9 @@ import java.net.URI
 
 data class LearningResource(val title: String, val url: String)
 data class LearningQuiz(val question: String, val options: List<String>, val correctIndex: Int, val explanation: String)
-data class LicensedLecture(val url: String, val creator: String, val source: String, val license: String, val licenseUrl: String, val changes: String)
 data class AcademyLesson(
     val id: String, val title: String, val format: String, val minutes: Int,
-    val body: String, val url: String, val resources: List<LearningResource>, val quiz: LearningQuiz?, val media: LicensedLecture? = null
+    val body: String, val url: String, val resources: List<LearningResource>, val quiz: LearningQuiz?
 )
 data class AcademyModule(val id: String, val title: String, val lessons: List<AcademyLesson>)
 data class AcademyProvider(val id: String, val name: String, val url: String, val accessNote: String)
@@ -55,10 +54,9 @@ object LearningCatalog {
                 modules = c.getJSONArray("modules").objects().map { m ->
                     AcademyModule(m.getString("id"), m.getString("title"), m.getJSONArray("lessons").objects().map { l ->
                         val q = l.optJSONObject("quiz")
-                        val media = l.optJSONObject("media")?.let { LicensedLecture(it.getString("url"), it.getString("creator"), it.getString("source"), it.getString("license"), it.getString("license_url"), it.getString("changes")) }
                         AcademyLesson(l.getString("id"), l.getString("title"), l.getString("format"), l.getInt("minutes"),
                             l.getString("body"), l.getString("url"), l.getJSONArray("resources").resources(),
-                            q?.let { LearningQuiz(it.getString("question"), it.getJSONArray("options").strings(), it.getInt("correct_index"), it.getString("explanation")) }, media)
+                            q?.let { LearningQuiz(it.getString("question"), it.getJSONArray("options").strings(), it.getInt("correct_index"), it.getString("explanation")) })
                     })
                 }
             )
@@ -74,21 +72,13 @@ object LearningCatalog {
         require(allLessons.map { it.id }.distinct().size == allLessons.size)
         courses.forEach { course ->
             require(course.providerId in providerIds && course.title.isNotBlank() && course.lessons.isNotEmpty())
-            require(course.format in setOf("reading", "external", "directory", "video"))
+            require(course.format in setOf("reading", "external", "directory"))
             require(isSafeExternalUrl(course.sourceUrl))
-            require(course.reuse == when (course.format) { "reading" -> "original_content"; "video" -> "licensed_media"; else -> "external_link_only" })
+            require(course.reuse == if (course.format == "reading") "original_content" else "external_link_only")
             (course.resources + course.lessons.flatMap { it.resources }).forEach { require(isSafeExternalUrl(it.url)) }
             course.lessons.forEach { lesson ->
                 require(lesson.title.isNotBlank() && lesson.body.isNotBlank() && lesson.minutes >= 0)
-                require(lesson.format in setOf("reading", "external", "video"))
-                require((lesson.format == "video") == (lesson.media != null))
-                require((course.format == "video") == (lesson.format == "video"))
-                lesson.media?.let { media ->
-                    require(isSafeExternalUrl(media.url) && URI(media.url).host == "upload.wikimedia.org" && URI(media.url).path.endsWith(".webm"))
-                    require(media.creator.isNotBlank() && media.changes.isNotBlank())
-                    require(isSafeExternalUrl(media.source) && URI(media.source).host == "commons.wikimedia.org")
-                    require(media.license == "CC BY 3.0" && media.licenseUrl == "https://creativecommons.org/licenses/by/3.0/")
-                }
+                require(lesson.format in setOf("reading", "external"))
                 if (lesson.format == "external") require(isSafeExternalUrl(lesson.url))
                 lesson.quiz?.let { require(it.options.size == 4 && it.options.distinct().size == 4 && it.correctIndex in 0..3) }
             }
