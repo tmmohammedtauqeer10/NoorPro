@@ -74,6 +74,19 @@ service firebase.storage {
         && request.auth.uid == userId;
     }
 
+    // 1.2.0 (115): scholar ijazah / certificate uploads, private to the applicant and admins
+    // (admin = `admin` custom claim or an admins/{uid} Firestore doc).
+    match /scholar_certificates/{userId}/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == userId
+        || request.auth.token.admin == true
+        || firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)));
+      allow create: if resource == null && request.auth != null && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches("image/.*") || request.resource.contentType == "application/pdf");
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

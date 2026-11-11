@@ -55,6 +55,8 @@ data class HalaqaHomeUi(
     val loading: Boolean = false,
     val error: CommunityError? = null,
     val now: Long = System.currentTimeMillis(),
+    /** 1.2.0 (115): hosts who are verified scholars (scholars/{uid}.verified). */
+    val verifiedHosts: Set<String> = emptySet(),
 )
 
 class HalaqaHomeActions(
@@ -74,6 +76,7 @@ data class HalaqaRoomUi(
     val joining: Boolean = false,
     val error: CommunityError? = null,
     val now: Long = System.currentTimeMillis(),
+    val verifiedHosts: Set<String> = emptySet(),
 ) {
     val me get() = members.firstOrNull { it.uid == myUid }
     val isHost get() = myUid != null && myUid == room.hostUid
@@ -112,12 +115,13 @@ fun HalaqaScreen(viewModel: DeenViewModel, backend: HalaqaBackend = remember { F
             runCatching { backend.rooms() }
                 .onSuccess { home = home.copy(rooms = it, loading = false, error = null, now = System.currentTimeMillis()) }
                 .onFailure { home = home.copy(loading = false, error = CommunityError.from(it)) }
+            home = home.copy(verifiedHosts = ScholarDirectory.verifiedUids())
         }
     }
     LaunchedEffect(Unit) { HalalTextFilter.ensureLoaded(ctx); refresh() }
 
     open?.let { r ->
-        HalaqaRoomScreen(r, backend, viewModel.userDisplayName, reminders, onClose = { open = null; refresh() })
+        HalaqaRoomScreen(r, backend, viewModel.userDisplayName, reminders, home.verifiedHosts, onClose = { open = null; refresh() })
         return
     }
     if (creating) {
@@ -148,11 +152,11 @@ fun HalaqaScreen(viewModel: DeenViewModel, backend: HalaqaBackend = remember { F
 
 /** Joins, keeps the WebRTC mesh in step with the members list, and leaves on exit. */
 @Composable
-private fun HalaqaRoomScreen(start: HalaqaRoom, backend: HalaqaBackend, name: String, reminders: HalaqaReminders, onClose: () -> Unit) {
+private fun HalaqaRoomScreen(start: HalaqaRoom, backend: HalaqaBackend, name: String, reminders: HalaqaReminders, verified: Set<String>, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val uid = remember { backend.uid() }
-    var ui by remember { mutableStateOf(HalaqaRoomUi(start, myUid = uid, reminded = start.id in reminders.ids(), joining = true)) }
+    var ui by remember { mutableStateOf(HalaqaRoomUi(start, myUid = uid, reminded = start.id in reminders.ids(), joining = true, verifiedHosts = verified)) }
     var rtc by remember { mutableStateOf<HalaqaRtc?>(null) }
     var reporting by remember { mutableStateOf(false) }
     var pendingUnmute by remember { mutableStateOf(false) }
@@ -223,30 +227,22 @@ fun HalaqaHomeContent(ui: HalaqaHomeUi, actions: HalaqaHomeActions, modifier: Mo
     val (live, soon) = HalaqaLogic.listed(ui.rooms, ui.now)
     Column(modifier.ikScreen().verticalScroll(rememberScrollState()).testTag("halaqa_home")) {
         IkHeader("Halaqa", "Gather to recite, learn and remember", actions.onBack)
-        IkHero(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-            Text("TRANQUILLITY DESCENDS", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-            Spacer(Modifier.height(6.dp))
-            Text("“No people gather to recite the Book of Allah and study it together, except that tranquillity descends upon them and mercy covers them.”",
-                color = IkCream, fontFamily = LibreCaslon, fontSize = 16.sp, lineHeight = 22.sp, fontStyle = FontStyle.Italic)
-            Spacer(Modifier.height(6.dp))
-            Text("Sahih Muslim 2699", color = IkCream.copy(alpha = 0.7f), fontSize = 11.sp)
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.clip(RoundedCornerShape(14.dp)).background(IkGold).clickable(onClick = actions.onCreate).padding(horizontal = 16.dp, vertical = 11.dp).testTag("halaqa_create_open"),
-                verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.RecordVoiceOver, null, tint = IkGreenDeep, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
-                Text("Start or schedule a halaqa", color = IkGreenDeep, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
+        IkIntroCard("Tranquillity descends",
+            "“No people gather to recite the Book of Allah and study it together, except that tranquillity descends upon them and mercy covers them.”",
+            "Sahih Muslim 2699", "Start or schedule a halaqa", Icons.Outlined.RecordVoiceOver, "halaqa_create_open",
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp), actions.onCreate)
         ui.error?.let { IkNotice(it.title, if (it == CommunityError.OFFLINE_BACKEND) "Halaqa rooms aren't switched on yet. Please check back soon." else it.body,
             Modifier.padding(horizontal = 16.dp, vertical = 8.dp), offline = it == CommunityError.OFFLINE_BACKEND || it == CommunityError.NETWORK, tag = "halaqa_notice") }
         if (ui.error == null || ui.rooms.isNotEmpty()) {
-            IkSection("Live now", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp))
-            if (live.isEmpty()) Text(if (ui.loading) "Looking for live halaqas…" else "No one is live right now. Start one, or set a reminder for an upcoming circle.",
-                color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).testTag("halaqa_live_empty"))
+            IkCountSection("Live now", live.size, live = live.isNotEmpty())
+            if (live.isEmpty()) {
+                if (ui.loading) Text("Looking for live halaqas…", color = stitchMutedText(), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).testTag("halaqa_live_empty"))
+                else IkEmptyState(Icons.Outlined.Headphones, "No one is live right now", "Start one, or set a reminder for an upcoming circle.", "halaqa_live_empty")
+            }
             live.forEach { HalaqaRoomCard(it, ui, actions) }
-            IkSection("Upcoming", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp))
-            if (soon.isEmpty() && !ui.loading) Text("Nothing scheduled yet.", color = stitchMutedText(), fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).testTag("halaqa_soon_empty"))
+            IkCountSection("Upcoming", soon.size)
+            if (soon.isEmpty() && !ui.loading) IkEmptyState(Icons.Outlined.EventAvailable, "Nothing scheduled yet", "Schedule a circle and others can tap “Remind me”.", "halaqa_soon_empty",
+                actionLabel = "Schedule a halaqa", onAction = actions.onCreate)
             soon.forEach { HalaqaRoomCard(it, ui, actions) }
         }
         Spacer(Modifier.height(12.dp))
@@ -261,17 +257,25 @@ private fun HalaqaRoomCard(r: HalaqaRoom, ui: HalaqaHomeUi, actions: HalaqaHomeA
     val live = r.status == HalaqaStatus.LIVE
     IkCard(Modifier.padding(horizontal = 16.dp, vertical = 5.dp).clickable { actions.onOpen(r) }.testTag("halaqa_room_${r.id}"), padding = 14.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IkIconTile(topicIcon(r.topic), size = 42.dp, tint = if (live) Color.White else ikAccentText(), bg = if (live) IkGreen else ikSoft())
+            if (!live && r.scheduledAt > 0) DateTile(r.scheduledAt)
+            else IkIconTile(topicIcon(r.topic), size = 44.dp, tint = if (live) Color.White else ikAccentText(), bg = if (live) IkGreen else ikSoft())
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(r.title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
-                Text("${r.topic.label} · with ${r.hostName.ifBlank { "a host" }}", color = stitchMutedText(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${r.topic.label} · with ${r.hostName.ifBlank { "a host" }}", color = stitchMutedText(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                    if (r.hostUid in ui.verifiedHosts) { Spacer(Modifier.width(6.dp)); VerifiedScholarBadge(tag = "halaqa_host_verified_${r.id}") }
+                }
             }
         }
         if (r.description.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(r.description, color = stitchText(), fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(stitchLine()))
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (live) LiveDot() else Icon(Icons.Outlined.Schedule, null, tint = ikAccentText(), modifier = Modifier.size(15.dp))
@@ -283,6 +287,16 @@ private fun HalaqaRoomCard(r: HalaqaRoom, ui: HalaqaHomeUi, actions: HalaqaHomeA
                     tag = "halaqa_remind_${r.id}") { actions.onRemind(r, !on) }
             } else IkPill("Join", true, icon = Icons.Outlined.Headphones, tag = "halaqa_join_${r.id}") { actions.onOpen(r) }
         }
+    }
+}
+
+/** Calendar-style tile for a scheduled halaqa (day of month + short month). */
+@Composable
+private fun DateTile(at: Long) {
+    val c = java.util.Calendar.getInstance().apply { timeInMillis = at }
+    Column(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(ikSoft()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text(java.text.SimpleDateFormat("MMM", java.util.Locale.ENGLISH).format(c.time).uppercase(), color = IkGoldDeep, fontSize = 9.sp, fontWeight = FontWeight.Bold, lineHeight = 10.sp)
+        Text("${c.get(java.util.Calendar.DAY_OF_MONTH)}", color = ikAccentText(), fontSize = 17.sp, fontWeight = FontWeight.Bold, lineHeight = 19.sp)
     }
 }
 
@@ -483,8 +497,11 @@ private fun MemberTile(m: HalaqaMember, ui: HalaqaRoomUi, big: Boolean, modifier
             }
         }
         Spacer(Modifier.height(4.dp))
-        Text(if (m.uid == ui.myUid) "You" else m.name.ifBlank { "Guest" }, color = stitchText(), fontSize = if (big) 13.sp else 12.sp, fontWeight = if (big) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+            Text(if (m.uid == ui.myUid) "You" else m.name.ifBlank { "Guest" }, color = stitchText(), fontSize = if (big) 13.sp else 12.sp, fontWeight = if (big) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.weight(1f, fill = false))
+            if (m.uid in ui.verifiedHosts) { Spacer(Modifier.width(3.dp)); VerifiedScholarBadge(compact = true, tag = "halaqa_member_verified_${m.uid}") }
+        }
         if (big) Text(when (m.role) { HalaqaRole.HOST -> "Host"; HalaqaRole.SPEAKER -> "Speaker"; else -> "" }, color = if (m.role == HalaqaRole.HOST) IkGoldDeep else stitchMutedText(), fontSize = 11.sp)
     }
 }

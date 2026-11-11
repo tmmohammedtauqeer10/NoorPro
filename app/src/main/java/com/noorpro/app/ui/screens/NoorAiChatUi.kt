@@ -49,6 +49,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -555,12 +556,15 @@ private fun timeOf(ms: Long) = SimpleDateFormat("h:mm a", Locale.getDefault()).f
 @Composable
 private fun UserBubble(p: ChatPalette, m: NoorAiChatItem) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-        Text(
-            m.text, color = p.userText, fontSize = 15.sp, lineHeight = 22.sp,
-            modifier = Modifier.widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)).background(p.userBubble)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+        // 1.2.0 (115): long-press to select / copy your own message.
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(
+                m.text, color = p.userText, fontSize = 15.sp, lineHeight = 22.sp,
+                modifier = Modifier.widthIn(max = 300.dp)
+                    .clip(RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)).background(p.userBubble)
+                    .padding(horizontal = 14.dp, vertical = 10.dp).testTag("noorai_user_text"),
+            )
+        }
         Text(timeOf(m.time), color = p.muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, end = 4.dp))
     }
 }
@@ -589,13 +593,17 @@ private fun AssistantMessage(
         Avatar(26.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            NoorAiMarkdownText(visible, p.md)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp).alpha(if (done) 1f else 0f)) {
-                Text(timeOf(m.time), color = p.muted, fontSize = 10.sp)
+            // 1.2.0 (115): long-press any part of a finished answer to select and copy it.
+            if (done) androidx.compose.foundation.text.selection.SelectionContainer(Modifier.testTag("noorai_answer_selectable")) { NoorAiMarkdownText(visible, p.md) }
+            else NoorAiMarkdownText(visible, p.md)
+            var copied by remember(m.id) { mutableStateOf(false) }
+            LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
+            FlowRow(verticalArrangement = Arrangement.Center, modifier = Modifier.padding(top = 2.dp).alpha(if (done) 1f else 0f)) {
+                Text(timeOf(m.time), color = p.muted, fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterVertically))
                 Spacer(Modifier.width(6.dp))
-                SpeakChip(p, speaking, onSpeak)
-                ActionIcon(Icons.Default.ContentCopy, "Copy", p.muted, onCopy)
-                ActionIcon(Icons.Default.Share, "Share", p.muted, onShare)
+                Box(Modifier.align(Alignment.CenterVertically)) { SpeakChip(p, speaking, onSpeak) }
+                AnswerChip(p, if (copied) Icons.Default.Check else Icons.Default.ContentCopy, if (copied) "Copied" else "Copy", "noorai_copy", Modifier.align(Alignment.CenterVertically)) { onCopy(); copied = true }
+                AnswerChip(p, Icons.Default.Share, "Share", "noorai_share", Modifier.align(Alignment.CenterVertically), onShare)
                 if (isLast && !busy) ActionIcon(Icons.Default.Refresh, "Regenerate", p.muted, onRegenerate)
                 ActionIcon(if (m.feedback == 1) Icons.Default.ThumbUp else Icons.Outlined.ThumbUp, "Helpful", if (m.feedback == 1) NoorGreen else p.muted) { onFeedback(1) }
                 ActionIcon(if (m.feedback == -1) Icons.Default.ThumbDown else Icons.Outlined.ThumbDown, "Not helpful", if (m.feedback == -1) Color(0xFFC0563F) else p.muted) { onFeedback(-1) }
@@ -698,8 +706,10 @@ private fun VoicePanel(
             VoicePhase.ERROR, VoicePhase.NEEDS_PERMISSION -> v.error ?: "Voice isn't available right now."
             VoicePhase.IDLE -> ""
         }
-        Text(status, color = if (v.partial.isNotBlank()) p.text else p.muted, fontSize = if (v.partial.isNotBlank()) 17.sp else 14.sp,
-            lineHeight = 23.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth().testTag("noorai_voice_partial"))
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(status, color = if (v.partial.isNotBlank()) p.text else p.muted, fontSize = if (v.partial.isNotBlank()) 17.sp else 14.sp,
+                lineHeight = 23.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth().testTag("noorai_voice_partial"))
+        }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(onClick = onCancel) { Text("Cancel", color = p.text) }
@@ -711,6 +721,19 @@ private fun VoicePanel(
 }
 
 private fun Modifier.graphicsLayerScale(s: Float) = this.then(Modifier.graphicsLayer(scaleX = s, scaleY = s))
+
+/** 1.2.0 (115): labelled Copy / Share buttons under each answer. */
+@Composable
+private fun AnswerChip(p: ChatPalette, icon: ImageVector, label: String, tag: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.padding(horizontal = 2.dp).clip(RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = if (label == "Copied") NoorGreen else p.muted, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, color = if (label == "Copied") NoorGreen else p.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
 
 @Composable
 private fun ActionIcon(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
@@ -743,13 +766,36 @@ private fun InputBar(p: ChatPalette, value: String, hint: String, busy: Boolean,
             .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        // 1.2.0 (115): long-press to paste / select (standard text toolbar) plus a one-tap Paste when the box is empty.
+        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        // Track the system clipboard (hasPrimaryClip doesn't read the clip, so no "pasted" notice is shown).
+        var clipHasText by remember { mutableStateOf(runCatching { clipboard.hasText() }.getOrDefault(false)) }
+        DisposableEffect(ctx) {
+            val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            val l = android.content.ClipboardManager.OnPrimaryClipChangedListener { clipHasText = runCatching { clipboard.hasText() }.getOrDefault(false) }
+            cm?.addPrimaryClipChangedListener(l)
+            onDispose { cm?.removePrimaryClipChangedListener(l) }
+        }
+        val canPaste = value.isEmpty() && !busy && clipHasText
         Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            if (value.isEmpty()) Text(hint, color = p.muted, fontSize = 15.sp, maxLines = 1)
-            BasicTextField(
-                value = value, onValueChange = onValue, maxLines = 5,
-                textStyle = TextStyle(color = p.text, fontSize = 15.sp, lineHeight = 21.sp),
-                cursorBrush = SolidColor(NoorGreen), modifier = Modifier.fillMaxWidth(),
-            )
+            if (value.isEmpty()) Text(hint, color = p.muted, fontSize = 15.sp, maxLines = 1, modifier = Modifier.padding(end = if (canPaste) 64.dp else 0.dp))
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.selection.LocalTextSelectionColors provides
+                androidx.compose.foundation.text.selection.TextSelectionColors(handleColor = NoorGreen, backgroundColor = NoorGreen.copy(alpha = 0.28f))) {
+                BasicTextField(
+                    value = value, onValueChange = onValue, maxLines = 5,
+                    textStyle = TextStyle(color = p.text, fontSize = 15.sp, lineHeight = 21.sp),
+                    cursorBrush = SolidColor(NoorGreen), modifier = Modifier.fillMaxWidth().testTag("noorai_input"),
+                )
+            }
+            if (canPaste) Row(
+                Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(50)).background(p.chip)
+                    .clickable { clipboard.getText()?.text?.let { onValue(it.take(4000)) } }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("noorai_paste"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.ContentPaste, null, tint = p.text, modifier = Modifier.size(13.dp)); Spacer(Modifier.width(4.dp))
+                Text("Paste", color = p.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
         Spacer(Modifier.width(6.dp))
         val canSend = value.isNotBlank()

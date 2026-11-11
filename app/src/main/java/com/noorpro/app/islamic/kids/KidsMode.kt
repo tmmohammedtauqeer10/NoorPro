@@ -23,10 +23,16 @@ object KidsMode {
         internal set
     private var loaded = false
 
+    /** 1.2.0 (115): the signed-in account's date of birth is under 13 (set by onboarding). Enforces kids mode even if family_kids_enabled is off. */
+    var accountChild by mutableStateOf(false)
+        internal set
+
     fun init(context: Context) {
         if (loaded) return
         loaded = true
-        active = KidsStore(context).isActive()
+        val store = KidsStore(context)
+        active = store.isActive()
+        accountChild = store.isAccountChild()
     }
 
     /** Social / messaging / creator surfaces that children shouldn't reach. */
@@ -34,7 +40,9 @@ object KidsMode {
         screen in setOf(DeenScreen.CREATOR_STUDIO, DeenScreen.DISCOVER_GROUPS, DeenScreen.AI_HUB, DeenScreen.MODERATOR_PANEL, DeenScreen.ACCOUNT_SWITCHER)
 
     /** Kids mode only applies while family_kids_enabled is on (so a remote switch-off can never trap a child's device). */
-    val enforced: Boolean get() = active && com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)
+    val enforced: Boolean get() = active && (accountChild || com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS))
+    /** Family & Kids screen is reachable when the flag is on, or for an under-13 account (so the redirect never dead-ends). */
+    val screenAvailable: Boolean get() = accountChild || com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)
 
     /** Where a blocked screen lands instead while kids mode is on. */
     fun redirect(screen: DeenScreen): DeenScreen = if (enforced && blocks(screen)) DeenScreen.FAMILY_KIDS else screen
@@ -78,6 +86,10 @@ class KidsStore(context: Context, private val now: () -> Long = System::currentT
 
     fun isActive() = prefs.getBoolean("active", false)
     fun setActive(on: Boolean) { prefs.edit().putBoolean("active", on).apply(); KidsMode.active = on }
+
+    fun isAccountChild() = prefs.getBoolean("account_child", false)
+    /** 1.2.0 (115): onboarding found an under-13 date of birth -> kids mode on (exit still needs the parent PIN / gate). */
+    fun setAccountChild(on: Boolean) { prefs.edit().putBoolean("account_child", on).apply(); KidsMode.accountChild = on }
 
     fun childName(): String = prefs.getString("child", "").orEmpty()
     fun setChildName(n: String) { prefs.edit().putString("child", n.trim().take(24)).apply() }

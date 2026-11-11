@@ -28,6 +28,8 @@ object IslamicFlags {
     const val ADHAN_VOICES = "adhan_voices_enabled"
     const val CAR_MODE = "car_mode_enabled"
     const val BAYAN_PODCASTS = "bayan_podcasts_enabled"
+    const val ONBOARDING = "onboarding_enabled"                 // 1.2.0 (115), default ON
+    const val SCHOLAR_APPLICATIONS = "scholar_applications_enabled" // 1.2.0 (115), default ON
 
     val SOCIAL_AUDIO = listOf(DUA_REQUESTS, HALAQA_ROOMS, ASK_SCHOLAR, CHALLENGES, SHARE_CARDS, QURAN_OFFLINE, AUDIO_ROUTINES, ADHAN_VOICES, CAR_MODE, BAYAN_PODCASTS)
 

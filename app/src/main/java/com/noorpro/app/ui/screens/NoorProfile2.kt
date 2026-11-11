@@ -158,6 +158,16 @@ fun NoorProfile2(ui: Profile2Ui, a: Profile2Actions, f: Profile2Features = Profi
                     }
                 }
                 Text(ui.handle, color = accentText(accent), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                // 1.2.0 (115): profile type badge; "Verified scholar" only after admin verification.
+                val typeBadge = if (ui.profile.scholarBadge) "Verified scholar"
+                    else com.noorpro.app.data.onboarding.ProfileType.of(ui.profile.profileType)?.takeIf { it != com.noorpro.app.data.onboarding.ProfileType.REGULAR }?.label
+                typeBadge?.let { label ->
+                    Row(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(50)).background(if (ui.profile.scholarBadge) R2Gold.copy(alpha = 0.18f) else R2Mint)
+                        .padding(horizontal = 8.dp, vertical = 3.dp).testTag("profile2_type_badge"), verticalAlignment = Alignment.CenterVertically) {
+                        if (ui.profile.scholarBadge) { Icon(Icons.Default.Verified, null, tint = R2Gold, modifier = Modifier.size(12.dp)); Spacer(Modifier.width(4.dp)) }
+                        Text(label, color = if (ui.profile.scholarBadge) stitchText() else accentText(accent), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
         Column(Modifier.fillMaxWidth().offset(y = (-26).dp).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -61,6 +61,8 @@ data class ScholarUi(
     val error: CommunityError? = null,
     val myUid: String? = null,
     val now: Long = System.currentTimeMillis(),
+    /** 1.2.0 (115): admin claim / admins doc -> shows the review entry. */
+    val isModerator: Boolean = false,
 )
 
 class ScholarActions(
@@ -73,6 +75,8 @@ class ScholarActions(
     val onReport: (ScholarQuestion) -> Unit = {},
     val onWithdraw: (ScholarQuestion) -> Unit = {},
     val onAnswer: (ScholarQuestion) -> Unit = {},
+    val onApply: () -> Unit = {},
+    val onReview: () -> Unit = {},
 )
 
 @Composable
@@ -101,7 +105,8 @@ fun AskScholarScreen(viewModel: DeenViewModel, backend: ScholarBackend = remembe
             ui = ui.copy(loading = false)
         }
     }
-    LaunchedEffect(Unit) { HalalTextFilter.ensureLoaded(ctx); refresh() }
+    LaunchedEffect(Unit) { HalalTextFilter.ensureLoaded(ctx); refresh()
+        if (backend.uid() != null) runCatching { com.noorpro.app.data.halal.ModeratorRepository().checkModerator { ok -> ui = ui.copy(isModerator = ok) } } }
 
     if (asking) {
         BackHandler { asking = false }
@@ -139,6 +144,8 @@ fun AskScholarScreen(viewModel: DeenViewModel, backend: ScholarBackend = remembe
         onReport = { reporting = it },
         onWithdraw = { q -> scope.launch { runCatching { backend.withdraw(q.id) }.onSuccess { ui = ui.copy(mine = ui.mine.filter { it.id != q.id }) }.onFailure { toast(CommunityError.from(it).body) } } },
         onAnswer = { answering = it },
+        onApply = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.SCHOLAR_APPLY) },
+        onReview = { viewModel.navigateTo(com.noorpro.app.ui.viewmodel.DeenScreen.SCHOLAR_REVIEW) },
     ))
     reporting?.let { q ->
         IkReportDialog("answer", onDismiss = { reporting = null }) { reason ->
@@ -151,19 +158,21 @@ fun AskScholarScreen(viewModel: DeenViewModel, backend: ScholarBackend = remembe
 @Composable
 fun AskScholarContent(ui: ScholarUi, actions: ScholarActions, modifier: Modifier = Modifier) {
     Column(modifier.ikScreen().verticalScroll(rememberScrollState()).testTag("scholar_screen")) {
-        IkHeader("Ask a Scholar", "Verified answers, gently given", actions.onBack)
-        IkHero(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-            Text("ASK THE PEOPLE OF KNOWLEDGE", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-            Spacer(Modifier.height(6.dp))
-            Text("“So ask the people of knowledge, if you do not know.”", color = IkCream, fontFamily = LibreCaslon, fontSize = 17.sp, lineHeight = 23.sp, fontStyle = FontStyle.Italic)
-            Spacer(Modifier.height(6.dp))
-            Text("Surah An-Nahl 16:43", color = IkCream.copy(alpha = 0.7f), fontSize = 11.sp)
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.clip(RoundedCornerShape(14.dp)).background(IkGold).clickable(onClick = actions.onAsk).padding(horizontal = 16.dp, vertical = 11.dp).testTag("scholar_ask_open"),
-                verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.ContactSupport, null, tint = IkGreenDeep, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
-                Text("Ask a question", color = IkGreenDeep, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        IkHeader("Ask a Scholar", "Verified answers, gently given", actions.onBack) {
+            if (ui.isModerator) Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = actions.onReview).testTag("scholar_review_open"), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.VerifiedUser, "Review scholar applications", tint = ikAccentText())
             }
+        }
+        IkIntroCard("Ask the people of knowledge", "“So ask the people of knowledge, if you do not know.”", "Surah An-Nahl 16:43",
+            "Ask a question", Icons.Outlined.ContactSupport, "scholar_ask_open", Modifier.padding(horizontal = 16.dp, vertical = 6.dp), actions.onAsk)
+        if (ui.scholar == null && ui.myUid != null) Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ikSoft())
+                .clickable(onClick = actions.onApply).padding(horizontal = 14.dp, vertical = 11.dp).testTag("scholar_apply_open"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.VerifiedUser, null, tint = ikAccentText(), modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+            Text("Are you a scholar or alimah? Apply to answer", color = stitchText(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text("Apply", color = ikAccentText(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(6.dp))
         val tabs = buildList {
@@ -210,8 +219,12 @@ fun AskScholarContent(ui: ScholarUi, actions: ScholarActions, modifier: Modifier
 }
 
 @Composable
-private fun Empty(text: String, tag: String) = Text(text, color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp,
-    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).testTag(tag))
+private fun Empty(text: String, tag: String) {
+    val icon = when (tag) { "scholar_mine_empty" -> Icons.Outlined.ContactSupport; "scholar_saved_empty" -> Icons.Outlined.BookmarkBorder; else -> Icons.Outlined.MenuBook }
+    val title = when (tag) { "scholar_mine_empty" -> "No questions yet"; "scholar_saved_empty" -> "Nothing saved yet"; "scholar_inbox_empty" -> "Inbox is clear"; else -> "No answers yet" }
+    if (text.startsWith("Loading")) Text(text, color = stitchMutedText(), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).testTag(tag))
+    else IkEmptyState(icon, title, text, tag)
+}
 
 @Composable
 private fun SearchBox(q: String, onQuery: (String) -> Unit) {
@@ -236,10 +249,10 @@ internal fun ScholarBadge(name: String, title: String, modifier: Modifier = Modi
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Filled.Verified, "Verified scholar", tint = IkGold, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                VerifiedScholarBadge()
             }
-            Text(title.ifBlank { "Verified scholar" }, color = stitchMutedText(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (title.isNotBlank()) Text(title, color = stitchMutedText(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -264,8 +277,10 @@ private fun QaCard(q: ScholarQuestion, ui: ScholarUi, actions: ScholarActions, m
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(ikSoft()).padding(12.dp)) {
             ScholarBadge(q.scholarName, q.scholarTitle)
             Spacer(Modifier.height(8.dp))
-            Text(q.answer, color = stitchText(), fontSize = 14.sp, lineHeight = 21.sp, maxLines = if (open) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("scholar_answer_${q.id}"))
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(q.answer, color = stitchText(), fontSize = 14.sp, lineHeight = 21.sp, maxLines = if (open) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("scholar_answer_${q.id}"))
+            }
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (q.answer.length > 260) Text(if (open) "Show less" else "Read full answer", color = ikAccentText(), fontWeight = FontWeight.Bold, fontSize = 12.sp,
                     modifier = Modifier.clickable { open = !open }.padding(vertical = 4.dp).testTag("scholar_more_${q.id}"))

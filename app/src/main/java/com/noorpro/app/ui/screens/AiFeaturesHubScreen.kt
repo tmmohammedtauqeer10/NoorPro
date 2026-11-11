@@ -419,10 +419,10 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         },
         onClearChat = { job?.cancel(); isTyping = false; update(emptyList()) },
         onDismissTip = { showTip = false; NoorAiChatStore.dismissTip(context) },
-        onCopy = { clipboard.setText(AnnotatedString(NoorAiMarkdown.parse(it.text).joinToString("\n") { b -> plainOf(b) })) },
+        onCopy = { clipboard.setText(AnnotatedString(NoorAiCopy.plain(it.text))); android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show() },
         onShare = { item ->
             val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(Intent.EXTRA_TEXT, NoorAiMarkdown.parse(item.text).joinToString("\n") { plainOf(it) } + "\n\n— via Noor AI (Noor Pro)")
+                .putExtra(Intent.EXTRA_TEXT, NoorAiCopy.shareText(item.text))
             runCatching { context.startActivity(Intent.createChooser(send, "Share answer")) }
         },
         onRegenerate = { item ->
@@ -503,6 +503,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
             onClose = { closeAssistant() },
             onHandsFree = { on -> assistantEvent(AssistantEvent.HandsFree(on)); NoorAiChatStore.setHandsFree(context, on) },
             onKeyboard = { closeAssistant() },
+            onCopyAnswer = { text -> clipboard.setText(AnnotatedString(text)); android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show() },
         )
     }
 }

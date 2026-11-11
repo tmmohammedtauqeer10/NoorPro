@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
@@ -244,6 +245,10 @@ fun NoorHomeScreen(viewModel: DeenViewModel) {
                     HomeExploreRow { scope.launch { listState.animateScrollToItem(5) } }
                 }
                 item(key = "ask") { HomeAskNoorCard(onAsk = askNoor) }
+                item(key = "learn") {
+                    LearnShortcutRow(onHadith = { viewModel.navigateTo(DeenScreen.HADITH_LIBRARY) }, onQuiz = { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) },
+                        tagPrefix = "home_learn")
+                }
                 item(key = "audio") {
                     // Sponsor + inline ad live with the audio banner so a hidden sponsor / unfilled ad adds no gap.
                     Column {
@@ -391,9 +396,10 @@ private fun HomePrayerHero(
 private data class HomeTool(val label: String, val icon: ImageVector, val screen: DeenScreen)
 
 @Composable
-private fun HomeDailyEssentials(onTool: (DeenScreen) -> Unit, onViewAll: () -> Unit) {
+internal fun HomeDailyEssentials(onTool: (DeenScreen) -> Unit, onViewAll: () -> Unit) {
     val tools = listOf(
         HomeTool("Quran", Icons.AutoMirrored.Filled.MenuBook, DeenScreen.QURAN),
+        HomeTool("Hadith", Icons.AutoMirrored.Filled.LibraryBooks, DeenScreen.HADITH_LIBRARY), // 115
         HomeTool("Tasbih", TasbihBeadsIcon, DeenScreen.TASBIH),
         HomeTool("Qibla", Icons.Default.Explore, DeenScreen.QIBLA_MORE),
         HomeTool("Dua", DuaHandsIcon, DeenScreen.DUA_HUB),
@@ -411,16 +417,16 @@ private fun HomeDailyEssentials(onTool: (DeenScreen) -> Unit, onViewAll: () -> U
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tools.forEach { t ->
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onTool(t.screen) },
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onTool(t.screen) }.testTag("home_tool_${t.label.lowercase()}"),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(homeMint()),
                             contentAlignment = Alignment.Center) {
-                            Icon(t.icon, t.label, tint = homeAccent(), modifier = Modifier.size(30.dp))
+                            Icon(t.icon, t.label, tint = homeAccent(), modifier = Modifier.size(27.dp))
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text(t.label, color = stitchText(), fontSize = 13.sp)
+                        Text(t.label, color = stitchText(), fontSize = 13.sp, maxLines = 1)
                     }
                 }
             }

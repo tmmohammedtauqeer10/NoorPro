@@ -145,20 +145,10 @@ fun DuaRequestsScreen(viewModel: DeenViewModel, backend: DuaBackend = remember {
 fun DuaFeedContent(ui: DuaFeedUi, actions: DuaActions, modifier: Modifier = Modifier) {
     Column(modifier.ikScreen().verticalScroll(rememberScrollState()).testTag("dua_feed")) {
         IkHeader("Dua Requests", "Ask the Ummah to remember you", actions.onBack)
-        IkHero(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-            Text("THE ANGELS SAY AMEEN", color = IkGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-            Spacer(Modifier.height(6.dp))
-            Text("“A Muslim's dua for his brother in his absence is answered; an angel beside him says: Ameen, and for you the same.”",
-                color = IkCream, fontFamily = LibreCaslon, fontSize = 16.sp, lineHeight = 22.sp, fontStyle = FontStyle.Italic)
-            Spacer(Modifier.height(6.dp))
-            Text("Sahih Muslim 2733", color = IkCream.copy(alpha = 0.7f), fontSize = 11.sp)
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.clip(RoundedCornerShape(14.dp)).background(IkGold).clickable(onClick = actions.onCompose).padding(horizontal = 16.dp, vertical = 11.dp).testTag("dua_compose_open"),
-                verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.AddComment, null, tint = IkGreenDeep, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
-                Text("Ask for dua", color = IkGreenDeep, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
+        IkIntroCard("The angels say Ameen",
+            "“A Muslim's dua for his brother in his absence is answered; an angel beside him says: Ameen, and for you the same.”",
+            "Sahih Muslim 2733", "Ask for dua", Icons.Outlined.AddComment, "dua_compose_open",
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp), actions.onCompose)
         Spacer(Modifier.height(6.dp))
         IkSegments(listOf("Community", "My requests${if (ui.mine.isNotEmpty()) " · ${ui.mine.size}" else ""}"), ui.tab, Modifier.padding(horizontal = 16.dp), "dua_tab", actions.onTab)
         ui.error?.let { IkNotice(it.title, if (it == CommunityError.OFFLINE_BACKEND) "Dua requests aren't switched on yet. Please check back soon." else it.body,
@@ -170,14 +160,17 @@ fun DuaFeedContent(ui: DuaFeedUi, actions: DuaActions, modifier: Modifier = Modi
             }
             Spacer(Modifier.height(6.dp))
             val list = DuaLogic.visible(ui.requests, ui.category)
-            if (list.isEmpty() && ui.error == null) Text(if (ui.loading) "Loading dua requests…" else "No requests here yet. When someone asks, you'll be able to say Ameen.",
-                color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).testTag("dua_empty"))
+            if (list.isEmpty() && ui.error == null) {
+                if (ui.loading) Text("Loading dua requests…", color = stitchMutedText(), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).testTag("dua_empty"))
+                else IkEmptyState(Icons.Outlined.FavoriteBorder, "No requests here yet", "When someone asks, you'll be able to say Ameen.", "dua_empty",
+                    actionLabel = "Ask for dua", onAction = actions.onCompose)
+            }
             list.forEach { d -> DuaCard(d, ui, actions, mine = false) }
         } else {
             Spacer(Modifier.height(8.dp))
             if (ui.myUid == null) IkNotice(CommunityError.SIGN_IN.title, "Sign in to see who made dua for your requests.", Modifier.padding(horizontal = 16.dp), tag = "dua_mine_signin")
-            else if (ui.mine.isEmpty()) Text("You haven't asked for dua yet. Your requests and the Ameens they gather appear here.",
-                color = stitchMutedText(), fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).testTag("dua_mine_empty"))
+            else if (ui.mine.isEmpty()) IkEmptyState(Icons.Outlined.AddComment, "You haven't asked for dua yet", "Your requests and the Ameens they gather appear here.", "dua_mine_empty",
+                actionLabel = "Ask for dua", onAction = actions.onCompose)
             ui.mine.forEach { d -> DuaCard(d, ui, actions, mine = true) }
         }
         Spacer(Modifier.height(10.dp))
@@ -207,9 +200,15 @@ private fun DuaCard(d: DuaRequest, ui: DuaFeedUi, actions: DuaActions, mine: Boo
         }
         Spacer(Modifier.height(10.dp))
         Text(d.text, color = stitchText(), fontSize = 14.sp, lineHeight = 20.sp)
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(22.dp).clip(RoundedCornerShape(50)).background(ikSoft()), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Favorite, null, tint = IkGreen, modifier = Modifier.size(12.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(DuaLogic.countLine(d), color = ikAccentText(), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("dua_count_${d.id}"))
+        }
         Spacer(Modifier.height(10.dp))
-        Text(DuaLogic.countLine(d), color = ikAccentText(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("dua_count_${d.id}"))
-        Spacer(Modifier.height(8.dp))
         if (!mine) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DuaResponse.entries.forEach { r ->
                 val on = "${d.id}/${r.key}" in ui.responded

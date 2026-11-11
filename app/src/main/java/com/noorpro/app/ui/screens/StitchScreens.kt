@@ -8495,6 +8495,11 @@ fun StitchDiscoverLibraryScreen(viewModel: DeenViewModel) {
             }
 
             item {
+                LearnShortcutRow(onHadith = { viewModel.navigateTo(DeenScreen.HADITH_LIBRARY) }, onQuiz = { viewModel.navigateTo(DeenScreen.QUIZ_DASHBOARD) },
+                    tagPrefix = "library_learn")
+            }
+
+            item {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },

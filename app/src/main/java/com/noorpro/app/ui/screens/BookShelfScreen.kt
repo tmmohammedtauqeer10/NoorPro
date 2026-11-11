@@ -1,5 +1,6 @@
 package com.noorpro.app.ui.screens
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -327,22 +328,10 @@ private fun GeneratedBookCover(book: BookItem) {
 @Composable
 fun HadithBooksSection(viewModel: DeenViewModel) {
     val colors = MaterialTheme.colorScheme
-    val books = listOf(
-        com.noorpro.app.data.HadithBook("bukhari", "Sahih Bukhari"),
-        com.noorpro.app.data.HadithBook("muslim", "Sahih Muslim"),
-        com.noorpro.app.data.HadithBook("nasai", "Sunan An-Nasai"),
-        com.noorpro.app.data.HadithBook("abudawud", "Sunan Abu Dawud"),
-        com.noorpro.app.data.HadithBook("tirmidhi", "Jami At-Tirmidhi"),
-        com.noorpro.app.data.HadithBook("ibnmajah", "Sunan Ibn Majah"),
-        com.noorpro.app.data.HadithBook("malik", "Muwatta Malik"),
-        com.noorpro.app.data.HadithBook("nawawi40", "An-Nawawi's 40 Hadith"),
-        com.noorpro.app.data.HadithBook("riyadussalihin", "Riyad As-Salihin"),
-        com.noorpro.app.data.HadithBook("adab", "Al-Adab Al-Mufrad"),
-        com.noorpro.app.data.HadithBook("bulugh", "Bulugh al-Maram"),
-        com.noorpro.app.data.HadithBook("darimi", "Sunan Ad-Darimi"),
-        com.noorpro.app.data.HadithBook("ahmad", "Musnad Ahmad"),
-        com.noorpro.app.data.HadithBook("hisn", "Hisn al-Muslim")
-    )
+    // 115: only collections that exist in the hadith-api editions, all bundled for offline reading.
+    // (Riyad as-Salihin, Adab al-Mufrad, Bulugh, Darimi, Ahmad and Hisn al-Muslim were listed before but have no
+    // source edition, so they opened the previous book's chapters or an empty page.)
+    val books = HadithCollections.all
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -367,7 +356,7 @@ fun HadithBooksSection(viewModel: DeenViewModel) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { viewModel.selectHadithBook(book.id) },
+                    .clickable { viewModel.selectHadithBook(book.id) }.testTag("hadith_book_${book.id}"),
                 colors = CardDefaults.cardColors(containerColor = colors.surface),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -387,7 +376,7 @@ fun HadithBooksSection(viewModel: DeenViewModel) {
                     Column {
                         Text(text = book.name, color = colors.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "Available with multiple language translations", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                        Text(text = HadithCollections.subtitle(book.id), color = colors.onSurfaceVariant, fontSize = 12.sp)
                     }
                 }
             }
@@ -396,3 +385,22 @@ fun HadithBooksSection(viewModel: DeenViewModel) {
 }
 
 // Remove the old BookItemCard and BookDetailsContent
+
+
+/** 115: the hadith collections the app can open, all bundled under assets/hadith (Arabic + English, Urdu where available). */
+object HadithCollections {
+    val all = listOf(
+        com.noorpro.app.data.HadithBook("bukhari", "Sahih al-Bukhari"),
+        com.noorpro.app.data.HadithBook("muslim", "Sahih Muslim"),
+        com.noorpro.app.data.HadithBook("abudawud", "Sunan Abi Dawud"),
+        com.noorpro.app.data.HadithBook("tirmidhi", "Jami' at-Tirmidhi"),
+        com.noorpro.app.data.HadithBook("nasai", "Sunan an-Nasa'i"),
+        com.noorpro.app.data.HadithBook("ibnmajah", "Sunan Ibn Majah"),
+        com.noorpro.app.data.HadithBook("malik", "Muwatta Imam Malik"),
+        com.noorpro.app.data.HadithBook("nawawi", "Forty Hadith of Imam an-Nawawi"),
+        com.noorpro.app.data.HadithBook("qudsi", "Forty Hadith Qudsi"),
+        com.noorpro.app.data.HadithBook("dehlawi", "Forty Hadith of Shah Waliullah Dehlawi"),
+    )
+    private val urdu = setOf("bukhari", "muslim", "abudawud", "tirmidhi", "nasai", "malik")
+    fun subtitle(id: String) = if (id in urdu) "Arabic · English · Urdu · works offline" else "Arabic · English · works offline"
+}

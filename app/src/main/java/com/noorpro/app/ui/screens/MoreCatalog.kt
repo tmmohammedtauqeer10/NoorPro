@@ -68,9 +68,10 @@ val moreCatalog: List<MoreCategory> = listOf(
         MoreItem("Family & Kids", "kids children family prayer tracker stories prophets duas manners", Icons.Default.FamilyRestroom, DeenScreen.FAMILY_KIDS, com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS),
     )),
     MoreCategory("Learn", Icons.Default.School, listOf(
+        MoreItem("Hadith", "hadith bukhari muslim sunan tirmidhi abu dawud nasai ibn majah muwatta nawawi forty qudsi sahih", Icons.Default.LibraryBooks, DeenScreen.HADITH_LIBRARY),
         MoreItem("Quran Learning", "qaida tajweed course", Icons.Default.School, DeenScreen.QAIDA_TUTOR),
         MoreItem("Hifz Coach", "hifz memorise memorize revision recite", Icons.Default.Psychology, DeenScreen.HIFZ_COACH, com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH),
-        MoreItem("Quiz", "knowledge test", Icons.Default.Quiz, DeenScreen.QUIZ_DASHBOARD),
+        MoreItem("Quiz", "quiz knowledge test daily quiz seerah fiqh aqeedah hadith history awliya duas kids trivia", Icons.Default.Quiz, DeenScreen.QUIZ_DASHBOARD),
         MoreItem("Noor AI", "ask ai question", Icons.Default.AutoAwesome, DeenScreen.AI_HUB),
     )),
     MoreCategory("Community", Icons.Default.Groups, listOf(

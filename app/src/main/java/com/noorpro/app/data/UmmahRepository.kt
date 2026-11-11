@@ -76,7 +76,11 @@ data class UmmahProfile(
     val isPrivate: Boolean = false,
     val hideCounts: Boolean = false,
     /** 1.1.4: optional admin-set badge (read only; absent = false). */
-    val verified: Boolean = false
+    val verified: Boolean = false,
+    /** 1.2.0 (115): admin-set after scholar verification (read only for the owner). */
+    val scholarBadge: Boolean = false,
+    /** 1.2.0 (115): public profile type badge from onboarding: regular / student / creator / masjid. */
+    val profileType: String = "",
 )
 
 data class UmmahChat(
@@ -681,7 +685,9 @@ class UmmahRepository {
                         bio = doc.getString("bio").orEmpty(),
                         isPrivate = doc.getBoolean("isPrivate") ?: false,
                         hideCounts = doc.getBoolean("hideCounts") ?: false,
-                        verified = doc.getBoolean("verified") ?: false
+                        verified = doc.getBoolean("verified") ?: false,
+                        scholarBadge = doc.getBoolean("scholarBadge") ?: false,
+                        profileType = doc.getString("profileType").orEmpty(),
                     )
                 }
                 onResult(profiles)

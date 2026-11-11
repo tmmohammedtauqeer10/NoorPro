@@ -45,6 +45,8 @@ object Reels2Flags {
         "challenges_enabled" to false, "share_cards_enabled" to false, "quran_offline_enabled" to false,
         "audio_routines_enabled" to false, "adhan_voices_enabled" to false, "car_mode_enabled" to false,
         "bayan_podcasts_enabled" to false,
+        // 1.2.0 (115): post-login onboarding + scholar applications default ON (kill switches).
+        "onboarding_enabled" to true, "scholar_applications_enabled" to true,
     )
     val ALL_KEYS get() = DEFAULTS.keys
     fun default(key: String) = DEFAULTS[key] ?: false

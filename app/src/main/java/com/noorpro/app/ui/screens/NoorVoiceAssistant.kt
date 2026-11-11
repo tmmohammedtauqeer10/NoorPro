@@ -19,6 +19,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
@@ -222,6 +225,8 @@ internal fun NoorVoiceAssistantOverlay(
     onClose: () -> Unit,
     onHandsFree: (Boolean) -> Unit,
     onKeyboard: () -> Unit,
+    /** 1.2.0 (115): copy the spoken answer (plain text with references). */
+    onCopyAnswer: (String) -> Unit = {},
 ) {
     val t = rememberInfiniteTransition(label = "orb")
     val breathe by t.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(if (state.phase == AssistantPhase.SPEAKING) 420 else 1100), RepeatMode.Reverse), label = "breathe")
@@ -263,11 +268,27 @@ internal fun NoorVoiceAssistantOverlay(
                 modifier = Modifier.testTag("noorai_voice_status"))
             Spacer(Modifier.height(14.dp))
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (state.heard.isNotBlank()) Text("“${state.heard}”", color = Color.White.copy(alpha = 0.75f), fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp)
-                if (state.answer.isNotBlank() && (state.phase == AssistantPhase.SPEAKING || state.phase == AssistantPhase.IDLE)) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(NoorAiMarkdown.parse(com.noorpro.app.data.AiFeatureService.parseMeta(state.answer).body).joinToString("\n") { plainOf(it) }.take(1200),
-                        color = Color.White, fontSize = 15.sp, lineHeight = 22.sp, textAlign = TextAlign.Center)
+                // 1.2.0 (115): transcripts are selectable (long-press) and the answer has a Copy button.
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (state.heard.isNotBlank()) Text("“${state.heard}”", color = Color.White.copy(alpha = 0.75f), fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp,
+                            modifier = Modifier.testTag("noorai_voice_heard"))
+                        if (state.answer.isNotBlank() && (state.phase == AssistantPhase.SPEAKING || state.phase == AssistantPhase.IDLE)) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(NoorAiCopy.plain(state.answer).take(1200),
+                                color = Color.White, fontSize = 15.sp, lineHeight = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.testTag("noorai_voice_answer"))
+                        }
+                    }
+                }
+            }
+            if (state.answer.isNotBlank() && (state.phase == AssistantPhase.SPEAKING || state.phase == AssistantPhase.IDLE)) {
+                var copied by androidx.compose.runtime.remember(state.answer) { androidx.compose.runtime.mutableStateOf(false) }
+                Row(Modifier.padding(top = 6.dp, bottom = 10.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))
+                    .clickable { onCopyAnswer(NoorAiCopy.plain(state.answer)); copied = true }.padding(horizontal = 14.dp, vertical = 7.dp).testTag("noorai_voice_copy"),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (copied) Icons.Default.Check else Icons.Default.ContentCopy, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (copied) "Copied" else "Copy answer", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {

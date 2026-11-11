@@ -423,8 +423,8 @@ fun MainLayout() {
                     viewModel = viewModel,
                     onBack = { if (!viewModel.goBack()) viewModel.navigateTo(DeenScreen.LIBRARY_DASHBOARD) }
                 )
-                DeenScreen.QUIZ_DASHBOARD -> com.noorpro.app.ui.screens.QuizDashboardScreen(viewModel = viewModel)
-                DeenScreen.ACTIVE_QUIZ -> com.noorpro.app.ui.screens.ActiveQuizScreen(viewModel = viewModel)
+                // 1.2.0 (115): new offline quiz (daily, sections, madhhab-aware fiqh, review, Noor AI extras)
+                DeenScreen.QUIZ_DASHBOARD, DeenScreen.ACTIVE_QUIZ -> com.noorpro.app.ui.quiz.QuizScreen(viewModel = viewModel)
                 DeenScreen.PROFILE_DASHBOARD -> StitchProfileSettingsScreen(viewModel = viewModel)
                 DeenScreen.QURAN_LEARNING_DASHBOARD -> com.noorpro.app.ui.screens.QuranDashboardScreen(viewModel = viewModel)
                 DeenScreen.QURAN_LEARNING_READER -> com.noorpro.app.ui.screens.SurahLearningScreen(viewModel = viewModel)
@@ -471,7 +471,7 @@ fun MainLayout() {
                 DeenScreen.GROUP_KHATM -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.GROUP_KHATM)) com.noorpro.app.ui.islamic.GroupKhatmScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.HIFZ_COACH -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HIFZ_COACH)) com.noorpro.app.ui.islamic.HifzCoachScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.MASJID_PAGES -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.MASJID_PAGES)) com.noorpro.app.ui.islamic.MasjidPagesScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
-                DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.FAMILY_KIDS)) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.FAMILY_KIDS -> if (com.noorpro.app.islamic.kids.KidsMode.screenAvailable) com.noorpro.app.ui.islamic.FamilyKidsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                                 // 1.1.6 social & audio features (docs/SOCIAL_AUDIO_1.1.6.md)
                 DeenScreen.UMMAH_DUA_REQUESTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.DUA_REQUESTS)) com.noorpro.app.ui.islamic.DuaRequestsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_HALAQA -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.HALAQA_ROOMS)) com.noorpro.app.ui.islamic.HalaqaScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
@@ -483,6 +483,8 @@ fun MainLayout() {
                 DeenScreen.CAR_MODE -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.CAR_MODE)) com.noorpro.app.ui.islamic.CarModeScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.BAYAN_PODCASTS -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.BAYAN_PODCASTS)) com.noorpro.app.ui.islamic.BayanPodcastsScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
                 DeenScreen.UMMAH_ASK_SCHOLAR -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.ASK_SCHOLAR)) com.noorpro.app.ui.islamic.AskScholarScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.SCHOLAR_APPLY -> if (com.noorpro.app.islamic.IslamicFlags.isOn(com.noorpro.app.islamic.IslamicFlags.SCHOLAR_APPLICATIONS)) com.noorpro.app.ui.onboarding.ScholarApplyScreen(viewModel) else com.noorpro.app.ui.islamic.IslamicFeatureOff { viewModel.goBack() }
+                DeenScreen.SCHOLAR_REVIEW -> com.noorpro.app.ui.onboarding.ScholarReviewScreen(viewModel)
             }
         }
 
@@ -563,6 +565,8 @@ fun MainLayout() {
                 else -> 12.dp
             }
         )
+        // 1.2.0 (115): post-login profile onboarding (full-screen, on top of everything) until the profile is complete.
+        com.noorpro.app.ui.onboarding.OnboardingGate(viewModel)
     }
     }
 }

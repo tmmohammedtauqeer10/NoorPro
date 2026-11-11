@@ -116,6 +116,8 @@ enum class DeenScreen {
     UMMAH_DUA_REQUESTS,
     UMMAH_HALAQA,
     UMMAH_ASK_SCHOLAR,
+    SCHOLAR_APPLY,   // 1.2.0 (115) apply as a scholar
+    SCHOLAR_REVIEW,  // 1.2.0 (115) admin review of scholar applications
     UMMAH_CHALLENGES,
     UMMAH_SHARE_CARDS,
     QURAN_OFFLINE,
@@ -838,6 +840,10 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
         fetchBookChapters(bookCode, "eng")
     }
 
+    /** 115: retry buttons on the hadith empty states. */
+    fun hadithRetryBook() { _selectedHadithBookCode.value?.let { fetchBookChapters(it, "eng") } }
+    fun hadithRetry() { val b = _selectedHadithBookCode.value; val c = _selectedHadithChapterId.value; if (b != null && c != null) fetchHadithChapter(b, c) }
+
     fun selectHadithChapter(chapterId: Int) {
         _selectedHadithChapterId.value = chapterId
         val bookCode = _selectedHadithBookCode.value ?: return
@@ -856,6 +862,7 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchBookChapters(bookCode: String, lang: String) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _isLoadingHadith.value = true
+            _hadithChapters.value = emptyList() // 115: never show the previous book's chapters
             try {
                 val url = "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/info.json"
                 val request = okhttp3.Request.Builder().url(url).build()
@@ -937,29 +944,28 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
     private fun fetchHadithChapter(bookCode: String, chapterId: Int) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             _isLoadingHadith.value = true
+            _hadithList.value = emptyList() // 115: never flash the previous chapter
             try {
                 val langCode = _selectedHadithLanguage.value
                 val arUrl = "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-$bookCode/sections/$chapterId.json"
                 val trUrl = "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/$langCode-$bookCode/sections/$chapterId.json"
 
-                val arRequest = okhttp3.Request.Builder().url(arUrl).build()
-                val arResponse = httpClient.newCall(arRequest).execute()
-                
-                val trRequest = okhttp3.Request.Builder().url(trUrl).build()
-                var trResponse = httpClient.newCall(trRequest).execute()
+                val arResponse = httpClient.newCall(okhttp3.Request.Builder().url(arUrl).build()).execute()
+                // 115: a missing translation (e.g. no Urdu edition, or offline) must not break the chapter.
+                fun tryGet(u: String): okhttp3.Response? = try {
+                    httpClient.newCall(okhttp3.Request.Builder().url(u).build()).execute().takeIf { r -> r.isSuccessful || run { r.close(); false } }
+                } catch (_: Exception) { null }
                 var isFallback = false
-
-                if (!trResponse.isSuccessful && langCode != "eng") {
-                    trResponse.close()
+                var trResponse = tryGet(trUrl)
+                if (trResponse == null && langCode != "eng") {
                     val fbUrl = "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-$bookCode/sections/$chapterId.json"
-                    val fbRequest = okhttp3.Request.Builder().url(fbUrl).build()
-                    trResponse = httpClient.newCall(fbRequest).execute()
-                    isFallback = true
+                    trResponse = tryGet(fbUrl)
+                    isFallback = trResponse != null
                 }
 
                 if (arResponse.isSuccessful) {
                     val arBody = arResponse.body?.string() ?: "{}"
-                    val trBody = if (trResponse.isSuccessful) trResponse.body?.string() ?: "{}" else "{}"
+                    val trBody = trResponse?.use { it.body?.string() } ?: "{}"
                     
                     val arJson = org.json.JSONObject(arBody)
                     val trJson = if (trBody.isNotBlank() && trBody != "404: Not Found") org.json.JSONObject(trBody) else org.json.JSONObject()
@@ -968,9 +974,13 @@ class DeenViewModel(application: Application) : AndroidViewModel(application) {
                     val trHadiths = trJson.optJSONArray("hadiths")
 
                     val hadiths = mutableListOf<com.noorpro.app.data.HadithItem>()
+                    // 115: pair by hadith number (editions can differ in count), index as a fallback.
+                    val trByNo = HashMap<Int, org.json.JSONObject>()
+                    if (trHadiths != null) for (j in 0 until trHadiths.length()) trHadiths.optJSONObject(j)?.let { o -> trByNo[o.optInt("hadithnumber", -1)] = o }
                     for (i in 0 until arHadiths.length()) {
                         val arItem = arHadiths.getJSONObject(i)
-                        val trItem = if (trHadiths != null && i < trHadiths.length()) trHadiths.getJSONObject(i) else null
+                        val trItem = trByNo[arItem.optInt("hadithnumber", -2)]
+                            ?: if (trHadiths != null && i < trHadiths.length()) trHadiths.getJSONObject(i) else null
                         
                         val hadithNo = arItem.optInt("hadithnumber", i + 1)
                         val arText = arItem.optString("text", "")

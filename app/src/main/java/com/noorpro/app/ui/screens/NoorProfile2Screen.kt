@@ -103,6 +103,7 @@ fun NoorProfile2Screen(viewModel: DeenViewModel) {
         photoUrl = viewModel.userPhotoUrl.ifBlank { live?.photoUrl.orEmpty() },
         bio = live?.bio.orEmpty().ifBlank { viewModel.userBio },
         isPrivate = privateOn, hideCounts = hideCountsOn, verified = live?.verified ?: false,
+        scholarBadge = live?.scholarBadge ?: false, profileType = live?.profileType.orEmpty(),
     ) else live ?: UmmahProfile(profileUid, viewModel.viewedCreatorName.ifBlank { "Community member" }, viewModel.viewedCreatorHandle.removePrefix("@"), "")
 
     val all = feedState.posts
