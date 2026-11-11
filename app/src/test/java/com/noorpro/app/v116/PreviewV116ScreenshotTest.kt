@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -47,36 +46,16 @@ class PreviewV116ScreenshotTest {
     }
     private fun cap(name: String) { rule.waitForIdle(); rule.onRoot().captureRoboImage(filePath = "build/v116/$name.png") }
 
-    @Test fun adhkar() {
+    /** The 5 key screens only (usage-conscious). */
+    @Test fun keyScreens() {
         val vm = DeenViewModel(ctx)
-        AzkarNav.initialTab = "morning"; show { AzkarScreen(vm) }; cap("adhkar_1_morning")
-        rule.onNodeWithTag("adhkar_tap_m_quls").performClick(); rule.onNodeWithTag("adhkar_tap_m_quls").performClick(); cap("adhkar_1b_morning_counting")
-        AzkarNav.initialTab = "evening"; show(isDark = true) { AzkarScreen(vm) }
-        rule.onNodeWithTag("adhkar_lang_ur").performClick(); cap("adhkar_2_evening_urdu_dark")
-        AzkarNav.initialTab = "after_salah"; show { AzkarScreen(vm) }; cap("adhkar_3_after_salah")
+        AzkarNav.initialTab = "morning"; show { AzkarScreen(vm) }
+        cap("1_adhkar_morning")
         AzkarNav.initialTab = "daily"; show { AzkarScreen(vm) }
-        rule.onNodeWithTag("adhkar_lang_hi").performClick(); cap("adhkar_4_daily_hindi")
-    }
-
-    @Test fun tasawwufPath() {
-        val p = TasawwufPath.load(ctx)
-        val first = p.ordered.first().id
-        show { TasawwufPathContent(p, PathPage.HOME, null, setOf(first), null, TasawwufPathActions()) }; cap("tasawwuf_1_path_home")
-        show { TasawwufPathContent(p, PathPage.LESSON, first, emptySet(), null, TasawwufPathActions()) }; cap("tasawwuf_2_lesson")
-        show { TasawwufPathContent(p, PathPage.LESSON, first, setOf(first), p.lesson(first)?.check?.answer, TasawwufPathActions()) }; cap("tasawwuf_3_lesson_checked")
-        show(isDark = true) { TasawwufPathContent(p, PathPage.GLOSSARY, null, emptySet(), null, TasawwufPathActions()) }; cap("tasawwuf_4_glossary_dark")
-        show { TasawwufPathContent(p, PathPage.BOOKS, null, emptySet(), null, TasawwufPathActions()) }; cap("tasawwuf_5_books")
-        show { TasawwufPathContent(p, PathPage.FAQ, null, emptySet(), null, TasawwufPathActions()) }; cap("tasawwuf_6_faq")
-    }
-
-    @Test fun sections() {
-        val vm = DeenViewModel(ctx)
-        show { SpiritualContentScreen(vm, "tasawwuf") }; cap("section_1_tasawwuf_entry")
-        show { SpiritualContentScreen(vm, "darood") }; cap("section_2_darood")
-        runCatching { rule.onNodeWithText("Friday (Jumu'ah) Darood", substring = true).performClick(); rule.mainClock.advanceTimeBy(800); cap("section_3_darood_friday") }
-        runCatching { rule.onNodeWithText("Send abundant salawat on Friday", substring = true).performClick(); rule.mainClock.advanceTimeBy(800); cap("section_4_darood_friday_item") }
-        show { SpiritualContentScreen(vm, "ruhani") }; cap("section_5_ruhani")
-        runCatching { rule.onNodeWithText("Qasida Burda", substring = true).performClick(); rule.mainClock.advanceTimeBy(800)
-            rule.onNodeWithText("Burda, Chapter 1", substring = true).performClick(); rule.mainClock.advanceTimeBy(800); cap("section_6_burda_ch1") }
+        rule.onNodeWithTag("adhkar_lang_hi").performClick(); cap("2_adhkar_daily_hindi")
+        val p = TasawwufPath.load(ctx); val first = p.ordered.first().id
+        show { TasawwufPathContent(p, PathPage.HOME, null, setOf(first), null, TasawwufPathActions()) }; cap("3_tasawwuf_path_home")
+        show { TasawwufPathContent(p, PathPage.LESSON, first, setOf(first), p.lesson(first)?.check?.answer, TasawwufPathActions()) }; cap("4_tasawwuf_lesson_check")
+        show { SpiritualContentScreen(vm, "darood") }; cap("5_darood_with_friday")
     }
 }
