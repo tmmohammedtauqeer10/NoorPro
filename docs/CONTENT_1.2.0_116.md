@@ -29,3 +29,11 @@ illness and states that NoorPro does not sell or endorse amulets, paid healing s
 ## Rebuild
 `python3 tools/adhkar/build_spiritual.py` (originals cached in tools/adhkar/orig/), `python3 tools/tasawwuf/build_path.py`,
 `python3 tools/books/deenflow_books.py`, `python3 tools/quizbank/build.py`.
+
+## Release check (12 Nov 2026)
+* AAB: NoorPro-1.2.0-v116.aab (app-release.aab, built 12 Nov 2026 16:22 IST), versionCode 116, versionName 1.2.0, signed with the upload key (jarsigner verified).
+* SHA-256: daaa35204bf7dbea53f0e50eb1034007d56bc5adf374241b25cc594d5431447e (80,618,258 bytes)
+* Tests: v116 + v115 unit/Robolectric 30/30 (after the preview tap fix); Ask a Scholar rules 34/34.
+* Firestore rules: v115 rules + storage deployed 11 Nov (approved); isScholar() fix (26e7a8d) deployed 12 Nov ~14:50 IST (approved). No admins/{uid} doc created.
+* Previews: 5 key screens (adhkar morning, daily duas in Hindi, Tasawwuf path home, lesson check, darood with Friday section).
+* Intended track: Internal testing (upload done separately in Play Console; Production untouched).
