@@ -222,6 +222,8 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
     var madhhab by remember { mutableStateOf(NoorAiChatStore.madhhab(context)) }
     var tier by remember { mutableStateOf(NoorAiChatStore.tier(context)) }
     var researchStages by remember { mutableStateOf(emptyList<com.noorpro.app.data.NoorResearchStage>()) }
+    // 1.2.0 (117): the streamed answer so far (Fast / Balanced).
+    var streamingText by remember { mutableStateOf("") }
     var showImageStudio by remember { mutableStateOf(false) }
     AiFeatureService.answerLanguage = language
     AiFeatureService.madhhab = madhhab
@@ -271,6 +273,8 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
             else if (voiceLang != null) com.noorpro.app.data.NoorAiOptions.FAST else tier
         isTyping = true
         researchStages = emptyList()
+        streamingText = ""
+        var streamed = false
         job = scope.launch {
             val answer = try {
                 AiFeatureService.generateResponse(
@@ -278,21 +282,25 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
                     language = voiceLang ?: language,
                     context = if (voiceLang != null) com.noorpro.app.data.NoorAiContext(note = "The user asked by voice and will hear the answer read aloud. Reply in short, natural spoken sentences in the same language, without tables, headings or markdown.") else null,
                     onStage = { st -> mainHandler.post { if (askedConv == convId) researchStages = researchStages + st } },
+                    // Voice answers are read aloud when complete, so they are not shown token by token.
+                    onDelta = if (voiceLang != null) null else { t -> mainHandler.post { if (askedConv == convId && isTyping) { streamingText = t; streamed = true } } },
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
-                isTyping = false; researchStages = emptyList(); onAnswer?.invoke(null); throw e
+                isTyping = false; researchStages = emptyList(); streamingText = ""; onAnswer?.invoke(null); throw e
             } catch (_: Exception) {
                 com.noorpro.app.data.NoorAiLanguage.unavailable(com.noorpro.app.data.NoorAiLanguage.resolve(voiceLang ?: language, prompt))
             }
             var reply: NoorAiChatItem? = null
             if (askedMode == mode && askedConv == convId) {
                 reply = NoorAiChatItem(answer, false)
-                revealId = reply.id
+                // Already shown as it streamed: no second word-by-word reveal.
+                revealId = if (streamed) null else reply.id
                 update(base + reply)
                 if (voiceLang == null && autoRead && !AiFeatureService.isOffline(answer)) speakItem(reply)
             }
             isTyping = false
             researchStages = emptyList()
+            streamingText = ""
             onAnswer?.invoke(reply)
         }
     }
@@ -308,7 +316,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
     }
 
     fun newChat() {
-        job?.cancel(); isTyping = false; revealId = null; speaker.stop(); researchStages = emptyList()
+        job?.cancel(); isTyping = false; revealId = null; speaker.stop(); researchStages = emptyList(); streamingText = ""
         convId = System.currentTimeMillis()
         messages = emptyList()
         NoorAiChatStore.setCurrent(context, mode, null)
@@ -406,7 +414,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         onInput = { input = it },
         onSend = { send(input) },
         onSuggestion = { send(it) },
-        onStop = { job?.cancel(); isTyping = false; researchStages = emptyList() },
+        onStop = { job?.cancel(); isTyping = false; researchStages = emptyList(); streamingText = "" },
         onModeChange = {
             if (it != mode) {
                 job?.cancel(); isTyping = false; researchStages = emptyList()
@@ -488,6 +496,7 @@ fun AiFeaturesHubScreen(viewModel: DeenViewModel) {
         researchStages = researchStages,
         onVoiceMode = { openAssistant() },
         onImageStudio = { showImageStudio = true },
+        streamingText = streamingText,
     )
 
     if (showImageStudio) NoorImageStudioSheet(onDismiss = { showImageStudio = false }, language = language)

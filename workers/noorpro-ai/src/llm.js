@@ -201,3 +201,136 @@ export async function complete(env, messages, opts = {}) {
   }
   return null;
 }
+
+// ------------------------------------------------------------------ streaming (1.2.0 (117))
+// Noor AI answers stream token by token: the fastest providers are started in parallel and the first one to send
+// real text wins (the others are aborted). Each provider's own SSE format is normalised to plain text deltas.
+
+/** Reads an SSE byte stream and calls onData(jsonOrString) for every `data:` payload. */
+export async function readSse(stream, onData, signal) {
+  const reader = stream.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      if (signal?.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += typeof value === "string" ? value : dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).replace(/\r$/, "");
+        buf = buf.slice(i + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let j = payload;
+        try { j = JSON.parse(payload); } catch {}
+        onData(j);
+      }
+    }
+  } finally { try { reader.releaseLock(); } catch {} }
+}
+
+/** Text in one streamed chunk from Gemini, OpenAI-compatible (Groq) or Workers AI. Thoughts are skipped. */
+export function chunkText(j) {
+  if (j == null) return "";
+  if (typeof j === "string") return "";
+  const parts = j.candidates?.[0]?.content?.parts;
+  if (Array.isArray(parts)) return parts.filter((p) => !p.thought).map((p) => p.text || "").join("");
+  const d = j.choices?.[0]?.delta;
+  if (d && typeof d.content === "string") return d.content;
+  if (typeof j.response === "string") return j.response;
+  return "";
+}
+
+async function streamGemini(env, model, messages, o, onText, signal) {
+  const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+  const contents = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content) }] }));
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
+    method: "POST", signal,
+    headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+    body: JSON.stringify({ ...(sys ? { systemInstruction: { parts: [{ text: sys }] } } : {}), contents,
+      generationConfig: { maxOutputTokens: o.maxTokens, temperature: o.temperature, thinkingConfig: { thinkingLevel: GEMINI_THINKING[model] || "low" } } }),
+  });
+  if (r.status === 429 || r.status === 503) { cool(`gemini:${model}`, 60_000); return false; }
+  if (!r.ok || !r.body) return false;
+  await readSse(r.body, (j) => { const t = chunkText(j); if (t) onText(t); }, signal);
+  return true;
+}
+
+async function streamGroq(env, model, messages, o, onText, signal) {
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", signal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.GROQ_API_KEY}` },
+    body: JSON.stringify({ model, messages, stream: true, max_tokens: Math.min(o.maxTokens, GROQ_MAX_TOKENS), temperature: o.temperature,
+      ...(model.includes("gpt-oss") ? { reasoning_effort: "low" } : model.includes("qwen3") ? { reasoning_effort: "none" } : {}) }),
+  });
+  if (r.status === 429) { cool(`groq:${model}`, 30_000); return false; }
+  if (!r.ok || !r.body) return false;
+  await readSse(r.body, (j) => { const t = chunkText(j); if (t) onText(t); }, signal);
+  return true;
+}
+
+async function streamWorkersAi(env, model, messages, o, onText, signal) {
+  if (!env.AI || model.includes("gpt-oss")) return false; // gpt-oss on Workers AI has no simple token stream
+  const s = await env.AI.run(model, { messages, max_tokens: o.maxTokens, temperature: o.temperature, stream: true,
+    ...(model.includes("gemma-4") || model.includes("qwen3") ? { chat_template_kwargs: { enable_thinking: false } } : {}) });
+  if (!s || typeof s.getReader !== "function") { const t = cleanModelText(extractText(s)); if (t) onText(t); return !!t; }
+  await readSse(s, (j) => { const t = chunkText(j); if (t) onText(t); }, signal);
+  return true;
+}
+
+const STREAMERS = { gemini: streamGemini, groq: streamGroq, "workers-ai": streamWorkersAi };
+
+/** The providers raced for a streamed answer: two quick, accurate ones for the script of the answer. */
+export function streamOrder(env, o = {}) {
+  const latin = LATIN_LANGS.has(o.lang || "en");
+  const out = [];
+  const add = (p, m) => { if (!coolingDown(`${p}:${m}`)) out.push([p, m]); };
+  if (latin) {
+    // English / Roman Urdu: Flash-Lite (2-6 s) raced with Groq qwen (~1.5 s); both were accurate in English tests.
+    if (env.GEMINI_API_KEY) add("gemini", GEMINI_MODELS.fast);
+    if (env.GROQ_API_KEY) add("groq", GROQ_MODELS[0]);
+  } else {
+    // Urdu / Arabic / Hindi: Gemma 4 (accurate Urdu fiqh) raced with Gemini 3.8 Flash. Flash-Lite and Groq made
+    // Hajj fiqh errors in Urdu, so they are not raced here.
+    if (env.AI) add("workers-ai", WORKERS_AI_MODELS[0]);
+    if (env.GEMINI_API_KEY) add("gemini", GEMINI_MODELS.best);
+  }
+  if (out.length < 2 && env.AI) add("workers-ai", WORKERS_AI_MODELS[0]);
+  return out.filter((v, i, a) => a.findIndex((x) => x[0] === v[0] && x[1] === v[1]) === i).slice(0, 2);
+}
+
+/**
+ * Streams an answer: races [streamOrder] providers, keeps the first that sends text, aborts the rest, and calls
+ * onDelta(text) for each new piece. Returns {text, provider, model} or null (caller then falls back to complete()).
+ */
+export async function streamComplete(env, messages, opts, onDelta, onWinner = () => {}) {
+  const o = { maxTokens: 1200, temperature: 0.3, firstTokenMs: 12_000, totalMs: 45_000, ...opts };
+  const order = streamOrder(env, o);
+  if (!order.length) return null;
+  const ctrls = order.map(() => new AbortController());
+  let winner = -1;
+  let text = "";
+  const finished = order.map(([p, m], i) => {
+    const first = setTimeout(() => { if (winner !== i) ctrls[i].abort(); }, o.firstTokenMs);
+    const all = setTimeout(() => ctrls[i].abort(), o.totalMs);
+    const onText = (t) => {
+      if (winner === -1) {
+        if (!String(t).trim() && !text) return;
+        winner = i; onWinner(p, m);
+        ctrls.forEach((c, k) => { if (k !== i) c.abort(); });
+      }
+      if (winner !== i) return;
+      text += t; onDelta(t);
+    };
+    return STREAMERS[p](env, m, messages, o, onText, ctrls[i].signal)
+      .catch(() => false)
+      .finally(() => { clearTimeout(first); clearTimeout(all); });
+  });
+  await Promise.all(finished);
+  if (winner < 0) return null;
+  const clean = cleanModelText(text);
+  return clean.length >= (o.minLength || 2) ? { text: clean, provider: order[winner][0], model: order[winner][1] } : null;
+}

@@ -183,9 +183,10 @@ fun NoorProfile2(ui: Profile2Ui, a: Profile2Actions, f: Profile2Features = Profi
                         Text(link.removePrefix("https://").removePrefix("http://"), color = R2Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                if (f.extendedFields && (ui.city.isNotBlank() || ui.learning.isNotBlank())) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                // 1.2.0 (117): your own profile always shows your sign-up details (city, profile type, language).
+                if ((f.extendedFields || ui.own) && (ui.city.isNotBlank() || ui.learning.isNotBlank())) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.testTag("profile2_details")) {
                     if (ui.city.isNotBlank()) MetaLine(Icons.Outlined.LocationOn, ui.city)
-                    if (ui.learning.isNotBlank()) MetaLine(Icons.AutoMirrored.Filled.MenuBook, "Learning: ${ui.learning}")
+                    if (ui.learning.isNotBlank()) MetaLine(Icons.AutoMirrored.Filled.MenuBook, if (ui.own) ui.learning else "Learning: ${ui.learning}")
                 }
             }
             // ---- stats
@@ -517,6 +518,8 @@ fun Profile2EditForm(
     accent: Color, onAccent: (Color) -> Unit, onCover: () -> Unit,
     f: Profile2Features, saving: Boolean, onSave: () -> Unit, onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 1.2.0 (117): private sign-up details (gender, type, birth date, city, language) under the bio. */
+    details: @Composable ColumnScope.() -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(stitchBackground()).verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 18.dp).testTag("profile2_edit_form")) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -560,6 +563,7 @@ fun Profile2EditForm(
         }
         P2Field("Bio", bio, onBio, "profile2_bio", singleLine = false)
         Text("${bio.length}/160 · add a link and it shows as a chip", color = stitchMutedText(), fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+        details()
         Spacer(Modifier.height(14.dp))
         // ---- Noor AI bio helper
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (isStitchLight()) R2Cream else Color(0xFF1C2A24)).border(1.dp, R2Gold.copy(alpha = 0.5f), RoundedCornerShape(18.dp)).padding(14.dp).testTag("profile2_bio_ai")) {

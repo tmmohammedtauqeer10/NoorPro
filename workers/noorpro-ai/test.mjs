@@ -8,6 +8,7 @@ async function sign(payload, kid = "k1") {
   const sig = await subtle.sign("RSASSA-PKCS1-v1_5", kp.privateKey, new TextEncoder().encode(`${h}.${p}`));
   return `${h}.${p}.${b64u(sig)}`;
 }
+const sse = (chunks) => new Response(new ReadableStream({ start(c) { const e = new TextEncoder(); for (const x of chunks) c.enqueue(e.encode(`data: ${JSON.stringify(x)}\n\n`)); c.enqueue(e.encode("data: [DONE]\n\n")); c.close(); } }), { headers: { "content-type": "text/event-stream" } });
 let embedCalls = 0, embedMode = "fail", embedVec = null;
 let groqCalls = 0, groqMode = "ok", gemCalls = [], gemMode = "ok", glmCalls = [], glmMode = "ok";
 globalThis.fetch = async (url, init) => {
@@ -16,10 +17,14 @@ globalThis.fetch = async (url, init) => {
   if (u.includes("api.groq.com/openai/v1/audio")) { if (groqMode !== "whisper") return new Response("x", { status: 500 });
     return new Response(JSON.stringify({ text: "مجھے حج کے بارے میں بتائیں", language: "hindi", segments: [{ start: 0, end: 2, text: "مجھے حج کے بارے میں بتائیں" }] })); }
   if (u.includes("api.groq.com")) { groqCalls++; if (groqMode === "fail") return new Response("x", { status: 429 });
+    if (JSON.parse(init.body).stream) return sse([{ choices: [{ delta: { content: "Groq streamed " } }] }, { choices: [{ delta: { content: "answer about focus.\nMETA: {\"fiqh\": false, \"followups\": [\"a\"]}" } }] }]);
     return new Response(JSON.stringify({ choices: [{ message: { content: "Groq answer about focus.\nMETA: {\"fiqh\": false, \"followups\": [\"a\",\"b\"]}" } }] })); }
   if (u.includes(":embedContent")) { embedCalls++; return embedMode === "ok" ? new Response(JSON.stringify({ embedding: { values: embedVec } })) : new Response("{}", { status: 500 }); }
   if (u.includes("generativelanguage.googleapis.com")) { const m = /models\/([^:]+):/.exec(u)[1]; gemCalls.push({ m, body: JSON.parse(init.body), key: init.headers["x-goog-api-key"] });
     if (gemMode === "slow") await new Promise((r) => setTimeout(r, 6000));
+    if (u.includes("streamGenerateContent")) { if (gemMode === "fail" || gemMode === "stream-fail") return new Response("{}", { status: 429 });
+      await new Promise((r) => setTimeout(r, gemMode === "stream-slow" ? 300 : 0));
+      return sse([{ candidates: [{ content: { parts: [{ text: "hmm", thought: true }] } }] }, { candidates: [{ content: { parts: [{ text: "Gemini streamed " }] } }] }, { candidates: [{ content: { parts: [{ text: "answer.\nMETA: {\"fiqh\": false, \"followups\": [\"g\"]}" }] } }] }]); }
     if ((gemMode === "vision-clean" || gemMode === "vision-dirty") && init.body.includes("inlineData")) return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: `{"forbidden": ${gemMode === "vision-dirty"}, "what": "x"}` }] } }] }));
     if (gemMode === "vision-clean" || gemMode === "vision-dirty") return new Response("{}", { status: 503 });
     if (gemMode === "tts") return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "audio/l16; rate=24000; channels=1", data: Buffer.from(new Uint8Array(480)).toString("base64") } }] } }] }));
@@ -321,4 +326,44 @@ await t("v114 fixes: Hindi/Urdu hint, Masjid an-Nabawi allowed, Urdu wudu ruling
   assert.equal(isRulingQuestion("کیا خون نکلنے سے وضو ٹوٹ جاتا ہے؟"), true);
   assert.equal(isRulingQuestion("kya neend se wudu toot jata hai"), true);
 });
-console.log(`${n} tests passed (incl. v114)`);
+// ---------------------------------------------------------------- 1.2.0 (117): streamed answers
+const events = async (res) => (await res.text()).split("\n\n").filter((l) => l.startsWith("data: ")).map((l) => JSON.parse(l.slice(6)));
+const ssePost = (body) => post("/v1/chat", body, { accept: "text/event-stream" });
+await t("v117 stream: English races Flash-Lite and Groq, deltas hide META, answer carries followups", async () => {
+  _resetCooldowns(); gemMode = "stream-slow"; groqMode = "ok";
+  const res = await worker.fetch(ssePost({ prompt: "How can I focus in salah?", tier: "fast" }), env({ GEMINI_API_KEY: "g", GROQ_API_KEY: "q" }));
+  assert.match(res.headers.get("content-type"), /event-stream/);
+  const ev = await events(res);
+  assert.equal(ev[0].type, "start"); assert.equal(ev[0].tier, "fast");
+  const model = ev.find((e) => e.type === "model"); assert.equal(model.provider, "groq");
+  const shown = ev.filter((e) => e.type === "delta").map((e) => e.text).join("");
+  assert.ok(shown.startsWith("Groq streamed answer")); assert.ok(!/META/.test(shown));
+  const ans = ev.at(-1); assert.equal(ans.type, "answer"); assert.equal(ans.answer, "Groq streamed answer about focus."); assert.deepEqual(ans.followups, ["a"]);
+  gemMode = "ok";
+});
+await t("v117 stream: Urdu races Gemma 4 (Workers AI stream) and Gemini 3.8 Flash, never Groq", async () => {
+  _resetCooldowns(); gemMode = "stream-slow"; const before = groqCalls;
+  const ai = mkAI((model, input) => input.stream ? sse([{ response: "حج کے تین فرائض ہیں: " }, { response: "احرام، وقوفِ عرفہ اور طوافِ زیارت۔\nMETA: {\"fiqh\": true, \"followups\": []}" }]).body : { response: "x" });
+  const ev = await events(await worker.fetch(ssePost({ prompt: "حج کے فرائض کیا ہیں؟", tier: "balanced" }), env({ GEMINI_API_KEY: "g", GROQ_API_KEY: "q", AI: ai })));
+  assert.equal(ev.find((e) => e.type === "model").provider, "workers-ai");
+  assert.equal(groqCalls, before);
+  assert.ok(gemCalls.some((c) => c.m === "gemini-3.8-flash"));
+  assert.equal(ev.at(-1).answer, "حج کے تین فرائض ہیں: احرام، وقوفِ عرفہ اور طوافِ زیارت۔");
+  gemMode = "ok";
+});
+await t("v117 stream: if no provider streams, falls back to the normal chain and still answers", async () => {
+  _resetCooldowns(); gemMode = "stream-fail"; groqMode = "fail";
+  const ev = await events(await worker.fetch(ssePost({ prompt: "How can I focus in salah?", tier: "fast" }), env({ GEMINI_API_KEY: "g", GROQ_API_KEY: "q" })));
+  assert.equal(ev.at(-1).type, "answer"); assert.ok(ev.at(-1).answer.length > 5);
+  gemMode = "ok"; groqMode = "ok"; _resetCooldowns();
+});
+await t("v117 trims: META gate is line-anchored, Fast keeps 6 short history turns and 3 passages", async () => {
+  const { visibleLength, cleanHistory } = await import("./src/worker.js");
+  assert.equal(visibleLength("A metaphor for patience in this long answer", true), 43);
+  assert.equal(visibleLength("Body text\n**META**: {}", true), 9);
+  assert.equal(visibleLength("Short streaming text", false), 8);
+  const h = Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x".repeat(3000) }));
+  assert.equal(cleanHistory(h, "fast").length, 6); assert.equal(cleanHistory(h, "fast")[0].content.length, 1200);
+  assert.equal(cleanHistory(h, "balanced").length, 8);
+});
+console.log(`${n} tests passed (incl. v117)`);

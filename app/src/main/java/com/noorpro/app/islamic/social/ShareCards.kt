@@ -166,6 +166,13 @@ object ShareCardLogic {
     }
 
     /** Caption that travels with the image: the reference always, plus the text for screen readers / search. */
+    /** 1.2.0 (117): plain text of a card (Arabic, translation, reference) for Copy and for pasting into captions. */
+    fun copyText(c: CardContent, withArabic: Boolean = true): String = listOfNotNull(
+        c.arabic.trim().takeIf { withArabic && it.isNotBlank() },
+        c.text.trim().takeIf { it.isNotBlank() },
+        "— ${c.reference}",
+    ).joinToString("\n\n")
+
     fun caption(c: CardContent, destination: ComposerDestination? = null): String {
         val full = "${c.text}\n\n— ${c.reference}"
         val max = if (destination == ComposerDestination.STORY) ComposerLimits.STORY_CHARS else ComposerLimits.FEED_CHARS
@@ -476,16 +483,17 @@ object ShareCardExport {
         return f
     }
 
-    fun externalIntent(ctx: Context, file: File, c: CardContent): Intent {
+    fun externalIntent(ctx: Context, file: File, c: CardContent, caption: String? = null): Intent {
         val uri: Uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+        val text = caption?.trim()?.takeIf { it.isNotBlank() }?.let { "$it\nShared from NoorPro" } ?: "— ${c.reference}\nShared from NoorPro"
         val send = Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri)
-            .putExtra(Intent.EXTRA_TEXT, "— ${c.reference}\nShared from NoorPro").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .putExtra(Intent.EXTRA_TEXT, text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return Intent.createChooser(send, "Share card")
     }
 
     /** A ready composer draft with the card attached; the user still reviews and posts it. */
-    fun draft(file: File, c: CardContent, destination: ComposerDestination, now: Long = System.currentTimeMillis()) = ComposerDraft(
-        id = "card_$now", destination = destination, text = ShareCardLogic.caption(c, destination), topic = c.topic,
+    fun draft(file: File, c: CardContent, destination: ComposerDestination, now: Long = System.currentTimeMillis(), caption: String? = null) = ComposerDraft(
+        id = "card_$now", destination = destination, text = caption?.trim()?.takeIf { it.isNotBlank() } ?: ShareCardLogic.caption(c, destination), topic = c.topic,
         media = listOf(Uri.fromFile(file).toString()),
     )
 }

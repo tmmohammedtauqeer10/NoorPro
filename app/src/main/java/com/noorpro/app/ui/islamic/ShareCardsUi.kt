@@ -59,6 +59,8 @@ data class ShareCardsUi(
     val notFound: Boolean = false,
     val fits: Boolean = true,
     val busy: Boolean = false,
+    /** 1.2.0 (117): editable caption sent with the card (null = the default text + reference). */
+    val caption: String? = null,
 ) {
     val style: CardStyle get() = CardStyle(showArabic, showTranslation, showReference, fontScale, align, colorway)
     val range: Triple<Int, Int, Int>? get() = ShareCardLogic.parseAyahRange(ref)
@@ -84,6 +86,9 @@ class ShareCardsActions(
     val onFeed: () -> Unit = {},
     val onStory: () -> Unit = {},
     val onExternal: () -> Unit = {},
+    val onCopyText: () -> Unit = {},
+    val onCaption: (String) -> Unit = {},
+    val onPasteCaption: () -> Unit = {},
 )
 
 @Composable
@@ -124,7 +129,7 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
     }
     fun toComposer(dest: ComposerDestination) = export { f, c ->
         scope.launch {
-            val d = withContext(Dispatchers.IO) { ComposerDraftStore(ctx).save(ShareCardExport.draft(f, c, dest)) }
+            val d = withContext(Dispatchers.IO) { ComposerDraftStore(ctx).save(ShareCardExport.draft(f, c, dest, caption = ui.caption)) }
             ComposerLaunch.openDraft(d.id, dest)
             viewModel.navigateTo(DeenScreen.UMMAH_CREATE_POST)
         }
@@ -132,8 +137,8 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
 
     ShareCardsContent(ui, preview, thumbs, ShareCardsActions(
         onBack = { viewModel.goBack() },
-        onKind = { k -> ui = ui.copy(kind = k, ref = (if (k == CardKind.AYAH) ShareCardLogic.AYAH_PICKS else ShareCardLogic.HADITH_PICKS).first().ref, custom = "") },
-        onPick = { r -> ui = ui.copy(ref = r, custom = "") },
+        onKind = { k -> ui = ui.copy(caption = null, kind = k, ref = (if (k == CardKind.AYAH) ShareCardLogic.AYAH_PICKS else ShareCardLogic.HADITH_PICKS).first().ref, custom = "") },
+        onPick = { r -> ui = ui.copy(ref = r, custom = "", caption = null) },
         onCustom = { s ->
             ui = ui.copy(custom = s)
             val ok = if (ui.kind == CardKind.AYAH) ShareCardLogic.parseAyah(s) != null else ShareCardLogic.parseHadith(s) != null
@@ -173,7 +178,15 @@ fun ShareCardsScreen(viewModel: DeenViewModel) {
         onColorway = { ui = ui.copy(colorway = it) },
         onFeed = { toComposer(ComposerDestination.FEED) },
         onStory = { ui = ui.copy(format = CardFormat.STORY); toComposer(ComposerDestination.STORY) },
-        onExternal = { export { f, c -> runCatching { ctx.startActivity(ShareCardExport.externalIntent(ctx, f, c)) }.onFailure { toast("No app available to share to") } } },
+        onExternal = { export { f, c -> runCatching { ctx.startActivity(ShareCardExport.externalIntent(ctx, f, c, ui.caption)) }.onFailure { toast("No app available to share to") } } },
+        onCopyText = {
+            ui.content?.let { c -> copyToClipboard(ctx, "NoorPro ${c.reference}", ShareCardLogic.copyText(c, ui.showArabic)); toast("Text copied") }
+        },
+        onCaption = { ui = ui.copy(caption = it.take(2000)) },
+        onPasteCaption = {
+            val pasted = pasteFromClipboard(ctx)
+            if (pasted.isNullOrBlank()) toast("Nothing to paste") else ui = ui.copy(caption = ((ui.caption ?: ui.content?.let { ShareCardLogic.caption(it) }.orEmpty()) + "\n" + pasted).trim().take(2000))
+        },
     ))
 }
 
@@ -312,6 +325,7 @@ fun ShareCardsContent(ui: ShareCardsUi, preview: ImageBitmap?, thumbs: Map<CardD
             Spacer(Modifier.height(10.dp))
             IkButton(if (ui.busy) "Preparing image…" else "Share image to other apps", Modifier.fillMaxWidth(), Icons.Outlined.IosShare, primary = false,
                 enabled = ui.content != null && !ui.busy, tag = "cards_external", onClick = actions.onExternal)
+            ui.content?.let { c -> CardTextPanel(c, ui, actions) }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, stitchLine(), RoundedCornerShape(14.dp)).padding(12.dp)) {
                 Icon(Icons.Outlined.Info, null, tint = stitchMutedText(), modifier = Modifier.size(16.dp).padding(top = 1.dp))
@@ -345,4 +359,49 @@ private fun CardStepperRow(
             Icon(Icons.Outlined.ChevronRight, contentDescription = "Next", tint = if (nextEnabled) stitchText() else stitchMutedText())
         }
     }
+}
+
+
+/** 1.2.0 (117): the card's words as selectable text, a Copy button, and an editable caption that accepts paste. */
+@Composable
+internal fun CardTextPanel(c: CardContent, ui: ShareCardsUi, actions: ShareCardsActions) {
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(16.dp)).background(ikSoft()).padding(12.dp).testTag("cards_text_panel")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Card text", color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Row(Modifier.clip(RoundedCornerShape(50)).background(IkGreen).clickable(onClick = actions.onCopyText).padding(horizontal = 12.dp, vertical = 6.dp).testTag("cards_copy_text"),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.ContentCopy, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("Copy", color = androidx.compose.ui.graphics.Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Text("Long-press to select any part.", color = stitchMutedText(), fontSize = 11.sp)
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.text.selection.SelectionContainer(Modifier.testTag("cards_text_selectable")) {
+            Column {
+                if (ui.showArabic && c.arabic.isNotBlank()) Text(c.arabic, color = stitchText(), fontSize = 19.sp, lineHeight = 32.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(com.noorpro.app.R.font.noto_naskh_arabic)),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth())
+                if (c.text.isNotBlank()) Text(c.text, color = stitchText(), fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                Text("— ${c.reference}", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Caption (sent with the card)", color = stitchMutedText(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text("Paste", color = IkGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = actions.onPasteCaption).padding(horizontal = 10.dp, vertical = 4.dp).testTag("cards_paste_caption"))
+        }
+        IkField(ui.caption ?: ShareCardLogic.caption(c), actions.onCaption, "Write or paste a caption", tag = "cards_caption", singleLine = false, maxLen = 2000)
+    }
+}
+
+internal fun copyToClipboard(ctx: android.content.Context, label: String, text: String) {
+    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager ?: return
+    cm.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
+}
+
+internal fun pasteFromClipboard(ctx: android.content.Context): String? {
+    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager ?: return null
+    return cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString()
 }

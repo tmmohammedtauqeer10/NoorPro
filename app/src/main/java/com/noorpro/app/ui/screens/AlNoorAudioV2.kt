@@ -402,6 +402,8 @@ internal fun SpHomeTab(t: SpTheme, d: SpHomeData, listState: LazyListState, open
         }
         // 1.1.9: Nasheeds & Naats = the owner's own MAF Nasheed channel only.
         if (all || chip == "Nasheeds") item(key = "nasheeds") { MafNasheedShelf(t) }
+        // 1.2.0 (117): Barakah Melodies (licensed by Safar Media), credit + Spotify link on its page.
+        if (all || chip == "Nasheeds") item(key = "barakah") { Column { BarakahShelfCard(t) { open("barakah") }; Spacer(Modifier.height(8.dp)) } }
         if ((all || chip == "Podcasts") && d.podcasts.isNotEmpty()) item(key = "podcasts") {
             SpShelf(t, "Islamic podcasts", action = "Show all", onAction = { open("browse:Podcasts") }) {
                 items(d.podcasts, key = { "p${it.id}" }) { p -> SpCard(t, p.name, "${p.publisher} · ${p.category}", onClick = { open("podcast:${p.id}") }) { mod -> SpArt(mod, url = d.artFor(p), tint = coverColor(p.id.hashCode() + 3), label = p.name, corner = 10.dp) } }
@@ -462,6 +464,7 @@ internal data class SpBrowse(val label: String, val color: Color, val icon: Imag
 internal val SP_BROWSE = listOf(
     SpBrowse("Recitations", Color(0xFF0F7A4F), Icons.Default.MenuBook, "recitations"),
     SpBrowse("Nasheeds", Color(0xFF8D3FD1), Icons.Default.MusicNote, "browse:Nasheeds"),
+    SpBrowse("Barakah Melodies", Color(0xFF7A4B1E), Icons.Default.MusicNote, "barakah"),
     SpBrowse("Podcasts", Color(0xFF1E5AA8), Icons.Default.Podcasts, "browse:Podcasts"),
     SpBrowse("Bayans", Color(0xFF0F5D46), Icons.Default.Mic, "browse:Bayans"),
     SpBrowse("Duas", Color(0xFFD2691E), Icons.Default.FrontHand, "cat:Dua Audio"),
@@ -790,6 +793,13 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                     if (p == null) LaunchedEffect(rt) { back() }
                     else SpPodcastPage(t, p, "p${p.id}" in follows, back) { follows = SpStore.toggle(ctx, "follows", "p${p.id}") }
                 }
+                rt == "barakah" -> SpDetailPage(t, SpDetailHeader("Barakah Melodies", "Nasheeds · licensed by Safar Media",
+                        if (com.noorpro.app.audio.catalog.BarakahMelodies.available) "${com.noorpro.app.audio.catalog.BarakahMelodies.tracks.size} nasheeds" else "Arriving soon",
+                        BarakahTint) { m -> BarakahArt(m) },
+                    false, false, null, null, back, null, {}, {}, {}) {
+                    barakahPageItems(t) { i -> val q = com.noorpro.app.audio.catalog.BarakahMelodies.tracks; q.getOrNull(i)?.let { playFree(ctx, it, q) } }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
                 rt == "reciters" -> SpDetailPage(t, SpDetailHeader("Top reciters", "Renowned voices of the Qur'an", "${IslamicData.reciters.size} reciters", Color(0xFF6B4E16)) { m -> SpArt(m, tint = Color(0xFF6B4E16), label = "Reciters") },
                     false, false, null, null, back, null, {}, {}, {}) {
                     itemsIndexed(IslamicData.reciters, key = { _, r -> "ar${r.id}" }) { i, r ->
@@ -817,6 +827,7 @@ fun AlNoorAudioScreen(viewModel: DeenViewModel, startRoute: String? = null) {
                         false, false, null, null, back, null, {}, {}, {}) {
                         // 1.0.86: featured MAF Nasheed YouTube channel at the top of Nasheeds.
                         if (kind == "Nasheeds") item(key = "maf") { Spacer(Modifier.height(8.dp)); MafNasheedShelf(t); Spacer(Modifier.height(18.dp)) }
+                        if (kind == "Nasheeds") item(key = "barakah") { BarakahShelfCard(t) { open("barakah") }; Spacer(Modifier.height(18.dp)) }
                         if (kind == "Podcasts") item(key = "official") { OfficialChannelsBlock(t.elevated, t.text, t.muted, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp)) }
                         items(list, key = { "b${it.id}" }) { p -> SpTrackRow(t, null, p.name, "${p.publisher} · ${p.language} · ${p.category}", false, { open("podcast:${p.id}") },
                             art = { m -> SpArt(m, url = artFor(p), tint = coverColor(p.id.hashCode()), corner = 4.dp) }, liked = "p${p.id}" in follows) }

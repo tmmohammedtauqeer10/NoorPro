@@ -181,6 +181,8 @@ class MainActivity : ComponentActivity() {
         // 1.1.5 Reels v2 / Profile v2 kill-switches (default ON) + backend feature flags (default OFF).
         // 1.1.6 car mode: Android Auto browser component follows car_mode_enabled.
         runCatching { val app = applicationContext; com.noorpro.app.ui.screens.Reels2Flags.onApplied { com.noorpro.app.islamic.audio.CarComponents.sync(app) } }
+        // 1.2.0 (117): Barakah Melodies track list comes from Remote Config (removable remotely, never hard-coded).
+        runCatching { com.noorpro.app.audio.catalog.BarakahMelodies.init(applicationContext) }
         runCatching { com.noorpro.app.ui.screens.Reels2Flags.load() }
         runCatching { com.noorpro.app.islamic.audio.CarComponents.sync(applicationContext) }
         runCatching { com.noorpro.app.audio.catalog.OfficialChannelFlags.load() }

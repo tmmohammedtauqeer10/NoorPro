@@ -74,6 +74,7 @@ class AlNoorPlayer(context: Context) {
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
                     syncQueueIndexFromExo()
                 }
+                syncLicence()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -107,6 +108,15 @@ class AlNoorPlayer(context: Context) {
     private fun updateAudible() {
         _audible.value = exo.playWhenReady &&
             exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
+        syncLicence()
+    }
+
+    /** 1.2.0 (117): Barakah Melodies licence — no ads while one plays, and count each new play for the quarterly report. */
+    private fun syncLicence() {
+        runCatching {
+            val counted = com.noorpro.app.audio.licensing.LicensedAudioGate.onPlayer(_queue.value.currentTrack, _audible.value)
+            if (counted != null) com.noorpro.app.audio.licensing.BarakahStats.recordPlay(appContext, counted)
+        }
     }
 
     /**
@@ -300,6 +310,13 @@ class AlNoorPlayer(context: Context) {
      * Media3 session + notification expose real previous / next and update per track.
      */
     private fun loadQueueIntoExo(autoPlay: Boolean) {
+        // 1.2.0 (117): a Barakah track removed from the remote catalogue never plays again, even from a saved queue.
+        val q0 = _queue.value
+        val keep = q0.tracks.filter { com.noorpro.app.audio.catalog.BarakahMelodies.isPlayable(it) }
+        if (keep.size != q0.tracks.size) {
+            val idx = q0.currentTrack?.let { keep.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            _queue.update { it.copy(tracks = keep, currentIndex = idx.coerceAtMost((keep.size - 1).coerceAtLeast(0))) }
+        }
         val q = _queue.value
         val track = q.currentTrack ?: return
         if (autoPlay) ensureService()

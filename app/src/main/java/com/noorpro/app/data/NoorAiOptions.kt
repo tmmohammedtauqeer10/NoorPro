@@ -28,8 +28,8 @@ object NoorAiOptions {
     )
 
     val TIERS = listOf(
-        Choice(FAST, "Fast", "Quick, short answers"),
-        Choice(BALANCED, "Balanced", "Detailed answers · default"),
+        Choice(FAST, "Fast", "Quick answers that stream in · default"),
+        Choice(BALANCED, "Balanced", "More detailed answers"),
         Choice(RESEARCH, "Research", "Deep, multi-step answer with more sources and citations (slower)"),
     )
 
@@ -45,14 +45,15 @@ object NoorAiOptions {
         }
     }
 
+    /** 1.2.0 (117): Fast is the default (unknown or unset values become Fast). */
     fun normTier(raw: String?): String = when (raw.orEmpty().lowercase().trim()) {
-        FAST, "quick" -> FAST
+        BALANCED, "detailed" -> BALANCED
         RESEARCH, "deep" -> RESEARCH
-        else -> BALANCED
+        else -> FAST
     }
 
     fun madhhabLabel(code: String): String = MADHHABS.firstOrNull { it.code == normMadhhab(code) }?.label ?: "Hanafi"
-    fun tierLabel(code: String): String = TIERS.firstOrNull { it.code == normTier(code) }?.label ?: "Balanced"
+    fun tierLabel(code: String): String = TIERS.firstOrNull { it.code == normTier(code) }?.label ?: "Fast"
 
     /** Research is only used for real study questions (not App Help / Dua drafting). */
     fun effectiveTier(tier: String, mode: NoorAiMode): String =

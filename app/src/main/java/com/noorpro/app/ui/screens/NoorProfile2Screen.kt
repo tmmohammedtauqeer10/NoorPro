@@ -95,10 +95,15 @@ fun NoorProfile2Screen(viewModel: DeenViewModel) {
     var hideCountsOn by remember { mutableStateOf(viewModel.ummahHideCounts()) }
     var hideDeen by remember { mutableStateOf(prefs.getBoolean("hide_deen", false)) }
 
+    // 1.2.0 (117): own profile shows the sign-up details (city, profile type, language).
+    var myDetails by remember { mutableStateOf<com.noorpro.app.data.onboarding.OnboardingDraft?>(null) }
+    LaunchedEffect(own, myUid) {
+        if (own && myUid.isNotBlank()) myDetails = runCatching { com.noorpro.app.data.onboarding.OnboardingRepository().load(com.noorpro.app.ui.onboarding.todaySimple())?.draft }.getOrNull()
+    }
     val live = liveProfiles[profileUid]
     val profile = if (own) UmmahProfile(
         uid = myUid,
-        name = viewModel.userDisplayName.ifBlank { live?.name.orEmpty() }.ifBlank { "NoorPro member" },
+        name = myDetails?.fullName.orEmpty().ifBlank { viewModel.userDisplayName }.ifBlank { live?.name.orEmpty() }.ifBlank { "NoorPro member" },
         handle = viewModel.ummahUsername.ifBlank { live?.handle.orEmpty() }.ifBlank { viewModel.userEmail.substringBefore("@") },
         photoUrl = viewModel.userPhotoUrl.ifBlank { live?.photoUrl.orEmpty() },
         bio = live?.bio.orEmpty().ifBlank { viewModel.userBio },
@@ -125,7 +130,8 @@ fun NoorProfile2Screen(viewModel: DeenViewModel) {
     val stats = profile2Stats(posts.size + reels.size, followerCount.coerceAtLeast(0), followingCount, if (own) streak else null, own, profile.hideCounts)
     val ui = Profile2Ui(
         profile = profile, own = own, following = iFollow, stats = stats, hasStory = hasStory,
-        city = if (own) myCityFrom(locationName) else "", learning = "",
+        city = if (own) myDetails?.let { ProfileEditLogic.place(it) }?.ifBlank { null } ?: myCityFrom(locationName) else "",
+        learning = if (own) myDetails?.let { ProfileEditLogic.aboutLine(it) }.orEmpty() else "",
         tabs = tabs, tab = tab, grid = grid,
         series = if (tab == Profile2Tab.SERIES) profileSeries(all, profileUid) else emptyList(),
         locked = locked, highlights = if (features.highlights) listOf("Quran", "Ramadan", "Umrah") else emptyList(),
@@ -251,9 +257,20 @@ fun NoorProfile2EditScreen(viewModel: DeenViewModel) {
         }
         return
     }
-    val current = viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }
+    // 1.2.0 (117): load what was filled in at sign-up so it shows here and is saved back (not reverted next launch).
+    val onbRepo = remember { com.noorpro.app.data.onboarding.OnboardingRepository() }
+    val today = remember { com.noorpro.app.ui.onboarding.todaySimple() }
+    var draft by remember { mutableStateOf<com.noorpro.app.data.onboarding.OnboardingDraft?>(null) }
+    var loadedDraft by remember { mutableStateOf<com.noorpro.app.data.onboarding.OnboardingDraft?>(null) }
+    var current by remember { mutableStateOf(viewModel.ummahUsername.ifBlank { viewModel.userEmail.substringBefore("@") }) }
     var name by remember { mutableStateOf(viewModel.userDisplayName) }
     var username by remember { mutableStateOf(current) }
+    LaunchedEffect(Unit) {
+        val st = runCatching { onbRepo.load(today) }.getOrNull() ?: return@LaunchedEffect
+        draft = st.draft; loadedDraft = st.draft
+        if (st.draft.fullName.isNotBlank()) name = st.draft.fullName
+        if (st.draft.reservedUsername.isNotBlank()) { current = st.draft.reservedUsername; username = st.draft.reservedUsername }
+    }
     var bio by remember { mutableStateOf(viewModel.userBio) }
     var saving by remember { mutableStateOf(false) }
     var suggestions by remember { mutableStateOf(emptyList<String>()) }
@@ -296,14 +313,45 @@ fun NoorProfile2EditScreen(viewModel: DeenViewModel) {
             onCover = { Toast.makeText(context, "Cover photos are coming soon", Toast.LENGTH_SHORT).show() },
             f = features, saving = saving,
             onSave = {
+                val d0 = draft
+                val merged = d0?.let { ProfileEditLogic.merge(it, name, username) }
+                val problem = merged?.let { ProfileEditLogic.problem(it, today) }
+                if (problem != null) { Toast.makeText(context, problem, Toast.LENGTH_LONG).show(); return@Profile2EditForm }
                 saving = true
-                viewModel.updateUmmahProfile(name.trim(), normalizeUsername(username), bio.trim()) { ok, msg ->
-                    saving = false
-                    Toast.makeText(context, if (ok) "Profile saved" else msg ?: "Unable to save", Toast.LENGTH_SHORT).show()
-                    if (ok) viewModel.goBack()
+                scope.launch {
+                    // 1) Reserve a changed username, 2) save the private details + public card, 3) update this phone.
+                    var finalDraft = merged
+                    if (merged != null) {
+                        val err = runCatching {
+                            if (ProfileEditLogic.usernameChanged(merged)) onbRepo.reserve(merged.username, merged.reservedUsername)
+                            val saved = merged.copy(reservedUsername = merged.username)
+                            onbRepo.save(saved, today)
+                            finalDraft = saved
+                        }.exceptionOrNull()
+                        if (err != null) {
+                            saving = false
+                            val taken = err is com.noorpro.app.data.onboarding.UsernameTakenException || err.cause is com.noorpro.app.data.onboarding.UsernameTakenException
+                            Toast.makeText(context, if (taken) "@${merged.username} is taken. Try another." else "Couldn't save. Check your connection and try again.", Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
+                    }
+                    viewModel.updateUmmahProfile(name.trim(), normalizeUsername(username), bio.trim()) { ok, msg ->
+                        saving = false
+                        if (ok) finalDraft?.let { fd ->
+                            val before = loadedDraft
+                            com.noorpro.app.ui.onboarding.applyOnboardingLocal(context, viewModel, fd, today,
+                                applyLanguage = before?.language != fd.language, applyKids = before?.dob != fd.dob)
+                            draft = fd; loadedDraft = fd
+                        }
+                        Toast.makeText(context, if (ok) "Profile saved" else msg ?: "Unable to save", Toast.LENGTH_SHORT).show()
+                        if (ok) viewModel.goBack()
+                    }
                 }
             },
             onBack = { viewModel.goBack() },
+            details = {
+                draft?.let { d -> ProfileDetailsEditor(d, today, onChange = { draft = it }) }
+            },
         )
     }
 }

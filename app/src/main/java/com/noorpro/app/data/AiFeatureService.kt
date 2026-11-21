@@ -110,7 +110,7 @@ object AiFeatureService {
 
     /** 1.2.0 (114): answer depth chosen in the chat (fast, balanced, research). Other features use balanced. */
     @Volatile
-    var tier: String = NoorAiOptions.BALANCED
+    var tier: String = NoorAiOptions.FAST
 
     /** Language of the most recent answer (for the chat header). */
     @Volatile
@@ -157,6 +157,8 @@ object AiFeatureService {
         language: String = answerLanguage,
         context: NoorAiContext? = null,
         onStage: ((NoorResearchStage) -> Unit)? = null,
+        /** 1.2.0 (117): called with the answer text so far while it streams in (Fast / Balanced). */
+        onDelta: ((String) -> Unit)? = null,
     ): String = withContext(Dispatchers.IO) {
         val clean = prompt.trim()
         val lang = NoorAiLanguage.resolve(language, clean)
@@ -170,7 +172,7 @@ object AiFeatureService {
         // Hard cap on the online attempt so the chat never spins for minutes on a bad network.
         val reply = kotlinx.coroutines.withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
             ask(clean, mode, history, context = context, language = language,
-                tier = if (effective == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else effective)?.let { encode(it) }
+                tier = if (effective == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else effective, onDelta = onDelta)?.let { encode(it) }
                 ?: (if (selfHostUrl != null) callNoorAiSelfHost(selfHostUrl, clean, mode, history) else null)
         }
         reply ?: offlineFallback(clean, mode, lang).also { lastLanguage = lang }
@@ -190,13 +192,14 @@ object AiFeatureService {
         usePassages: Boolean = true,
         tier: String = NoorAiOptions.BALANCED,
         madhhab: String = this.madhhab,
+        onDelta: ((String) -> Unit)? = null,
     ): NoorAiReply? = withContext(Dispatchers.IO) {
         val clean = prompt.trim()
         if (clean.isBlank()) return@withContext null
         val lang = NoorAiLanguage.resolve(language, clean)
         kotlinx.coroutines.withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
             callWorkerChat(clean, serverMode, history, context, language, usePassages && mode != NoorAiMode.DuaGenerator && mode != NoorAiMode.AppGuide,
-                NoorAiOptions.normTier(tier).let { if (it == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else it }, NoorAiOptions.normMadhhab(madhhab))
+                NoorAiOptions.normTier(tier).let { if (it == NoorAiOptions.RESEARCH) NoorAiOptions.BALANCED else it }, NoorAiOptions.normMadhhab(madhhab), onDelta)
                 ?: callNoorAiFunctionWithRetry(withContextText(clean, context), mode, history, lang)?.let { raw ->
                     val meta = parseMeta(raw)
                     NoorAiReply(meta.body, lang, false, meta.followups, "askNoorAi")
@@ -297,11 +300,43 @@ object AiFeatureService {
 
     private suspend fun callWorkerChat(
         prompt: String, serverMode: String, history: List<NoorAiMessage>, ctx: NoorAiContext?, language: String, usePassages: Boolean,
-        tier: String = NoorAiOptions.BALANCED, madhhab: String = this.madhhab,
+        tier: String = NoorAiOptions.BALANCED, madhhab: String = this.madhhab, onDelta: ((String) -> Unit)? = null,
     ): NoorAiReply? {
-        val root = postWorker("/v1/chat", chatPayload(prompt, serverMode, history, ctx, language, usePassages, tier, madhhab), workerClient) ?: return null
+        val payload = chatPayload(prompt, serverMode, history, ctx, language, usePassages, tier, madhhab)
+        if (onDelta != null) streamWorkerChat(payload, onDelta).let { (reply, reachable) -> if (reply != null || reachable) return reply }
+        val root = postWorker("/v1/chat", payload, workerClient) ?: return null
         return parseWorkerChat(root)
     }
+
+    /**
+     * 1.2.0 (117): streamed chat. Sends Accept: text/event-stream; the Worker races its fastest providers and sends
+     * the answer token by token ("delta"), then the full answer with follow-ups ("answer"). An older Worker that
+     * replies with plain JSON still works. Returns (reply, reachable): reachable=false means try the plain request.
+     */
+    private suspend fun streamWorkerChat(payload: JSONObject, onDelta: (String) -> Unit): Pair<NoorAiReply?, Boolean> = try {
+        val rb = Request.Builder().url(workerUrl("/v1/chat")).post(payload.toString().toRequestBody(jsonMediaType))
+            .addHeader("Content-Type", "application/json").addHeader("Accept", "text/event-stream")
+        FirebaseCallableHeaders.idToken()?.let { rb.addHeader("Authorization", "Bearer $it") }
+        FirebaseCallableHeaders.appCheckToken()?.let { rb.addHeader("X-Firebase-AppCheck", it) }
+        workerClient.newCall(rb.build()).execute().use { r ->
+            if (!r.isSuccessful) return@use null to (r.code == 429)
+            val src = r.body?.source() ?: return@use null to false
+            if (r.header("Content-Type").orEmpty().contains("application/json")) return@use parseWorkerChat(JSONObject(src.readUtf8())) to true
+            val acc = StreamAccumulator()
+            while (true) {
+                val line = src.readUtf8Line() ?: break
+                val data = NoorAiOptions.sseData(line) ?: continue
+                val j = runCatching { JSONObject(data) }.getOrNull() ?: continue
+                when (acc.onEvent(j.optString("type"), j.optString("text"))) {
+                    StreamAccumulator.Step.TEXT -> onDelta(acc.text)
+                    StreamAccumulator.Step.ANSWER -> return@use parseWorkerChat(j) to true
+                    StreamAccumulator.Step.ERROR -> return@use null to false
+                    StreamAccumulator.Step.NONE -> {}
+                }
+            }
+            null to false
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null to false }
 
     /**
      * Research mode (114): the Worker plans search queries, searches the Sunni knowledge base (aqidah, four-madhhab
@@ -720,3 +755,18 @@ object AiFeatureService {
     }
 }
 
+
+
+/** 1.2.0 (117): folds the Worker's streamed chat events into the answer text shown so far. Pure, for tests. */
+class StreamAccumulator {
+    enum class Step { NONE, TEXT, ANSWER, ERROR }
+    private val sb = StringBuilder()
+    val text: String get() = sb.toString()
+    fun onEvent(type: String, delta: String): Step = when (type) {
+        "delta" -> if (delta.isEmpty()) Step.NONE else { sb.append(delta); Step.TEXT }
+        "reset" -> { sb.setLength(0); Step.TEXT }
+        "answer" -> Step.ANSWER
+        "error" -> Step.ERROR
+        else -> Step.NONE
+    }
+}

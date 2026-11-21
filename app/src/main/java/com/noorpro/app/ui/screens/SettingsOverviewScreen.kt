@@ -127,6 +127,10 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 SettingsGroup("Account", Icons.Default.AccountCircle, index = 1) {
                     if (signedIn) {
                         GroupRow("Profile", viewModel.userEmail.ifBlank { "Your Noor Pro profile" }, Icons.Default.Person) { if (viewModel.isLoggedIn) viewModel.openMyProfile() else viewModel.navigateTo(DeenScreen.LOGIN) }
+                        // 1.2.0 (117): edit everything from sign-up (name, username, gender, profile type, birth date, city, language).
+                        GroupRow("Edit profile", "Name, username, about you, birth date, city and language", Icons.Default.Edit) { viewModel.navigateTo(DeenScreen.UMMAH_PROFILE_EDIT) }
+                        // Moved here from the profile page: your number is private and only you see it.
+                        PhoneLinkRow { title, subtitle, onClick -> GroupRow(title, "$subtitle · only you can see this", Icons.Default.Phone, onClick = onClick) }
                         GroupRow("Switch account", "Saved accounts on this device", Icons.Default.SwitchAccount) { viewModel.navigateTo(DeenScreen.ACCOUNT_SWITCHER) }
                         GroupRow("Sign out", "You can sign back in any time", Icons.Default.Logout) {
                             viewModel.handleLogout(); viewModel.navigateTo(DeenScreen.LOGIN)
@@ -240,7 +244,25 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 }
             }
             item {
-                SettingsGroup("Support", Icons.Default.SupportAgent, index = 9) {
+                // 1.2.0 (117): Noor AI answer speed and the fiqh madhhab (moved off the chat screen).
+                var aiTier by remember { mutableStateOf(NoorAiChatStore.tier(context)) }
+                var aiMadhhab by remember { mutableStateOf(NoorAiChatStore.madhhab(context)) }
+                var madhhabOpen by remember { mutableStateOf(false) }
+                val o = com.noorpro.app.data.NoorAiOptions
+                SettingsGroup("Noor AI", Icons.Default.AutoAwesome, index = 9) {
+                    GroupRow("Fiqh madhhab", o.madhhabLabel(aiMadhhab) + " · used for fiqh answers", Icons.Default.Gavel) { madhhabOpen = true }
+                    GroupRow("Answer speed", o.tierLabel(aiTier) + " · " + (o.TIERS.firstOrNull { it.code == aiTier }?.detail ?: ""), Icons.Default.Bolt) {
+                        aiTier = if (aiTier == o.FAST) o.BALANCED else o.FAST
+                        NoorAiChatStore.setTier(context, aiTier); com.noorpro.app.data.AiFeatureService.tier = aiTier
+                    }
+                    GroupRow("Open Noor AI", "Ask about the deen or the app", Icons.Default.Chat) { viewModel.navigateTo(DeenScreen.AI_HUB) }
+                }
+                if (madhhabOpen) MadhhabDialog(aiMadhhab, onPick = {
+                    aiMadhhab = o.normMadhhab(it); NoorAiChatStore.setMadhhab(context, aiMadhhab); com.noorpro.app.data.AiFeatureService.madhhab = aiMadhhab; madhhabOpen = false
+                }, onDismiss = { madhhabOpen = false })
+            }
+            item {
+                SettingsGroup("Support", Icons.Default.SupportAgent, index = 10) {
                     GroupRow("Ask Noor AI", "App help and Islamic guidance", Icons.Default.AutoAwesome) { viewModel.navigateTo(DeenScreen.AI_HUB) }
                     GroupRow("Rate Noor Pro", "Leave a review on Google Play", Icons.Default.StarRate) {
                         val pkg = context.packageName
@@ -267,7 +289,7 @@ fun SettingsScreen(viewModel: DeenViewModel) {
                 }
             }
             item {
-                SettingsGroup("About", Icons.Default.Info, index = 10) {
+                SettingsGroup("About", Icons.Default.Info, index = 11) {
                     GroupRow("About Noor Pro", "Version ${com.noorpro.app.BuildConfig.VERSION_NAME} (${com.noorpro.app.BuildConfig.VERSION_CODE})", Icons.Default.Info) { showAbout = true }
                 }
             }

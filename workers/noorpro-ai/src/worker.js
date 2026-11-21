@@ -2,7 +2,7 @@
 import { identify } from "./auth.js";
 import { resolveLanguage, LANG_NAMES } from "./lang.js";
 import { chatSystemPrompt, passagesBlock, contextBlock, creatorPrompt, CREATOR_SYSTEM } from "./prompts.js";
-import { complete, GEMINI_MODELS } from "./llm.js";
+import { complete, streamComplete, hasMixedScriptWords, GEMINI_MODELS } from "./llm.js";
 import { retrieve, kbBlock, kbCitations, normMadhhab, MADHHAB_NAMES, KB_SIZE } from "./kb.js";
 import { handleImage } from "./image.js";
 import { handleTts, handleTranscribeV2 } from "./voice.js";
@@ -47,11 +47,13 @@ const RULING = [
 ];
 export function isRulingQuestion(q) { return RULING.some((r) => r.test(String(q || ""))); }
 
-function cleanHistory(history) {
+/** Recent turns only; Fast keeps a shorter window so the first token comes sooner. */
+export function cleanHistory(history, tier = "balanced") {
   if (!Array.isArray(history)) return [];
-  return history.slice(-10).map((h) => ({
+  const [n, len] = tier === "fast" ? [6, 1200] : tier === "research" ? [10, 2500] : [8, 2000];
+  return history.slice(-n).map((h) => ({
     role: h && h.role === "assistant" ? "assistant" : "user",
-    content: String((h && h.content) || "").slice(0, 2500),
+    content: String((h && h.content) || "").slice(0, len),
   })).filter((h) => h.content.trim());
 }
 
@@ -70,12 +72,12 @@ async function prepareChat(body, env, kbEntries) {
   const lang = resolveLanguage(body.language, prompt);
   const madhhab = normMadhhab(body.madhhab);
   const tier = TIERS.has(body.tier) ? body.tier : "balanced";
-  const passages = Array.isArray(body.passages) ? body.passages.slice(0, 6) : [];
+  const passages = Array.isArray(body.passages) ? body.passages.slice(0, tier === "fast" ? 3 : 6) : [];
   const kb = kbEntries ?? (mode === "AppGuide" || mode === "DuaGenerator" ? [] : await retrieve(env, prompt, tier === "fast" ? 2 : 4));
   const userParts = [contextBlock(body.context), kbBlock(kb, madhhab), passagesBlock(passages), `Question: ${prompt}`].filter(Boolean).join("\n\n");
   const messages = [
     { role: "system", content: chatSystemPrompt(mode, lang, { madhhab, tier, kb: kb.length > 0 }) },
-    ...cleanHistory(body.history),
+    ...cleanHistory(body.history, tier),
     { role: "user", content: userParts },
   ];
   return { prompt, mode, lang, madhhab, tier, passages, kb, messages };
@@ -92,13 +94,55 @@ function chatResult(c, out, extra = {}) {
   };
 }
 
+function chatOpts(c) {
+  return {
+    maxTokens: c.mode === "DuaGenerator" ? 700 : c.tier === "fast" ? 700 : 1400,
+    temperature: c.mode === "DuaGenerator" ? 0.6 : 0.3, minLength: 20, lang: c.lang, tier: c.tier,
+  };
+}
+
+/** Length of the text that is safe to show while streaming: stops before the trailing META/FOLLOWUPS line and
+ *  holds back a few characters in case that marker is still arriving. */
+export function visibleLength(full, final = false) {
+  const m = /(^|\n)[ \t]*\**(META|FOLLOWUPS)\**[ \t]*:/i.exec(full);
+  if (m) return m.index;
+  return final ? full.length : Math.max(0, full.length - 12);
+}
+
+/** Streams a normal (Fast / Balanced) answer as SSE: start, delta..., then the full answer with meta. */
+export function chatStream(body, env) {
+  const { readable, writable } = new TransformStream();
+  const w = writable.getWriter(); const enc = new TextEncoder();
+  const send = (obj) => w.write(enc.encode(`data: ${JSON.stringify(obj)}\n\n`)).catch(() => {});
+  (async () => {
+    try {
+      const c = await prepareChat(body, env);
+      if (!c.prompt) { await send({ type: "error", error: "empty" }); return; }
+      await send({ type: "start", language: c.lang, tier: c.tier, madhhab: c.madhhab });
+      let full = ""; let shown = 0;
+      const out = await streamComplete(env, c.messages, chatOpts(c), (t) => {
+        full += t;
+        const v = visibleLength(full);
+        if (v > shown) { send({ type: "delta", text: full.slice(shown, v) }); shown = v; }
+      }, (provider, model) => send({ type: "model", provider, model }));
+      let final = out;
+      // A broken stream or a mixed-script answer falls back to the normal provider chain.
+      if (!final || hasMixedScriptWords(final.text, c.lang)) {
+        final = await complete(env, c.messages, chatOpts(c));
+        if (final) await send({ type: "reset" });
+      }
+      const r = final && chatResult(c, final);
+      await send(r ? { type: "answer", ...r } : { type: "error", error: "unavailable", language: c.lang });
+    } catch { await send({ type: "error", error: "internal" }); }
+    finally { await w.close().catch(() => {}); }
+  })();
+  return new Response(readable, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+}
+
 export async function handleChat(body, env) {
   const c = await prepareChat(body, env);
   if (!c.prompt) return json(400, { error: "empty" });
-  const out = await complete(env, c.messages, {
-    maxTokens: c.mode === "DuaGenerator" ? 700 : c.tier === "fast" ? 700 : 1400,
-    temperature: c.mode === "DuaGenerator" ? 0.6 : 0.3, minLength: 20, lang: c.lang, tier: c.tier,
-  });
+  const out = await complete(env, c.messages, chatOpts(c));
   if (!out) return json(503, { error: "unavailable", language: c.lang });
   const r = chatResult(c, out);
   return r ? json(200, r) : json(503, { error: "unavailable", language: c.lang });
@@ -226,7 +270,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health"))
-      return json(200, { ok: true, service: "noorpro-ai", gemini: !!env.GEMINI_API_KEY, groq: !!env.GROQ_API_KEY, zhipu: !!env.ZHIPU_API_KEY, workersAi: !!env.AI, kb: KB_SIZE, features: ["chat", "research", "creator", "transcribe", "tts", "image"] });
+      return json(200, { ok: true, service: "noorpro-ai", gemini: !!env.GEMINI_API_KEY, groq: !!env.GROQ_API_KEY, zhipu: !!env.ZHIPU_API_KEY, workersAi: !!env.AI, kb: KB_SIZE, features: ["chat", "chat-stream", "research", "creator", "transcribe", "tts", "image"] });
     if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
     const route = { "/v1/chat": "chat", "/v1/research": "research", "/v1/creator": "creator", "/v1/transcribe": "transcribe", "/v1/tts": "tts", "/v1/image": "image" }[url.pathname];
     if (!route) return json(404, { error: "not_found" });
@@ -254,7 +298,10 @@ export default {
         if ((request.headers.get("accept") || "").includes("text/event-stream")) return researchStream(body, env);
         const r = await runResearch(body, env); return json(r.status, r.body);
       }
-      if (route === "chat") return await handleChat(body, env);
+      if (route === "chat") {
+        if ((request.headers.get("accept") || "").includes("text/event-stream")) return chatStream(body, env);
+        return await handleChat(body, env);
+      }
       if (route === "creator") return await handleCreator(body, env);
       if (route === "tts") return await handleTts(body, env);
       if (route === "image") return await handleImage(body, env);

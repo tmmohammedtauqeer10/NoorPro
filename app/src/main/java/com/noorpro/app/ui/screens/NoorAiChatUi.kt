@@ -154,6 +154,8 @@ fun NoorAiChatContent(
     researchStages: List<com.noorpro.app.data.NoorResearchStage> = emptyList(),
     onVoiceMode: () -> Unit = {},
     onImageStudio: () -> Unit = {},
+    /** 1.2.0 (117): the answer so far while it streams in from the Worker. */
+    streamingText: String = "",
 ) {
     val drawerState = rememberDrawerState(if (initialHistoryOpen) DrawerValue.Open else DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
@@ -163,6 +165,8 @@ fun NoorAiChatContent(
     var showInfo by remember { mutableStateOf(false) }
     val itemCount = messages.size + (if (isTyping) 1 else 0)
     LaunchedEffect(itemCount, mode) { if (itemCount > 0) listState.animateScrollToItem(itemCount - 1) }
+    // Keep the newest streamed lines in view.
+    LaunchedEffect(streamingText.length / 160) { if (streamingText.isNotBlank() && itemCount > 0) listState.scrollToItem(itemCount - 1, Int.MAX_VALUE / 2) }
 
     // ChatGPT-style side drawer with all chats, grouped by date, searchable.
     ModalNavigationDrawer(
@@ -180,9 +184,11 @@ fun NoorAiChatContent(
     Column(
         Modifier.fillMaxSize().background(p.bg).statusBarsPadding().navigationBarsPadding().imePadding()
     ) {
-        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { drawerScope.launch { drawerState.open() } }, onNewChat, autoRead, onAutoRead, detectedLanguage, onImageStudio)
+        ChatHeader(p, onBack, { showInfo = true }, onClearChat, messages.isNotEmpty(), language, onLanguage, { drawerScope.launch { drawerState.open() } }, onNewChat, autoRead, onAutoRead, detectedLanguage, onImageStudio,
+            madhhab = madhhab, onMadhhab = onMadhhab)
         ModeRow(p, mode, onModeChange)
-        AnswerOptionsRow(p, tier, onTier, madhhab, onMadhhab)
+        // 1.2.0 (117): only the answer speed here; the fiqh madhhab moved to the ⋮ menu and Settings › Noor AI.
+        AnswerOptionsRow(p, tier, onTier)
         if (showTip) TipRow(p, onDismissTip)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (messages.isEmpty() && !isTyping) {
@@ -210,7 +216,13 @@ fun NoorAiChatContent(
                                 ?: (messages.getOrNull(idx - 1)?.let { it.isUser && isFiqhQuestion(it.text) } == true),
                         )
                     }
-                    if (isTyping) item(key = "typing") { if (researchStages.isNotEmpty() || tier == com.noorpro.app.data.NoorAiOptions.RESEARCH) ResearchProgress(p, researchStages) else TypingRow(p) }
+                    if (isTyping) item(key = "typing") {
+                        when {
+                            streamingText.isNotBlank() -> StreamingAnswer(p, streamingText)
+                            researchStages.isNotEmpty() || tier == com.noorpro.app.data.NoorAiOptions.RESEARCH -> ResearchProgress(p, researchStages)
+                            else -> TypingRow(p)
+                        }
+                    }
                 }
             }
         }
@@ -235,8 +247,12 @@ private fun ChatHeader(
     language: String, onLanguage: (String) -> Unit, onHistory: () -> Unit, onNewChat: () -> Unit,
     autoRead: Boolean = false, onAutoRead: (Boolean) -> Unit = {}, detectedLanguage: String? = null,
     onImageStudio: () -> Unit = {},
+    madhhab: String = com.noorpro.app.data.NoorAiOptions.HANAFI,
+    onMadhhab: (String) -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
+    var madhhabOpen by remember { mutableStateOf(false) }
+    if (madhhabOpen) MadhhabDialog(madhhab, onPick = { madhhabOpen = false; onMadhhab(it) }, onDismiss = { madhhabOpen = false })
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = p.text) }
         IconButton(onClick = onHistory, modifier = Modifier.testTag("noorai_history_button")) { Icon(Icons.Default.Menu, "Chats and history", tint = p.text) }
@@ -269,6 +285,10 @@ private fun ChatHeader(
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = if (autoRead) NoorGreen else p.muted) },
                     trailingIcon = { Switch(checked = autoRead, onCheckedChange = { menu = false; onAutoRead(it) }) },
                     onClick = { menu = false; onAutoRead(!autoRead) })
+                DropdownMenuItem(
+                    text = { Column { Text("Fiqh madhhab"); Text(com.noorpro.app.data.NoorAiOptions.madhhabLabel(madhhab), fontSize = 11.sp, color = p.muted) } },
+                    leadingIcon = { Icon(Icons.Default.Gavel, null) }, modifier = Modifier.testTag("noorai_menu_madhhab"),
+                    onClick = { menu = false; madhhabOpen = true })
                 DropdownMenuItem(text = { Text("Image Studio") }, leadingIcon = { Icon(Icons.Default.Image, null) }, onClick = { menu = false; onImageStudio() })
                 DropdownMenuItem(text = { Text("About Noor AI") }, onClick = { menu = false; onInfo() })
                 DropdownMenuItem(text = { Text("Clear this chat") }, enabled = canClear, onClick = { menu = false; onClear() })
@@ -823,15 +843,47 @@ private fun InputBar(p: ChatPalette, value: String, hint: String, busy: Boolean,
 }
 
 
-/** 1.2.0 (114): Fast / Balanced / Research and the madhhab, as two compact pickers under the mode chips. */
+/** 1.2.0 (117): answer speed picker only (Fast default). The madhhab lives in the ⋮ menu and Settings › Noor AI. */
 @Composable
-private fun AnswerOptionsRow(p: ChatPalette, tier: String, onTier: (String) -> Unit, madhhab: String, onMadhhab: (String) -> Unit) {
+private fun AnswerOptionsRow(p: ChatPalette, tier: String, onTier: (String) -> Unit) {
     val o = com.noorpro.app.data.NoorAiOptions
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OptionPicker(p, Modifier.testTag("noorai_tier"), when (o.normTier(tier)) { o.FAST -> Icons.Default.Bolt; o.RESEARCH -> Icons.Default.Science; else -> Icons.Default.Tune },
             o.tierLabel(tier), "Answer mode", o.TIERS, o.normTier(tier), onTier)
-        OptionPicker(p, Modifier.testTag("noorai_madhhab"), Icons.Default.Gavel, o.madhhabLabel(madhhab).substringBefore(" ·"), "Madhhab for fiqh answers",
-            o.MADHHABS, o.normMadhhab(madhhab), onMadhhab)
+    }
+}
+
+/** Madhhab choice for fiqh answers (Hanafi by default). Used from the chat ⋮ menu and Settings › Noor AI. */
+@Composable
+internal fun MadhhabDialog(selected: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val o = com.noorpro.app.data.NoorAiOptions
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Madhhab for fiqh answers") },
+        text = {
+            Column(Modifier.testTag("noorai_madhhab_dialog")) {
+                Text("Aqidah stays Ash'ari/Maturidi and the path is Ahl as-Sunnah wal-Jama'ah with Tasawwuf, whichever school you choose.",
+                    fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                o.MADHHABS.forEach { c ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(c.code) }.padding(vertical = 8.dp).testTag("madhhab_${c.code}"),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = c.code == o.normMadhhab(selected), onClick = { onPick(c.code) })
+                        Column { Text(c.label, fontWeight = FontWeight.SemiBold); Text(c.detail, fontSize = 11.sp) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
+}
+
+/** 1.2.0 (117): the answer as it streams in, with a caret. Replaced by the full answer (with actions) when done. */
+@Composable
+private fun StreamingAnswer(p: ChatPalette, text: String) {
+    Row(Modifier.fillMaxWidth().testTag("noorai_streaming")) {
+        Avatar(26.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) { NoorAiMarkdownText(text.trimEnd() + " ▍", p.md) }
     }
 }
 

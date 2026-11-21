@@ -17,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -123,14 +125,26 @@ fun HadithReadingScreen(viewModel: DeenViewModel) {
                                 .fillMaxWidth()
                                 .padding(16.dp)
                         ) {
-                            Text(
-                                text = "Hadith ${hadith.hadithNo}",
-                                color = colors.primary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
-                            
+                            // 1.2.0 (117): long-press to select; Copy / Share the hadith with its number.
+                            val hctx = androidx.compose.ui.platform.LocalContext.current
+                            val hText = "${hadith.arabicText}\n\n${hadith.translationText}\n\n— Hadith ${hadith.hadithNo}".trim()
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                                Text(
+                                    text = "Hadith ${hadith.hadithNo}",
+                                    color = colors.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = {
+                                    com.noorpro.app.ui.islamic.copyToClipboard(hctx, "Hadith ${hadith.hadithNo}", hText)
+                                    android.widget.Toast.makeText(hctx, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+                                }) { Icon(androidx.compose.material.icons.Icons.Outlined.ContentCopy, "Copy", tint = colors.onSurfaceVariant) }
+                                IconButton(onClick = {
+                                    runCatching { hctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "$hText\n\nShared from NoorPro"), "Share")) }
+                                }) { Icon(androidx.compose.material.icons.Icons.Outlined.Share, "Share", tint = colors.onSurfaceVariant) }
+                            }
+                            androidx.compose.foundation.text.selection.SelectionContainer { Column {
                             // Arabic Text
                             Text(
                                 text = hadith.arabicText,
@@ -153,6 +167,7 @@ fun HadithReadingScreen(viewModel: DeenViewModel) {
                                 fontSize = 16.sp,
                                 lineHeight = 24.sp
                             )
+                            } }
                         }
                     }
                 }

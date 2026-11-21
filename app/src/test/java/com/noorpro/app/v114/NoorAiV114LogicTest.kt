@@ -36,8 +36,8 @@ class NoorAiV114LogicTest {
     }
 
     @Test fun tierNormalisationAndEffectiveTier() {
-        assertEquals("balanced", NoorAiOptions.normTier(null))
-        assertEquals("balanced", NoorAiOptions.normTier("medium"))
+        assertEquals("fast", NoorAiOptions.normTier(null)) // 1.2.0 (117): Fast is the default
+        assertEquals("fast", NoorAiOptions.normTier("medium"))
         assertEquals("fast", NoorAiOptions.normTier("Fast"))
         assertEquals("research", NoorAiOptions.normTier("research"))
         assertEquals("research", NoorAiOptions.effectiveTier("research", NoorAiMode.AskNoor))

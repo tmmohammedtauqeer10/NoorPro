@@ -59,7 +59,9 @@ fun OnboardingGate(viewModel: DeenViewModel) {
         if (st.complete) {
             p.edit().putBoolean("done_$uid", true).apply()
             // New device: keep the reserved username as the local/public handle (not the email prefix).
-            if (viewModel.ummahUsername != st.draft.username) viewModel.updateUmmahProfile(st.draft.fullName, st.draft.username) { _, _ -> }
+            // 1.2.0 (117): also when only the name differs (e.g. edited on another phone).
+            if (viewModel.ummahUsername != st.draft.username || (st.draft.fullName.isNotBlank() && viewModel.userDisplayName != st.draft.fullName))
+                viewModel.updateUmmahProfile(st.draft.fullName, st.draft.username) { _, _ -> }
         } else status = st
     }
     val st = status ?: return
@@ -102,25 +104,7 @@ fun OnboardingFlow(viewModel: DeenViewModel, start: OnboardingStatus, onClose: (
     }
     fun next(of: OnbStep) = OnboardingRules.STEPS.getOrNull(OnboardingRules.STEPS.indexOf(of) + 1) ?: OnbStep.DONE
 
-    fun applyLocal(d: OnboardingDraft) {
-        viewModel.updateUmmahProfile(d.fullName.trim(), d.username) { _, _ -> }
-        d.gender?.let { g ->
-            HalalPrefs.gender = when (g) { OnbGender.MALE -> CircleGender.MALE; OnbGender.FEMALE -> CircleGender.FEMALE; else -> CircleGender.UNSET }
-            runCatching {
-                val u = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@runCatching
-                com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users").document(u).collection("settings").document("safety")
-                    .set(mapOf("gender" to g.code), SetOptions.merge())
-            }
-        }
-        primaryLanguage(d.language)?.let { l ->
-            runCatching { viewModel.updateLanguage(com.noorpro.app.ui.theme.AppLanguage.valueOf(l.appUi)) }
-            com.noorpro.app.ui.screens.NoorAiChatStore.setLanguage(ctx, l.noorAi)
-        }
-        val kids = KidsStore(ctx)
-        val child = d.dob?.let { AgeRules.isChild(it, today) } == true
-        kids.setAccountChild(child)
-        if (child) { kids.setChildName(d.fullName.trim().substringBefore(' ')); kids.setActive(true) }
-    }
+    fun applyLocal(d: OnboardingDraft) = applyOnboardingLocal(ctx, viewModel, d, today)
 
     fun onNext() {
         val d = ui.draft
@@ -178,4 +162,26 @@ fun OnboardingFlow(viewModel: DeenViewModel, start: OnboardingStatus, onClose: (
 
 private fun defaultLanguage(vm: DeenViewModel): String = when (runCatching { vm.appLanguage.value.name }.getOrNull()) {
     "UR" -> "ur"; "AR" -> "ar"; else -> "en"
+}
+
+/** Applies saved profile answers on this phone (name/username, circles gender, app + Noor AI language, kids mode). */
+internal fun applyOnboardingLocal(ctx: Context, viewModel: DeenViewModel, d: OnboardingDraft, today: SimpleDate, applyLanguage: Boolean = true, applyKids: Boolean = true) {
+    viewModel.updateUmmahProfile(d.fullName.trim(), d.username) { _, _ -> }
+    d.gender?.let { g ->
+        HalalPrefs.gender = when (g) { OnbGender.MALE -> CircleGender.MALE; OnbGender.FEMALE -> CircleGender.FEMALE; else -> CircleGender.UNSET }
+        runCatching {
+            val u = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@runCatching
+            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users").document(u).collection("settings").document("safety")
+                .set(mapOf("gender" to g.code), SetOptions.merge())
+        }
+    }
+    if (applyLanguage) primaryLanguage(d.language)?.let { l ->
+        runCatching { viewModel.updateLanguage(com.noorpro.app.ui.theme.AppLanguage.valueOf(l.appUi)) }
+        com.noorpro.app.ui.screens.NoorAiChatStore.setLanguage(ctx, l.noorAi)
+    }
+    if (!applyKids) return
+    val kids = KidsStore(ctx)
+    val child = d.dob?.let { AgeRules.isChild(it, today) } == true
+    kids.setAccountChild(child)
+    if (child) { kids.setChildName(d.fullName.trim().substringBefore(' ')); kids.setActive(true) }
 }

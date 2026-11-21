@@ -150,16 +150,29 @@ private fun AdhkarCard(viewModel: DeenViewModel, item: SpiritualItem, date: Stri
             Text(item.title, color = stitchText(), fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
             if (target > 1) Text("×$target", color = ikAccentText(), fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(ikSoft()).padding(horizontal = 9.dp, vertical = 3.dp))
+            // 1.2.0 (117): copy / share the full text with its reference.
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val meaningNow = when (lang) { "ur" -> item.urdu; "hi" -> item.hindi.ifBlank { item.english }; else -> item.english }
+            val shareText = remember(item.id, lang) { adhkarShareText(item.title, item.arabic, item.translit, meaningNow, item.source) }
+            Icon(Icons.Outlined.ContentCopy, "Copy", tint = stitchMutedText(), modifier = Modifier.padding(start = 4.dp).size(34.dp).clip(CircleShape)
+                .clickable { com.noorpro.app.ui.islamic.copyToClipboard(ctx, item.title, shareText); android.widget.Toast.makeText(ctx, "Copied", android.widget.Toast.LENGTH_SHORT).show() }
+                .padding(7.dp).testTag("adhkar_copy_${item.id.substringAfter('/')}"))
+            Icon(Icons.Outlined.Share, "Share", tint = stitchMutedText(), modifier = Modifier.size(34.dp).clip(CircleShape)
+                .clickable { runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, shareText + "\n\nShared from NoorPro"), "Share")) } }
+                .padding(7.dp))
         }
         Spacer(Modifier.height(10.dp))
         val long = item.arabic.length > 420
+        androidx.compose.foundation.text.selection.SelectionContainer {
         Text(
             if (long && !expanded) item.arabic.take(400) + " …" else item.arabic,
             fontFamily = AdhkarArabic, fontSize = 23.sp, lineHeight = 44.sp, color = stitchText(), textAlign = TextAlign.Right,
             style = LocalTextStyle.current.copy(textDirection = TextDirection.Rtl), modifier = Modifier.fillMaxWidth()
         )
+        }
         if (long) Text(if (expanded) "Show less" else "Show full text", color = ikAccentText(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.clickable { expanded = !expanded }.padding(vertical = 4.dp))
+        androidx.compose.foundation.text.selection.SelectionContainer { Column {
         if (item.translit.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(item.translit, color = stitchMutedText(), fontSize = 13.sp, fontStyle = FontStyle.Italic, lineHeight = 19.sp)
@@ -174,6 +187,7 @@ private fun AdhkarCard(viewModel: DeenViewModel, item: SpiritualItem, date: Stri
                 modifier = Modifier.fillMaxWidth()
             )
         }
+        } }
         if (item.virtue.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ikSoft()).padding(10.dp)) {
@@ -205,3 +219,8 @@ private fun AdhkarCard(viewModel: DeenViewModel, item: SpiritualItem, date: Stri
         }
     }
 }
+
+/** 1.2.0 (117): plain text of a dhikr / dua for Copy and Share (title, Arabic, transliteration, meaning, reference). */
+internal fun adhkarShareText(title: String, arabic: String, translit: String, meaning: String, source: String): String =
+    listOf(title, arabic, translit, meaning, source.takeIf { it.isNotBlank() }?.let { "— $it" }.orEmpty())
+        .map { it.trim() }.filter { it.isNotBlank() }.joinToString("\n\n")

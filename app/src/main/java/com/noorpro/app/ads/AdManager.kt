@@ -100,7 +100,8 @@ fun SponsoredAdMedia(
 ) {
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         // Empty id = release without real AdMob units configured; skip the request.
-        if (adUnitId.isNotBlank() && maxWidth >= 300.dp && ConsentManager.canRequestAds.value) {
+        // 1.2.0 (117): never during or over a Barakah Melodies track (licence).
+        if (adUnitId.isNotBlank() && maxWidth >= 300.dp && ConsentManager.canRequestAds.value && com.noorpro.app.audio.licensing.LicensedAudioGate.adsAllowed) {
             val context = LocalContext.current
             // Anchored adaptive banners use the available card width and choose a safe height for
             // this device/orientation, avoiding clipped or oversized ads on small phones/tablets.
@@ -137,6 +138,8 @@ fun InlineAdCard(modifier: Modifier = Modifier, adUnitId: String = AdIds.FEED_BA
     val preview = InlineAdPreview.content
     if (preview != null) { InlineAdChrome(modifier) { preview() }; return }
     if (adUnitId.isBlank() || !ConsentManager.canRequestAds.value) return
+    // 1.2.0 (117): no ad while a Barakah Melodies track plays (licence); the slot collapses and returns afterwards.
+    if (!com.noorpro.app.audio.licensing.LicensedAudioGate.adsAllowed) return
     val scheme = androidx.compose.material3.MaterialTheme.colorScheme
     var loaded by androidx.compose.runtime.saveable.rememberSaveable(adUnitId) { androidx.compose.runtime.mutableStateOf(false) }
     // The caller's modifier (e.g. top spacing) only applies once an ad is showing, so nothing leaves a gap.

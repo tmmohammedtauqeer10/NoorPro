@@ -2196,10 +2196,7 @@ fun StitchProfileSettingsScreen(viewModel: DeenViewModel) {
                     StitchDivider()
                     StitchListRow("Community guidelines", "Islamic content rules and account safety", Icons.Default.Gavel) { viewModel.navigateTo(DeenScreen.UMMAH_CONSTITUTION) }
                     StitchDivider()
-                    if (viewModel.isLoggedIn) {
-                        PhoneLinkRow { title, subtitle, onClick -> StitchListRow(title, subtitle, Icons.Default.Phone) { onClick() } }
-                        StitchDivider()
-                    }
+                    // 1.2.0 (117): the phone number row moved to Settings › Account (private; only you see it).
                     StitchListRow(
                         "Switch Account",
                         "Add or switch signed-in accounts",
